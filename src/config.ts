@@ -12,7 +12,7 @@ export const config = {
   LOG_FILE: "./logs/app.log",
   USER_DATA_DIR: "./.user_data",
   EXPLORE_URL: "https://tongyi.aliyun.com/wan/explore",
-  START_TIME: new Date("2026-04-16 12:00:00").getTime(), // 默认从今天开始
+  START_TIME: new Date("2026-04-16 12:00:00 GMT+0800").getTime(),
   SUBMIT_PAYLOAD: {
     deductMode: "relax_mode",
     taskType: "image_to_video",

@@ -68,7 +68,10 @@ export class AuthManager {
     try {
       const page = await context.newPage();
       // 访问官网，这会自动刷新 Cookie
-      await page.goto(config.EXPLORE_URL, { waitUntil: "networkidle" });
+      await page.goto(config.EXPLORE_URL, {
+        waitUntil: "domcontentloaded",
+        timeout: 10000,
+      });
 
       const cookies = await context.cookies();
       const sessionCookie = cookies.find((c) => c.name === "WANX_CN_SESSION");
