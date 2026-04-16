@@ -10,7 +10,9 @@ export const config = {
   LOG_DIR: "./logs",
   RECORD_FILE: "./logs/records.json",
   LOG_FILE: "./logs/app.log",
-  START_TIME: new Date("2026-04-16T00:00:00Z").getTime(), // 默认从今天开始
+  USER_DATA_DIR: "./.user_data",
+  EXPLORE_URL: "https://tongyi.aliyun.com/wan/explore",
+  START_TIME: new Date("2026-04-16 12:00:00").getTime(), // 默认从今天开始
   SUBMIT_PAYLOAD: {
     deductMode: "relax_mode",
     taskType: "image_to_video",

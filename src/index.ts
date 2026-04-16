@@ -3,6 +3,7 @@ import { Downloader } from "./downloader";
 import { config } from "./config";
 import type { TaskData } from "./types";
 import { logger } from "./logger";
+import { authManager } from "./auth";
 
 class WanxBot {
   private client: WanxClient;
@@ -20,6 +21,14 @@ class WanxBot {
   }
 
   async run() {
+    logger.info("🔑 正在初始化身份认证...");
+    try {
+      await authManager.getSessionToken();
+    } catch (error: any) {
+      logger.error("❌ 身份认证失败，程序退出:", error.message);
+      process.exit(1);
+    }
+
     while (true) {
       try {
         await this.processTasks();
