@@ -52,7 +52,9 @@ class WanxBot {
     }
 
     const tasks = response.data || [];
-    const inProgressTasks = tasks.filter((t) => t.status === -1);
+    const inProgressTasks = tasks.filter(
+      (t) => t.status === -1 || t.status === 1,
+    );
     const completedTasks = tasks.filter(
       (t) => t.status === 2 && t.gmtCreateTimeStamp >= this.startTime,
     );
