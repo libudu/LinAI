@@ -1,5 +1,5 @@
 import fs from "fs-extra";
-import { config } from "./config";
+import { config } from "../wan-downloader/config";
 import path from "path";
 
 class Logger {

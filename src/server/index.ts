@@ -1,36 +1,11 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { WanxBot } from "../wan-downloader/index";
+import wanApi from "./wan";
 
 const app = new Hono();
-const bot = new WanxBot();
 
-app.get("/api/status", (c) => {
-  return c.json(bot.getStatus());
-});
-
-app.post("/api/login", async (c) => {
-  try {
-    await bot.login();
-    return c.json({ success: true });
-  } catch (error: any) {
-    return c.json({ success: false, error: error.message }, 500);
-  }
-});
-
-app.post("/api/auto-submit", async (c) => {
-  const body = await c.req.json();
-  const enable = body.enable;
-
-  if (enable) {
-    bot.start().catch(console.error);
-  } else {
-    bot.stop();
-  }
-
-  return c.json({ success: true, isRunning: enable });
-});
+app.route("/api/wan", wanApi);
 
 if (process.env.NODE_ENV !== "development") {
   // Production serving of static files

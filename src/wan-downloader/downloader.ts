@@ -3,7 +3,7 @@ import axios from "axios";
 import path from "path";
 import { config } from "./config";
 import type { TaskData } from "./types";
-import { logger } from "./logger";
+import { logger } from "../utils/logger";
 
 export class Downloader {
   private records: Record<string, any> = {};

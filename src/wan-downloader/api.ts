@@ -1,7 +1,7 @@
 import axios from "axios";
 import { config } from "./config";
 import type { PagingListResponse, ImageGenResponse } from "./types";
-import { logger } from "./logger";
+import { logger } from "../utils/logger";
 import { authManager } from "./auth";
 
 export class WanxClient {

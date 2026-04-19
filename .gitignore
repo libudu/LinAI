@@ -3,3 +3,4 @@ node_modules
 logs
 .user_data
 downloads
+dist

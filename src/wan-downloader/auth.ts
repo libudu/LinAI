@@ -1,6 +1,6 @@
 import { chromium } from "playwright";
 import { config } from "./config";
-import { logger } from "./logger";
+import { logger } from "../utils/logger";
 import path from "path";
 import fs from "fs-extra";
 import axios from "axios";
