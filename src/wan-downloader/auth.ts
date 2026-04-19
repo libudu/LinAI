@@ -18,6 +18,10 @@ export class AuthManager {
     return AuthManager.instance;
   }
 
+  isLoggedIn(): boolean {
+    return this.currentSession !== null;
+  }
+
   async getSessionToken(): Promise<string> {
     if (
       this.currentSession &&

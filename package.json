@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "ts-node src/index.ts",
+    "dev": "vite",
+    "build": "vite build",
+    "start": "NODE_ENV=production tsx src/server/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "postinstall": "npx playwright install chromium"
   },
@@ -12,15 +14,28 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@hono/vite-dev-server": "^0.25.1",
+    "@tailwindcss/vite": "^4.2.2",
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "autoprefixer": "^10.5.0",
+    "postcss": "^8.5.10",
+    "tailwindcss": "^4.2.2",
     "ts-node": "^10.9.2",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "vite": "^8.0.8"
   },
   "dependencies": {
+    "@hono/node-server": "^1.19.14",
     "axios": "^1.15.0",
     "dotenv": "^17.4.2",
     "fs-extra": "^11.3.4",
-    "playwright": "^1.59.1"
+    "hono": "^4.12.14",
+    "playwright": "^1.59.1",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
   }
 }

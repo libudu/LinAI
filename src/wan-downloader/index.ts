@@ -5,36 +5,71 @@ import type { TaskData } from "./types";
 import { logger } from "./logger";
 import { authManager } from "./auth";
 
-class WanxBot {
+export class WanxBot {
   private client: WanxClient;
   private downloader: Downloader;
   private startTime: number;
+  private isRunning: boolean = false;
+  private currentError: string = "";
 
   constructor() {
     this.client = new WanxClient();
     this.downloader = new Downloader();
     this.startTime = config.START_TIME;
-    logger.log(`🚀 Wan 视频下载 & 自动提交小工具已启动!`);
-    logger.log(
-      `📅 设置的开始时间: ${new Date(this.startTime).toLocaleString()}`,
-    );
   }
 
-  async run() {
+  public getStatus() {
+    return {
+      isLoggedIn: authManager.isLoggedIn(),
+      autoSubmit: this.isRunning,
+      errorMsg: this.currentError,
+    };
+  }
+
+  public async login() {
+    this.currentError = "";
     logger.info("🔑 正在初始化身份认证...");
     try {
       await authManager.getSessionToken();
     } catch (error: any) {
-      logger.error("❌ 身份认证失败，程序退出:", error.message);
-      process.exit(1);
+      logger.error("❌ 身份认证失败:", error.message);
+      this.currentError = error.message;
+      throw error;
+    }
+  }
+
+  public stop() {
+    this.isRunning = false;
+    logger.log(`🛑 停止自动轮询...`);
+  }
+
+  public async start() {
+    if (this.isRunning) return;
+    this.isRunning = true;
+    this.currentError = "";
+
+    logger.log(`🚀 Wan 视频下载 & 自动提交小工具已启动!`);
+    logger.log(
+      `📅 设置的开始时间: ${new Date(this.startTime).toLocaleString()}`,
+    );
+
+    if (!authManager.isLoggedIn()) {
+      try {
+        await this.login();
+      } catch (error) {
+        this.isRunning = false;
+        return;
+      }
     }
 
-    while (true) {
+    while (this.isRunning) {
       try {
         await this.processTasks();
-      } catch (error) {
+      } catch (error: any) {
         logger.error(`❌ 主流程执行出错:`, error);
+        this.currentError = error.message || "未知错误";
       }
+      if (!this.isRunning) break;
       logger.log(
         `⏳ 等待 ${config.POLL_INTERVAL / 60000} 分钟后进行下一次轮询... 💤`,
       );
@@ -97,6 +132,3 @@ class WanxBot {
     }
   }
 }
-
-const bot = new WanxBot();
-bot.run();
