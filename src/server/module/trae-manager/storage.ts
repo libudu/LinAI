@@ -1,6 +1,5 @@
 import fs from 'fs-extra'
 import path from 'path'
-import { config } from '../wan-downloader/config'
 
 export interface TraeAccount {
   id: string
@@ -12,7 +11,7 @@ export interface TraeConfig {
   baseEmail: string
 }
 
-const CONFIG_FILE = path.join(config.LOG_DIR, 'trae_config.json')
+const CONFIG_FILE = path.join('data', 'trae_config.json')
 
 export class TraeStorage {
   static async getBaseEmail(): Promise<string> {

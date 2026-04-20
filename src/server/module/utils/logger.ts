@@ -1,7 +1,8 @@
 import fs from 'fs-extra'
-import { config } from '../wan-downloader/config'
 import path from 'path'
 import { EventEmitter } from 'events'
+
+const LOG_DIR = './logs'
 
 export class Logger extends EventEmitter {
   private id: string
@@ -10,8 +11,8 @@ export class Logger extends EventEmitter {
   constructor(id: string) {
     super()
     this.id = id
-    fs.ensureDirSync(config.LOG_DIR)
-    this.logFile = path.join(config.LOG_DIR, `${id}.log`)
+    fs.ensureDirSync(LOG_DIR)
+    this.logFile = path.join(LOG_DIR, `${id}.log`)
   }
 
   private formatMessage(message: any, ...args: any[]): string {

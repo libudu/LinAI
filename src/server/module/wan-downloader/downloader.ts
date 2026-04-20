@@ -9,7 +9,6 @@ export class Downloader {
   private records: Record<string, any> = {}
 
   constructor() {
-    fs.ensureDirSync(config.LOG_DIR)
     this.loadRecords()
     fs.ensureDirSync(config.DOWNLOAD_DIR)
   }
