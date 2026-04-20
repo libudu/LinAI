@@ -1,16 +1,23 @@
 import fs from "fs-extra";
 import { config } from "../wan-downloader/config";
 import path from "path";
+import { EventEmitter } from "events";
 
-class Logger {
-  constructor() {
+export class Logger extends EventEmitter {
+  private id: string;
+  private logFile: string;
+
+  constructor(id: string) {
+    super();
+    this.id = id;
     fs.ensureDirSync(config.LOG_DIR);
+    this.logFile = path.join(config.LOG_DIR, `${id}.log`);
   }
 
   private formatMessage(message: any, ...args: any[]): string {
     const timestamp = new Date().toLocaleString();
     let formattedMessage = typeof message === 'string' ? message : JSON.stringify(message, null, 2);
-    
+
     if (args.length > 0) {
       args.forEach(arg => {
         const argStr = typeof arg === 'string' ? arg : JSON.stringify(arg, null, 2);
@@ -18,12 +25,13 @@ class Logger {
       });
     }
 
-    return `[${timestamp}] ${formattedMessage}`;
+    return `[${timestamp}] [${this.id}] ${formattedMessage}`;
   }
 
   private writeToFile(message: string) {
     try {
-      fs.appendFileSync(config.LOG_FILE, message + "\n");
+      fs.appendFileSync(this.logFile, message + "\n");
+      this.emit('log', message);
     } catch (error) {
       console.error("无法写入日志文件:", error);
     }
@@ -50,6 +58,22 @@ class Logger {
     console.warn(fullMessage);
     this.writeToFile(fullMessage);
   }
+
+  getLogs(limit: number = 100): string[] {
+    try {
+      if (!fs.existsSync(this.logFile)) {
+        return [];
+      }
+      const content = fs.readFileSync(this.logFile, 'utf-8');
+      const lines = content.trim().split('\n').filter(Boolean);
+      return lines.slice(-limit);
+    } catch (error) {
+      console.error("无法读取日志文件:", error);
+      return [];
+    }
+  }
 }
 
-export const logger = new Logger();
+// Default logger for backward compatibility if needed, or update references
+export const logger = new Logger('app');
+

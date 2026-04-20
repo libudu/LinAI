@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { hc } from 'hono/client'
-import { Modal, Button, message } from 'antd'
+import { Modal, Button, message, Divider } from 'antd'
 import { CodeOutlined } from '@ant-design/icons'
 import type { AppType } from '../../server/index'
+import { LogViewer } from './LogViewer'
 
 const client = hc<AppType>('/')
 
@@ -65,21 +66,27 @@ export function TraeSection() {
         onCancel={handleCancel}
         footer={null}
         centered
+        width={800}
       >
-        <div className="flex flex-col items-center justify-center py-8 gap-4">
-          <p className="text-slate-600 text-center mb-4">
-            申请临时邮箱账号，并使用 Playwright 自动打开 Trae 官网
-          </p>
-          <Button
-            type="primary"
-            onClick={handleApplyEmail}
-            loading={loading}
-            className="bg-indigo-600 hover:bg-indigo-700 shadow-sm px-8"
-            shape="round"
-            size="large"
-          >
-            申请临时邮箱账号
-          </Button>
+        <div className="flex flex-col py-4">
+          <div className="flex flex-col items-center justify-center gap-4">
+            <p className="text-slate-600 text-center">
+              申请临时邮箱账号，并使用 Playwright 自动打开 Trae 官网
+            </p>
+            <Button
+              type="primary"
+              onClick={handleApplyEmail}
+              loading={loading}
+              className="bg-indigo-600 hover:bg-indigo-700 shadow-sm px-8"
+              shape="round"
+              size="large"
+            >
+              申请临时邮箱账号
+            </Button>
+          </div>
+
+          <Divider className="my-0" />
+          <LogViewer moduleId="trae" title="Trae 自动化日志" />
         </div>
       </Modal>
     </>
