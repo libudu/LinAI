@@ -72,6 +72,17 @@ export class Logger extends EventEmitter {
       return [];
     }
   }
+
+  clearLogs() {
+    try {
+      if (fs.existsSync(this.logFile)) {
+        fs.writeFileSync(this.logFile, '');
+      }
+      this.emit('clear');
+    } catch (error) {
+      console.error("无法清除日志文件:", error);
+    }
+  }
 }
 
 // Default logger for backward compatibility if needed, or update references

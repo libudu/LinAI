@@ -9,6 +9,17 @@ export function LogViewer({ moduleId, title = '系统日志' }: LogViewerProps) 
   const [logs, setLogs] = useState<string[]>([])
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  const clearLogs = async () => {
+    try {
+      const res = await fetch(`/api/${moduleId}/logs`, { method: 'DELETE' })
+      if (res.ok) {
+        setLogs([])
+      }
+    } catch (err) {
+      console.error('Failed to clear logs:', err)
+    }
+  }
+
   useEffect(() => {
     // Connect to SSE endpoint
     const eventSource = new EventSource(`/api/${moduleId}/logs`)
@@ -50,6 +61,12 @@ export function LogViewer({ moduleId, title = '系统日志' }: LogViewerProps) 
             <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
           </span>
           <span className="text-green-500 text-xs font-mono">Connected</span>
+          <button
+            onClick={clearLogs}
+            className="text-[12px] px-2 py-0.5 flex items-center bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-slate-200 rounded border border-slate-600 transition-colors"
+          >
+            清空
+          </button>
         </span>
       </div>
       <div
