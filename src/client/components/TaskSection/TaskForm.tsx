@@ -65,8 +65,7 @@ export function TaskForm({ onSuccess }: TaskFormProps) {
         layout="vertical"
         onFinish={handleFinish}
         initialValues={{
-          source: 'wan',
-          type: 'image',
+          source: 'wan-video',
           quality: '1080p',
           aspectRatio: '16:9'
         }}
@@ -83,31 +82,11 @@ export function TaskForm({ onSuccess }: TaskFormProps) {
               buttonStyle="solid"
               className="w-full flex"
             >
-              <Radio.Button value="wan" className="flex-1 text-center">
+              <Radio.Button value="wan-video" className="flex-1 text-center">
                 Wan
               </Radio.Button>
-              <Radio.Button value="gemini" className="flex-1 text-center">
+              <Radio.Button value="gemini-image" className="flex-1 text-center">
                 Gemini
-              </Radio.Button>
-            </Radio.Group>
-          </Form.Item>
-
-          <Form.Item
-            name="type"
-            label="任务类型"
-            className="flex-1"
-            rules={[{ required: true }]}
-          >
-            <Radio.Group
-              optionType="button"
-              buttonStyle="solid"
-              className="w-full flex"
-            >
-              <Radio.Button value="image" className="flex-1 text-center">
-                图片
-              </Radio.Button>
-              <Radio.Button value="video" className="flex-1 text-center">
-                视频
               </Radio.Button>
             </Radio.Group>
           </Form.Item>

@@ -14,7 +14,7 @@ interface TaskListProps {
 }
 
 export function TaskList({ templates, loading, onRefresh }: TaskListProps) {
-  const [selectedSource, setSelectedSource] = useState<'wan' | 'gemini' | null>(
+  const [selectedSource, setSelectedSource] = useState<'wan-video' | 'gemini-image' | null>(
     null
   )
 
@@ -37,14 +37,14 @@ export function TaskList({ templates, loading, onRefresh }: TaskListProps) {
 
   const renderTemplateList = () => {
     if (selectedSource === null) {
-      const wanCount = templates.filter((t) => t.source === 'wan').length
-      const geminiCount = templates.filter((t) => t.source === 'gemini').length
+      const wanCount = templates.filter((t) => t.source === 'wan-video').length
+      const geminiCount = templates.filter((t) => t.source === 'gemini-image').length
 
       return (
         <div className="grid grid-cols-2 gap-4 h-full content-start mt-2">
           <Card
             hoverable
-            onClick={() => setSelectedSource('wan')}
+            onClick={() => setSelectedSource('wan-video')}
             className="text-center cursor-pointer border-emerald-100 hover:border-emerald-300 transition-colors"
           >
             <div className="text-xl font-bold mb-2 text-emerald-600">Wan</div>
@@ -52,7 +52,7 @@ export function TaskList({ templates, loading, onRefresh }: TaskListProps) {
           </Card>
           <Card
             hoverable
-            onClick={() => setSelectedSource('gemini')}
+            onClick={() => setSelectedSource('gemini-image')}
             className="text-center cursor-pointer border-blue-100 hover:border-blue-300 transition-colors"
           >
             <div className="text-xl font-bold mb-2 text-blue-600">Gemini</div>
@@ -76,7 +76,7 @@ export function TaskList({ templates, loading, onRefresh }: TaskListProps) {
             className="text-slate-500 hover:text-slate-800 -ml-2"
           />
           <h4 className="text-md font-medium text-slate-800 m-0">
-            {selectedSource === 'wan' ? 'Wan' : 'Gemini'} 模板 (
+            {selectedSource === 'wan-video' ? 'Wan' : 'Gemini'} 模板 (
             {filteredTemplates.length})
           </h4>
         </div>
@@ -110,9 +110,9 @@ export function TaskList({ templates, loading, onRefresh }: TaskListProps) {
                       <div className="flex justify-between items-start mb-2">
                         <Space size={[0, 4]} wrap>
                           <Tag
-                            color={item.type === 'image' ? 'blue' : 'purple'}
+                            color={item.source === 'gemini-image' ? 'blue' : 'purple'}
                           >
-                            {item.type === 'image' ? '图片' : '视频'}
+                            {item.source === 'gemini-image' ? '图片' : '视频'}
                           </Tag>
                           <Tag color="green">{item.quality}</Tag>
                           <Tag color="orange">{item.aspectRatio}</Tag>

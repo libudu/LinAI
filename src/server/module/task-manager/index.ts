@@ -4,13 +4,16 @@ import { v4 as uuidv4 } from 'uuid'
 
 export interface TaskTemplate {
   id: string
-  type: 'image' | 'video'
   image: string
   prompt: string
   quality: string
   aspectRatio: string
   createdAt: number
-  source: 'wan' | 'gemini'
+  source: 'wan-video' | 'gemini-image'
+}
+
+export interface GeminiTaskTemplate extends TaskTemplate {
+  // Add any gemini specific fields here if needed
 }
 
 export class TaskManager {

@@ -1,7 +1,6 @@
 import { WanxClient } from './api'
 import { Downloader } from './downloader'
 import { config } from './config'
-import type { TaskData } from './types'
 import { logger } from '../utils/logger'
 import { authManager } from './auth'
 
