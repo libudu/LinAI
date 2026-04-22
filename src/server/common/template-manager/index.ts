@@ -2,6 +2,7 @@ import fs from 'fs-extra'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import crypto from 'crypto'
+import sharp from 'sharp'
 
 export interface TaskTemplate {
   id: string
@@ -50,25 +51,56 @@ export class TemplateManager {
     }
   }
 
-  public async addTemplate(template: Omit<TaskTemplate, 'id' | 'createdAt'>): Promise<TaskTemplate> {
+  public async addTemplate(
+    template: Omit<TaskTemplate, 'id' | 'createdAt'>
+  ): Promise<TaskTemplate> {
     const templates = await this.getTemplates()
     const id = uuidv4()
-    
+
     let imageUrls: string[] = []
-    
+
     if (template.images && Array.isArray(template.images)) {
       for (const imgUrl of template.images) {
         if (imgUrl.startsWith('data:image')) {
-          const matches = imgUrl.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/)
+          const matches = imgUrl.match(
+            /^data:image\/([a-zA-Z0-9]+);base64,(.+)$/
+          )
           if (matches) {
-            const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1]
             const buffer = Buffer.from(matches[2], 'base64')
-            const hash = crypto.createHash('md5').update(buffer).digest('hex')
-            const filename = `${hash}.${ext}`
+
+            let sharpInstance = sharp(buffer)
+            const metadata = await sharpInstance.metadata()
+
+            // 缩放到长宽最多1920px
+            if (
+              metadata.width &&
+              metadata.height &&
+              (metadata.width > 1920 || metadata.height > 1920)
+            ) {
+              sharpInstance = sharpInstance.resize({
+                width: 1920,
+                height: 1920,
+                fit: 'inside',
+                withoutEnlargement: true
+              })
+            }
+
+            let webpBuffer = await sharpInstance.webp().toBuffer()
+
+            // 如果超过200kb进行75quality的压缩
+            if (webpBuffer.length > 200 * 1024) {
+              webpBuffer = await sharpInstance.webp({ quality: 75 }).toBuffer()
+            }
+
+            const hash = crypto
+              .createHash('md5')
+              .update(webpBuffer)
+              .digest('hex')
+            const filename = `${hash}.webp`
             const filepath = path.join(this.imagesDir, filename)
-            
+
             if (!fs.existsSync(filepath)) {
-              await fs.writeFile(filepath, buffer)
+              await fs.writeFile(filepath, webpBuffer)
             }
             imageUrls.push(`/api/template/images/${filename}`)
           }
@@ -91,12 +123,12 @@ export class TemplateManager {
 
   public async deleteTemplate(id: string): Promise<boolean> {
     const templates = await this.getTemplates()
-    const target = templates.find(t => t.id === id)
+    const target = templates.find((t) => t.id === id)
     if (!target) {
       return false
     }
 
-    const filtered = templates.filter(t => t.id !== id)
+    const filtered = templates.filter((t) => t.id !== id)
     await fs.writeFile(this.dbPath, JSON.stringify(filtered, null, 2), 'utf-8')
     return true
   }

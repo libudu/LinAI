@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { PlusOutlined, UploadOutlined } from '@ant-design/icons'
-import { Form, Input, Radio, Button, message, Upload } from 'antd'
+import { PlusOutlined, UploadOutlined, QuestionCircleOutlined } from '@ant-design/icons'
+import { Form, Input, Radio, Button, message, Upload, Tooltip, Image } from 'antd'
 import { hc } from 'hono/client'
 import type { AppType } from '../../../server'
 
@@ -14,6 +14,45 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
   const [form] = Form.useForm()
   const [submitting, setSubmitting] = useState(false)
   const [imageUrls, setImageUrls] = useState<string[]>([])
+  const usageType = Form.useWatch('usageType', form)
+  const [trialGenerating, setTrialGenerating] = useState(false)
+  const [trialImage, setTrialImage] = useState<string | null>(null)
+
+  const handleTrial = async () => {
+    const prompt = form.getFieldValue('prompt')
+    if (!prompt) {
+      message.warning('请先填写提示词')
+      return
+    }
+
+    const apiKey = localStorage.getItem('gpt_image_api_key')
+    if (!apiKey) {
+      message.warning('请先在 GPT 图片生成 配置中保存 API Key')
+      return
+    }
+
+    setTrialGenerating(true)
+    setTrialImage(null)
+    try {
+      const res = await client.api.gptImage.trial.$post({
+        json: {
+          apiKey,
+          prompt
+        }
+      })
+      const data = await res.json()
+      if (data.success && 'image' in data && data.image) {
+        message.success('生成试用图片成功')
+        setTrialImage(data.image as string)
+      } else {
+        message.error((data as any).error || '生成失败')
+      }
+    } catch (error) {
+      message.error('请求失败')
+    } finally {
+      setTrialGenerating(false)
+    }
+  }
 
   const handleFinish = async (values: any) => {
     if (imageUrls.length === 0) {
@@ -127,7 +166,27 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
 
         <Form.Item
           name="prompt"
-          label="提示词"
+          label={
+            <div className="flex items-center gap-2">
+              <span>提示词</span>
+              {usageType === 'image' && (
+                <div className="flex items-center gap-2">
+                  <Button 
+                    size="small" 
+                    onClick={handleTrial} 
+                    loading={trialGenerating}
+                    type="default"
+                    className="border-purple-300 text-purple-600 hover:text-purple-500 hover:border-purple-400"
+                  >
+                    GPTImage2试用
+                  </Button>
+                  <Tooltip title="会使用 low quality 生成低质量图，仅消耗 1/10 价格（大约0.008元一张），可以用于最终生成效果的参考来调整提示词。">
+                    <QuestionCircleOutlined className="text-slate-400 cursor-help" />
+                  </Tooltip>
+                </div>
+              )}
+            </div>
+          }
           rules={[{ required: true, message: '请填写提示词' }]}
         >
           <Input.TextArea
@@ -135,6 +194,18 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
             placeholder="请输入生成内容的提示词..."
           />
         </Form.Item>
+
+        {trialImage && (
+          <div className="mb-4 p-4 bg-slate-50 rounded-lg border border-slate-100 flex flex-col items-center gap-2">
+            <span className="text-sm text-slate-500">试用生成结果：</span>
+            <Image
+              src={trialImage}
+              alt="trial-preview"
+              className="rounded-lg shadow-sm"
+              style={{ maxHeight: '200px', objectFit: 'contain' }}
+            />
+          </div>
+        )}
 
         <Form.Item className="mb-0 pt-4 border-t border-slate-100">
           <Button

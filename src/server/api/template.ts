@@ -17,7 +17,11 @@ const templateApi = new Hono()
       if (fs.existsSync(filepath)) {
         const file = await fs.readFile(filepath)
         const ext = path.extname(filename).slice(1)
-        c.header('Content-Type', `image/${ext === 'jpg' ? 'jpeg' : ext}`)
+        let mimeType = ext === 'jpg' ? 'jpeg' : ext
+        if (ext === 'webp') {
+          mimeType = 'webp'
+        }
+        c.header('Content-Type', `image/${mimeType}`)
         return c.body(file)
       }
       return c.notFound()
