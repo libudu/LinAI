@@ -1,8 +1,23 @@
 import { useState } from 'react'
-import { PlusOutlined, UploadOutlined, QuestionCircleOutlined } from '@ant-design/icons'
-import { Form, Input, Radio, Button, message, Upload, Tooltip, Image } from 'antd'
+import {
+  PlusOutlined,
+  UploadOutlined,
+  QuestionCircleOutlined
+} from '@ant-design/icons'
+import {
+  Form,
+  Input,
+  Radio,
+  Button,
+  message,
+  Upload,
+  Tooltip,
+  Image
+} from 'antd'
 import { hc } from 'hono/client'
 import type { AppType } from '../../../server'
+import { GPTTokenModal } from '../GPTImageSection/GPTTokenModal'
+import { useGlobalStore } from '../../store/global'
 
 const client = hc<AppType>('/')
 
@@ -17,17 +32,13 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
   const usageType = Form.useWatch('usageType', form)
   const [trialGenerating, setTrialGenerating] = useState(false)
   const [trialImage, setTrialImage] = useState<string | null>(null)
+  const [tokenModalOpen, setTokenModalOpen] = useState(false)
+  const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
 
-  const handleTrial = async () => {
+  const doTrial = async (apiKey: string) => {
     const prompt = form.getFieldValue('prompt')
     if (!prompt) {
       message.warning('请先填写提示词')
-      return
-    }
-
-    const apiKey = localStorage.getItem('gpt_image_api_key')
-    if (!apiKey) {
-      message.warning('请先在 GPT 图片生成 配置中保存 API Key')
       return
     }
 
@@ -52,6 +63,22 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
     } finally {
       setTrialGenerating(false)
     }
+  }
+
+  const handleTrial = () => {
+    const prompt = form.getFieldValue('prompt')
+    if (!prompt) {
+      message.warning('请先填写提示词')
+      return
+    }
+
+    const apiKey = gptImageApiKey
+    if (!apiKey) {
+      setTokenModalOpen(true)
+      return
+    }
+
+    doTrial(apiKey)
   }
 
   const handleFinish = async (values: any) => {
@@ -157,10 +184,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
           )}
         </Form.Item>
 
-        <Form.Item
-          name="title"
-          label="标题（可选）"
-        >
+        <Form.Item name="title" label="标题（可选）">
           <Input placeholder="请输入模板标题..." />
         </Form.Item>
 
@@ -171,9 +195,9 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
               <span>提示词</span>
               {usageType === 'image' && (
                 <div className="flex items-center gap-2">
-                  <Button 
-                    size="small" 
-                    onClick={handleTrial} 
+                  <Button
+                    size="small"
+                    onClick={handleTrial}
                     loading={trialGenerating}
                     type="default"
                     className="border-purple-300 text-purple-600 hover:text-purple-500 hover:border-purple-400"
@@ -189,10 +213,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
           }
           rules={[{ required: true, message: '请填写提示词' }]}
         >
-          <Input.TextArea
-            rows={4}
-            placeholder="请输入生成内容的提示词..."
-          />
+          <Input.TextArea rows={4} placeholder="请输入生成内容的提示词..." />
         </Form.Item>
 
         {trialImage && (
@@ -220,6 +241,14 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
           </Button>
         </Form.Item>
       </Form>
+
+      <GPTTokenModal
+        open={tokenModalOpen}
+        onClose={() => setTokenModalOpen(false)}
+        onSuccess={(apiKey) => {
+          doTrial(apiKey)
+        }}
+      />
     </div>
   )
 }

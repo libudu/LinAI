@@ -8,25 +8,6 @@ import { TemplateManager } from '../common/template-manager'
 export const templateManager = new TemplateManager()
 const templateApi = new Hono()
   // Chain route declarations so Hono preserves the route type for the client.
-  .get(
-    '/images/:filename',
-    zValidator('param', z.object({ filename: z.string() })),
-    async (c) => {
-      const { filename } = c.req.valid('param')
-      const filepath = path.join(process.cwd(), 'data', 'images', filename)
-      if (fs.existsSync(filepath)) {
-        const file = await fs.readFile(filepath)
-        const ext = path.extname(filename).slice(1)
-        let mimeType = ext === 'jpg' ? 'jpeg' : ext
-        if (ext === 'webp') {
-          mimeType = 'webp'
-        }
-        c.header('Content-Type', `image/${mimeType}`)
-        return c.body(file)
-      }
-      return c.notFound()
-    }
-  )
   .get('/', async (c) => {
     try {
       const templates = await templateManager.getTemplates()

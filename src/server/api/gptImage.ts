@@ -59,23 +59,6 @@ async function generateGPTImage(
 }
 
 const gptImageApi = new Hono()
-  .get(
-    '/temp/:filename',
-    zValidator('param', z.object({ filename: z.string() })),
-    async (c) => {
-      const { filename } = c.req.valid('param')
-      const filepath = path.join(tempImagesDir, filename)
-      if (fs.existsSync(filepath)) {
-        const file = await fs.readFile(filepath)
-        const ext = path.extname(filename).slice(1)
-        let mimeType = ext === 'jpg' ? 'jpeg' : ext
-        if (ext === 'webp') mimeType = 'webp'
-        c.header('Content-Type', `image/${mimeType}`)
-        return c.body(file)
-      }
-      return c.notFound()
-    }
-  )
   .post(
     '/generate',
     zValidator(
@@ -148,7 +131,7 @@ const gptImageApi = new Hono()
           const filepath = path.join(tempImagesDir, filename)
 
           await fs.writeFile(filepath, buffer)
-          imageUrl = `/api/gptImage/temp/${filename}`
+          imageUrl = `/api/static/temp/${filename}`
         } catch (e) {
           logger.error('Failed to save trial image locally', e)
         }

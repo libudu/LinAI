@@ -3,6 +3,7 @@ import { Modal, Form, Input, Button, message, Card } from 'antd'
 import { KeyOutlined } from '@ant-design/icons'
 import { TaskFromTemplate } from '../TaskFromTemplate'
 import { LogViewer } from '../LogViewer'
+import { useGlobalStore } from '../../store/global'
 
 interface GPTImageModalProps {
   open: boolean
@@ -11,15 +12,15 @@ interface GPTImageModalProps {
 
 export function GPTImageModal({ open, onClose }: GPTImageModalProps) {
   const [form] = Form.useForm()
+  const { gptImageApiKey, setGptImageApiKey } = useGlobalStore()
 
   useEffect(() => {
     if (open) {
-      const savedKey = localStorage.getItem('gpt_image_api_key')
-      if (savedKey) {
-        form.setFieldsValue({ apiKey: savedKey })
+      if (gptImageApiKey) {
+        form.setFieldsValue({ apiKey: gptImageApiKey })
       }
     }
-  }, [open, form])
+  }, [open, form, gptImageApiKey])
 
   const handleSaveKey = () => {
     const values = form.getFieldsValue()
@@ -27,7 +28,7 @@ export function GPTImageModal({ open, onClose }: GPTImageModalProps) {
       message.warning('请输入 API Key')
       return
     }
-    localStorage.setItem('gpt_image_api_key', values.apiKey)
+    setGptImageApiKey(values.apiKey)
     message.success('API Key 保存成功')
   }
 

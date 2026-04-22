@@ -7,16 +7,20 @@ import taskApi from './api/task'
 import templateApi from './api/template'
 import logApi from './api/log'
 import gptImageApi from './api/gptImage'
+import staticApi from './api/common/static'
 
 const app = new Hono()
 
 const routes = app
+  // module
   .route('/api/wan', wanApi)
   .route('/api/gemini', geminiApi)
+  .route('/api/gptImage', gptImageApi)
+  // common
   .route('/api/task', taskApi)
   .route('/api/template', templateApi)
   .route('/api/log', logApi)
-  .route('/api/gptImage', gptImageApi)
+  .route('/api/static', staticApi)
 export type AppType = typeof routes
 
 const port = 3000

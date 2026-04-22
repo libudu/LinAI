@@ -102,7 +102,7 @@ export class TemplateManager {
             if (!fs.existsSync(filepath)) {
               await fs.writeFile(filepath, webpBuffer)
             }
-            imageUrls.push(`/api/template/images/${filename}`)
+            imageUrls.push(`/api/static/images/${filename}`)
           }
         } else {
           imageUrls.push(imgUrl)
