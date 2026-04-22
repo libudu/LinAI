@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   Modal,
   Form,
@@ -13,6 +13,7 @@ import {
 import { KeyOutlined, PictureOutlined } from '@ant-design/icons'
 import { hc } from 'hono/client'
 import type { AppType } from '../../../server/index'
+import { useTemplates } from '../../hooks/useTemplates'
 
 const client = hc<AppType>('/')
 
@@ -23,8 +24,16 @@ interface GeminiModalProps {
 
 export function GeminiModal({ open, onClose }: GeminiModalProps) {
   const [form] = Form.useForm()
-  const [templates, setTemplates] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
+  const {
+    data: allTemplates = [],
+    loading,
+    refresh: fetchTemplates
+  } = useTemplates()
+
+  const templates = useMemo(() => {
+    return allTemplates.filter((t) => t.usageType === 'image')
+  }, [allTemplates])
+
   const [generatingId, setGeneratingId] = useState<string | null>(null)
   const [generatedImages, setGeneratedImages] = useState<
     Record<string, string>
@@ -38,27 +47,7 @@ export function GeminiModal({ open, onClose }: GeminiModalProps) {
       }
       fetchTemplates()
     }
-  }, [open])
-
-  const fetchTemplates = async () => {
-    setLoading(true)
-    try {
-      const res = await fetch('/api/template')
-      const data = await res.json()
-      if (data.success) {
-        const geminiTemplates = data.data.filter(
-          (t: any) => t.usageType === 'image'
-        )
-        setTemplates(geminiTemplates)
-      } else {
-        message.error(data.error || '获取模板失败')
-      }
-    } catch (error) {
-      message.error('获取模板失败')
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [open, fetchTemplates])
 
   const handleSaveKey = () => {
     const values = form.getFieldsValue()
@@ -165,17 +154,18 @@ export function GeminiModal({ open, onClose }: GeminiModalProps) {
                   <div className="flex flex-col gap-3">
                     <div className="flex gap-3">
                       <div className="w-20 h-20 shrink-0 rounded-md overflow-hidden bg-slate-100 border border-slate-200 relative">
-                        <img
-                          src={item.image}
-                          alt="template"
-                          className="w-full h-full object-cover"
-                        />
+                        {item.images && item.images.length > 0 && (
+                          <img
+                            src={item.images[0]}
+                            alt="template"
+                            className="w-full h-full object-cover"
+                          />
+                        )}
                       </div>
                       <div className="flex-1 min-w-0 flex flex-col">
                         <div className="flex justify-between items-start mb-1">
                           <Space size={[0, 4]} wrap>
-                            <Tag color="green">{item.quality}</Tag>
-                            <Tag color="orange">{item.aspectRatio}</Tag>
+                            <Tag color="blue">图片模板</Tag>
                           </Space>
                         </div>
                         <p

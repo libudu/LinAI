@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Button, Select, message, Spin, Tag, Popconfirm } from 'antd'
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { TaskTemplate } from '../../server/common/template-manager/index'
 import { hc } from 'hono/client'
 import type { AppType } from '../../server'
+import { useTemplates } from '../hooks/useTemplates'
+import { useTasks } from '../hooks/useTasks'
 
 const client = hc<AppType>('/')
 
@@ -23,47 +25,21 @@ interface TaskFromTemplateProps {
 }
 
 export function TaskFromTemplate({ usageType }: TaskFromTemplateProps) {
-  const [templates, setTemplates] = useState<TaskTemplate[]>([])
-  const [tasks, setTasks] = useState<Task[]>([])
+  const { data: allTemplates = [], refresh: fetchTemplates } = useTemplates()
+  const templates = useMemo(() => {
+    return allTemplates.filter((t: TaskTemplate) => t.usageType === usageType)
+  }, [allTemplates, usageType])
+
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
-  const [tasksLoading, setTasksLoading] = useState(false)
 
-  const fetchTemplates = async () => {
-    try {
-      const res = await client.api.template.$get()
-      const json = await res.json()
-      if (json.success) {
-        setTemplates(
-          json.data.filter((t: TaskTemplate) => t.usageType === usageType)
-        )
-      }
-    } catch (error) {
-      console.error('Failed to fetch templates', error)
-    }
-  }
-
-  const fetchTasks = async () => {
-    setTasksLoading(true)
-    try {
-      const res = await client.api.task[':usageType'].$get({
-        param: { usageType }
-      })
-      const json = await res.json()
-      if (json.success) {
-        setTasks(json.data)
-      }
-    } catch (error) {
-      console.error('Failed to fetch tasks', error)
-    } finally {
-      setTasksLoading(false)
-    }
-  }
+  const {
+    data: tasks = [],
+    loading: tasksLoading,
+    refresh: fetchTasks
+  } = useTasks(usageType)
 
   useEffect(() => {
     fetchTemplates()
-    fetchTasks()
-    const interval = setInterval(fetchTasks, 5000) // Poll tasks every 5s
-    return () => clearInterval(interval)
   }, [usageType])
 
   const handleCreateTask = async () => {

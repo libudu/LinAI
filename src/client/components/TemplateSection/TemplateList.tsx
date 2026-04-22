@@ -1,14 +1,13 @@
 import { useState, forwardRef, useImperativeHandle } from 'react'
-import { useRequest } from 'ahooks'
 import {
   InboxOutlined,
   DeleteOutlined,
   ArrowLeftOutlined
 } from '@ant-design/icons'
 import { Card, message, Spin, Tag, Space, Popconfirm, Button } from 'antd'
-import { TaskTemplate } from '../../../server/common/template-manager/index'
 import { hc } from 'hono/client'
 import type { AppType } from '../../../server'
+import { useTemplates } from '../../hooks/useTemplates'
 
 const client = hc<AppType>('/')
 
@@ -16,32 +15,12 @@ export interface TemplateListRef {
   refresh: () => void
 }
 
-export const TemplateList = forwardRef<TemplateListRef, {}>((props, ref) => {
+export const TemplateList = forwardRef<TemplateListRef, unknown>((_, ref) => {
   const [selectedSource, setSelectedSource] = useState<
     'video' | 'image' | null
   >(null)
 
-  const {
-    data: templates = [],
-    loading,
-    refresh
-  } = useRequest(
-    async () => {
-      const res = await client.api.template.$get()
-      const json = await res.json()
-      if (json.success) {
-        return json.data
-      } else {
-        message.error(json.error || '获取模板失败')
-        return []
-      }
-    },
-    {
-      onError: () => {
-        message.error('请求失败')
-      }
-    }
-  )
+  const { data: templates = [], loading, refresh } = useTemplates()
 
   useImperativeHandle(ref, () => ({
     refresh

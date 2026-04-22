@@ -1,4 +1,8 @@
 import { useEffect, useState, useRef } from 'react'
+import { hc } from 'hono/client'
+import type { AppType } from '../../server/index'
+
+const client = hc<AppType>('/')
 
 interface LogViewerProps {
   moduleId: string // e.g., 'trae'
@@ -11,7 +15,9 @@ export function LogViewer({ moduleId, title = '系统日志' }: LogViewerProps) 
 
   const clearLogs = async () => {
     try {
-      const res = await fetch(`/api/${moduleId}/logs`, { method: 'DELETE' })
+      const res = await client.api.log[':moduleId'].$delete({
+        param: { moduleId }
+      })
       if (res.ok) {
         setLogs([])
       }
@@ -22,7 +28,7 @@ export function LogViewer({ moduleId, title = '系统日志' }: LogViewerProps) 
 
   useEffect(() => {
     // Connect to SSE endpoint
-    const eventSource = new EventSource(`/api/${moduleId}/logs`)
+    const eventSource = new EventSource(`/api/log/${moduleId}`)
 
     eventSource.addEventListener('log', (e) => {
       setLogs((prev) => {
