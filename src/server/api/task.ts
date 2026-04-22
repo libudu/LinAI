@@ -3,7 +3,7 @@ import fs from 'fs-extra'
 import path from 'path'
 import { TaskManager } from '../module/task-manager'
 
-const taskManager = new TaskManager()
+export const taskManager = new TaskManager()
 const taskApi = new Hono()
 
 // Serve uploaded images

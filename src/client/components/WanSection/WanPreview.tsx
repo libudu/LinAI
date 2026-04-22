@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react'
 import { hc } from 'hono/client'
-import { Typography, Button, Switch, Spin, message } from 'antd'
+import { Button, Spin, message } from 'antd'
 import { RocketOutlined, LockOutlined } from '@ant-design/icons'
 import type { AppType } from '../../../server/index'
 import { WanModal } from './WanModal'
 
 const client = hc<AppType>('/')
-
-const { Text } = Typography
 
 export function WanPreview() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -137,30 +135,17 @@ export function WanPreview() {
                   </span>
                 </div>
               </div>
-
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 mt-auto">
-                <div className="flex flex-col pr-4">
-                  <Text strong className="text-sm text-slate-800">
-                    自动提交任务
-                  </Text>
-                  <Text className="text-xs text-slate-500 mt-1">
-                    开启后将自动轮询并提交新的下载任务
-                  </Text>
-                </div>
-                <div onClick={(e) => e.stopPropagation()}>
-                  <Switch
-                    checked={autoSubmit}
-                    onChange={toggleAutoSubmit}
-                    className={autoSubmit ? 'bg-indigo-600' : 'bg-slate-300'}
-                  />
-                </div>
-              </div>
             </div>
           )}
         </div>
       </div>
 
-      <WanModal open={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <WanModal 
+        open={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        autoSubmit={autoSubmit}
+        onToggleAutoSubmit={toggleAutoSubmit}
+      />
     </>
   )
 }

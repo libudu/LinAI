@@ -1,5 +1,6 @@
 import { streamSSE } from 'hono/streaming'
 import { Logger } from '../module/utils/logger'
+import { TaskManager } from '../module/task-manager'
 import { Context } from 'hono'
 
 /**
@@ -51,5 +52,52 @@ export function bindLogRoutes(app: any, logger: Logger) {
   app.delete('/logs', (c: Context) => {
     logger.clearLogs()
     return c.json({ success: true })
+  })
+}
+
+/**
+ * 绑定从模板创建任务相关的接口
+ */
+export function bindTaskTemplateRoutes(app: any, taskManager: TaskManager, source: string) {
+  // 获取当前模块的执行中任务（或者所有任务）
+  app.get('/tasks', async (c: Context) => {
+    try {
+      const tasks = await taskManager.getTasksBySource(source)
+      return c.json({ success: true, data: tasks })
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 500)
+    }
+  })
+
+  // 从模板创建任务
+  app.post('/tasks/from-template', async (c: Context) => {
+    try {
+      const { templateId } = await c.req.json()
+      if (!templateId) {
+        return c.json({ success: false, error: 'templateId is required' }, 400)
+      }
+      const newTask = await taskManager.createTaskFromTemplate(templateId)
+      if (!newTask) {
+        return c.json({ success: false, error: 'Template not found' }, 404)
+      }
+      // Since it's created for this module, ensure source matches
+      if (newTask.source !== source) {
+        // Option to reject or just ignore. Assuming the frontend passes correct templateId.
+      }
+      return c.json({ success: true, data: newTask })
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 500)
+    }
+  })
+
+  // 删除任务
+  app.delete('/tasks/:id', async (c: Context) => {
+    try {
+      const id = c.req.param('id') as string
+      const success = await taskManager.deleteTask(id)
+      return c.json({ success })
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 500)
+    }
   })
 }

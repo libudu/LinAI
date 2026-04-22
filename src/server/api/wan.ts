@@ -1,5 +1,8 @@
 import { Hono } from 'hono'
 import { WanxBot } from '../module/wan-downloader/index'
+import { bindLogRoutes, bindTaskTemplateRoutes } from './utils'
+import { logger } from '../module/utils/logger'
+import { taskManager } from './task'
 
 const bot = new WanxBot()
 
@@ -27,5 +30,8 @@ const wanApi = new Hono()
 
     return c.json({ success: true, isRunning: enable })
   })
+
+bindLogRoutes(wanApi, logger)
+bindTaskTemplateRoutes(wanApi, taskManager, 'wan-video')
 
 export default wanApi

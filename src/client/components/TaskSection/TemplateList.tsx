@@ -7,13 +7,13 @@ import {
 import { Card, message, Spin, Tag, Space, Popconfirm, Button } from 'antd'
 import { TaskTemplate } from './types'
 
-interface TaskListProps {
+interface TemplateListProps {
   templates: TaskTemplate[]
   loading: boolean
   onRefresh: () => void
 }
 
-export function TaskList({ templates, loading, onRefresh }: TaskListProps) {
+export function TemplateList({ templates, loading, onRefresh }: TemplateListProps) {
   const [selectedSource, setSelectedSource] = useState<'wan-video' | 'gemini-image' | null>(
     null
   )

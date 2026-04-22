@@ -13,16 +13,10 @@ export class GeminiManager {
     return GeminiManager.instance
   }
 
-  public async generateImage(apiKey: string, prompt: string, aspectRatio: string) {
+  public async generateImage(apiKey: string, prompt: string) {
     logger.info('Generating image with Gemini')
     try {
       const ai = new GoogleGenAI({ apiKey })
-
-      let mappedAspectRatio = '1:1'
-      if (aspectRatio === '16:9') mappedAspectRatio = '16:9'
-      else if (aspectRatio === '9:16') mappedAspectRatio = '9:16'
-      else if (aspectRatio === '4:3') mappedAspectRatio = '4:3'
-      else if (aspectRatio === '3:4') mappedAspectRatio = '3:4'
 
       const response = await ai.models.generateImages({
         model: 'gemini-3.1-flash-image-preview',
@@ -30,7 +24,6 @@ export class GeminiManager {
         config: {
           numberOfImages: 1,
           outputMimeType: 'image/jpeg',
-          aspectRatio: mappedAspectRatio as any
         }
       })
 

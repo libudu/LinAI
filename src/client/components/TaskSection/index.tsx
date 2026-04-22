@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { ScheduleOutlined } from '@ant-design/icons'
 import { message } from 'antd'
 import { TaskForm } from './TaskForm'
-import { TaskList } from './TaskList'
+import { TemplateList } from './TemplateList'
 import { TaskTemplate } from './types'
 
 export function TaskSection() {
@@ -46,7 +46,7 @@ export function TaskSection() {
         <TaskForm onSuccess={fetchTemplates} />
 
         {/* 右侧：模板列表 */}
-        <TaskList
+        <TemplateList
           templates={templates}
           loading={loading}
           onRefresh={fetchTemplates}
