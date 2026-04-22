@@ -1,5 +1,15 @@
 import { useState, useEffect } from 'react'
-import { Modal, Form, Input, Button, message, Card, Spin, Tag, Space } from 'antd'
+import {
+  Modal,
+  Form,
+  Input,
+  Button,
+  message,
+  Card,
+  Spin,
+  Tag,
+  Space
+} from 'antd'
 import { KeyOutlined, PictureOutlined } from '@ant-design/icons'
 import { hc } from 'hono/client'
 import type { AppType } from '../../../server/index'
@@ -16,7 +26,9 @@ export function GeminiModal({ open, onClose }: GeminiModalProps) {
   const [templates, setTemplates] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [generatingId, setGeneratingId] = useState<string | null>(null)
-  const [generatedImages, setGeneratedImages] = useState<Record<string, string>>({})
+  const [generatedImages, setGeneratedImages] = useState<
+    Record<string, string>
+  >({})
 
   useEffect(() => {
     if (open) {
@@ -34,7 +46,9 @@ export function GeminiModal({ open, onClose }: GeminiModalProps) {
       const res = await fetch('/api/template')
       const data = await res.json()
       if (data.success) {
-        const geminiTemplates = data.data.filter((t: any) => t.source === 'gemini-image')
+        const geminiTemplates = data.data.filter(
+          (t: any) => t.usageType === 'image'
+        )
         setTemplates(geminiTemplates)
       } else {
         message.error(data.error || '获取模板失败')
@@ -57,7 +71,8 @@ export function GeminiModal({ open, onClose }: GeminiModalProps) {
   }
 
   const handleGenerate = async (templateId: string) => {
-    const apiKey = form.getFieldValue('apiKey') || localStorage.getItem('gemini_api_key')
+    const apiKey =
+      form.getFieldValue('apiKey') || localStorage.getItem('gemini_api_key')
     if (!apiKey) {
       message.warning('请先配置 API Key')
       return
@@ -74,7 +89,7 @@ export function GeminiModal({ open, onClose }: GeminiModalProps) {
       const data = await res.json()
       if (data.success && 'image' in data && data.image) {
         message.success('生成成功')
-        setGeneratedImages(prev => ({
+        setGeneratedImages((prev) => ({
           ...prev,
           [templateId]: data.image as string
         }))
@@ -98,25 +113,42 @@ export function GeminiModal({ open, onClose }: GeminiModalProps) {
       destroyOnClose
     >
       <div className="py-4 flex flex-col gap-6">
-        <Card size="small" title={<span className="text-slate-600"><KeyOutlined className="mr-2" />API 配置</span>} className="shadow-sm border-slate-200">
+        <Card
+          size="small"
+          title={
+            <span className="text-slate-600">
+              <KeyOutlined className="mr-2" />
+              API 配置
+            </span>
+          }
+          className="shadow-sm border-slate-200"
+        >
           <Form form={form} layout="inline" className="flex items-center gap-2">
             <Form.Item name="apiKey" className="flex-1 mb-0">
               <Input.Password placeholder="输入 Gemini API Key" />
             </Form.Item>
             <Form.Item className="mb-0">
-              <Button type="primary" onClick={handleSaveKey}>保存</Button>
+              <Button type="primary" onClick={handleSaveKey}>
+                保存
+              </Button>
             </Form.Item>
           </Form>
         </Card>
 
         <div className="flex flex-col gap-4">
           <div className="flex justify-between items-center">
-            <h4 className="text-md font-medium text-slate-800 m-0">Gemini 模板 ({templates.length})</h4>
-            <Button size="small" onClick={fetchTemplates} loading={loading}>刷新</Button>
+            <h4 className="text-md font-medium text-slate-800 m-0">
+              Gemini 模板 ({templates.length})
+            </h4>
+            <Button size="small" onClick={fetchTemplates} loading={loading}>
+              刷新
+            </Button>
           </div>
 
           {loading ? (
-            <div className="py-12 flex justify-center"><Spin /></div>
+            <div className="py-12 flex justify-center">
+              <Spin />
+            </div>
           ) : templates.length === 0 ? (
             <div className="py-12 text-center text-slate-400 bg-slate-50 rounded-xl border border-slate-100">
               <PictureOutlined className="text-4xl mb-2 text-slate-300" />
@@ -124,12 +156,20 @@ export function GeminiModal({ open, onClose }: GeminiModalProps) {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[500px] overflow-y-auto pr-2">
-              {templates.map(item => (
-                <Card key={item.id} size="small" className="shadow-sm border-slate-200 hover:shadow-md transition-shadow">
+              {templates.map((item) => (
+                <Card
+                  key={item.id}
+                  size="small"
+                  className="shadow-sm border-slate-200 hover:shadow-md transition-shadow"
+                >
                   <div className="flex flex-col gap-3">
                     <div className="flex gap-3">
                       <div className="w-20 h-20 shrink-0 rounded-md overflow-hidden bg-slate-100 border border-slate-200 relative">
-                        <img src={item.image} alt="template" className="w-full h-full object-cover" />
+                        <img
+                          src={item.image}
+                          alt="template"
+                          className="w-full h-full object-cover"
+                        />
                       </div>
                       <div className="flex-1 min-w-0 flex flex-col">
                         <div className="flex justify-between items-start mb-1">
@@ -138,19 +178,22 @@ export function GeminiModal({ open, onClose }: GeminiModalProps) {
                             <Tag color="orange">{item.aspectRatio}</Tag>
                           </Space>
                         </div>
-                        <p className="text-sm text-slate-600 line-clamp-2 mt-1" title={item.prompt}>
+                        <p
+                          className="text-sm text-slate-600 line-clamp-2 mt-1"
+                          title={item.prompt}
+                        >
                           {item.prompt}
                         </p>
                       </div>
                     </div>
-                    
+
                     <div className="pt-2 border-t border-slate-100 flex justify-between items-center">
                       <span className="text-xs text-slate-400">
                         {new Date(item.createdAt).toLocaleString()}
                       </span>
-                      <Button 
-                        type="primary" 
-                        size="small" 
+                      <Button
+                        type="primary"
+                        size="small"
                         icon={<PictureOutlined />}
                         loading={generatingId === item.id}
                         onClick={() => handleGenerate(item.id)}
@@ -164,11 +207,15 @@ export function GeminiModal({ open, onClose }: GeminiModalProps) {
                         <div className="absolute top-1 left-1 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm z-10">
                           生成结果
                         </div>
-                        <img src={generatedImages[item.id]} alt="generated" className="w-full h-auto object-contain" />
+                        <img
+                          src={generatedImages[item.id]}
+                          alt="generated"
+                          className="w-full h-auto object-contain"
+                        />
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <Button 
-                            type="primary" 
-                            ghost 
+                          <Button
+                            type="primary"
+                            ghost
                             onClick={() => {
                               const a = document.createElement('a')
                               a.href = generatedImages[item.id]

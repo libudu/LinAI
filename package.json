@@ -37,6 +37,7 @@
     "@google/genai": "^1.50.1",
     "@hono/node-server": "^1.19.14",
     "@hono/zod-validator": "^0.7.6",
+    "ahooks": "^3.9.7",
     "antd": "^6.3.6",
     "axios": "^1.15.0",
     "dotenv": "^17.4.2",

@@ -33,12 +33,15 @@ const templateApi = new Hono()
   })
   .post(
     '/',
-    zValidator('json', z.object({
-      title: z.string().optional(),
-      images: z.array(z.string()),
-      prompt: z.string(),
-      source: z.enum(['wan-video', 'gemini-image'])
-    })),
+    zValidator(
+      'json',
+      z.object({
+        title: z.string().optional(),
+        images: z.array(z.string()),
+        prompt: z.string(),
+        usageType: z.enum(['image', 'video'])
+      })
+    ),
     async (c) => {
       try {
         const body = c.req.valid('json')
@@ -57,7 +60,10 @@ const templateApi = new Hono()
         const { id } = c.req.valid('param')
         const success = await templateManager.deleteTemplate(id)
         if (!success) {
-          return c.json({ success: false as const, error: 'Template not found' }, 404)
+          return c.json(
+            { success: false as const, error: 'Template not found' },
+            404
+          )
         }
         return c.json({ success: true as const })
       } catch (error: any) {

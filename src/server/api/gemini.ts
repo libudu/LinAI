@@ -26,7 +26,7 @@ const geminiApi = new Hono().post(
         return c.json({ success: false, error: 'Template not found' }, 404)
       }
 
-      if (template.source !== 'gemini-image') {
+      if (template.usageType !== 'image') {
         return c.json(
           { success: false, error: 'Template is not a Gemini template' },
           400

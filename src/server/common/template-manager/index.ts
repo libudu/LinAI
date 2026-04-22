@@ -9,7 +9,7 @@ export interface TaskTemplate {
   images: string[]
   prompt: string
   createdAt: number
-  source: 'wan-video' | 'gemini-image'
+  usageType: 'image' | 'video'
 }
 
 export interface GeminiTaskTemplate extends TaskTemplate {

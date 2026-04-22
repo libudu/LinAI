@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, forwardRef, useImperativeHandle } from 'react'
+import { useRequest } from 'ahooks'
 import {
   InboxOutlined,
   DeleteOutlined,
@@ -11,20 +12,40 @@ import type { AppType } from '../../../server'
 
 const client = hc<AppType>('/')
 
-interface TemplateListProps {
-  templates: TaskTemplate[]
-  loading: boolean
-  onRefresh: () => void
+export interface TemplateListRef {
+  refresh: () => void
 }
 
-export function TemplateList({
-  templates,
-  loading,
-  onRefresh
-}: TemplateListProps) {
+export const TemplateList = forwardRef<TemplateListRef, {}>((props, ref) => {
   const [selectedSource, setSelectedSource] = useState<
-    'wan-video' | 'gemini-image' | null
+    'video' | 'image' | null
   >(null)
+
+  const {
+    data: templates = [],
+    loading,
+    refresh
+  } = useRequest(
+    async () => {
+      const res = await client.api.template.$get()
+      const json = await res.json()
+      if (json.success) {
+        return json.data
+      } else {
+        message.error(json.error || '获取模板失败')
+        return []
+      }
+    },
+    {
+      onError: () => {
+        message.error('请求失败')
+      }
+    }
+  )
+
+  useImperativeHandle(ref, () => ({
+    refresh
+  }))
 
   const handleDelete = async (id: string) => {
     try {
@@ -32,7 +53,7 @@ export function TemplateList({
       const json = await res.json()
       if (json.success) {
         message.success('删除成功')
-        onRefresh()
+        refresh()
       } else {
         message.error(json.error || '删除失败')
       }
@@ -43,27 +64,27 @@ export function TemplateList({
 
   const renderTemplateList = () => {
     if (selectedSource === null) {
-      const wanCount = templates.filter((t) => t.source === 'wan-video').length
+      const wanCount = templates.filter((t) => t.usageType === 'video').length
       const geminiCount = templates.filter(
-        (t) => t.source === 'gemini-image'
+        (t) => t.usageType === 'image'
       ).length
 
       return (
         <div className="grid grid-cols-2 gap-4 h-full content-start mt-2">
           <Card
             hoverable
-            onClick={() => setSelectedSource('wan-video')}
+            onClick={() => setSelectedSource('video')}
             className="text-center cursor-pointer border-emerald-100 hover:border-emerald-300 transition-colors"
           >
-            <div className="text-xl font-bold mb-2 text-emerald-600">Wan</div>
+            <div className="text-xl font-bold mb-2 text-emerald-600">视频</div>
             <div className="text-slate-500">{wanCount} 个模板</div>
           </Card>
           <Card
             hoverable
-            onClick={() => setSelectedSource('gemini-image')}
+            onClick={() => setSelectedSource('image')}
             className="text-center cursor-pointer border-blue-100 hover:border-blue-300 transition-colors"
           >
-            <div className="text-xl font-bold mb-2 text-blue-600">Gemini</div>
+            <div className="text-xl font-bold mb-2 text-blue-600">图片</div>
             <div className="text-slate-500">{geminiCount} 个模板</div>
           </Card>
         </div>
@@ -71,7 +92,7 @@ export function TemplateList({
     }
 
     const filteredTemplates = templates.filter(
-      (t) => t.source === selectedSource
+      (t) => t.usageType === selectedSource
     )
 
     return (
@@ -84,7 +105,7 @@ export function TemplateList({
             className="text-slate-500 hover:text-slate-800 -ml-2"
           />
           <h4 className="text-md font-medium text-slate-800 m-0">
-            {selectedSource === 'wan-video' ? 'Wan' : 'Gemini'} 模板 (
+            {selectedSource === 'video' ? '视频' : '图片'} 模板 (
             {filteredTemplates.length})
           </h4>
         </div>
@@ -145,10 +166,10 @@ export function TemplateList({
                         <Space size={[0, 4]} wrap>
                           <Tag
                             color={
-                              item.source === 'gemini-image' ? 'blue' : 'purple'
+                              item.usageType === 'image' ? 'blue' : 'purple'
                             }
                           >
-                            {item.source === 'gemini-image' ? '图片' : '视频'}
+                            {item.usageType === 'image' ? '图片' : '视频'}
                           </Tag>
                         </Space>
                         <Popconfirm
@@ -211,4 +232,4 @@ export function TemplateList({
       )}
     </div>
   )
-}
+})

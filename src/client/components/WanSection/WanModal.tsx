@@ -43,7 +43,7 @@ export function WanModal({ open, onClose, autoSubmit, onToggleAutoSubmit }: WanM
 
         {/* 任务管理 */}
         <div className="border-t border-slate-100 pt-6">
-          <TaskFromTemplate moduleId="wan" source="wan-video" />
+          <TaskFromTemplate usageType="video" />
         </div>
 
         {/* 日志查看器 */}

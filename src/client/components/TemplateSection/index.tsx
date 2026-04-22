@@ -1,38 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useRef } from 'react'
 import { ScheduleOutlined } from '@ant-design/icons'
-import { message } from 'antd'
 import { TemplateForm } from './TemplateForm'
-import { TemplateList } from './TemplateList'
-import { TaskTemplate } from '../../../server/common/template-manager/index'
-import { hc } from 'hono/client'
-import type { AppType } from '../../../server'
-
-const client = hc<AppType>('/')
+import { TemplateList, TemplateListRef } from './TemplateList'
 
 export function TemplateSection() {
-  const [templates, setTemplates] = useState<TaskTemplate[]>([])
-  const [loading, setLoading] = useState(false)
+  const listRef = useRef<TemplateListRef>(null)
 
-  const fetchTemplates = async () => {
-    setLoading(true)
-    try {
-      const res = await client.api.template.$get()
-      const json = await res.json()
-      if (json.success) {
-        setTemplates(json.data)
-      } else {
-        message.error(json.error || '获取模板失败')
-      }
-    } catch (error) {
-      message.error('请求失败')
-    } finally {
-      setLoading(false)
-    }
+  const handleSuccess = () => {
+    listRef.current?.refresh()
   }
-
-  useEffect(() => {
-    fetchTemplates()
-  }, [])
 
   return (
     <section className="space-y-6">
@@ -47,14 +23,10 @@ export function TemplateSection() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 左侧：表单 */}
-        <TemplateForm onSuccess={fetchTemplates} />
+        <TemplateForm onSuccess={handleSuccess} />
 
         {/* 右侧：模板列表 */}
-        <TemplateList
-          templates={templates}
-          loading={loading}
-          onRefresh={fetchTemplates}
-        />
+        <TemplateList ref={listRef} />
       </div>
     </section>
   )

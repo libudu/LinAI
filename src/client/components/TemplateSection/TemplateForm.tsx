@@ -65,13 +65,13 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
         layout="vertical"
         onFinish={handleFinish}
         initialValues={{
-          source: 'wan-video'
+          usageType: 'video'
         }}
       >
         <div className="flex gap-4">
           <Form.Item
-            name="source"
-            label="模型来源"
+            name="usageType"
+            label="模板用途"
             className="flex-1"
             rules={[{ required: true }]}
           >
@@ -80,11 +80,11 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
               buttonStyle="solid"
               className="w-full flex"
             >
-              <Radio.Button value="wan-video" className="flex-1 text-center">
-                Wan
+              <Radio.Button value="video" className="flex-1 text-center">
+                视频生成
               </Radio.Button>
-              <Radio.Button value="gemini-image" className="flex-1 text-center">
-                Gemini
+              <Radio.Button value="image" className="flex-1 text-center">
+                图片生成
               </Radio.Button>
             </Radio.Group>
           </Form.Item>

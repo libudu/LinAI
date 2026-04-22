@@ -41,14 +41,18 @@ export class TaskManager {
     }
   }
 
-  public async getTasksBySource(source: string): Promise<Task[]> {
+  public async getTasksByUsageType(
+    usageType: TaskTemplate['usageType']
+  ): Promise<Task[]> {
     const tasks = await this.getTasks()
-    return tasks.filter(t => t.source === source)
+    return tasks.filter((t) => t.usageType === usageType)
   }
 
-  public async createTaskFromTemplate(templateId: string): Promise<Task | null> {
+  public async createTaskFromTemplate(
+    templateId: string
+  ): Promise<Task | null> {
     const templates = await this.templateManager.getTemplates()
-    const template = templates.find(t => t.id === templateId)
+    const template = templates.find((t) => t.id === templateId)
     if (!template) {
       return null
     }
@@ -62,25 +66,37 @@ export class TaskManager {
       createdAt: Date.now()
     }
     tasks.push(newTask)
-    await fs.writeFile(this.tasksDbPath, JSON.stringify(tasks, null, 2), 'utf-8')
+    await fs.writeFile(
+      this.tasksDbPath,
+      JSON.stringify(tasks, null, 2),
+      'utf-8'
+    )
     return newTask
   }
 
   public async deleteTask(id: string): Promise<boolean> {
     const tasks = await this.getTasks()
-    const target = tasks.find(t => t.id === id)
+    const target = tasks.find((t) => t.id === id)
     if (!target) {
       return false
     }
 
-    const filtered = tasks.filter(t => t.id !== id)
-    await fs.writeFile(this.tasksDbPath, JSON.stringify(filtered, null, 2), 'utf-8')
+    const filtered = tasks.filter((t) => t.id !== id)
+    await fs.writeFile(
+      this.tasksDbPath,
+      JSON.stringify(filtered, null, 2),
+      'utf-8'
+    )
     return true
   }
 
-  public async updateTaskStatus(id: string, status: Task['status'], error?: string): Promise<boolean> {
+  public async updateTaskStatus(
+    id: string,
+    status: Task['status'],
+    error?: string
+  ): Promise<boolean> {
     const tasks = await this.getTasks()
-    const index = tasks.findIndex(t => t.id === id)
+    const index = tasks.findIndex((t) => t.id === id)
     if (index === -1) {
       return false
     }
@@ -89,7 +105,11 @@ export class TaskManager {
     if (error) {
       tasks[index].error = error
     }
-    await fs.writeFile(this.tasksDbPath, JSON.stringify(tasks, null, 2), 'utf-8')
+    await fs.writeFile(
+      this.tasksDbPath,
+      JSON.stringify(tasks, null, 2),
+      'utf-8'
+    )
     return true
   }
 }

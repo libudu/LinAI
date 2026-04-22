@@ -14,16 +14,15 @@ interface Task {
   images: string[]
   status: 'pending' | 'running' | 'completed' | 'failed'
   createdAt: number
-  source: 'wan-video' | 'gemini-image'
+  usageType: 'image' | 'video'
   error?: string
 }
 
 interface TaskFromTemplateProps {
-  moduleId: string
-  source: 'wan-video' | 'gemini-image'
+  usageType: 'image' | 'video'
 }
 
-export function TaskFromTemplate({ moduleId, source }: TaskFromTemplateProps) {
+export function TaskFromTemplate({ usageType }: TaskFromTemplateProps) {
   const [templates, setTemplates] = useState<TaskTemplate[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
@@ -34,7 +33,9 @@ export function TaskFromTemplate({ moduleId, source }: TaskFromTemplateProps) {
       const res = await client.api.template.$get()
       const json = await res.json()
       if (json.success) {
-        setTemplates(json.data.filter((t: TaskTemplate) => t.source === source))
+        setTemplates(
+          json.data.filter((t: TaskTemplate) => t.usageType === usageType)
+        )
       }
     } catch (error) {
       console.error('Failed to fetch templates', error)
@@ -44,8 +45,8 @@ export function TaskFromTemplate({ moduleId, source }: TaskFromTemplateProps) {
   const fetchTasks = async () => {
     setTasksLoading(true)
     try {
-      const res = await client.api.task[':moduleId'].$get({
-        param: { moduleId }
+      const res = await client.api.task[':usageType'].$get({
+        param: { usageType }
       })
       const json = await res.json()
       if (json.success) {
@@ -63,7 +64,7 @@ export function TaskFromTemplate({ moduleId, source }: TaskFromTemplateProps) {
     fetchTasks()
     const interval = setInterval(fetchTasks, 5000) // Poll tasks every 5s
     return () => clearInterval(interval)
-  }, [moduleId, source])
+  }, [usageType])
 
   const handleCreateTask = async () => {
     if (!selectedTemplate) {
@@ -71,8 +72,8 @@ export function TaskFromTemplate({ moduleId, source }: TaskFromTemplateProps) {
       return
     }
     try {
-      const res = await client.api.task[':moduleId']['from-template'].$post({
-        param: { moduleId },
+      const res = await client.api.task[':usageType']['from-template'].$post({
+        param: { usageType },
         // The server route does not declare a validator, so Hono can't infer the JSON body here.
         json: { templateId: selectedTemplate }
       })
@@ -91,8 +92,8 @@ export function TaskFromTemplate({ moduleId, source }: TaskFromTemplateProps) {
 
   const handleDeleteTask = async (id: string) => {
     try {
-      const res = await client.api.task[':moduleId'][':id'].$delete({
-        param: { moduleId, id }
+      const res = await client.api.task[':usageType'][':id'].$delete({
+        param: { usageType, id }
       })
       const json = await res.json()
       if (json.success) {
