@@ -15,7 +15,8 @@ if (!fs.existsSync(tempImagesDir)) {
 interface GPTImageResponse {
   created: number
   data: Array<{
-    url: string
+    url?: string
+    b64_json?: string
   }>
   usage?: {
     total_tokens: number
@@ -28,10 +29,18 @@ interface GPTImageResponse {
   }
 }
 
-async function generateGPTImage(
-  apiKey: string,
+interface GenerateGPTImageOptions {
+  apiKey: string
   prompt: string
+  size?: '1k' | '2k'
+  quality?: 'low' | 'medium' | 'high'
+}
+
+async function generateGPTImage(
+  options: GenerateGPTImageOptions
 ): Promise<string> {
+  const { apiKey, prompt, size = '1k', quality = 'medium' } = options
+
   const response = await fetch('https://ai.t8star.cn/v1/images/generations', {
     method: 'POST',
     headers: {
@@ -40,7 +49,9 @@ async function generateGPTImage(
     },
     body: JSON.stringify({
       model: 'gpt-image-2',
-      prompt: prompt
+      prompt: prompt,
+      size: size === '2k' ? '2048x2048' : '1024x1024',
+      quality: quality
     })
   })
 
@@ -51,11 +62,15 @@ async function generateGPTImage(
 
   const data = (await response.json()) as GPTImageResponse
   const imageResult = data.data?.[0]
-  if (!imageResult || !imageResult.url) {
+  if (!imageResult || (!imageResult.url && !imageResult.b64_json)) {
     throw new Error('No image returned from API')
   }
 
-  return imageResult.url.replace(/`/g, '').trim()
+  if (imageResult.b64_json) {
+    return `data:image/png;base64,${imageResult.b64_json.trim()}`
+  }
+
+  return imageResult.url!.replace(/`/g, '').trim()
 }
 
 const gptImageApi = new Hono()
@@ -65,12 +80,14 @@ const gptImageApi = new Hono()
       'json',
       z.object({
         apiKey: z.string().min(1, 'API Key is required'),
-        templateId: z.string().min(1, 'Template ID is required')
+        templateId: z.string().min(1, 'Template ID is required'),
+        size: z.enum(['1k', '2k']).optional().default('1k'),
+        quality: z.enum(['low', 'medium', 'high']).optional().default('medium')
       })
     ),
     async (c) => {
       try {
-        const { apiKey, templateId } = c.req.valid('json')
+        const { apiKey, templateId, size, quality } = c.req.valid('json')
 
         const templates = await templateManager.getTemplates()
         const template = templates.find((t) => t.id === templateId)
@@ -83,7 +100,12 @@ const gptImageApi = new Hono()
 
         let imageUrl: string
         try {
-          imageUrl = await generateGPTImage(apiKey, template.prompt)
+          imageUrl = await generateGPTImage({
+            apiKey,
+            prompt: template.prompt,
+            size,
+            quality
+          })
         } catch (err: any) {
           logger.error('Failed to generate GPT image', err.message)
           return c.json({ success: false, error: err.message }, 500)
@@ -114,17 +136,27 @@ const gptImageApi = new Hono()
 
         let imageUrl: string
         try {
-          imageUrl = await generateGPTImage(apiKey, prompt)
+          imageUrl = await generateGPTImage({
+            apiKey,
+            prompt,
+            quality: 'low'
+          })
         } catch (err: any) {
           logger.error('Failed to generate GPT trial image', err.message)
           return c.json({ success: false as const, error: err.message }, 500)
         }
 
         try {
-          const imgRes = await fetch(imageUrl)
-          if (!imgRes.ok) throw new Error('Failed to download image')
-          const arrayBuffer = await imgRes.arrayBuffer()
-          const buffer = Buffer.from(arrayBuffer)
+          let buffer: Buffer
+          if (imageUrl.startsWith('data:image/')) {
+            const b64Data = imageUrl.split(',')[1]
+            buffer = Buffer.from(b64Data, 'base64')
+          } else {
+            const imgRes = await fetch(imageUrl)
+            if (!imgRes.ok) throw new Error('Failed to download image')
+            const arrayBuffer = await imgRes.arrayBuffer()
+            buffer = Buffer.from(arrayBuffer)
+          }
 
           const hash = crypto.createHash('md5').update(buffer).digest('hex')
           const filename = `${hash}.png`
