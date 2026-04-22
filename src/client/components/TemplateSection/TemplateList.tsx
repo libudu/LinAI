@@ -5,7 +5,11 @@ import {
   ArrowLeftOutlined
 } from '@ant-design/icons'
 import { Card, message, Spin, Tag, Space, Popconfirm, Button } from 'antd'
-import { TaskTemplate } from './types'
+import { TaskTemplate } from '../../../server/common/template-manager/index'
+import { hc } from 'hono/client'
+import type { AppType } from '../../../server'
+
+const client = hc<AppType>('/')
 
 interface TemplateListProps {
   templates: TaskTemplate[]
@@ -20,9 +24,7 @@ export function TemplateList({ templates, loading, onRefresh }: TemplateListProp
 
   const handleDelete = async (id: string) => {
     try {
-      const res = await fetch(`/api/template/${id}`, {
-        method: 'DELETE'
-      })
+      const res = await client.api.template[':id'].$delete({ param: { id } })
       const json = await res.json()
       if (json.success) {
         message.success('删除成功')

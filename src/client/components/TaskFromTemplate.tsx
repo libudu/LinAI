@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Button, Select, message, Spin, Tag, Popconfirm } from 'antd'
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
-import { TaskTemplate } from './TemplateSection/types'
+import { TaskTemplate } from '../../server/common/template-manager/index'
+import { hc } from 'hono/client'
+import type { AppType } from '../../server'
+
+const client = hc<AppType>('/')
 
 interface Task {
   id: string
@@ -27,7 +31,7 @@ export function TaskFromTemplate({ moduleId, source }: TaskFromTemplateProps) {
 
   const fetchTemplates = async () => {
     try {
-      const res = await fetch('/api/template')
+      const res = await client.api.template.$get()
       const json = await res.json()
       if (json.success) {
         setTemplates(json.data.filter((t: TaskTemplate) => t.source === source))
@@ -40,7 +44,9 @@ export function TaskFromTemplate({ moduleId, source }: TaskFromTemplateProps) {
   const fetchTasks = async () => {
     setTasksLoading(true)
     try {
-      const res = await fetch(`/api/${moduleId}/tasks`)
+      const res = await client.api.task[':moduleId'].$get({
+        param: { moduleId }
+      })
       const json = await res.json()
       if (json.success) {
         setTasks(json.data)
@@ -65,10 +71,9 @@ export function TaskFromTemplate({ moduleId, source }: TaskFromTemplateProps) {
       return
     }
     try {
-      const res = await fetch(`/api/${moduleId}/tasks/from-template`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ templateId: selectedTemplate })
+      const res = await client.api.task[':moduleId']['from-template'].$post({
+        param: { moduleId },
+        json: { templateId: selectedTemplate }
       })
       const json = await res.json()
       if (json.success) {
@@ -85,8 +90,8 @@ export function TaskFromTemplate({ moduleId, source }: TaskFromTemplateProps) {
 
   const handleDeleteTask = async (id: string) => {
     try {
-      const res = await fetch(`/api/${moduleId}/tasks/${id}`, {
-        method: 'DELETE'
+      const res = await client.api.task[':moduleId'][':id'].$delete({
+        param: { moduleId, id }
       })
       const json = await res.json()
       if (json.success) {

@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import fs from 'fs-extra'
 import path from 'path'
-import { TemplateManager } from '../module/template-manager'
+import { TemplateManager } from '../common/template-manager'
 
 export const templateManager = new TemplateManager()
 const templateApi = new Hono()

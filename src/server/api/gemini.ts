@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { geminiManager } from '../module/gemini-manager/index'
-import { TemplateManager } from '../module/template-manager/index'
+import { TemplateManager } from '../common/template-manager/index'
 
 const templateManager = new TemplateManager()
 

@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import { PlusOutlined, UploadOutlined } from '@ant-design/icons'
 import { Form, Input, Radio, Button, message, Upload } from 'antd'
+import { hc } from 'hono/client'
+import type { AppType } from '../../../server'
+
+const client = hc<AppType>('/')
 
 interface TemplateFormProps {
   onSuccess: () => void
@@ -24,11 +28,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
         images: imageUrls
       }
 
-      const res = await fetch('/api/template', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
+      const res = await client.api.template.$post({ json: payload })
       const json = await res.json()
 
       if (json.success) {

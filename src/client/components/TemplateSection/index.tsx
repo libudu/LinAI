@@ -3,7 +3,11 @@ import { ScheduleOutlined } from '@ant-design/icons'
 import { message } from 'antd'
 import { TemplateForm } from './TemplateForm'
 import { TemplateList } from './TemplateList'
-import { TaskTemplate } from './types'
+import { TaskTemplate } from '../../../server/common/template-manager/index'
+import { hc } from 'hono/client'
+import type { AppType } from '../../../server'
+
+const client = hc<AppType>('/')
 
 export function TemplateSection() {
   const [templates, setTemplates] = useState<TaskTemplate[]>([])
@@ -12,7 +16,7 @@ export function TemplateSection() {
   const fetchTemplates = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/template')
+      const res = await client.api.template.$get()
       const json = await res.json()
       if (json.success) {
         setTemplates(json.data)
