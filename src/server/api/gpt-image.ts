@@ -14,18 +14,25 @@ const gptImageApi = new Hono()
       z.object({
         apiKey: z.string().min(1, 'API Key is required'),
         templateId: z.string().min(1, 'Template ID is required'),
-        quality: z.enum(['low', 'medium', 'high']).optional().default('medium')
+        size: z.enum(['1k', '2k']).optional().default('2k')
       })
     ),
     async (c) => {
-      const { apiKey, templateId, quality } = c.req.valid('json')
+      const { apiKey, templateId, size } = c.req.valid('json')
       const templates = await templateManager.getTemplates()
       const template = templates.find((t) => t.id === templateId)
       if (!template) {
-        return c.json({ success: false as const, error: 'Template not found' }, 404)
+        return c.json(
+          { success: false as const, error: 'Template not found' },
+          404
+        )
       }
-      const result = await handleImageGeneration({ apiKey, template, quality, size: 2048 })
-      return c.json(result.data, result.status as any)
+      const result = await handleImageGeneration({
+        apiKey,
+        template,
+        size: size === '2k' ? 2048 : 1024
+      })
+      return c.json(result.data)
     }
   )
   .post(
@@ -36,7 +43,7 @@ const gptImageApi = new Hono()
         apiKey: z.string().min(1, 'API Key is required'),
         prompt: z.string().min(1, 'Prompt is required'),
         aspectRatio: z.string().optional().default('1:1'),
-        images: z.array(z.string()).optional(),
+        images: z.array(z.string()).optional()
       })
     ),
     async (c) => {
@@ -50,7 +57,12 @@ const gptImageApi = new Hono()
         images: images || [],
         title: 'Trial Template'
       }
-      const result = await handleImageGeneration({ apiKey, template, quality: 'low', size: 1024 })
+      const result = await handleImageGeneration({
+        apiKey,
+        template,
+        quality: 'low',
+        size: 1024
+      })
       return c.json(result.data, result.status as any)
     }
   )

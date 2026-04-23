@@ -34,7 +34,7 @@ export function TemplateItemList({
   const doGenerate = async (
     apiKey: string,
     templateId: string,
-    quality: 'low' | 'high'
+    size: '1k' | '2k'
   ) => {
     message.success('任务提交成功')
     // give server some time to create the task
@@ -44,18 +44,12 @@ export function TemplateItemList({
         json: {
           apiKey,
           templateId,
-          quality
+          size
         }
       })
       const data = await res.json()
       if (data.success && 'image' in data && data.image) {
         message.success('生成图片成功')
-        const link = document.createElement('a')
-        link.href = data.image as string
-        link.download = `generated-${quality}-${Date.now()}.png`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
       } else {
         message.error((data as any).error || '生成失败')
       }
@@ -66,18 +60,18 @@ export function TemplateItemList({
     }
   }
 
-  const handleGenerate = (templateId: string, quality: 'low' | 'high') => {
+  const handleGenerate = (templateId: string, size: '1k' | '2k') => {
     const apiKey = gptImageApiKey
     if (!apiKey) {
       openGPTTokenModal({
         onSuccess: (key) => {
-          doGenerate(key, templateId, quality)
+          doGenerate(key, templateId, size)
         }
       })
       return
     }
 
-    doGenerate(apiKey, templateId, quality)
+    doGenerate(apiKey, templateId, size)
   }
 
   return (
@@ -115,14 +109,12 @@ export function TemplateItemList({
                 <div className="flex gap-4">
                   <ImageGroup images={item.images || []} />
                   <div className="flex-1 min-w-0 flex flex-col">
-                    <div className="flex justify-between items-start mb-2">
-                      <Space size={[0, 4]} wrap>
-                        <Tag
-                          color={item.usageType === 'image' ? 'blue' : 'purple'}
-                        >
-                          {item.usageType === 'image' ? '图片' : '视频'}
-                        </Tag>
-                      </Space>
+                    <div className="flex justify-between items-center mb-2">
+                      <Tag
+                        color={item.usageType === 'image' ? 'blue' : 'purple'}
+                      >
+                        {item.usageType === 'image' ? '图片' : '视频'}
+                      </Tag>
                       <Space size={8} className="flex-nowrap">
                         {item.usageType === 'image' && (
                           <>
@@ -132,13 +124,12 @@ export function TemplateItemList({
                               icon={
                                 <img
                                   src={openaiIcon}
-                                  alt="1k"
                                   className="w-4 h-4 opacity-70"
                                 />
                               }
-                              onClick={() => handleGenerate(item.id, 'low')}
+                              onClick={() => handleGenerate(item.id, '1k')}
                             >
-                              1k
+                              1K
                             </Button>
                             <Button
                               type="text"
@@ -146,13 +137,12 @@ export function TemplateItemList({
                               icon={
                                 <img
                                   src={openaiIcon}
-                                  alt="2k"
                                   className="w-4 h-4 opacity-70"
                                 />
                               }
-                              onClick={() => handleGenerate(item.id, 'high')}
+                              onClick={() => handleGenerate(item.id, '2k')}
                             >
-                              2k
+                              2K
                             </Button>
                           </>
                         )}

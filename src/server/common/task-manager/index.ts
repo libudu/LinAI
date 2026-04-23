@@ -34,6 +34,28 @@ export class TaskManager {
     }
     if (!fs.existsSync(this.tasksDbPath)) {
       fs.writeFileSync(this.tasksDbPath, JSON.stringify([]), 'utf-8')
+    } else {
+      try {
+        const data = fs.readFileSync(this.tasksDbPath, 'utf-8')
+        const tasks: Task[] = JSON.parse(data)
+        let changed = false
+        for (const task of tasks) {
+          if (task.status === 'pending' || task.status === 'running') {
+            task.status = 'failed'
+            task.error = '连接已丢失'
+            changed = true
+          }
+        }
+        if (changed) {
+          fs.writeFileSync(
+            this.tasksDbPath,
+            JSON.stringify(tasks, null, 2),
+            'utf-8'
+          )
+        }
+      } catch (error) {
+        this.logger.error('Failed to reset tasks on init:', error)
+      }
     }
   }
 
@@ -75,7 +97,9 @@ export class TaskManager {
     return newTask
   }
 
-  public async deleteTask(id: string): Promise<{ success: boolean; error?: string }> {
+  public async deleteTask(
+    id: string
+  ): Promise<{ success: boolean; error?: string }> {
     try {
       const tasks = await this.getTasks()
       const target = tasks.find((t) => t.id === id)
@@ -92,8 +116,8 @@ export class TaskManager {
 
       if (target.outputUrl && target.outputUrl.startsWith('/api/static/')) {
         try {
-          let filename = '';
-          let dirPath = '';
+          let filename = ''
+          let dirPath = ''
           filename = target.outputUrl.replace('/api/static/generated/', '')
           dirPath = path.join(this.dataDir, 'generated_images')
 
@@ -105,17 +129,26 @@ export class TaskManager {
           }
         } catch (error: any) {
           this.logger.error('Failed to delete task file:', error)
-          return { success: false, error: `Failed to delete task file: ${error.message}` }
+          return {
+            success: false,
+            error: `Failed to delete task file: ${error.message}`
+          }
         }
       }
       return { success: true }
     } catch (error: any) {
       this.logger.error('Failed to delete task:', error)
-      return { success: false, error: `Failed to delete task: ${error.message}` }
+      return {
+        success: false,
+        error: `Failed to delete task: ${error.message}`
+      }
     }
   }
 
-  public async updateTask(id: string, updates: Partial<Task>): Promise<boolean> {
+  public async updateTask(
+    id: string,
+    updates: Partial<Task>
+  ): Promise<boolean> {
     const tasks = await this.getTasks()
     const index = tasks.findIndex((t) => t.id === id)
     if (index === -1) {
