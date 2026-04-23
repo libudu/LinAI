@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { UploadOutlined } from '@ant-design/icons'
 import { Button, message, Upload } from 'antd'
 import { hc } from 'hono/client'
-import type { AppType } from '../../../server'
+import type { AppType } from '../../../../server'
 
 const client = hc<AppType>('/')
 
@@ -46,7 +46,7 @@ export function ImageUpload({
   onUploadingChange,
   onFirstImageRatio
 }: ImageUploadProps) {
-  const [uploadingCount, setUploadingCount] = useState(0)
+  const [_, setUploadingCount] = useState(0)
 
   const handleUploadCountChange = (delta: number) => {
     setUploadingCount((c) => {

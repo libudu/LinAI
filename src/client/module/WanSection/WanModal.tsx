@@ -1,6 +1,6 @@
 import { Modal, Switch, Typography } from 'antd'
-import { LogViewer } from '../LogViewer'
-import { TaskFromTemplate } from '../TaskFromTemplate'
+import { LogViewer } from '../components/LogViewer'
+import { TaskFromTemplate } from '../components/TaskFromTemplate'
 
 const { Text } = Typography
 
@@ -11,7 +11,12 @@ interface WanModalProps {
   onToggleAutoSubmit: (checked: boolean) => void
 }
 
-export function WanModal({ open, onClose, autoSubmit, onToggleAutoSubmit }: WanModalProps) {
+export function WanModal({
+  open,
+  onClose,
+  autoSubmit,
+  onToggleAutoSubmit
+}: WanModalProps) {
   return (
     <Modal
       title="Wan 视频下载详情"

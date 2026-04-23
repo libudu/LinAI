@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Select, message, Spin, Tag, Popconfirm } from 'antd'
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
-import { TaskTemplate } from '../../server/common/template-manager/index'
+import { TaskTemplate } from '../../../server/common/template-manager/index'
 import { hc } from 'hono/client'
-import type { AppType } from '../../server'
-import { useTemplates } from '../hooks/useTemplates'
-import { useTasks } from '../hooks/useTasks'
-import { Task } from '../../server/common/task-manager'
+import type { AppType } from '../../../server'
+import { useTemplates } from '../../hooks/useTemplates'
+import { useTasks } from '../../hooks/useTasks'
+import { Task } from '../../../server/common/task-manager'
 
 const client = hc<AppType>('/')
 

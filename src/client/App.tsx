@@ -1,7 +1,7 @@
-import { WanPreview } from './components/WanSection/WanPreview'
-import { GPTImagePreview } from './components/GPTImageSection/GPTImagePreview'
-import { TemplateSection } from './components/TemplateSection'
-import { TaskList } from './components/TaskList'
+import { WanPreview } from './module/WanSection/WanPreview'
+import { GPTImagePreview } from './module/GPTImageSection/GPTImagePreview'
+import { TemplateSection } from './common/TemplateSection'
+import { TaskList } from './common/TaskList'
 import { ThunderboltOutlined } from '@ant-design/icons'
 
 function App() {

@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 import { Modal, Form, Input, Button, message, Card } from 'antd'
 import { KeyOutlined } from '@ant-design/icons'
-import { TaskFromTemplate } from '../TaskFromTemplate'
-import { LogViewer } from '../LogViewer'
+import { TaskFromTemplate } from '../components/TaskFromTemplate'
+import { LogViewer } from '../components/LogViewer'
 import { useGlobalStore } from '../../store/global'
 
 interface GPTImageModalProps {

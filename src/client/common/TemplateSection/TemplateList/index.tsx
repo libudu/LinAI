@@ -6,8 +6,8 @@ import {
 } from '@ant-design/icons'
 import { Card, message, Spin, Tag, Space, Popconfirm, Button } from 'antd'
 import { hc } from 'hono/client'
-import type { AppType } from '../../../server'
-import { useTemplates } from '../../hooks/useTemplates'
+import type { AppType } from '../../../../server'
+import { useTemplates } from '../../../hooks/useTemplates'
 import { ImageGroup } from './ImageGroup'
 
 const client = hc<AppType>('/')
