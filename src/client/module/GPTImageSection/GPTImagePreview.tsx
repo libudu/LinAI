@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { PictureOutlined, AppstoreOutlined } from '@ant-design/icons'
 import { Button } from 'antd'
 import { GPTImageModal } from './GPTImageModal'
-import { openGPTTokenModal } from './openGPTTokenModal'
+import { openSettingModal } from '../../common/SettingModal'
 import { useGlobalStore } from '../../store/global'
 
 export function GPTImagePreview() {
@@ -14,7 +14,7 @@ export function GPTImagePreview() {
     if (hasApiKey) {
       setIsModalOpen(true)
     } else {
-      openGPTTokenModal()
+      openSettingModal({ initialTab: 'gpt-image' })
     }
   }
 
@@ -47,7 +47,7 @@ export function GPTImagePreview() {
               {!hasApiKey ? (
                 <Button
                   type="primary"
-                  onClick={() => openGPTTokenModal()}
+                  onClick={() => openSettingModal({ initialTab: 'gpt-image' })}
                   className="bg-purple-600 hover:bg-purple-700 shadow-sm px-6"
                   shape="round"
                 >
@@ -57,7 +57,9 @@ export function GPTImagePreview() {
                 <>
                   <Button
                     type="default"
-                    onClick={() => openGPTTokenModal()}
+                    onClick={() =>
+                      openSettingModal({ initialTab: 'gpt-image' })
+                    }
                     className="border-purple-200 text-purple-600 hover:text-purple-500 hover:border-purple-300 px-4"
                     shape="round"
                   >

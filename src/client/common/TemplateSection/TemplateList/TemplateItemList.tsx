@@ -7,7 +7,7 @@ import {
 import { hc } from 'hono/client'
 import type { AppType } from '../../../../server'
 import { useGlobalStore } from '../../../store/global'
-import { openGPTTokenModal } from '../../../module/GPTImageSection/openGPTTokenModal'
+import { openSettingModal } from '../../../common/SettingModal'
 import { ImageGroup } from './ImageGroup'
 import { TaskTemplate } from '../../../../server/common/template-manager'
 import { useTasks } from '../../../hooks/useTasks'
@@ -63,7 +63,8 @@ export function TemplateItemList({
   const handleGenerate = (templateId: string, size: '1k' | '2k') => {
     const apiKey = gptImageApiKey
     if (!apiKey) {
-      openGPTTokenModal({
+      openSettingModal({
+        initialTab: 'gpt-image',
         onSuccess: (key) => {
           doGenerate(key, templateId, size)
         }
