@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
+import * as path from 'path'
 import wanApi from './api/wan'
 import geminiApi from './api/gemini'
 import taskApi from './api/common/task'
@@ -29,7 +30,8 @@ const port = 3000
 
 if (process.env.NODE_ENV !== 'development') {
   // Production serving of static files
-  app.use('/*', serveStatic({ root: './dist' }))
+  const clientPath = path.resolve(__dirname, '../client')
+  app.use('/*', serveStatic({ root: clientPath }))
 }
 
 serve(
@@ -39,6 +41,17 @@ serve(
   },
   (info) => {
     console.log(`Server is running on http://localhost:${info.port}`)
+    if (process.env.NODE_ENV === 'production') {
+      const url = `http://localhost:${info.port}`
+      const { exec } = require('child_process')
+      const start =
+        process.platform == 'darwin'
+          ? 'open'
+          : process.platform == 'win32'
+            ? 'start'
+            : 'xdg-open'
+      exec(`${start} ${url}`)
+    }
   }
 )
 

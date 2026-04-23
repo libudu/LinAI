@@ -7,7 +7,7 @@
     "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
     "dev:client": "vite",
     "dev:server": "tsx watch src/server/index.ts",
-    "build": "vite build",
+    "build": "vite build && tsup && tsx scripts/post-build.ts",
     "start": "NODE_ENV=production tsx src/server/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "postinstall": "npx playwright install chromium"
@@ -27,8 +27,10 @@
     "concurrently": "^9.2.1",
     "npm-run-all": "^4.1.5",
     "postcss": "^8.5.10",
+    "sass-embedded": "^1.99.0",
     "tailwindcss": "^4.2.2",
     "ts-node": "^10.9.2",
+    "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
     "vite": "^8.0.8"

@@ -172,7 +172,7 @@ export async function handleImageGeneration(options: {
         quality,
         images: base64Images.length > 0 ? base64Images : undefined
       })
-      logger.info('GPT image generated successfully', JSON.stringify(res))
+      logger.info('GPT image generated successfully')
       imageUrl = res.url
       gptTokenUsage = res.usage
     } catch (err: any) {
@@ -214,7 +214,7 @@ export async function handleImageGeneration(options: {
       gptTokenUsage
     })
 
-    logger.info(`GPT image generated successfully`)
+    logger.info(`GPT image task finished`)
     return {
       status: 200,
       data: { success: true as const, image: imageUrl, taskId: task.id }
