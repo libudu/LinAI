@@ -3,6 +3,13 @@ import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import crypto from 'crypto'
 import sharp from 'sharp'
+import {
+  IMAGE_MAX_DIMENSION,
+  IMAGE_COMPRESS_THRESHOLD,
+  IMAGE_COMPRESS_QUALITY,
+  INPUT_IMAGES_DIR,
+  INPUT_IMAGES_API_PATH
+} from '../../api/common/static'
 
 export interface TaskTemplate {
   id: string
@@ -20,12 +27,10 @@ export interface GeminiTaskTemplate extends TaskTemplate {
 
 class TemplateManager {
   private dataDir: string
-  private imagesDir: string
   private dbPath: string
 
   constructor() {
     this.dataDir = path.join(process.cwd(), 'data')
-    this.imagesDir = path.join(this.dataDir, 'images')
     this.dbPath = path.join(this.dataDir, 'templates.json')
     this.init()
   }
@@ -33,9 +38,6 @@ class TemplateManager {
   private init() {
     if (!fs.existsSync(this.dataDir)) {
       fs.mkdirSync(this.dataDir, { recursive: true })
-    }
-    if (!fs.existsSync(this.imagesDir)) {
-      fs.mkdirSync(this.imagesDir, { recursive: true })
     }
     if (!fs.existsSync(this.dbPath)) {
       fs.writeFileSync(this.dbPath, JSON.stringify([]), 'utf-8')
@@ -76,11 +78,11 @@ class TemplateManager {
             if (
               metadata.width &&
               metadata.height &&
-              (metadata.width > 1920 || metadata.height > 1920)
+              (metadata.width > IMAGE_MAX_DIMENSION || metadata.height > IMAGE_MAX_DIMENSION)
             ) {
               sharpInstance = sharpInstance.resize({
-                width: 1920,
-                height: 1920,
+                width: IMAGE_MAX_DIMENSION,
+                height: IMAGE_MAX_DIMENSION,
                 fit: 'inside',
                 withoutEnlargement: true
               })
@@ -89,8 +91,8 @@ class TemplateManager {
             let webpBuffer = await sharpInstance.webp().toBuffer()
 
             // 如果超过200kb进行75quality的压缩
-            if (webpBuffer.length > 200 * 1024) {
-              webpBuffer = await sharpInstance.webp({ quality: 75 }).toBuffer()
+            if (webpBuffer.length > IMAGE_COMPRESS_THRESHOLD) {
+              webpBuffer = await sharpInstance.webp({ quality: IMAGE_COMPRESS_QUALITY }).toBuffer()
             }
 
             const hash = crypto
@@ -98,12 +100,12 @@ class TemplateManager {
               .update(webpBuffer)
               .digest('hex')
             const filename = `${hash}.webp`
-            const filepath = path.join(this.imagesDir, filename)
+            const filepath = path.join(INPUT_IMAGES_DIR, filename)
 
             if (!fs.existsSync(filepath)) {
               await fs.writeFile(filepath, webpBuffer)
             }
-            imageUrls.push(`/api/static/images/${filename}`)
+            imageUrls.push(`${INPUT_IMAGES_API_PATH}/${filename}`)
           }
         } else {
           imageUrls.push(imgUrl)

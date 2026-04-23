@@ -6,14 +6,10 @@ import { taskManager } from './common/task'
 import { templateManager } from '../common/template-manager'
 import { TaskTemplate } from '../common/template-manager'
 import { logger } from '../module/utils/logger'
+import { GENERATED_IMAGES_API_PATH, GENERATED_IMAGES_DIR } from './common/static'
 import fs from 'fs-extra'
 import path from 'path'
 import crypto from 'crypto'
-
-const generatedImagesDir = path.join(process.cwd(), 'data', 'generated_images')
-if (!fs.existsSync(generatedImagesDir)) {
-  fs.mkdirSync(generatedImagesDir, { recursive: true })
-}
 
 interface GPTImageResponse {
   created: number
@@ -157,10 +153,10 @@ async function handleImageGeneration(
 
       const hash = crypto.createHash('md5').update(buffer).digest('hex')
       const filename = `${hash}.png`
-      const filepath = path.join(generatedImagesDir, filename)
+      const filepath = path.join(GENERATED_IMAGES_DIR, filename)
 
       await fs.writeFile(filepath, buffer)
-      imageUrl = `/api/static/generated/${filename}`
+      imageUrl = `${GENERATED_IMAGES_API_PATH}/${filename}`
     } catch (e) {
       logger.error('Failed to save generated image locally', e)
     }
