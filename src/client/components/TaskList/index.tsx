@@ -7,7 +7,8 @@ import {
   Button,
   message,
   Modal,
-  Checkbox
+  Checkbox,
+  Image
 } from 'antd'
 import {
   SyncOutlined,
@@ -212,10 +213,11 @@ export function TaskList() {
         if (!outputUrl) return '-'
         if (record.rawTemplate?.usageType === 'image') {
           return (
-            <img
+            <Image
               src={outputUrl}
               alt="result"
-              style={{ height: 40, borderRadius: 4 }}
+              height={40}
+              style={{ borderRadius: 4, objectFit: 'cover' }}
             />
           )
         }

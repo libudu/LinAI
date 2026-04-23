@@ -3,6 +3,8 @@ import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import fs from 'fs-extra'
 import path from 'path'
+import crypto from 'crypto'
+import sharp from 'sharp'
 
 // 图片处理配置
 export const IMAGE_MAX_DIMENSION = 1600
@@ -27,6 +29,66 @@ export const GENERATED_IMAGES_API_PATH = '/api/static/images/generated'
 export const INPUT_IMAGES_API_PATH = '/api/static/images/input'
 
 const staticApi = new Hono()
+  .post(
+    '/images/upload',
+    zValidator('json', z.object({ image: z.string() })),
+    async (c) => {
+      const { image } = c.req.valid('json')
+
+      if (!image.startsWith('data:image')) {
+        return c.json({ success: false, error: 'Invalid image format' })
+      }
+
+      const matches = image.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/)
+      if (!matches) {
+        return c.json({ success: false, error: 'Invalid base64 image data' })
+      }
+
+      try {
+        const buffer = Buffer.from(matches[2], 'base64')
+
+        let sharpInstance = sharp(buffer)
+        const metadata = await sharpInstance.metadata()
+
+        // 缩放到长宽最多1920px (配置为 IMAGE_MAX_DIMENSION)
+        if (
+          metadata.width &&
+          metadata.height &&
+          (metadata.width > IMAGE_MAX_DIMENSION || metadata.height > IMAGE_MAX_DIMENSION)
+        ) {
+          sharpInstance = sharpInstance.resize({
+            width: IMAGE_MAX_DIMENSION,
+            height: IMAGE_MAX_DIMENSION,
+            fit: 'inside',
+            withoutEnlargement: true
+          })
+        }
+
+        let webpBuffer = await sharpInstance.webp().toBuffer()
+
+        // 如果超过指定大小进行指定quality的压缩
+        if (webpBuffer.length > IMAGE_COMPRESS_THRESHOLD) {
+          webpBuffer = await sharpInstance.webp({ quality: IMAGE_COMPRESS_QUALITY }).toBuffer()
+        }
+
+        const hash = crypto
+          .createHash('md5')
+          .update(webpBuffer)
+          .digest('hex')
+        const filename = `${hash}.webp`
+        const filepath = path.join(INPUT_IMAGES_DIR, filename)
+
+        if (!fs.existsSync(filepath)) {
+          await fs.writeFile(filepath, webpBuffer)
+        }
+
+        return c.json({ success: true, url: `${INPUT_IMAGES_API_PATH}/${filename}` })
+      } catch (error) {
+        console.error('Image upload failed:', error)
+        return c.json({ success: false, error: 'Image processing failed' })
+      }
+    }
+  )
   .get(
     '/images/generated/:filename',
     zValidator('param', z.object({ filename: z.string() })),

@@ -1,24 +1,13 @@
 import { useState } from 'react'
 import { useLocalStorageState } from 'ahooks'
-import {
-  PlusOutlined,
-  UploadOutlined,
-  DownloadOutlined
-} from '@ant-design/icons'
-import {
-  Form,
-  Input,
-  Radio,
-  Button,
-  message,
-  Upload,
-  Image,
-  Select
-} from 'antd'
+import { PlusOutlined, DownloadOutlined } from '@ant-design/icons'
+import { Form, Input, Radio, Button, message, Image, Select } from 'antd'
 import { hc } from 'hono/client'
 import type { AppType } from '../../../server'
 import { GPTTokenModal } from '../GPTImageSection/GPTTokenModal'
 import { useGlobalStore } from '../../store/global'
+
+import { ImageUpload } from './ImageUpload'
 
 const client = hc<AppType>('/')
 
@@ -30,6 +19,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
   const [form] = Form.useForm()
   const [submitting, setSubmitting] = useState(false)
   const [imageUrls, setImageUrls] = useState<string[]>([])
+  const [uploadingCount, setUploadingCount] = useState(0)
   const [localUsageType, setLocalUsageType] = useLocalStorageState<
     'image' | 'video'
   >('template-usage-type', {
@@ -56,7 +46,8 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
         json: {
           apiKey,
           prompt,
-          aspectRatio
+          aspectRatio,
+          images: imageUrls
         }
       })
       const data = await res.json()
@@ -113,15 +104,6 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
     } finally {
       setSubmitting(false)
     }
-  }
-
-  const handleUpload = (file: File) => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      setImageUrls((prev) => [...prev, e.target?.result as string])
-    }
-    reader.readAsDataURL(file)
-    return false // 阻止默认上传行为
   }
 
   return (
@@ -190,31 +172,16 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
         </div>
 
         <Form.Item label="上传图片">
-          <Upload
-            accept="image/*"
-            showUploadList={false}
-            beforeUpload={handleUpload as any}
-            multiple
-          >
-            <Button icon={<UploadOutlined />}>选择多张图片</Button>
-          </Upload>
-          {imageUrls.length > 0 && (
-            <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
-              {imageUrls.map((url, index) => (
-                <div
-                  key={index}
-                  className="shrink-0 rounded-lg overflow-hidden border border-slate-200 shadow-sm bg-slate-100"
-                  style={{ width: '80px', height: '120px' }}
-                >
-                  <img
-                    src={url}
-                    alt={`preview-${index}`}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              ))}
-            </div>
-          )}
+          <ImageUpload
+            value={imageUrls}
+            onChange={setImageUrls}
+            onUploadingChange={(isUploading) =>
+              setUploadingCount(isUploading ? 1 : 0)
+            }
+            onFirstImageRatio={(ratio) => {
+              form.setFieldsValue({ aspectRatio: ratio })
+            }}
+          />
         </Form.Item>
 
         <Form.Item
@@ -266,6 +233,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
               <Button
                 onClick={handleTrial}
                 loading={trialGenerating}
+                disabled={uploadingCount > 0}
                 size="large"
                 className="grow border-purple-300 text-purple-600 hover:text-purple-500 hover:border-purple-400"
               >
@@ -277,6 +245,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
               type="primary"
               htmlType="submit"
               loading={submitting}
+              disabled={uploadingCount > 0}
               block={usageType !== 'image'}
               className="grow bg-emerald-600 hover:bg-emerald-700"
               size="large"

@@ -8,6 +8,7 @@ import { Card, message, Spin, Tag, Space, Popconfirm, Button } from 'antd'
 import { hc } from 'hono/client'
 import type { AppType } from '../../../server'
 import { useTemplates } from '../../hooks/useTemplates'
+import { ImageGroup } from './ImageGroup'
 
 const client = hc<AppType>('/')
 
@@ -107,39 +108,7 @@ export const TemplateList = forwardRef<TemplateListRef, unknown>((_, ref) => {
                   className="shadow-sm hover:shadow-md transition-shadow"
                 >
                   <div className="flex gap-4">
-                    <div className="w-24 h-24 shrink-0 relative ml-2">
-                      {item.images &&
-                        item.images.map((url, index) => {
-                          const isFirst = index === 0
-                          const isLast =
-                            index === item.images.length - 1 &&
-                            item.images.length > 1
-                          const rotation = isFirst ? -6 : isLast ? 6 : 0
-                          const leftOffset = index * 10 // Smaller offset for list view
-                          const zIndex = isFirst ? 10 : isLast ? 8 : 9
-
-                          return (
-                            <div
-                              key={index}
-                              className="absolute rounded-md overflow-hidden bg-slate-100 border border-slate-200 shadow-sm transition-all duration-300 ease-in-out hover:!z-50 hover:scale-105 cursor-pointer"
-                              style={{
-                                width: '64px',
-                                height: '96px',
-                                left: `${leftOffset}px`,
-                                zIndex: zIndex,
-                                transform: `rotate(${rotation}deg)`,
-                                transformOrigin: 'bottom center'
-                              }}
-                            >
-                              <img
-                                src={url}
-                                alt="template"
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                          )
-                        })}
-                    </div>
+                    <ImageGroup images={item.images || []} />
                     <div className="flex-1 min-w-0 flex flex-col">
                       <div className="flex justify-between items-start mb-2">
                         <Space size={[0, 4]} wrap>
