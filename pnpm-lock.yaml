@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@ant-design/icons':
-        specifier: ^6.1.1
-        version: 6.1.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@google/genai':
         specifier: ^1.50.1
         version: 1.50.1
@@ -20,12 +17,6 @@ importers:
       '@hono/zod-validator':
         specifier: ^0.7.6
         version: 0.7.6(hono@4.12.14)(zod@4.3.6)
-      ahooks:
-        specifier: ^3.9.7
-        version: 3.9.7(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      antd:
-        specifier: ^6.3.6
-        version: 6.3.6(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       axios:
         specifier: ^1.15.0
         version: 1.15.0
@@ -44,12 +35,6 @@ importers:
       playwright:
         specifier: ^1.59.1
         version: 1.59.1
-      react:
-        specifier: ^19.2.5
-        version: 19.2.5
-      react-dom:
-        specifier: ^19.2.5
-        version: 19.2.5(react@19.2.5)
       sharp:
         specifier: ^0.34.5
         version: 0.34.5
@@ -59,10 +44,10 @@ importers:
       zod:
         specifier: ^4.3.6
         version: 4.3.6
-      zustand:
-        specifier: ^5.0.12
-        version: 5.0.12(@types/react@19.2.14)(react@19.2.5)
     devDependencies:
+      '@ant-design/icons':
+        specifier: ^6.1.1
+        version: 6.1.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@tailwindcss/vite':
         specifier: ^4.2.2
         version: 4.2.2(vite@8.0.8(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.6.1)(sass-embedded@1.99.0)(sass@1.99.0)(tsx@4.21.0))
@@ -84,6 +69,12 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.0.1
         version: 6.0.1(vite@8.0.8(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.6.1)(sass-embedded@1.99.0)(sass@1.99.0)(tsx@4.21.0))
+      ahooks:
+        specifier: ^3.9.7
+        version: 3.9.7(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      antd:
+        specifier: ^6.3.6
+        version: 6.3.6(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       autoprefixer:
         specifier: ^10.5.0
         version: 10.5.0(postcss@8.5.10)
@@ -96,6 +87,12 @@ importers:
       postcss:
         specifier: ^8.5.10
         version: 8.5.10
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-dom:
+        specifier: ^19.2.5
+        version: 19.2.5(react@19.2.5)
       sass-embedded:
         specifier: ^1.99.0
         version: 1.99.0
@@ -117,6 +114,9 @@ importers:
       vite:
         specifier: ^8.0.8
         version: 8.0.8(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.6.1)(sass-embedded@1.99.0)(sass@1.99.0)(tsx@4.21.0)
+      zustand:
+        specifier: ^5.0.12
+        version: 5.0.12(@types/react@19.2.14)(react@19.2.5)
 
 packages:
 

@@ -6,9 +6,9 @@ export const config = {
   BASE_URL: 'https://wanx.biz.aliyun.com/wanx/api/common',
   POLL_INTERVAL: 10 * 60 * 1000,
   MAX_IN_PROGRESS: 3,
-  DOWNLOAD_DIR: './downloads',
+  DOWNLOAD_DIR: './data/wan',
   RECORD_FILE: './logs/records.json',
-  USER_DATA_DIR: './.user_data',
+  USER_DATA_DIR: './data/wan/.user_data',
   EXPLORE_URL: 'https://tongyi.aliyun.com/wan/explore',
   START_TIME: new Date('2036-04-17 00:00:00 GMT+0800').getTime(),
   SUBMIT_PAYLOAD: {

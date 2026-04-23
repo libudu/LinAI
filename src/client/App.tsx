@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
-import { WanPreview } from './module/WanSection/WanPreview'
-import { GPTImagePreview } from './module/GPTImageSection/GPTImagePreview'
+// import { WanPreview } from './module/WanSection/WanPreview'
+// import { GPTImagePreview } from './module/GPTImageSection/GPTImagePreview'
 import { TemplateSection } from './common/TemplateSection'
 import { TaskList } from './common/TaskList'
 import { ScheduleOutlined } from '@ant-design/icons'
