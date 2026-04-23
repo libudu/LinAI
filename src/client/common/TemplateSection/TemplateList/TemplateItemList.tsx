@@ -1,11 +1,19 @@
-import { Button, Card, Popconfirm, Space, Tag } from 'antd'
+import { useState } from 'react'
+import { Button, Card, Popconfirm, Space, Tag, message } from 'antd'
 import {
   ArrowLeftOutlined,
   DeleteOutlined,
   InboxOutlined
 } from '@ant-design/icons'
+import { hc } from 'hono/client'
+import type { AppType } from '../../../../server'
+import { useGlobalStore } from '../../../store/global'
+import { openGPTTokenModal } from '../../../module/GPTImageSection/openGPTTokenModal'
 import { ImageGroup } from './ImageGroup'
 import { TaskTemplate } from '../../../../server/common/template-manager'
+import openaiIcon from '../../../assets/icon/openai.svg'
+
+const client = hc<AppType>('/')
 
 interface TemplateItemListProps {
   selectedSource: 'video' | 'image'
@@ -20,6 +28,56 @@ export function TemplateItemList({
   onBack,
   onDelete
 }: TemplateItemListProps) {
+  const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
+  const [generatingId, setGeneratingId] = useState<string | null>(null)
+
+  const doGenerate = async (
+    apiKey: string,
+    templateId: string,
+    quality: 'low' | 'high'
+  ) => {
+    setGeneratingId(`${templateId}-${quality}`)
+    try {
+      const res = await client.api.gptImage.generate.$post({
+        json: {
+          apiKey,
+          templateId,
+          quality
+        }
+      })
+      const data = await res.json()
+      if (data.success && 'image' in data && data.image) {
+        message.success('生成图片成功')
+        const link = document.createElement('a')
+        link.href = data.image as string
+        link.download = `generated-${quality}-${Date.now()}.png`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+      } else {
+        message.error((data as any).error || '生成失败')
+      }
+    } catch (error) {
+      message.error('请求失败')
+    } finally {
+      setGeneratingId(null)
+    }
+  }
+
+  const handleGenerate = (templateId: string, quality: 'low' | 'high') => {
+    const apiKey = gptImageApiKey
+    if (!apiKey) {
+      openGPTTokenModal({
+        onSuccess: (key) => {
+          doGenerate(key, templateId, quality)
+        }
+      })
+      return
+    }
+
+    doGenerate(apiKey, templateId, quality)
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 mb-4">
@@ -63,20 +121,63 @@ export function TemplateItemList({
                           {item.usageType === 'image' ? '图片' : '视频'}
                         </Tag>
                       </Space>
-                      <Popconfirm
-                        title="确定要删除该模板吗？"
-                        onConfirm={() => onDelete(item.id)}
-                        okText="确定"
-                        cancelText="取消"
-                        okButtonProps={{ danger: true }}
-                      >
-                        <Button
-                          type="text"
-                          danger
-                          icon={<DeleteOutlined />}
-                          size="small"
-                        />
-                      </Popconfirm>
+                      <Space size={8} className="flex-nowrap">
+                        {item.usageType === 'image' && (
+                          <>
+                            <Button
+                              type="text"
+                              className="text-slate-500 hover:text-purple-600 hover:bg-purple-50 flex items-center justify-center"
+                              icon={
+                                <img
+                                  src={openaiIcon}
+                                  alt="1k"
+                                  className="w-4 h-4 opacity-70"
+                                />
+                              }
+                              loading={generatingId === `${item.id}-low`}
+                              disabled={
+                                generatingId !== null &&
+                                generatingId !== `${item.id}-low`
+                              }
+                              onClick={() => handleGenerate(item.id, 'low')}
+                            >
+                              1k
+                            </Button>
+                            <Button
+                              type="text"
+                              className="text-slate-500 hover:text-purple-600 hover:bg-purple-50 flex items-center justify-center"
+                              icon={
+                                <img
+                                  src={openaiIcon}
+                                  alt="2k"
+                                  className="w-4 h-4 opacity-70"
+                                />
+                              }
+                              loading={generatingId === `${item.id}-high`}
+                              disabled={
+                                generatingId !== null &&
+                                generatingId !== `${item.id}-high`
+                              }
+                              onClick={() => handleGenerate(item.id, 'high')}
+                            >
+                              2k
+                            </Button>
+                          </>
+                        )}
+                        <Popconfirm
+                          title="确定要删除该模板吗？"
+                          onConfirm={() => onDelete(item.id)}
+                          okText="确定"
+                          cancelText="取消"
+                          okButtonProps={{ danger: true }}
+                        >
+                          <Button
+                            type="text"
+                            danger
+                            icon={<DeleteOutlined />}
+                          />
+                        </Popconfirm>
+                      </Space>
                     </div>
                     {item.title && (
                       <div

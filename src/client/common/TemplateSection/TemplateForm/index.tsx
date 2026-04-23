@@ -4,7 +4,7 @@ import { PlusOutlined, DownloadOutlined } from '@ant-design/icons'
 import { Form, Input, Radio, Button, message, Image, Select } from 'antd'
 import { hc } from 'hono/client'
 import type { AppType } from '../../../../server'
-import { GPTTokenModal } from '../../../module/GPTImageSection/GPTTokenModal'
+import { openGPTTokenModal } from '../../../module/GPTImageSection/openGPTTokenModal'
 import { useGlobalStore } from '../../../store/global'
 
 import { ImageUpload } from './ImageUpload'
@@ -28,7 +28,6 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
   const usageType = Form.useWatch('usageType', form)
   const [trialGenerating, setTrialGenerating] = useState(false)
   const [trialImage, setTrialImage] = useState<string | null>(null)
-  const [tokenModalOpen, setTokenModalOpen] = useState(false)
   const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
 
   const doTrial = async (apiKey: string) => {
@@ -73,7 +72,11 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
 
     const apiKey = gptImageApiKey
     if (!apiKey) {
-      setTokenModalOpen(true)
+      openGPTTokenModal({
+        onSuccess: (key) => {
+          doTrial(key)
+        }
+      })
       return
     }
 
@@ -255,14 +258,6 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
           </div>
         </Form.Item>
       </Form>
-
-      <GPTTokenModal
-        open={tokenModalOpen}
-        onClose={() => setTokenModalOpen(false)}
-        onSuccess={(apiKey) => {
-          doTrial(apiKey)
-        }}
-      />
     </div>
   )
 }

@@ -2,12 +2,11 @@ import { useState } from 'react'
 import { PictureOutlined, AppstoreOutlined } from '@ant-design/icons'
 import { Button } from 'antd'
 import { GPTImageModal } from './GPTImageModal'
-import { GPTTokenModal } from './GPTTokenModal'
+import { openGPTTokenModal } from './openGPTTokenModal'
 import { useGlobalStore } from '../../store/global'
 
 export function GPTImagePreview() {
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isTokenModalOpen, setIsTokenModalOpen] = useState(false)
   const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
   const hasApiKey = !!gptImageApiKey
 
@@ -15,7 +14,7 @@ export function GPTImagePreview() {
     if (hasApiKey) {
       setIsModalOpen(true)
     } else {
-      setIsTokenModalOpen(true)
+      openGPTTokenModal()
     }
   }
 
@@ -48,7 +47,7 @@ export function GPTImagePreview() {
               {!hasApiKey ? (
                 <Button
                   type="primary"
-                  onClick={() => setIsTokenModalOpen(true)}
+                  onClick={() => openGPTTokenModal()}
                   className="bg-purple-600 hover:bg-purple-700 shadow-sm px-6"
                   shape="round"
                 >
@@ -58,7 +57,7 @@ export function GPTImagePreview() {
                 <>
                   <Button
                     type="default"
-                    onClick={() => setIsTokenModalOpen(true)}
+                    onClick={() => openGPTTokenModal()}
                     className="border-purple-200 text-purple-600 hover:text-purple-500 hover:border-purple-300 px-4"
                     shape="round"
                   >
@@ -80,10 +79,6 @@ export function GPTImagePreview() {
       </div>
 
       <GPTImageModal open={isModalOpen} onClose={() => setIsModalOpen(false)} />
-      <GPTTokenModal
-        open={isTokenModalOpen}
-        onClose={() => setIsTokenModalOpen(false)}
-      />
     </>
   )
 }

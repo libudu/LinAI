@@ -4,7 +4,8 @@ import {
   SyncOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
-  ClockCircleOutlined
+  ClockCircleOutlined,
+  QuestionCircleOutlined
 } from '@ant-design/icons'
 import { hc } from 'hono/client'
 import type { AppType } from '../../../server'
@@ -111,28 +112,31 @@ export function TaskList() {
       width: 80
     },
     {
-      title: '预估费用',
+      title: () => <div>预估费用</div>,
       key: 'cost',
       render: (_: any, record: Task) => {
         if (record.source === 'gpt-image-2' && record.gptTokenUsage) {
           const inputTokens = record.gptTokenUsage.input_tokens || 0
           const outputTokens = record.gptTokenUsage.output_tokens || 0
-          const cost =
-            ((20 / 1000000) * inputTokens + (120 / 1000000) * outputTokens) *
-            1.4
-
+          const inputCost = (20 / 1000000) * inputTokens * 1.4
+          const outputCost = (120 / 1000000) * outputTokens * 1.4
+          const totalCost =
+            Math.ceil(inputCost * 100) / 100 + Math.ceil(outputCost * 100) / 100
+          const cost2str = (cost: number) =>
+            (Math.ceil(cost * 100) / 100).toFixed(2) + ' ￥'
           const tooltipContent = (
             <div>
               <div>输入 tokens: {inputTokens}</div>
+              <div>输入预估费用: {cost2str(inputCost)}</div>
               <div>输出 tokens: {outputTokens}</div>
-              <div>预估费用: ￥{cost.toFixed(4)}</div>
+              <div>输出预估费用: {cost2str(outputCost)}</div>
             </div>
           )
 
           return (
             <Tooltip title={tooltipContent}>
               <span style={{ cursor: 'help', borderBottom: '1px dashed #ccc' }}>
-                ￥{cost.toFixed(2)}
+                {cost2str(totalCost)}
               </span>
             </Tooltip>
           )

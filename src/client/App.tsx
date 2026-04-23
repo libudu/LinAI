@@ -14,7 +14,7 @@ function App() {
             <span className="text-white font-bold text-xl leading-none">W</span>
           </div>
           <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
-            Video Downloader
+            LinAI：集成编排 AI 任务
           </h1>
         </div>
       </header>
