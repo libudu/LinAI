@@ -4,8 +4,10 @@ import { z } from 'zod'
 import fs from 'fs-extra'
 import path from 'path'
 import { TaskManager } from '../../common/task-manager'
+import { TemplateManager } from '../../common/template-manager'
 
 export const taskManager = new TaskManager()
+const templateManager = new TemplateManager()
 const taskApi = new Hono()
   // Chain route declarations so Hono keeps the full client route map in AppType.
   .get(
@@ -29,10 +31,12 @@ const taskApi = new Hono()
       const { usageType } = c.req.valid('param')
       try {
         const { templateId, source } = c.req.valid('json')
-        const newTask = await taskManager.createTaskFromTemplate(templateId, source)
-        if (!newTask) {
+        const templates = await templateManager.getTemplates()
+        const template = templates.find((t) => t.id === templateId)
+        if (!template) {
           return c.json({ success: false as const, error: 'Template not found' }, 404)
         }
+        const newTask = await taskManager.createTaskFromTemplate(template, source)
         // Since it's created for this module, ensure usageType matches.
         if (newTask.rawTemplate?.usageType !== usageType) {
           // Assuming the frontend passes a templateId that matches the module.

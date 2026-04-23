@@ -4,18 +4,18 @@ import { z } from 'zod'
 import fs from 'fs-extra'
 import path from 'path'
 
-const tempImagesDir = path.join(process.cwd(), 'data', 'temp_images')
-if (!fs.existsSync(tempImagesDir)) {
-  fs.mkdirSync(tempImagesDir, { recursive: true })
+const generatedImagesDir = path.join(process.cwd(), 'data', 'generated_images')
+if (!fs.existsSync(generatedImagesDir)) {
+  fs.mkdirSync(generatedImagesDir, { recursive: true })
 }
 
 const staticApi = new Hono()
   .get(
-    '/temp/:filename',
+    '/generated/:filename',
     zValidator('param', z.object({ filename: z.string() })),
     async (c) => {
       const { filename } = c.req.valid('param')
-      const filepath = path.join(tempImagesDir, filename)
+      const filepath = path.join(generatedImagesDir, filename)
       if (fs.existsSync(filepath)) {
         const file = await fs.readFile(filepath)
         const ext = path.extname(filename).slice(1)

@@ -54,26 +54,9 @@ export class TaskManager {
   }
 
   public async createTaskFromTemplate(
-    templateIdOrTemplate: string | Omit<TaskTemplate, 'id' | 'createdAt'>,
+    template: TaskTemplate,
     source: string
-  ): Promise<Task | null> {
-    let template: TaskTemplate | undefined;
-
-    if (typeof templateIdOrTemplate === 'string') {
-      const templates = await this.templateManager.getTemplates()
-      template = templates.find((t) => t.id === templateIdOrTemplate)
-    } else {
-      template = {
-        ...templateIdOrTemplate,
-        id: uuidv4(),
-        createdAt: Date.now()
-      } as TaskTemplate;
-    }
-
-    if (!template) {
-      return null
-    }
-
+  ): Promise<Task> {
     const tasks = await this.getTasks()
     const newTask: Task = {
       id: uuidv4(),
@@ -104,7 +87,26 @@ export class TaskManager {
       JSON.stringify(filtered, null, 2),
       'utf-8'
     )
-    return true
+
+    if (target.outputUrl && target.outputUrl.startsWith('/api/static/')) {
+      try {
+        let filename = '';
+        let dirPath = '';
+        filename = target.outputUrl.replace('/api/static/generated/', '')
+        dirPath = path.join(this.dataDir, 'generated_images')
+
+        if (filename && dirPath) {
+          const filepath = path.join(dirPath, filename)
+          if (fs.existsSync(filepath)) {
+            await fs.unlink(filepath)
+          }
+        }
+        return true
+      } catch (error) {
+        console.error('Failed to delete task file:', error)
+      }
+    }
+    return false
   }
 
   public async updateTask(id: string, updates: Partial<Task>): Promise<boolean> {

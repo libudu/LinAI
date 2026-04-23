@@ -1,16 +1,18 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
+import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { taskManager } from './common/task'
 import { templateManager } from './common/template'
+import { TaskTemplate } from '../common/template-manager'
 import { logger } from '../module/utils/logger'
 import fs from 'fs-extra'
 import path from 'path'
 import crypto from 'crypto'
 
-const tempImagesDir = path.join(process.cwd(), 'data', 'temp_images')
-if (!fs.existsSync(tempImagesDir)) {
-  fs.mkdirSync(tempImagesDir, { recursive: true })
+const generatedImagesDir = path.join(process.cwd(), 'data', 'generated_images')
+if (!fs.existsSync(generatedImagesDir)) {
+  fs.mkdirSync(generatedImagesDir, { recursive: true })
 }
 
 interface GPTImageResponse {
@@ -104,44 +106,17 @@ async function generateGPTImage(
 async function handleImageGeneration(
   options: {
     apiKey: string
-    templateId?: string
-    prompt?: string
-    aspectRatio?: string
+    template: TaskTemplate
     quality?: 'low' | 'medium' | 'high'
     isTrial?: boolean
   }
 ) {
   try {
-    const { apiKey, templateId, prompt, aspectRatio, quality = 'medium', isTrial } = options
+    const { apiKey, template, quality = 'medium', isTrial } = options
 
-    let templateInput: string | any;
-    let finalPrompt = prompt;
-    let finalAspectRatio = aspectRatio || '1:1';
+    logger.info(`Generating GPT ${isTrial ? 'trial ' : ''}image`)
 
-    if (templateId) {
-      const templates = await templateManager.getTemplates()
-      const template = templates.find((t) => t.id === templateId)
-      if (!template) {
-        return { status: 404, data: { success: false as const, error: 'Template not found' } }
-      }
-      templateInput = templateId;
-      finalPrompt = template.prompt;
-      finalAspectRatio = template.aspectRatio || '1:1';
-      logger.info('Generating GPT image for template ' + templateId)
-    } else if (prompt) {
-      templateInput = {
-        prompt,
-        aspectRatio: finalAspectRatio,
-        usageType: 'image',
-        images: [],
-        title: 'Trial Template'
-      }
-      logger.info('Generating GPT trial image for prompt')
-    } else {
-      return { status: 400, data: { success: false as const, error: 'Missing templateId or prompt' } }
-    }
-
-    const task = await taskManager.createTaskFromTemplate(templateInput, 'gpt-image-2')
+    const task = await taskManager.createTaskFromTemplate(template, 'gpt-image-2')
     if (!task) {
       return { status: 500, data: { success: false as const, error: 'Failed to create task' } }
     }
@@ -149,14 +124,14 @@ async function handleImageGeneration(
     await taskManager.updateTaskStatus(task.id, 'running')
     const startTime = Date.now()
 
-    const finalSize = calculateSize(finalAspectRatio, isTrial ? 1024 : 2048)
+    const finalSize = calculateSize(template.aspectRatio || '1:1', isTrial ? 1024 : 2048)
 
     let imageUrl: string
     let gptTokenUsage: GPTImageResponse['usage'] | undefined
     try {
       const res = await generateGPTImage({
         apiKey,
-        prompt: finalPrompt!,
+        prompt: template.prompt,
         size: finalSize,
         quality
       })
@@ -168,28 +143,26 @@ async function handleImageGeneration(
       return { status: 500, data: { success: false as const, error: err.message } }
     }
 
-    if (isTrial) {
-      try {
-        let buffer: Buffer
-        if (imageUrl.startsWith('data:image/')) {
-          const b64Data = imageUrl.split(',')[1]
-          buffer = Buffer.from(b64Data, 'base64')
-        } else {
-          const imgRes = await fetch(imageUrl)
-          if (!imgRes.ok) throw new Error('Failed to download image')
-          const arrayBuffer = await imgRes.arrayBuffer()
-          buffer = Buffer.from(arrayBuffer)
-        }
-
-        const hash = crypto.createHash('md5').update(buffer).digest('hex')
-        const filename = `${hash}.png`
-        const filepath = path.join(tempImagesDir, filename)
-
-        await fs.writeFile(filepath, buffer)
-        imageUrl = `/api/static/temp/${filename}`
-      } catch (e) {
-        logger.error('Failed to save trial image locally', e)
+    try {
+      let buffer: Buffer
+      if (imageUrl.startsWith('data:image/')) {
+        const b64Data = imageUrl.split(',')[1]
+        buffer = Buffer.from(b64Data, 'base64')
+      } else {
+        const imgRes = await fetch(imageUrl)
+        if (!imgRes.ok) throw new Error('Failed to download image')
+        const arrayBuffer = await imgRes.arrayBuffer()
+        buffer = Buffer.from(arrayBuffer)
       }
+
+      const hash = crypto.createHash('md5').update(buffer).digest('hex')
+      const filename = `${hash}.png`
+      const filepath = path.join(generatedImagesDir, filename)
+
+      await fs.writeFile(filepath, buffer)
+      imageUrl = `/api/static/generated/${filename}`
+    } catch (e) {
+      logger.error('Failed to save generated image locally', e)
     }
 
     const duration = Date.now() - startTime
@@ -221,7 +194,12 @@ const gptImageApi = new Hono()
     ),
     async (c) => {
       const { apiKey, templateId, quality } = c.req.valid('json')
-      const result = await handleImageGeneration({ apiKey, templateId, quality, isTrial: false })
+      const templates = await templateManager.getTemplates()
+      const template = templates.find((t) => t.id === templateId)
+      if (!template) {
+        return c.json({ success: false as const, error: 'Template not found' }, 404)
+      }
+      const result = await handleImageGeneration({ apiKey, template, quality, isTrial: false })
       return c.json(result.data, result.status as any)
     }
   )
@@ -232,12 +210,22 @@ const gptImageApi = new Hono()
       z.object({
         apiKey: z.string().min(1, 'API Key is required'),
         prompt: z.string().min(1, 'Prompt is required'),
-        aspectRatio: z.string().optional().default('1:1')
+        aspectRatio: z.string().optional().default('1:1'),
+        images: z.array(z.string()).optional(),
       })
     ),
     async (c) => {
-      const { apiKey, prompt, aspectRatio } = c.req.valid('json')
-      const result = await handleImageGeneration({ apiKey, prompt, aspectRatio, quality: 'low', isTrial: true })
+      const { apiKey, prompt, aspectRatio, images } = c.req.valid('json')
+      const template: TaskTemplate = {
+        id: uuidv4(),
+        createdAt: Date.now(),
+        prompt,
+        aspectRatio,
+        usageType: 'image',
+        images: images || [],
+        title: 'Trial Template'
+      }
+      const result = await handleImageGeneration({ apiKey, template, quality: 'low', isTrial: true })
       return c.json(result.data, result.status as any)
     }
   )

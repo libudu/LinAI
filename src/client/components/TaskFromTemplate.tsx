@@ -6,19 +6,9 @@ import { hc } from 'hono/client'
 import type { AppType } from '../../server'
 import { useTemplates } from '../hooks/useTemplates'
 import { useTasks } from '../hooks/useTasks'
+import { Task } from '../../server/common/task-manager'
 
 const client = hc<AppType>('/')
-
-interface Task {
-  id: string
-  templateId: string
-  prompt: string
-  images: string[]
-  status: 'pending' | 'running' | 'completed' | 'failed'
-  createdAt: number
-  usageType: 'image' | 'video'
-  error?: string
-}
 
 interface TaskFromTemplateProps {
   usageType: 'image' | 'video'
