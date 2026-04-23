@@ -3,7 +3,7 @@ import { useLocalStorageState } from 'ahooks'
 import {
   PlusOutlined,
   UploadOutlined,
-  QuestionCircleOutlined
+  DownloadOutlined
 } from '@ant-design/icons'
 import {
   Form,
@@ -12,7 +12,6 @@ import {
   Button,
   message,
   Upload,
-  Tooltip,
   Image,
   Select
 } from 'antd'
@@ -223,52 +222,67 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
           label={
             <div className="flex items-center gap-2">
               <span>提示词</span>
-              {usageType === 'image' && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="small"
-                    onClick={handleTrial}
-                    loading={trialGenerating}
-                    type="default"
-                    className="border-purple-300 text-purple-600 hover:text-purple-500 hover:border-purple-400"
-                  >
-                    GPTImage2试用
-                  </Button>
-                  <Tooltip title="会使用 low quality 生成低质量图，仅消耗 1/10 价格（大约0.008元一张），可以用于最终生成效果的参考来调整提示词。">
-                    <QuestionCircleOutlined className="text-slate-400 cursor-help" />
-                  </Tooltip>
-                </div>
-              )}
             </div>
           }
           rules={[{ required: true, message: '请填写提示词' }]}
         >
-          <Input.TextArea rows={4} placeholder="请输入生成内容的提示词..." />
+          <Input.TextArea
+            rows={5}
+            placeholder="请输入生成内容的提示词..."
+            style={{ resize: 'none' }}
+          />
         </Form.Item>
 
         {trialImage && (
-          <div className="mb-4 p-4 bg-slate-50 rounded-lg border border-slate-100 flex flex-col items-center gap-2">
+          <div className="mb-4 p-4 bg-slate-50 rounded-lg border border-slate-100 flex flex-col items-center gap-2 relative group">
             <span className="text-sm text-slate-500">试用生成结果：</span>
-            <Image
-              src={trialImage}
-              alt="trial-preview"
-              className="rounded-lg shadow-sm"
-              style={{ maxHeight: '200px', objectFit: 'contain' }}
-            />
+            <div className="relative">
+              <Image
+                src={trialImage}
+                alt="trial-preview"
+                className="rounded-lg shadow-sm"
+                style={{ maxHeight: '200px', objectFit: 'contain' }}
+              />
+              <Button
+                icon={<DownloadOutlined />}
+                size="small"
+                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={() => {
+                  const link = document.createElement('a')
+                  link.href = trialImage
+                  link.download = 'trial-image.png'
+                  document.body.appendChild(link)
+                  link.click()
+                  document.body.removeChild(link)
+                }}
+              />
+            </div>
           </div>
         )}
 
         <Form.Item className="mb-0 pt-4 border-t border-slate-100">
-          <Button
-            type="primary"
-            htmlType="submit"
-            loading={submitting}
-            block
-            size="large"
-            className="bg-emerald-600 hover:bg-emerald-700"
-          >
-            保存模板
-          </Button>
+          <div className="flex gap-4">
+            {usageType === 'image' && (
+              <Button
+                onClick={handleTrial}
+                loading={trialGenerating}
+                size="large"
+                className="grow border-purple-300 text-purple-600 hover:text-purple-500 hover:border-purple-400"
+              >
+                生成1k图
+              </Button>
+            )}
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={submitting}
+              block={usageType !== 'image'}
+              className="grow bg-emerald-600 hover:bg-emerald-700"
+              size="large"
+            >
+              保存模板
+            </Button>
+          </div>
         </Form.Item>
       </Form>
 

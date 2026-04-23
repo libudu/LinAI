@@ -54,11 +54,22 @@ export class TaskManager {
   }
 
   public async createTaskFromTemplate(
-    templateId: string,
+    templateIdOrTemplate: string | Omit<TaskTemplate, 'id' | 'createdAt'>,
     source: string
   ): Promise<Task | null> {
-    const templates = await this.templateManager.getTemplates()
-    const template = templates.find((t) => t.id === templateId)
+    let template: TaskTemplate | undefined;
+
+    if (typeof templateIdOrTemplate === 'string') {
+      const templates = await this.templateManager.getTemplates()
+      template = templates.find((t) => t.id === templateIdOrTemplate)
+    } else {
+      template = {
+        ...templateIdOrTemplate,
+        id: uuidv4(),
+        createdAt: Date.now()
+      } as TaskTemplate;
+    }
+
     if (!template) {
       return null
     }
