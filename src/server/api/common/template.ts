@@ -1,9 +1,8 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { TemplateManager } from '../../common/template-manager'
+import { templateManager } from '../../common/template-manager'
 
-export const templateManager = new TemplateManager()
 const templateApi = new Hono()
   // Chain route declarations so Hono preserves the route type for the client.
   .get('/', async (c) => {

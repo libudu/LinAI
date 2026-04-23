@@ -4,10 +4,9 @@ import { z } from 'zod'
 import fs from 'fs-extra'
 import path from 'path'
 import { TaskManager } from '../../common/task-manager'
-import { TemplateManager } from '../../common/template-manager'
+import { templateManager } from '../../common/template-manager'
 
 export const taskManager = new TaskManager()
-const templateManager = new TemplateManager()
 const taskApi = new Hono()
   // Chain route declarations so Hono keeps the full client route map in AppType.
   .get(
@@ -53,9 +52,9 @@ const taskApi = new Hono()
     async (c) => {
       try {
         const { id } = c.req.valid('param')
-        const success = await taskManager.deleteTask(id)
-        if (!success) {
-          return c.json({ success: false as const, error: 'Task not found' }, 404)
+        const result = await taskManager.deleteTask(id)
+        if (!result.success) {
+          return c.json({ success: false as const, error: result.error || 'Failed to delete task' }, 404)
         }
         return c.json({ success: true as const })
       } catch (error: any) {

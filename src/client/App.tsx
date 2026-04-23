@@ -1,5 +1,4 @@
 import { WanPreview } from './components/WanSection/WanPreview'
-import { GeminiSection } from './components/GeminiSection'
 import { GPTImagePreview } from './components/GPTImageSection/GPTImagePreview'
 import { TemplateSection } from './components/TemplateSection'
 import { TaskList } from './components/TaskList'

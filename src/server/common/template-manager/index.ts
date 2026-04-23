@@ -18,7 +18,7 @@ export interface GeminiTaskTemplate extends TaskTemplate {
   // Add any gemini specific fields here if needed
 }
 
-export class TemplateManager {
+class TemplateManager {
   private dataDir: string
   private imagesDir: string
   private dbPath: string
@@ -134,3 +134,6 @@ export class TemplateManager {
     return true
   }
 }
+
+export const templateManager = new TemplateManager()
+

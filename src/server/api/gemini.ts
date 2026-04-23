@@ -2,9 +2,7 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { geminiManager } from '../module/gemini-manager/index'
-import { TemplateManager } from '../common/template-manager/index'
-
-const templateManager = new TemplateManager()
+import { templateManager } from '../common/template-manager/index'
 
 const geminiApi = new Hono().post(
   '/generate',

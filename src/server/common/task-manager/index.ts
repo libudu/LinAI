@@ -1,7 +1,8 @@
 import fs from 'fs-extra'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
-import { TaskTemplate, TemplateManager } from '../template-manager'
+import { TaskTemplate } from '../template-manager'
+import { Logger } from '../../module/utils/logger'
 
 export interface Task {
   id: string
@@ -18,12 +19,12 @@ export interface Task {
 export class TaskManager {
   private dataDir: string
   private tasksDbPath: string
-  private templateManager: TemplateManager
+  private logger: Logger
 
   constructor() {
     this.dataDir = path.join(process.cwd(), 'data')
     this.tasksDbPath = path.join(this.dataDir, 'tasks.json')
-    this.templateManager = new TemplateManager()
+    this.logger = new Logger('task-manager')
     this.init()
   }
 
@@ -41,7 +42,7 @@ export class TaskManager {
       const data = await fs.readFile(this.tasksDbPath, 'utf-8')
       return JSON.parse(data)
     } catch (error) {
-      console.error('Failed to read tasks:', error)
+      this.logger.error('Failed to read tasks:', error)
       return []
     }
   }
@@ -74,39 +75,44 @@ export class TaskManager {
     return newTask
   }
 
-  public async deleteTask(id: string): Promise<boolean> {
-    const tasks = await this.getTasks()
-    const target = tasks.find((t) => t.id === id)
-    if (!target) {
-      return false
-    }
-
-    const filtered = tasks.filter((t) => t.id !== id)
-    await fs.writeFile(
-      this.tasksDbPath,
-      JSON.stringify(filtered, null, 2),
-      'utf-8'
-    )
-
-    if (target.outputUrl && target.outputUrl.startsWith('/api/static/')) {
-      try {
-        let filename = '';
-        let dirPath = '';
-        filename = target.outputUrl.replace('/api/static/generated/', '')
-        dirPath = path.join(this.dataDir, 'generated_images')
-
-        if (filename && dirPath) {
-          const filepath = path.join(dirPath, filename)
-          if (fs.existsSync(filepath)) {
-            await fs.unlink(filepath)
-          }
-        }
-        return true
-      } catch (error) {
-        console.error('Failed to delete task file:', error)
+  public async deleteTask(id: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const tasks = await this.getTasks()
+      const target = tasks.find((t) => t.id === id)
+      if (!target) {
+        return { success: false, error: 'Task not found' }
       }
+
+      const filtered = tasks.filter((t) => t.id !== id)
+      await fs.writeFile(
+        this.tasksDbPath,
+        JSON.stringify(filtered, null, 2),
+        'utf-8'
+      )
+
+      if (target.outputUrl && target.outputUrl.startsWith('/api/static/')) {
+        try {
+          let filename = '';
+          let dirPath = '';
+          filename = target.outputUrl.replace('/api/static/generated/', '')
+          dirPath = path.join(this.dataDir, 'generated_images')
+
+          if (filename && dirPath) {
+            const filepath = path.join(dirPath, filename)
+            if (fs.existsSync(filepath)) {
+              await fs.unlink(filepath)
+            }
+          }
+        } catch (error: any) {
+          this.logger.error('Failed to delete task file:', error)
+          return { success: false, error: `Failed to delete task file: ${error.message}` }
+        }
+      }
+      return { success: true }
+    } catch (error: any) {
+      this.logger.error('Failed to delete task:', error)
+      return { success: false, error: `Failed to delete task: ${error.message}` }
     }
-    return false
   }
 
   public async updateTask(id: string, updates: Partial<Task>): Promise<boolean> {
