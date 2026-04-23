@@ -222,7 +222,7 @@ export function TaskList() {
         columns={columns}
         rowKey="id"
         size="small"
-        pagination={{ pageSize: 5 }}
+        pagination={{ pageSize: 10 }}
         loading={loading}
       />
     </Card>

@@ -29,14 +29,12 @@ export function TemplateItemList({
   onDelete
 }: TemplateItemListProps) {
   const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
-  const [generatingId, setGeneratingId] = useState<string | null>(null)
 
   const doGenerate = async (
     apiKey: string,
     templateId: string,
     quality: 'low' | 'high'
   ) => {
-    setGeneratingId(`${templateId}-${quality}`)
     try {
       const res = await client.api.gptImage.generate.$post({
         json: {
@@ -59,8 +57,6 @@ export function TemplateItemList({
       }
     } catch (error) {
       message.error('请求失败')
-    } finally {
-      setGeneratingId(null)
     }
   }
 
@@ -134,11 +130,6 @@ export function TemplateItemList({
                                   className="w-4 h-4 opacity-70"
                                 />
                               }
-                              loading={generatingId === `${item.id}-low`}
-                              disabled={
-                                generatingId !== null &&
-                                generatingId !== `${item.id}-low`
-                              }
                               onClick={() => handleGenerate(item.id, 'low')}
                             >
                               1k
@@ -152,11 +143,6 @@ export function TemplateItemList({
                                   alt="2k"
                                   className="w-4 h-4 opacity-70"
                                 />
-                              }
-                              loading={generatingId === `${item.id}-high`}
-                              disabled={
-                                generatingId !== null &&
-                                generatingId !== `${item.id}-high`
                               }
                               onClick={() => handleGenerate(item.id, 'high')}
                             >
