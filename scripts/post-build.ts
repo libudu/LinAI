@@ -3,7 +3,7 @@ import { execSync } from 'child_process';
 
 function main() {
   console.log('🚀 [Post-build] Starting...');
-  
+
   // 1. 复制 package.json 到 dist 目录
   fs.copyFileSync('package.json', 'dist/package.json');
   console.log('✅ [Post-build] Copied package.json to dist/');
@@ -19,8 +19,8 @@ function main() {
 
   // 3. 在 dist 目录中安装生产环境依赖
   console.log('📦 [Post-build] Installing production dependencies in dist/ ...');
-  execSync('pnpm install --prod', { cwd: 'dist', stdio: 'inherit' });
-  
+  execSync('pnpm install --prod --shamefully-hoist', { cwd: 'dist', stdio: 'inherit' });
+
   console.log('🎉 [Post-build] Completed successfully.');
 }
 
