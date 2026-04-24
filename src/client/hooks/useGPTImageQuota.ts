@@ -1,20 +1,17 @@
 import { useEffect, useRef } from 'react'
 import { create } from 'zustand'
+import { hc } from 'hono/client'
+import type { AppType } from '../../server'
+import type { GPTImageQuotaResponse } from '../../server/api/gpt-image'
 import { useGlobalStore } from '../store/global'
 import { useTasks } from './useTasks'
 
-export const GPT_IMAGE_RMB_RATIO = 1.4
+export const GPT_IMAGE_RMB_RATIO = 2
 
-export interface GPTImageQuotaResponse {
-  id: number
-  name: string
-  quota: number
-  unlimited_quota: boolean
-  used_quota: number
-}
+const client = hc<AppType>('/')
 
 interface QuotaStore {
-  data: GPTImageQuotaResponse | null
+  data: GPTImageQuotaResponse['data'] | null
   error: string | null
   loading: boolean
   lastApiKey: string | null
@@ -50,16 +47,17 @@ const useQuotaStore = create<QuotaStore>((set, get) => ({
     const promise = (async () => {
       set({ loading: true, error: null, lastApiKey: apiKey })
       try {
-        const response = await fetch('https://ai.t8star.cn/v1/token/quota', {
-          headers: {
-            Authorization: `Bearer ${apiKey}`
-          }
-        })
-        const data = await response.json()
-        if (!response.ok || data.error) {
-          throw new Error(data.error?.message || '获取余额失败')
+        const response = await client.api.gptImage.quota.$get()
+        const json = await response.json()
+        if (!json.success) {
+          throw new Error(json.error || '获取余额失败')
         }
-        set({ data, error: null, loading: false, fetchPromise: null })
+        set({
+          data: json.data.data,
+          error: null,
+          loading: false,
+          fetchPromise: null
+        })
       } catch (error: any) {
         console.error(error)
         set({ error: error.message, loading: false, fetchPromise: null })

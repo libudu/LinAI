@@ -10,6 +10,8 @@ import fs from 'fs-extra'
 import path from 'path'
 import crypto from 'crypto'
 import { GPT_IMAGE_SOURCE_MODEL } from './enum'
+import { writeFile } from 'fs/promises'
+import OpenAI, { toFile } from 'openai'
 
 interface GPTImageResponse {
   created: number
@@ -60,45 +62,43 @@ function calculateSize(aspectRatio: string, baseSize: 1024 | 2048): string {
   return `${width}x${height}`
 }
 
-export async function generateGPTImage(
-  options: GenerateGPTImageOptions
-): Promise<{ url: string; usage?: GPTImageResponse['usage'] }> {
+async function generateGPTImageNew(options: GenerateGPTImageOptions) {
   const { apiKey, prompt, size, quality = 'medium', images } = options
-
-  const response = await fetch('https://ai.t8star.cn/v1/images/generations', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: GPT_IMAGE_SOURCE_MODEL,
-      prompt: prompt,
-      size: size,
-      quality: quality,
-      image: images || []
-    })
+  const client = new OpenAI({
+    apiKey,
+    baseURL: 'https://api.wlai.vip/v1'
   })
 
-  if (!response.ok) {
-    const errorData = await response.text()
-    throw new Error(`API error: ${response.status} ${errorData}`)
-  }
+  const imagesToUpload = images
+    ? await Promise.all(
+        images.map(
+          async (file) =>
+            await toFile(fs.createReadStream(file), null, {
+              type: 'image/png'
+            })
+        )
+      )
+    : undefined
 
-  const data = (await response.json()) as GPTImageResponse
-  const imageResult = data.data?.[0]
-  if (!imageResult || (!imageResult.url && !imageResult.b64_json)) {
-    throw new Error('No image returned from API')
-  }
+  const res = await client.images.generate({
+    model: GPT_IMAGE_SOURCE_MODEL,
+    prompt,
+    n: 1,
+    size: size as any,
+    quality
+    // images: imagesToUpload
+  })
 
-  let finalUrl = ''
-  if (imageResult.b64_json) {
-    finalUrl = `data:image/png;base64,${imageResult.b64_json.trim()}`
-  } else {
-    finalUrl = imageResult.url!.replace(/`/g, '').trim()
-  }
+  const imageBuffer = Buffer.from(res.data?.[0].b64_json || '', 'base64')
 
-  return { url: finalUrl, usage: data.usage }
+  const hash = crypto.createHash('md5').update(imageBuffer).digest('hex')
+  const filename = `${hash}.png`
+  const filepath = path.join(GENERATED_IMAGES_DIR, filename)
+  await writeFile(filepath, imageBuffer)
+  return {
+    filename,
+    usage: res.usage
+  }
 }
 
 export async function handleImageGeneration(options: {
@@ -162,10 +162,10 @@ export async function handleImageGeneration(options: {
       }
     }
 
-    let imageUrl: string
-    let gptTokenUsage: GPTImageResponse['usage'] | undefined
+    let filename: string
+    let usage: GPTImageResponse['usage'] | undefined
     try {
-      const res = await generateGPTImage({
+      const res = await generateGPTImageNew({
         apiKey,
         prompt: template.prompt,
         size: finalSize,
@@ -173,10 +173,10 @@ export async function handleImageGeneration(options: {
         images: base64Images.length > 0 ? base64Images : undefined
       })
       logger.info('GPT image generated successfully')
-      imageUrl = res.url
-      gptTokenUsage = res.usage
+      filename = res.filename
+      usage = res.usage
     } catch (error: any) {
-      logger.error(`Failed to generate GPT image`, JSON.stringify(error))
+      logger.error(`Failed to generate GPT image`, error.message)
       await taskManager.updateTaskStatus(task.id, 'failed', error.message)
       return {
         status: 500,
@@ -184,43 +184,22 @@ export async function handleImageGeneration(options: {
       }
     }
 
-    try {
-      let buffer: Buffer
-      if (imageUrl.startsWith('data:image/')) {
-        const b64Data = imageUrl.split(',')[1]
-        buffer = Buffer.from(b64Data, 'base64')
-      } else {
-        const imgRes = await fetch(imageUrl)
-        if (!imgRes.ok) throw new Error('Failed to download image')
-        const arrayBuffer = await imgRes.arrayBuffer()
-        buffer = Buffer.from(arrayBuffer)
-      }
-
-      const hash = crypto.createHash('md5').update(buffer).digest('hex')
-      const filename = `${hash}.png`
-      const filepath = path.join(GENERATED_IMAGES_DIR, filename)
-
-      await fs.writeFile(filepath, buffer)
-      imageUrl = `${GENERATED_IMAGES_API_PATH}/${filename}`
-    } catch (e) {
-      logger.error('Failed to save generated image locally', e)
-    }
-
     const duration = Date.now() - startTime
+    const outputUrl = `${GENERATED_IMAGES_API_PATH}/${filename}`
     await taskManager.updateTask(task.id, {
       status: 'completed',
       duration,
-      outputUrl: imageUrl,
-      gptTokenUsage
+      outputUrl,
+      gptTokenUsage: usage
     })
 
     logger.info(`GPT image task finished`)
     return {
       status: 200,
-      data: { success: true as const, image: imageUrl, taskId: task.id }
+      data: { success: true as const, image: filename, taskId: task.id }
     }
   } catch (error: any) {
-    logger.error(`Failed to generate GPT image`, JSON.stringify(error))
+    logger.error(`Failed to generate GPT image`, error.message)
     return {
       status: 500,
       data: { success: false as const, error: error.message }

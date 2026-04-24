@@ -89,35 +89,22 @@ const CardHeader = ({ template }: { template: TaskTemplate }) => {
       <Space size={8} className="flex-nowrap">
         {template.usageType === 'image' && (
           <>
-            {quota?.unlimited_quota ? (
-              <>
-                <Button
-                  type="text"
-                  className="text-slate-500 hover:text-purple-600 hover:bg-purple-50 flex items-center justify-center"
-                  icon={<img src={openaiIcon} className="w-4 h-4 opacity-70" />}
-                  onClick={() => handleGenerate(template.id, '1k')}
-                >
-                  1K
-                </Button>
-                <Button
-                  type="text"
-                  className="text-slate-500 hover:text-purple-600 hover:bg-purple-50 flex items-center justify-center"
-                  icon={<img src={openaiIcon} className="w-4 h-4 opacity-70" />}
-                  onClick={() => handleGenerate(template.id, '2k')}
-                >
-                  2K
-                </Button>
-              </>
-            ) : (
-              <Button
-                type="text"
-                className="text-slate-500 hover:text-purple-600 hover:bg-purple-50 flex items-center justify-center"
-                icon={<img src={openaiIcon} className="w-4 h-4 opacity-70" />}
-                onClick={() => handleGenerate(template.id, '2k')}
-              >
-                生成
-              </Button>
-            )}
+            <Button
+              type="text"
+              className="text-slate-500 hover:text-purple-600 hover:bg-purple-50 flex items-center justify-center"
+              icon={<img src={openaiIcon} className="w-4 h-4 opacity-70" />}
+              onClick={() => handleGenerate(template.id, '1k')}
+            >
+              1K
+            </Button>
+            <Button
+              type="text"
+              className="text-slate-500 hover:text-purple-600 hover:bg-purple-50 flex items-center justify-center"
+              icon={<img src={openaiIcon} className="w-4 h-4 opacity-70" />}
+              onClick={() => handleGenerate(template.id, '2k')}
+            >
+              2K
+            </Button>
           </>
         )}
         <Popconfirm

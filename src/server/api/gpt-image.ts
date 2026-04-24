@@ -8,7 +8,56 @@ import { handleImageGeneration } from '../common/gpt-image'
 import { getConfig } from '../common/config'
 import { TRIAL_TEMPLATE_TITLE } from '../common/template-manager/enum'
 
+export interface GPTImageQuotaResponse {
+  message: string
+  data: {
+    expires_at: number
+    name: string
+    total_available: number
+    total_granted: number
+    total_used: number
+    unlimited_quota: boolean
+  }
+}
+
 const gptImageApi = new Hono()
+  .get('/quota', async (c) => {
+    const config = getConfig()
+    const apiKey = config.gptImageApiKey
+    if (!apiKey) {
+      return c.json(
+        { success: false as const, error: 'API Key is not configured' },
+        400
+      )
+    }
+
+    try {
+      const response = await fetch('https://yunwu.ai/api/usage/token/', {
+        headers: {
+          Authorization: `Bearer ${apiKey}`
+        }
+      })
+      const data: GPTImageQuotaResponse = await response.json()
+      if (!response.ok || data.message) {
+        return c.json(
+          {
+            success: false as const,
+            error: data?.message || '获取余额失败'
+          },
+          500
+        )
+      }
+      return c.json({
+        success: true as const,
+        data: data
+      })
+    } catch (error: any) {
+      return c.json(
+        { success: false as const, error: error.message || '获取余额失败' },
+        500
+      )
+    }
+  })
   .post(
     '/generate',
     zValidator(

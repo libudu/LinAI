@@ -27,7 +27,13 @@ export function GPTImageQuota() {
         <span>
           GPT IMAGE 余额：
           <span className="font-semibold text-slate-800">
-            {(quota.quota * GPT_IMAGE_RMB_RATIO).toFixed(2)}
+            {quota.unlimited_quota
+              ? '不限'
+              : (
+                  quota.total_available *
+                  GPT_IMAGE_RMB_RATIO *
+                  0.000001
+                ).toFixed(2)}
           </span>
         </span>
       ) : (

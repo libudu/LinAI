@@ -89,20 +89,14 @@ export function TaskList() {
   }
 
   const renderCost = (record: Task) => {
-    if (quota && quota.unlimited_quota === false) {
-      return (
-        <Tag color="orange">
-          单次 {(0.04 * GPT_IMAGE_RMB_RATIO).toFixed(2)} ￥
-        </Tag>
-      )
-    }
     if (record.gptTokenUsage) {
       const inputTokens = record.gptTokenUsage.input_tokens || 0
       const outputTokens = record.gptTokenUsage.output_tokens || 0
-      const inputCost = (20 / 1000000) * inputTokens * GPT_IMAGE_RMB_RATIO
-      const outputCost = (120 / 1000000) * outputTokens * GPT_IMAGE_RMB_RATIO
-      const totalCost =
-        Math.ceil(inputCost * 100) / 100 + Math.ceil(outputCost * 100) / 100
+      const inputCost =
+        (((5 / 1000000) * inputTokens) / GPT_IMAGE_RMB_RATIO) * 1.5
+      const outputCost =
+        (((30 / 1000000) * outputTokens) / GPT_IMAGE_RMB_RATIO) * 1.5
+      const totalCost = inputCost + outputCost
       const cost2str = (cost: number) =>
         (Math.ceil(cost * 100) / 100).toFixed(2) + ' ￥'
       const tooltipContent = (
@@ -140,7 +134,7 @@ export function TaskList() {
     >
       <List
         className={styles['task-list']}
-        grid={{ gutter: 16, xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}
+        grid={{ gutter: 16, xs: 1, sm: 1, md: 2, lg: 2, xl: 2, xxl: 2 }}
         dataSource={gptImageTasks}
         loading={loading}
         pagination={{
