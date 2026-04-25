@@ -1,9 +1,8 @@
 import { Button, message } from 'antd'
 import { DownloadOutlined } from '@ant-design/icons'
 import { useState } from 'react'
-import JSZip from 'jszip'
-import { saveAs } from 'file-saver'
 import type { Task } from '../../../../server/common/task-manager'
+import { downloadFile, downloadFilesZip } from '../../../utils/download'
 
 interface TaskListDownloadButtonProps {
   tasks: Task[]
@@ -31,53 +30,27 @@ export function TaskListDownloadButton({
 
     setDownloading(true)
     try {
+      const filesToDownload = unDownloadedTasks.map((task) => ({
+        url: task.outputUrl!,
+        fileName:
+          task.rawTemplate?.title ||
+          task.rawTemplate?.prompt ||
+          `task_${task.id}`,
+        id: task.id
+      }))
+
       if (unDownloadedTasks.length > 3) {
         message.loading({ content: '正在打包压缩...', key: 'download' })
-        const zip = new JSZip()
-
-        await Promise.all(
-          unDownloadedTasks.map(async (task, index) => {
-            if (!task.outputUrl) return
-            try {
-              const response = await fetch(task.outputUrl)
-              const blob = await response.blob()
-              // 获取文件后缀名
-              const ext = task.outputUrl.split('.').pop() || 'png'
-              const title =
-                task.rawTemplate?.title ||
-                task.rawTemplate?.prompt ||
-                `task_${task.id}`
-              // 清理文件名中不合法的字符
-              const safeTitle = title.replace(/[\\/:*?"<>|]/g, '_').slice(0, 50)
-              zip.file(`${safeTitle}_${index}.${ext}`, blob)
-            } catch (error) {
-              console.error(`下载任务 ${task.id} 失败`, error)
-            }
-          })
-        )
-
-        const content = await zip.generateAsync({ type: 'blob' })
-        saveAs(content, `tasks_${new Date().getTime()}.zip`)
+        await downloadFilesZip(filesToDownload, `tasks_${new Date().getTime()}`)
         message.success({ content: '打包下载完成', key: 'download' })
       } else {
         message.loading({ content: '正在下载...', key: 'download' })
         await Promise.all(
-          unDownloadedTasks.map(async (task) => {
-            if (!task.outputUrl) return
-            try {
-              const response = await fetch(task.outputUrl)
-              const blob = await response.blob()
-              const ext = task.outputUrl.split('.').pop() || 'png'
-              const title =
-                task.rawTemplate?.title ||
-                task.rawTemplate?.prompt ||
-                `task_${task.id}`
-              const safeTitle = title.replace(/[\\/:*?"<>|]/g, '_').slice(0, 50)
-              saveAs(blob, `${safeTitle}.${ext}`)
-            } catch (error) {
-              console.error(`下载任务 ${task.id} 失败`, error)
-            }
-          })
+          filesToDownload.map((file) =>
+            downloadFile(file.url, file.fileName).catch((error) => {
+              console.error(`下载任务 ${file.id} 失败`, error)
+            })
+          )
         )
         message.success({ content: '下载完成', key: 'download' })
       }

@@ -1,4 +1,4 @@
-import { Button, Modal, Checkbox, message } from 'antd'
+import { Button, Modal, Checkbox, message, Tooltip } from 'antd'
 import { DeleteOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { hc } from 'hono/client'
@@ -71,11 +71,13 @@ export function TaskItemDeleteButton({ id, onSuccess }: DeleteTaskButtonProps) {
   }
 
   return (
-    <Button
-      type="text"
-      danger
-      icon={<DeleteOutlined />}
-      onClick={handleDelete}
-    />
+    <Tooltip title="删除">
+      <Button
+        type="text"
+        danger
+        icon={<DeleteOutlined />}
+        onClick={handleDelete}
+      />
+    </Tooltip>
   )
 }

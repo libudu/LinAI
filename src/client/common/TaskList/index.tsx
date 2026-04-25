@@ -15,7 +15,6 @@ import {
   ClockCircleOutlined,
   RedoOutlined
 } from '@ant-design/icons'
-import { useState } from 'react'
 import { useLocalStorageState } from 'ahooks'
 import { hc } from 'hono/client'
 import type { AppType } from '../../../server'
@@ -40,10 +39,8 @@ export function TaskList() {
     'downloadedTaskIds',
     { defaultValue: [] }
   )
-  const [retryingIds, setRetryingIds] = useState<string[]>([])
 
   const handleRetry = async (task: Task) => {
-    setRetryingIds((prev) => [...prev, task.id])
     try {
       const res = await client.api.gptImage.generate.$post({
         json: {
@@ -57,8 +54,6 @@ export function TaskList() {
       fetchTasks()
     } catch (err: any) {
       message.error(`重试失败: ${err.message || '未知错误'}`)
-    } finally {
-      setRetryingIds((prev) => prev.filter((id) => id !== task.id))
     }
   }
 
@@ -152,7 +147,7 @@ export function TaskList() {
             <Card size="small" className="w-full shadow-sm">
               <div className="flex gap-4">
                 {/* Left: Image Preview */}
-                <div className="flex-shrink-0 w-28 h-36 relative border border-gray-100 rounded overflow-hidden flex items-center justify-center bg-gray-50">
+                <div className="shrink-0 w-28 h-36 relative border border-gray-100 rounded overflow-hidden flex items-center justify-center bg-gray-50">
                   {task.status === 'failed' && task.error ? (
                     <Typography.Text
                       type="danger"
@@ -169,8 +164,10 @@ export function TaskList() {
                     <Image
                       src={task.outputUrl}
                       alt="result"
-                      className="object-cover"
-                      style={{ width: '100%', height: '100%' }}
+                      classNames={{
+                        root: 'w-full h-full',
+                        image: 'w-full! h-full! object-cover'
+                      }}
                     />
                   )}
                 </div>
@@ -215,7 +212,7 @@ export function TaskList() {
                     {task.rawTemplate?.prompt && (
                       <Typography.Paragraph
                         type="secondary"
-                        className="text-xs mb-0"
+                        className="text-xs mb-0!"
                         ellipsis={{ rows: 2, tooltip: task.rawTemplate.prompt }}
                       >
                         {task.rawTemplate.prompt}
@@ -242,12 +239,13 @@ export function TaskList() {
                       />
                     )}
                     {task.rawTemplate?.title !== TRIAL_TEMPLATE_TITLE && (
-                      <Button
-                        type="text"
-                        icon={<RedoOutlined />}
-                        onClick={() => handleRetry(task)}
-                        loading={retryingIds.includes(task.id)}
-                      />
+                      <Tooltip title="重试">
+                        <Button
+                          type="text"
+                          icon={<RedoOutlined />}
+                          onClick={() => handleRetry(task)}
+                        />
+                      </Tooltip>
                     )}
                     <TaskItemDeleteButton
                       id={task.id}

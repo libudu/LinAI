@@ -1,5 +1,6 @@
-import { Button, message } from 'antd'
+import { Button, message, Tooltip } from 'antd'
 import { DownloadOutlined } from '@ant-design/icons'
+import { downloadFile } from '../../../utils/download'
 
 export const TaskItemDownloadButton = ({
   outputUrl,
@@ -12,29 +13,21 @@ export const TaskItemDownloadButton = ({
 }) => {
   const handleDownload = async () => {
     try {
-      const res = await fetch(outputUrl)
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      const ext = outputUrl.split('.').pop() || 'png'
-      a.download = `${fileName}.${ext}`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
+      await downloadFile(outputUrl, fileName)
       onDownloaded()
-      message.success('开始下载')
+      message.success('下载完成')
     } catch (err) {
       message.error('下载失败')
     }
   }
 
   return (
-    <Button
-      type="text"
-      icon={<DownloadOutlined />}
-      onClick={() => handleDownload()}
-    />
+    <Tooltip title="下载">
+      <Button
+        type="text"
+        icon={<DownloadOutlined />}
+        onClick={() => handleDownload()}
+      />
+    </Tooltip>
   )
 }

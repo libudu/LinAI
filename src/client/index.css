@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @layer base {
   ::-webkit-scrollbar {
@@ -11,11 +11,11 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #334155; /* slate-700 */
+    background: #999;
     border-radius: 10px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #475569; /* slate-600 */
+    background: #aaa;
   }
 }

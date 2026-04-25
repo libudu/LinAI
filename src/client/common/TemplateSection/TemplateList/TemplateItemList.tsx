@@ -91,13 +91,13 @@ const CardHeader = ({ template }: { template: TaskTemplate }) => {
           </Tag>
         )}
       </Space>
-      <Space size={4} className="flex-nowrap">
+      <div className="flex gap-1 items-center">
         {template.usageType === 'image' && (
           <>
             <Tooltip title="生成1K测试图">
               <Button
                 type="text"
-                className="text-slate-500 hover:text-purple-600 hover:bg-purple-50 flex items-center justify-center"
+                className="text-slate-500 hover:text-purple-600 hover:bg-purple-50 flex items-center justify-center px-2!"
                 icon={<img src={openaiIcon} className="w-4 h-4 opacity-70" />}
                 onClick={() => handleGenerate(template.id, '1k')}
               >
@@ -107,7 +107,7 @@ const CardHeader = ({ template }: { template: TaskTemplate }) => {
             <Tooltip title="生成2K高清图">
               <Button
                 type="text"
-                className="text-slate-500 hover:text-purple-600 hover:bg-purple-50 flex items-center justify-center"
+                className="text-slate-500 hover:text-purple-600 hover:bg-purple-50 flex items-center justify-center px-2!"
                 icon={<img src={openaiIcon} className="w-4 h-4 opacity-70" />}
                 onClick={() => handleGenerate(template.id, '2k')}
               >
@@ -128,7 +128,7 @@ const CardHeader = ({ template }: { template: TaskTemplate }) => {
             <Button type="text" danger icon={<DeleteOutlined />} />
           </Tooltip>
         </Popconfirm>
-      </Space>
+      </div>
     </div>
   )
 }
@@ -165,7 +165,7 @@ export function TemplateItemList({ filteredTemplates }: TemplateItemListProps) {
                         {template.title}
                       </div>
                     )}
-                    <Tooltip title={template.prompt} placement="topLeft">
+                    <Tooltip title={template.prompt} placement="bottom">
                       <p className="text-sm text-slate-600 line-clamp-2 cursor-default m-0">
                         {template.prompt}
                       </p>

@@ -43,7 +43,7 @@ export const TemplateList = forwardRef<TemplateListRef, unknown>((_, ref) => {
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col h-full">
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 pr-4 flex flex-col h-full">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold text-slate-800 m-0 flex items-center">
           {selectedSource === null ? (
