@@ -151,10 +151,13 @@ export async function handleImageGeneration(options: {
 
     logger.info(`Generating GPT image`)
 
-    const task = await taskManager.createTaskFromTemplate(
+    const task = await taskManager.createTaskFromTemplate({
       template,
-      GPT_IMAGE_SOURCE_MODEL
-    )
+      source: GPT_IMAGE_SOURCE_MODEL,
+      size,
+      quality
+    })
+
     if (!task) {
       return {
         status: 500,

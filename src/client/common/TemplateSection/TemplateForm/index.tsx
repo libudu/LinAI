@@ -162,6 +162,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
   }
 
   const handleFinish = async (values: any) => {
+    setTrialImage(null)
     setSubmitting(true)
     try {
       const payload = {

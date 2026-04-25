@@ -1,8 +1,5 @@
 import { useGlobalStore } from '../../store/global'
-import {
-  GPT_IMAGE_RMB_RATIO,
-  useGPTImageQuota
-} from '../../hooks/useGPTImageQuota'
+import { useGPTImageQuota } from '../../hooks/useGPTImageQuota'
 import { Tooltip } from 'antd'
 
 export function GPTImageQuota() {
@@ -29,11 +26,7 @@ export function GPTImageQuota() {
           <span className="font-semibold text-slate-800">
             {quota.unlimited_quota
               ? '不限'
-              : (
-                  quota.total_available *
-                  GPT_IMAGE_RMB_RATIO *
-                  0.000001
-                ).toFixed(2)}
+              : (quota.total_available * 0.000001).toFixed(2)}
           </span>
         </span>
       ) : (

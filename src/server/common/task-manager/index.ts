@@ -3,6 +3,7 @@ import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import { TaskTemplate } from '../template-manager'
 import { Logger } from '../../module/utils/logger'
+import { GptImageQuality, GptImageSize } from '../../module/gpt-image/enum'
 
 export interface Task {
   id: string
@@ -13,6 +14,8 @@ export interface Task {
   duration?: number
   outputUrl?: string
   createdAt: number
+  size?: GptImageSize
+  quality?: GptImageQuality
   [key: string]: any
 }
 
@@ -76,15 +79,19 @@ export class TaskManager {
     return tasks.filter((t) => t.rawTemplate?.usageType === usageType)
   }
 
-  public async createTaskFromTemplate(
-    template: TaskTemplate,
+  public async createTaskFromTemplate(options: {
+    template: TaskTemplate
     source: string
-  ): Promise<Task> {
+    size?: GptImageSize
+    quality?: GptImageQuality
+  }): Promise<Task> {
     const tasks = await this.getTasks()
     const newTask: Task = {
       id: uuidv4(),
-      rawTemplate: template,
-      source,
+      rawTemplate: options.template,
+      source: options.source,
+      size: options.size,
+      quality: options.quality,
       status: 'pending',
       createdAt: Date.now()
     }

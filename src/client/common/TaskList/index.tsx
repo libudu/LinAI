@@ -1,34 +1,16 @@
-import {
-  Card,
-  Tag,
-  Typography,
-  Button,
-  Image,
-  Tooltip,
-  List,
-  message
-} from 'antd'
-import {
-  SyncOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  ClockCircleOutlined,
-  RedoOutlined
-} from '@ant-design/icons'
+import { Card, Typography, Button, Image, Tooltip, List, message } from 'antd'
+import { RedoOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { hc } from 'hono/client'
 import type { AppType } from '../../../server'
 import type { Task } from '../../../server/common/task-manager'
 import { useTasks } from '../../hooks/useTasks'
-import {
-  GPT_IMAGE_RMB_RATIO,
-  MODEL_GROUP_RATIO
-} from '../../hooks/useGPTImageQuota'
 import { TaskItemDeleteButton } from './components/TaskItemDeleteButton'
 import styles from './index.module.scss'
 import { TaskItemDownloadButton } from './components/TaskItemDownloadButton'
 import { TRIAL_TEMPLATE_TITLE } from '../../../server/common/template-manager/enum'
 import { GPT_IMAGE_SOURCE_MODEL } from '../../../server/module/gpt-image/enum'
+import { TaskItemTags } from './components/TaskItemTags'
 import { TaskListHeader } from './TaskListHeader'
 
 const client = hc<AppType>('/')
@@ -44,76 +26,14 @@ export function TaskList() {
     await client.api.gptImage.generate.$post({
       json: {
         templateId: task.rawTemplate?.id || '',
-        size: task.size || '2k'
+        size: (task.size as any) || '2k',
+        quality: (task.quality as any) || 'medium'
       }
     })
     message.success('已创建重试任务')
     setTimeout(() => {
       fetchTasks()
     }, 500)
-  }
-
-  const renderStatus = (status: string) => {
-    if (status === 'completed')
-      return (
-        <Tag icon={<CheckCircleOutlined />} color="success">
-          完成
-        </Tag>
-      )
-    if (status === 'running')
-      return (
-        <Tag icon={<SyncOutlined spin />} color="processing">
-          运行中
-        </Tag>
-      )
-    if (status === 'failed')
-      return (
-        <Tag icon={<CloseCircleOutlined />} color="error">
-          失败
-        </Tag>
-      )
-    return (
-      <Tag icon={<ClockCircleOutlined />} color="default">
-        等待中
-      </Tag>
-    )
-  }
-
-  const renderCost = (record: Task) => {
-    if (record.gptTokenUsage) {
-      const inputTokens = record.gptTokenUsage.input_tokens || 0
-      const outputTokens = record.gptTokenUsage.output_tokens || 0
-      const inputCost =
-        (((5 / 1000000) * inputTokens) / GPT_IMAGE_RMB_RATIO) *
-        MODEL_GROUP_RATIO
-      const outputCost =
-        (((30 / 1000000) * outputTokens) / GPT_IMAGE_RMB_RATIO) *
-        MODEL_GROUP_RATIO
-      const totalCost = inputCost + outputCost
-      const cost2str = (cost: number) =>
-        '￥' + (Math.ceil(cost * 100) / 100).toFixed(2)
-      const tooltipContent = (
-        <div>
-          <div>输入 tokens: {inputTokens}</div>
-          <div>输入预估费用: {cost2str(inputCost)}</div>
-          <div>输出 tokens: {outputTokens}</div>
-          <div>输出预估费用: {cost2str(outputCost)}</div>
-          <div>
-            以上不考虑分组和画质，仅根据token消耗粗略计算，以实际扣费为准
-          </div>
-          <div>实际费用根据分组可用性不同会有 1 ~ 3 倍波动</div>
-        </div>
-      )
-
-      return (
-        <Tooltip title={tooltipContent}>
-          <Tag color="orange" style={{ cursor: 'help' }}>
-            约{cost2str(totalCost)}
-          </Tag>
-        </Tooltip>
-      )
-    }
-    return null
   }
 
   // 暂时仅显示 GPT-Image 任务
@@ -173,26 +93,10 @@ export function TaskList() {
                 <div className="flex-grow flex flex-col justify-between overflow-hidden min-w-0">
                   <div>
                     {/* Tags */}
-                    <div className="flex flex-wrap gap-1 mb-2">
-                      {task.status !== 'completed' && renderStatus(task.status)}
-                      <Tag color="blue">
-                        {task.rawTemplate?.usageType === 'image'
-                          ? '图片'
-                          : '视频'}
-                      </Tag>
-                      {downloadedIds?.includes(task.id) ? (
-                        <Tag color="cyan">已下载</Tag>
-                      ) : (
-                        <Tag color="orange">未下载</Tag>
-                      )}
-                      {renderCost(task)}
-                      {task.duration && (
-                        <Tag>
-                          <ClockCircleOutlined className="mr-1" />
-                          {(task.duration / 1000).toFixed(1)}s
-                        </Tag>
-                      )}
-                    </div>
+                    <TaskItemTags
+                      task={task}
+                      downloadedIds={downloadedIds || []}
+                    />
 
                     {/* Title */}
                     {task.rawTemplate?.title && (
@@ -218,40 +122,45 @@ export function TaskList() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex justify-end items-center gap-1 mt-2">
-                    {task.outputUrl && (
-                      <TaskItemDownloadButton
-                        outputUrl={task.outputUrl}
-                        fileName={
-                          task.rawTemplate?.title || task.rawTemplate.prompt
-                        }
-                        onDownloaded={() => {
-                          if (!downloadedIds?.includes(task.id)) {
-                            setDownloadedIds([
-                              ...(downloadedIds || []),
-                              task.id
-                            ])
+                  <div className="flex justify-between items-center gap-1 mt-2">
+                    <div className="text-xs text-slate-400">
+                      {new Date(task.createdAt).toLocaleString()}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {task.outputUrl && (
+                        <TaskItemDownloadButton
+                          outputUrl={task.outputUrl}
+                          fileName={
+                            task.rawTemplate?.title || task.rawTemplate.prompt
                           }
+                          onDownloaded={() => {
+                            if (!downloadedIds?.includes(task.id)) {
+                              setDownloadedIds([
+                                ...(downloadedIds || []),
+                                task.id
+                              ])
+                            }
+                          }}
+                        />
+                      )}
+                      {task.rawTemplate?.title !== TRIAL_TEMPLATE_TITLE && (
+                        <Tooltip title="重试">
+                          <Button
+                            type="text"
+                            icon={<RedoOutlined />}
+                            onClick={() => handleRetry(task)}
+                          />
+                        </Tooltip>
+                      )}
+                      <TaskItemDeleteButton
+                        id={task.id}
+                        onSuccess={() => {
+                          setTimeout(() => {
+                            fetchTasks()
+                          }, 500)
                         }}
                       />
-                    )}
-                    {task.rawTemplate?.title !== TRIAL_TEMPLATE_TITLE && (
-                      <Tooltip title="重试">
-                        <Button
-                          type="text"
-                          icon={<RedoOutlined />}
-                          onClick={() => handleRetry(task)}
-                        />
-                      </Tooltip>
-                    )}
-                    <TaskItemDeleteButton
-                      id={task.id}
-                      onSuccess={() => {
-                        setTimeout(() => {
-                          fetchTasks()
-                        }, 500)
-                      }}
-                    />
+                    </div>
                   </div>
                 </div>
               </div>

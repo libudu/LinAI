@@ -64,8 +64,8 @@ const gptImageApi = new Hono()
       'json',
       z.object({
         templateId: z.string().min(1, 'Template ID is required'),
-        size: z.enum(['1k', '2k', '4k']).optional().default('2k'),
-        quality: z.enum(['medium', 'high']).optional().default('medium')
+        size: z.enum(['1k', '2k', '4k']),
+        quality: z.enum(['medium', 'high'])
       })
     ),
     async (c) => {
