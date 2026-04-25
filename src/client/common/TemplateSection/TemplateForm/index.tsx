@@ -6,6 +6,7 @@ import { hc } from 'hono/client'
 import type { AppType } from '../../../../server'
 import { openSettingModal } from '../../../common/SettingModal'
 import { useGlobalStore } from '../../../store/global'
+import { useLocalSetting } from '../../../hooks/useLocalSetting'
 
 import { ImageUpload } from './ImageUpload'
 
@@ -85,8 +86,9 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
   const [trialGenerating, setTrialGenerating] = useState(false)
   const [trialImage, setTrialImage] = useState<string | null>(null)
   const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
+  const { gptImageSettings } = useLocalSetting()
 
-  const doTrial = async () => {
+  const doTrial = async (size: '1k' | '2k' | '4k') => {
     const prompt = form.getFieldValue('prompt')
     if (!prompt) {
       message.warning('请先填写提示词')
@@ -101,7 +103,8 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
         json: {
           prompt,
           aspectRatio,
-          images: imageUrls
+          images: imageUrls,
+          size
         }
       })
       const data = await res.json()
@@ -118,7 +121,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
     }
   }
 
-  const handleTrial = () => {
+  const handleTrial = (size: '1k' | '2k' | '4k') => {
     const prompt = form.getFieldValue('prompt')
     if (!prompt) {
       message.warning('请先填写提示词')
@@ -130,13 +133,13 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
       openSettingModal({
         initialTab: 'gpt-image',
         onSuccess: () => {
-          doTrial()
+          doTrial(size)
         }
       })
       return
     }
 
-    doTrial()
+    doTrial(size)
   }
 
   const handleFinish = async (values: any) => {
@@ -258,16 +261,26 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
 
         <Form.Item className="mb-0! pt-4 border-t border-slate-100">
           <div className="flex gap-4">
-            {usageType === 'image' && (
+            {usageType === 'image' && gptImageSettings.enable1K && (
               <Button
-                onClick={handleTrial}
+                onClick={() => handleTrial('1k')}
                 loading={trialGenerating}
                 disabled={uploadingCount > 0}
                 size="large"
                 className="grow border-purple-300 text-purple-600 hover:text-purple-500 hover:border-purple-400"
               >
-                生成1k图测试
-                <span className="text-xs text-gray-400">(保存模板后2k)</span>
+                生成1K图
+              </Button>
+            )}
+            {usageType === 'image' && gptImageSettings.enable2K && (
+              <Button
+                onClick={() => handleTrial('2k')}
+                loading={trialGenerating}
+                disabled={uploadingCount > 0}
+                size="large"
+                className="grow border-purple-300 text-purple-600 hover:text-purple-500 hover:border-purple-400"
+              >
+                生成2K图
               </Button>
             )}
             <Button
@@ -276,7 +289,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
               loading={submitting}
               disabled={uploadingCount > 0}
               block={usageType !== 'image'}
-              className="grow bg-emerald-600 hover:bg-emerald-700"
+              className="grow-2 bg-emerald-600 hover:bg-emerald-700"
               size="large"
             >
               保存模板

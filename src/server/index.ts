@@ -10,7 +10,6 @@ import logApi from './api/common/log'
 import gptImageApi from './api/gpt-image'
 import staticApi from './api/common/static'
 import configApi from './api/common/config'
-import * as fs from 'fs'
 
 const app = new Hono()
 

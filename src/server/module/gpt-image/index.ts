@@ -37,25 +37,57 @@ interface GenerateGPTImageOptions {
   imagePaths: string[]
 }
 
-function calculateSize(aspectRatio: string, baseSize: 1024 | 2048): string {
+function calculateSize(
+  aspectRatio: string,
+  baseSize: '1k' | '2k' | '4k'
+): string {
   const [wStr, hStr] = aspectRatio.split(':')
   const wRatio = parseInt(wStr, 10)
   const hRatio = parseInt(hStr, 10)
 
-  if (isNaN(wRatio) || isNaN(hRatio) || hRatio === 0) {
-    return `${baseSize}x${baseSize}`
-  }
+  let targetSize: number
+  if (baseSize === '1k') targetSize = 1024
+  else if (baseSize === '2k') targetSize = 2048
+  else if (baseSize === '4k') targetSize = 3840
+  else targetSize = 1024
 
-  const ratio = wRatio / hRatio
   let width: number
   let height: number
 
-  if (ratio >= 1) {
-    height = baseSize
-    width = Math.round((baseSize * ratio) / 16) * 16
+  if (isNaN(wRatio) || isNaN(hRatio) || hRatio === 0) {
+    width = targetSize
+    height = targetSize
   } else {
-    width = baseSize
-    height = Math.round(baseSize / ratio / 16) * 16
+    const ratio = wRatio / hRatio
+    if (baseSize === '1k') {
+      // 1k: 保留短边 1024
+      if (ratio >= 1) {
+        height = targetSize
+        width = Math.round((targetSize * ratio) / 16) * 16
+      } else {
+        width = targetSize
+        height = Math.round(targetSize / ratio / 16) * 16
+      }
+    } else {
+      // 2k 和 4k: 保留长边 2048 / 3840
+      if (ratio >= 1) {
+        width = targetSize
+        height = Math.round(targetSize / ratio / 16) * 16
+      } else {
+        height = targetSize
+        width = Math.round((targetSize * ratio) / 16) * 16
+      }
+    }
+  }
+
+  const MAX_PIXELS = 8294400
+  if (width * height > MAX_PIXELS) {
+    const scale = Math.sqrt(MAX_PIXELS / (width * height))
+    width = Math.floor((width * scale) / 16) * 16
+    height = Math.floor((height * scale) / 16) * 16
+
+    if (width === 0) width = 16
+    if (height === 0) height = 16
   }
 
   return `${width}x${height}`
@@ -113,10 +145,10 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
 export async function handleImageGeneration(options: {
   apiKey: string
   template: TaskTemplate
-  size?: 1024 | 2048
+  size?: '1k' | '2k' | '4k'
 }) {
   try {
-    const { apiKey, template, size = 1024 } = options
+    const { apiKey, template, size = '1k' } = options
 
     logger.info(`Generating GPT image`)
 

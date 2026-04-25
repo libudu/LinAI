@@ -64,7 +64,7 @@ const gptImageApi = new Hono()
       'json',
       z.object({
         templateId: z.string().min(1, 'Template ID is required'),
-        size: z.enum(['1k', '2k']).optional().default('2k')
+        size: z.enum(['1k', '2k', '4k']).optional().default('2k')
       })
     ),
     async (c) => {
@@ -88,7 +88,7 @@ const gptImageApi = new Hono()
       const result = await handleImageGeneration({
         apiKey,
         template,
-        size: size === '2k' ? 2048 : 1024
+        size
       })
       return c.json(result.data)
     }
@@ -100,11 +100,12 @@ const gptImageApi = new Hono()
       z.object({
         prompt: z.string().min(1, 'Prompt is required'),
         aspectRatio: z.string().optional().default('1:1'),
-        images: z.array(z.string()).optional()
+        images: z.array(z.string()).optional(),
+        size: z.enum(['1k', '2k', '4k']).optional().default('1k')
       })
     ),
     async (c) => {
-      const { prompt, aspectRatio, images } = c.req.valid('json')
+      const { prompt, aspectRatio, images, size } = c.req.valid('json')
       const config = getConfig()
       const apiKey = config.gptImageApiKey
       if (!apiKey) {
@@ -125,7 +126,7 @@ const gptImageApi = new Hono()
       const result = await handleImageGeneration({
         apiKey,
         template,
-        size: 1024
+        size
       })
       return c.json(result.data, result.status as any)
     }
