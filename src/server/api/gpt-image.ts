@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { templateManager } from '../common/template-manager'
 import { TaskTemplate } from '../common/template-manager'
-import { handleImageGeneration } from '../common/gpt-image'
+import { handleImageGeneration } from '../module/gpt-image'
 import { getConfig } from '../common/config'
 import { TRIAL_TEMPLATE_TITLE } from '../common/template-manager/enum'
 

@@ -28,7 +28,7 @@ import { TaskItemDeleteButton } from './components/TaskItemDeleteButton'
 import styles from './index.module.scss'
 import { TaskItemDownloadButton } from './components/TaskItemDownloadButton'
 import { TRIAL_TEMPLATE_TITLE } from '../../../server/common/template-manager/enum'
-import { GPT_IMAGE_SOURCE_MODEL } from '../../../server/common/gpt-image/enum'
+import { GPT_IMAGE_SOURCE_MODEL } from '../../../server/module/gpt-image/enum'
 import { TaskListHeader } from './TaskListHeader'
 
 const client = hc<AppType>('/')

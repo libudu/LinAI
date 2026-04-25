@@ -1,6 +1,6 @@
 import { taskManager } from '../../api/common/task'
-import { TaskTemplate } from '../template-manager'
-import { logger } from '../../module/utils/logger'
+import { TaskTemplate } from '../../common/template-manager'
+import { logger } from '../utils/logger'
 import {
   GENERATED_IMAGES_API_PATH,
   GENERATED_IMAGES_DIR,
