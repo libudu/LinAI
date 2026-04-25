@@ -32,20 +32,27 @@ export function TaskListFinishedAlertButton({
     }
 
     const prevTasks = prevTasksRef.current
-    if (prevTasks.length > 0) {
-      const completedTasks = tasks.filter((t) => {
+    if (prevTasks.length > 0 && tasks.length > 0) {
+      const isAllDone = tasks.every(
+        (t) => t.status === 'completed' || t.status === 'failed'
+      )
+
+      const hasNewlyFinishedTask = tasks.some((t) => {
         const prev = prevTasks.find((pt) => pt.id === t.id)
-        return t.status === 'completed' && prev && prev.status !== 'completed'
+        return (
+          (t.status === 'completed' || t.status === 'failed') &&
+          prev &&
+          (prev.status === 'pending' || prev.status === 'running')
+        )
       })
 
-      if (completedTasks.length > 0 && Notification.permission === 'granted') {
-        const title =
-          completedTasks.length === 1
-            ? `任务完成: ${completedTasks[0].rawTemplate?.title || '未命名任务'}`
-            : `有 ${completedTasks.length} 个任务已完成`
-        new Notification(title, {
-          body: '请在任务列表查看详情',
-          icon: completedTasks[0].outputUrl || undefined
+      if (
+        isAllDone &&
+        hasNewlyFinishedTask &&
+        Notification.permission === 'granted'
+      ) {
+        new Notification('LinAI 所有任务已完成', {
+          body: '请在任务列表查看详情'
         })
       }
     }

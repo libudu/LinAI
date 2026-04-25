@@ -214,7 +214,7 @@ export async function handleImageGeneration(options: {
     logger.info(`GPT image task finished`)
     return {
       status: 200,
-      data: { success: true as const, image: filename, taskId: task.id }
+      data: { success: true as const, outputUrl, taskId: task.id }
     }
   } catch (error: any) {
     logger.error(`Failed to generate GPT image`, error.message)

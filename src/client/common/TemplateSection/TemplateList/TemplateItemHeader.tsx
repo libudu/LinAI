@@ -29,19 +29,13 @@ export const TemplateItemHeader = ({
     // give server some time to create the task
     setTimeout(() => refresh(), 500)
     try {
-      const res = await client.api.gptImage.generate.$post({
+      await client.api.gptImage.generate.$post({
         json: {
           templateId,
           size,
           quality: gptImageSettings.quality
         }
       })
-      const data = await res.json()
-      if (data.success && 'image' in data && data.image) {
-        message.success('生成图片成功')
-      } else {
-        message.error((data as any).error || '生成失败')
-      }
     } catch (error) {
       message.error('请求失败')
     } finally {

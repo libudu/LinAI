@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useLocalStorageState } from 'ahooks'
-import { PlusOutlined, DownloadOutlined } from '@ant-design/icons'
+import { PlusOutlined, LoadingOutlined } from '@ant-design/icons'
 import { Form, Input, Radio, Button, message, Image, Select } from 'antd'
 import { hc } from 'hono/client'
 import type { AppType } from '../../../../server'
@@ -10,6 +10,7 @@ import { useLocalSetting } from '../../../hooks/useLocalSetting'
 
 import { ImageUpload } from './ImageUpload'
 import type { GptImageSize } from '../../../../server/module/gpt-image/enum'
+import { useTasks } from '../../../hooks/useTasks'
 
 const client = hc<AppType>('/')
 
@@ -88,6 +89,8 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
   const [trialImage, setTrialImage] = useState<string | null>(null)
   const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
   const { gptImageSettings } = useLocalSetting()
+  const { refresh } = useTasks()
+  const trialRequestIdRef = useRef(0)
 
   const doTrial = async (size: GptImageSize) => {
     const prompt = form.getFieldValue('prompt')
@@ -97,8 +100,13 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
     }
     const aspectRatio = form.getFieldValue('aspectRatio') || '1:1'
 
+    const currentRequestId = ++trialRequestIdRef.current
+
     setTrialGenerating(true)
     setTrialImage(null)
+
+    message.success('任务提交成功')
+    setTimeout(() => refresh(), 500)
     try {
       const res = await client.api.gptImage.trial.$post({
         json: {
@@ -109,17 +117,26 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
           quality: gptImageSettings.quality
         }
       })
+
+      if (currentRequestId !== trialRequestIdRef.current) return
+
       const data = await res.json()
-      if (data.success && 'image' in data && data.image) {
-        message.success('生成试用图片成功')
-        setTrialImage(data.image as string)
+
+      if (currentRequestId !== trialRequestIdRef.current) return
+
+      if (data.success) {
+        setTrialImage(data.outputUrl)
       } else {
-        message.error((data as any).error || '生成失败')
+        message.error(data.error || '生成失败')
       }
     } catch (error) {
+      if (currentRequestId !== trialRequestIdRef.current) return
       message.error('请求失败')
     } finally {
-      setTrialGenerating(false)
+      if (currentRequestId === trialRequestIdRef.current) {
+        setTrialGenerating(false)
+      }
+      refresh()
     }
   }
 
@@ -234,30 +251,24 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
           }
         />
 
-        {trialImage && (
+        {(trialImage || trialGenerating) && (
           <div className="mb-4 p-4 bg-slate-50 rounded-lg border border-slate-100 flex flex-col items-center gap-2 relative group">
             <span className="text-sm text-slate-500">试用生成结果：</span>
-            <div className="relative">
-              <Image
-                src={trialImage}
-                alt="trial-preview"
-                className="rounded-lg shadow-sm"
-                style={{ maxHeight: '200px', objectFit: 'contain' }}
-              />
-              <Button
-                icon={<DownloadOutlined />}
-                size="small"
-                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={() => {
-                  const link = document.createElement('a')
-                  link.href = trialImage
-                  link.download = 'trial-image.png'
-                  document.body.appendChild(link)
-                  link.click()
-                  document.body.removeChild(link)
-                }}
-              />
-            </div>
+            {trialGenerating ? (
+              <div className="flex flex-col items-center justify-center h-[200px] w-full bg-slate-100 rounded-lg border border-slate-200 text-slate-400">
+                <LoadingOutlined className="text-3xl mb-2" />
+                <span className="text-sm">正在生成中...</span>
+              </div>
+            ) : trialImage ? (
+              <div className="relative">
+                <Image
+                  src={trialImage}
+                  alt="trial-preview"
+                  className="rounded-lg shadow-sm"
+                  style={{ maxHeight: '150px', objectFit: 'contain' }}
+                />
+              </div>
+            ) : null}
           </div>
         )}
 
@@ -266,7 +277,6 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
             {usageType === 'image' && gptImageSettings.enable1K && (
               <Button
                 onClick={() => handleTrial('1k')}
-                loading={trialGenerating}
                 disabled={uploadingCount > 0}
                 size="large"
                 className="grow border-purple-300 text-purple-600 hover:text-purple-500 hover:border-purple-400"
@@ -277,7 +287,6 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
             {usageType === 'image' && gptImageSettings.enable2K && (
               <Button
                 onClick={() => handleTrial('2k')}
-                loading={trialGenerating}
                 disabled={uploadingCount > 0}
                 size="large"
                 className="grow border-purple-300 text-purple-600 hover:text-purple-500 hover:border-purple-400"
