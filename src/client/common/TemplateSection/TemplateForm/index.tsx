@@ -8,7 +8,6 @@ import { openSettingModal } from '../../../common/SettingModal'
 import { useGlobalStore } from '../../../store/global'
 
 import { ImageUpload } from './ImageUpload'
-import { useGPTImageQuota } from '../../../hooks/useGPTImageQuota'
 
 const client = hc<AppType>('/')
 
@@ -30,7 +29,6 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
   const [trialGenerating, setTrialGenerating] = useState(false)
   const [trialImage, setTrialImage] = useState<string | null>(null)
   const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
-  const { quota } = useGPTImageQuota()
 
   const doTrial = async () => {
     const prompt = form.getFieldValue('prompt')

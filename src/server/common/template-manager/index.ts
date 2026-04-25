@@ -80,6 +80,24 @@ class TemplateManager {
     await fs.writeFile(this.dbPath, JSON.stringify(filtered, null, 2), 'utf-8')
     return true
   }
+
+  public async updateTemplate(
+    id: string,
+    updates: Partial<Pick<TaskTemplate, 'title' | 'prompt' | 'aspectRatio'>>
+  ): Promise<TaskTemplate | null> {
+    const templates = await this.getTemplates()
+    const index = templates.findIndex((t) => t.id === id)
+    if (index === -1) {
+      return null
+    }
+
+    templates[index] = {
+      ...templates[index],
+      ...updates
+    }
+    await fs.writeFile(this.dbPath, JSON.stringify(templates, null, 2), 'utf-8')
+    return templates[index]
+  }
 }
 
 export const templateManager = new TemplateManager()

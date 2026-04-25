@@ -11,8 +11,9 @@ import { openSettingModal } from '../../../common/SettingModal'
 import { ImageGroup } from './ImageGroup'
 import { TaskTemplate } from '../../../../server/common/template-manager'
 import { useTasks } from '../../../hooks/useTasks'
+import { useTemplates } from '../../../hooks/useTemplates'
 import openaiIcon from '../../../assets/icon/openai.svg'
-import { useGPTImageQuota } from '../../../hooks/useGPTImageQuota'
+import { TemplateEditButton } from './TemplateEditButton'
 
 const client = hc<AppType>('/')
 
@@ -25,7 +26,7 @@ interface TemplateItemListProps {
 const CardHeader = ({ template }: { template: TaskTemplate }) => {
   const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
   const { refresh } = useTasks()
-  const { quota } = useGPTImageQuota()
+  const { refresh: refreshTemplates } = useTemplates()
 
   const doGenerate = async (templateId: string, size: '1k' | '2k') => {
     message.success('任务提交成功')
@@ -72,7 +73,7 @@ const CardHeader = ({ template }: { template: TaskTemplate }) => {
       const json = await res.json()
       if (json.success) {
         message.success('删除成功')
-        refresh()
+        refreshTemplates()
       } else {
         message.error(json.error || '删除失败')
       }
@@ -107,6 +108,7 @@ const CardHeader = ({ template }: { template: TaskTemplate }) => {
             </Button>
           </>
         )}
+        <TemplateEditButton template={template} />
         <Popconfirm
           title="确定要删除该模板吗？"
           onConfirm={() => handleDelete(template.id)}

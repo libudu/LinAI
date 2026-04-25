@@ -54,5 +54,33 @@ const templateApi = new Hono()
       }
     }
   )
+  .put(
+    '/:id',
+    zValidator('param', z.object({ id: z.string() })),
+    zValidator(
+      'json',
+      z.object({
+        title: z.string().optional(),
+        prompt: z.string().optional(),
+        aspectRatio: z.string().optional()
+      })
+    ),
+    async (c) => {
+      try {
+        const { id } = c.req.valid('param')
+        const updates = c.req.valid('json')
+        const updatedTemplate = await templateManager.updateTemplate(id, updates)
+        if (!updatedTemplate) {
+          return c.json(
+            { success: false as const, error: 'Template not found' },
+            404
+          )
+        }
+        return c.json({ success: true as const, data: updatedTemplate })
+      } catch (error: any) {
+        return c.json({ success: false as const, error: error.message }, 500)
+      }
+    }
+  )
 
 export default templateApi
