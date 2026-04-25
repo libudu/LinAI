@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
-    "dev:client": "vite",
+    "dev:client": "vite --host",
     "dev:server": "tsx watch src/server/index.ts",
     "build": "vite build && tsup && tsx scripts/post-build.ts",
     "start": "NODE_ENV=production tsx src/server/index.ts",
