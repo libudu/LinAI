@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Modal, Form, Input, message, Tabs, Switch } from 'antd'
+import { Modal, Form, Input, message, Tabs, Switch, Radio } from 'antd'
 import { useGlobalStore } from '../../store/global'
 import { useLocalSetting } from '../../hooks/useLocalSetting'
 
@@ -29,16 +29,22 @@ export function openSettingModal(options?: {
       options?.initialTab || 'gpt-image'
     )
 
-    const enable4K = Form.useWatch('enable4K', form)
-
     useEffect(() => {
       form.setFieldsValue({
         apiKey: gptImageApiKey || '',
         enable1K: gptImageSettings.enable1K,
         enable2K: gptImageSettings.enable2K,
-        enable4K: gptImageSettings.enable4K
+        enable4K: gptImageSettings.enable4K,
+        quality: gptImageSettings.quality
       })
-    }, [gptImageApiKey, gptImageSettings, form])
+    }, [
+      gptImageApiKey,
+      gptImageSettings.enable1K,
+      gptImageSettings.enable2K,
+      gptImageSettings.enable4K,
+      gptImageSettings.quality,
+      form
+    ])
 
     const handleSave = async () => {
       try {
@@ -52,7 +58,8 @@ export function openSettingModal(options?: {
           setGptImageSettings({
             enable1K: values.enable1K,
             enable2K: values.enable2K,
-            enable4K: values.enable4K
+            enable4K: values.enable4K,
+            quality: values.quality
           })
           message.success('配置保存成功')
           options?.onSuccess?.(values.apiKey)
@@ -78,7 +85,7 @@ export function openSettingModal(options?: {
                 <Input.Password placeholder="输入 t8star API Key" />
               </Form.Item>
               <Form.Item>
-                <div className="text-sm text-gray-500 mb-2">画质</div>
+                <div className="text-sm text-gray-500 mb-2">生成尺寸</div>
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2 text-lg">
                     <span>1K</span>
@@ -99,17 +106,31 @@ export function openSettingModal(options?: {
                     </Form.Item>
                   </div>
                 </div>
-                {enable4K && (
-                  <div className="text-red-500 text-xs flex items-start gap-1 mt-1">
-                    <ExclamationCircleOutlined className="mt-[2px]" />
-                    <span>
-                      费用提示：开启 4K 后，Token 消耗是 2K 的 4
-                      倍以上，单张图片可能产生 0.2
-                      元以上的费用，图片将按比例缩放到总像素不超过
-                      8294400，请注意费用消耗。
-                    </span>
-                  </div>
-                )}
+                <div className="text-red-500 text-xs flex items-start gap-1 mt-1">
+                  <ExclamationCircleOutlined className="mt-1" />
+                  <span>
+                    费用提示：开启 4K 后，Token 消耗是 2K 的 4
+                    倍以上，单张图片可能产生 0.2
+                    元以上的费用，图片将按比例缩放到总像素不超过
+                    8294400，请注意费用消耗。
+                  </span>
+                </div>
+              </Form.Item>
+              <Form.Item>
+                <div className="text-sm text-gray-500 mb-2">画质设置</div>
+                <Form.Item name="quality" noStyle>
+                  <Radio.Group>
+                    <Radio.Button value="medium">Medium</Radio.Button>
+                    <Radio.Button value="high">High</Radio.Button>
+                  </Radio.Group>
+                </Form.Item>
+                <div className="text-red-500 text-xs flex items-start gap-1 mt-1">
+                  <ExclamationCircleOutlined className="mt-1" />
+                  <span>
+                    High Token 消耗大约增大 4
+                    倍，处理小字扭曲等细节效果更好，但整体性价比远不如提升画面尺寸
+                  </span>
+                </div>
               </Form.Item>
             </Form>
           </div>

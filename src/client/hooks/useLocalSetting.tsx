@@ -1,15 +1,19 @@
+import { useMemo } from 'react'
 import { useLocalStorageState } from 'ahooks'
+import type { GptImageQuality } from '../../server/module/gpt-image/enum'
 
 export interface GPTImageSettings {
   enable1K: boolean
   enable2K: boolean
   enable4K: boolean
+  quality: GptImageQuality
 }
 
 export const defaultGPTImageSettings: GPTImageSettings = {
   enable1K: true,
   enable2K: true,
-  enable4K: false
+  enable4K: false,
+  quality: 'medium'
 }
 
 export function useLocalSetting() {
@@ -18,8 +22,13 @@ export function useLocalSetting() {
       defaultValue: defaultGPTImageSettings
     })
 
+  const mergedSettings = useMemo(
+    () => ({ ...defaultGPTImageSettings, ...gptImageSettings }),
+    [gptImageSettings]
+  )
+
   return {
-    gptImageSettings: gptImageSettings || defaultGPTImageSettings,
+    gptImageSettings: mergedSettings,
     setGptImageSettings
   }
 }

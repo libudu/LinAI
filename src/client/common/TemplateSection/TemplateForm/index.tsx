@@ -9,6 +9,7 @@ import { useGlobalStore } from '../../../store/global'
 import { useLocalSetting } from '../../../hooks/useLocalSetting'
 
 import { ImageUpload } from './ImageUpload'
+import type { GptImageSize } from '../../../../server/module/gpt-image/enum'
 
 const client = hc<AppType>('/')
 
@@ -88,7 +89,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
   const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
   const { gptImageSettings } = useLocalSetting()
 
-  const doTrial = async (size: '1k' | '2k' | '4k') => {
+  const doTrial = async (size: GptImageSize) => {
     const prompt = form.getFieldValue('prompt')
     if (!prompt) {
       message.warning('请先填写提示词')
@@ -104,7 +105,8 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
           prompt,
           aspectRatio,
           images: imageUrls,
-          size
+          size,
+          quality: gptImageSettings.quality
         }
       })
       const data = await res.json()
@@ -121,7 +123,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
     }
   }
 
-  const handleTrial = (size: '1k' | '2k' | '4k') => {
+  const handleTrial = (size: GptImageSize) => {
     const prompt = form.getFieldValue('prompt')
     if (!prompt) {
       message.warning('请先填写提示词')

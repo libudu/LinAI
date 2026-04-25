@@ -10,6 +10,7 @@ import { useTemplates } from '../../../hooks/useTemplates'
 import openaiIcon from '../../../assets/icon/openai.svg'
 import { TemplateEditButton } from './TemplateEditButton'
 import { useLocalSetting } from '../../../hooks/useLocalSetting'
+import type { GptImageSize } from '../../../../server/module/gpt-image/enum'
 
 const client = hc<AppType>('/')
 
@@ -23,7 +24,7 @@ export const TemplateItemHeader = ({
   const { refresh: refreshTemplates } = useTemplates()
   const { gptImageSettings } = useLocalSetting()
 
-  const doGenerate = async (templateId: string, size: '1k' | '2k' | '4k') => {
+  const doGenerate = async (templateId: string, size: GptImageSize) => {
     message.success('任务提交成功')
     // give server some time to create the task
     setTimeout(() => refresh(), 500)
@@ -31,7 +32,8 @@ export const TemplateItemHeader = ({
       const res = await client.api.gptImage.generate.$post({
         json: {
           templateId,
-          size
+          size,
+          quality: gptImageSettings.quality
         }
       })
       const data = await res.json()
@@ -47,7 +49,7 @@ export const TemplateItemHeader = ({
     }
   }
 
-  const handleGenerate = (templateId: string, size: '1k' | '2k' | '4k') => {
+  const handleGenerate = (templateId: string, size: GptImageSize) => {
     const apiKey = gptImageApiKey
     if (!apiKey) {
       openSettingModal({

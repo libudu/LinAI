@@ -9,7 +9,7 @@ import {
 import fs from 'fs-extra'
 import path from 'path'
 import crypto from 'crypto'
-import { GPT_IMAGE_SOURCE_MODEL } from './enum'
+import { GPT_IMAGE_SOURCE_MODEL, GptImageSize, GptImageQuality } from './enum'
 import { writeFile } from 'fs/promises'
 import OpenAI, { toFile } from 'openai'
 
@@ -34,13 +34,11 @@ interface GenerateGPTImageOptions {
   apiKey: string
   prompt: string
   size: string
+  quality: GptImageQuality
   imagePaths: string[]
 }
 
-function calculateSize(
-  aspectRatio: string,
-  baseSize: '1k' | '2k' | '4k'
-): string {
+function calculateSize(aspectRatio: string, baseSize: GptImageSize): string {
   const [wStr, hStr] = aspectRatio.split(':')
   const wRatio = parseInt(wStr, 10)
   const hRatio = parseInt(hStr, 10)
@@ -94,7 +92,7 @@ function calculateSize(
 }
 
 async function generateGPTImageNew(options: GenerateGPTImageOptions) {
-  const { apiKey, prompt, size, imagePaths: images } = options
+  const { apiKey, prompt, size, quality, imagePaths: images } = options
   const client = new OpenAI({
     apiKey,
     baseURL: 'https://api.wlai.vip/v1'
@@ -118,7 +116,7 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
       prompt: prompt,
       n: 1,
       size: size as any,
-      quality: 'medium'
+      quality
     })
   } else {
     res = await client.images.generate({
@@ -126,7 +124,7 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
       prompt,
       n: 1,
       size: size as any,
-      quality: 'medium'
+      quality
     })
   }
 
@@ -145,10 +143,11 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
 export async function handleImageGeneration(options: {
   apiKey: string
   template: TaskTemplate
-  size?: '1k' | '2k' | '4k'
+  size?: GptImageSize
+  quality?: GptImageQuality
 }) {
   try {
-    const { apiKey, template, size = '1k' } = options
+    const { apiKey, template, size = '1k', quality = 'medium' } = options
 
     logger.info(`Generating GPT image`)
 
@@ -188,6 +187,7 @@ export async function handleImageGeneration(options: {
         apiKey,
         prompt: template.prompt,
         size: finalSize,
+        quality,
         imagePaths
       })
       logger.info('GPT image generated successfully')
