@@ -6,10 +6,20 @@ import { TaskList } from './common/TaskList'
 import { ThunderboltOutlined } from '@ant-design/icons'
 import { Header } from './common/Header'
 import { useGlobalStore } from './store/global'
+import { openNotificationModal } from './common/Notification'
+import pkg from '../../package.json'
 
 function App() {
   useEffect(() => {
     useGlobalStore.getState().fetchConfig()
+
+    // 检查版本号并弹出通知
+    const currentVersion = pkg.version
+    const storedVersion = localStorage.getItem('app_version')
+    if (storedVersion !== currentVersion) {
+      openNotificationModal()
+      localStorage.setItem('app_version', currentVersion)
+    }
   }, [])
 
   return (

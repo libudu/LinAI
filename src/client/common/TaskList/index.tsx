@@ -41,20 +41,16 @@ export function TaskList() {
   )
 
   const handleRetry = async (task: Task) => {
-    try {
-      const res = await client.api.gptImage.generate.$post({
-        json: {
-          templateId: task.rawTemplate?.id || '',
-          size: '2k'
-        }
-      })
-      const json = await res.json()
-      if (json.success === false) throw new Error(json.error)
-      message.success('已创建重试任务')
+    await client.api.gptImage.generate.$post({
+      json: {
+        templateId: task.rawTemplate?.id || '',
+        size: task.size || '2k'
+      }
+    })
+    message.success('已创建重试任务')
+    setTimeout(() => {
       fetchTasks()
-    } catch (err: any) {
-      message.error(`重试失败: ${err.message || '未知错误'}`)
-    }
+    }, 500)
   }
 
   const renderStatus = (status: string) => {
