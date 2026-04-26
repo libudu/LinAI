@@ -1,4 +1,5 @@
 import { Image, Modal, Tabs, message } from 'antd'
+import copy from 'copy-to-clipboard'
 import { createRoot } from 'react-dom/client'
 import QRCodeImg from '../../assets/image/qrcode.jpg'
 import { useGlobalStore } from '../../store/global'
@@ -56,7 +57,7 @@ export function openNotificationModal() {
                   <span
                     className="cursor-pointer font-medium text-blue-500 underline hover:text-blue-600"
                     onClick={() => {
-                      navigator.clipboard.writeText('1098503823')
+                      copy('1098503823')
                       message.success('群号已复制')
                     }}
                   >
@@ -75,7 +76,7 @@ export function openNotificationModal() {
                     <span
                       className="cursor-pointer font-medium text-blue-500 underline hover:text-blue-600"
                       onClick={() => {
-                        navigator.clipboard.writeText(localNetworkUrl)
+                        copy(localNetworkUrl)
                         message.success('内网地址已复制')
                       }}
                     >

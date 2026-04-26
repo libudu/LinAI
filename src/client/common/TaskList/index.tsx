@@ -1,6 +1,7 @@
 import { RedoOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
-import { Button, Card, Image, List, message, Tooltip, Typography } from 'antd'
+import { Button, Card, Image, List, Tooltip, Typography, message } from 'antd'
+import copy from 'copy-to-clipboard'
 import { hc } from 'hono/client'
 import type { AppType } from '../../../server'
 import type { Task } from '../../../server/common/task-manager'
@@ -113,8 +114,14 @@ export function TaskList() {
                     {task.rawTemplate?.prompt && (
                       <Typography.Paragraph
                         type="secondary"
-                        className="mb-0! text-xs"
+                        className="mb-0! cursor-pointer text-xs transition-colors hover:text-blue-500"
                         ellipsis={{ rows: 2, tooltip: task.rawTemplate.prompt }}
+                        onClick={() => {
+                          if (task.rawTemplate?.prompt) {
+                            copy(task.rawTemplate.prompt)
+                            message.success('提示词已复制')
+                          }
+                        }}
                       >
                         {task.rawTemplate.prompt}
                       </Typography.Paragraph>

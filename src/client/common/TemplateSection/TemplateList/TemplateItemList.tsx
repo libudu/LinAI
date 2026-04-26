@@ -1,5 +1,6 @@
 import { InboxOutlined } from '@ant-design/icons'
-import { Card, Tooltip } from 'antd'
+import { Card, Tooltip, message } from 'antd'
+import copy from 'copy-to-clipboard'
 import { TaskTemplate } from '../../../../server/common/template-manager'
 import { ImageGroup } from './ImageGroup'
 import {
@@ -44,7 +45,15 @@ export function TemplateItemList({ filteredTemplates }: TemplateItemListProps) {
                       </div>
                     )}
                     <Tooltip title={template.prompt} placement="bottom">
-                      <p className="m-0 line-clamp-2 cursor-default text-sm text-slate-600">
+                      <p
+                        className="m-0 line-clamp-2 cursor-pointer text-sm text-slate-600 transition-colors hover:text-blue-500"
+                        onClick={() => {
+                          if (template.prompt) {
+                            copy(template.prompt)
+                            message.success('提示词已复制')
+                          }
+                        }}
+                      >
                         {template.prompt}
                       </p>
                     </Tooltip>
