@@ -1,6 +1,7 @@
 import { Image, Modal, Tabs, message } from 'antd'
 import { createRoot } from 'react-dom/client'
 import QRCodeImg from '../../assets/image/qrcode.jpg'
+import { useGlobalStore } from '../../store/global'
 
 export function openNotificationModal() {
   const container = document.createElement('div')
@@ -15,13 +16,15 @@ export function openNotificationModal() {
   }
 
   function ModalComponent() {
+    const localNetworkUrl = useGlobalStore((state) => state.localNetworkUrl)
+
     const items = [
       {
         key: 'important',
         label: '📢 重要说明',
         children: (
           <div>
-            <div className="mb-2 space-y-3">
+            <div className="mb-2 space-y-1 sm:space-y-2">
               <div className="flex items-start">
                 <span className="mr-3 text-xl">🛡️</span>
                 <div className="leading-relaxed">
@@ -59,11 +62,28 @@ export function openNotificationModal() {
                   >
                     1098503823
                   </span>
-                  <span className="ml-2 text-sm text-gray-400 select-none">
-                    (点击复制)
-                  </span>
                 </div>
               </div>
+              {localNetworkUrl && (
+                <div className="flex items-start">
+                  <span className="mr-3 text-xl">🌐</span>
+                  <div className="leading-relaxed">
+                    <span className="font-bold text-gray-900">
+                      局域网访问：
+                    </span>
+                    相同局域网下，其他设备（如移动端）可以通过访问内网地址来使用本服务：
+                    <span
+                      className="cursor-pointer font-medium text-blue-500 underline hover:text-blue-600"
+                      onClick={() => {
+                        navigator.clipboard.writeText(localNetworkUrl)
+                        message.success('内网地址已复制')
+                      }}
+                    >
+                      {localNetworkUrl}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex flex-col items-center">
               <div className="mb-1 text-lg text-gray-600">

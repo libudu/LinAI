@@ -26,7 +26,7 @@ const routes = app
   .route('/api/config', configApi)
 export type AppType = typeof routes
 
-const port = 3000
+export const BACKEND_PORT = process.env.NODE_ENV !== 'development' ? 3000 : 3001
 
 if (process.env.NODE_ENV !== 'development') {
   // Production serving of static files
@@ -37,7 +37,7 @@ if (process.env.NODE_ENV !== 'development') {
 serve(
   {
     fetch: app.fetch,
-    port: port
+    port: BACKEND_PORT
   },
   (info) => {
     console.log(`Server is running on http://localhost:${info.port}`)

@@ -3,6 +3,7 @@ import path from 'path'
 
 export interface Config {
   gptImageApiKey: string | null
+  localNetworkUrl?: string
 }
 
 const CONFIG_DIR = path.join(process.cwd(), 'data')
