@@ -1,6 +1,10 @@
 import fs from 'fs-extra'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
+import {
+  GENERATED_IMAGES_API_PATH,
+  GENERATED_IMAGES_DIR
+} from '../../api/common/static'
 import { GptImageQuality, GptImageSize } from '../../module/gpt-image/enum'
 import { Logger } from '../../module/utils/logger'
 import { TaskTemplate } from '../template-manager'
@@ -123,16 +127,13 @@ export class TaskManager {
 
       if (target.outputUrl && target.outputUrl.startsWith('/api/static/')) {
         try {
-          let filename = ''
-          let dirPath = ''
-          filename = target.outputUrl.replace('/api/static/generated/', '')
-          dirPath = path.join(this.dataDir, 'generated_images')
+          const filepath = path.join(
+            GENERATED_IMAGES_DIR,
+            target.outputUrl.replace(GENERATED_IMAGES_API_PATH + '/', '')
+          )
 
-          if (filename && dirPath) {
-            const filepath = path.join(dirPath, filename)
-            if (fs.existsSync(filepath)) {
-              await fs.unlink(filepath)
-            }
+          if (filepath && fs.existsSync(filepath)) {
+            await fs.unlink(filepath)
           }
         } catch (error: any) {
           this.logger.error('Failed to delete task file:', error)

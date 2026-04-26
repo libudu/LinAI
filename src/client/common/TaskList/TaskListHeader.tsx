@@ -43,19 +43,17 @@ export function TaskListHeader({
     setDeletingErrors(true)
     try {
       let successCount = 0
-      await Promise.all(
-        errorTasks.map(async (task) => {
-          try {
-            const res = await client.api.task[':id'].$delete({
-              param: { id: task.id }
-            })
-            const json = await res.json()
-            if (json.success) successCount++
-          } catch (e) {
-            // ignore individual errors
-          }
-        })
-      )
+      for (const task of errorTasks) {
+        try {
+          const res = await client.api.task[':id'].$delete({
+            param: { id: task.id }
+          })
+          const json = await res.json()
+          if (json.success) successCount++
+        } catch (e) {
+          // ignore individual errors
+        }
+      }
       message.success(`成功删除 ${successCount} 个错误任务`)
       fetchTasks()
     } catch (error) {
@@ -90,19 +88,17 @@ export function TaskListHeader({
         setDeletingDownloaded(true)
         try {
           let successCount = 0
-          await Promise.all(
-            toDelete.map(async (task) => {
-              try {
-                const res = await client.api.task[':id'].$delete({
-                  param: { id: task.id }
-                })
-                const json = await res.json()
-                if (json.success) successCount++
-              } catch (e) {
-                // ignore individual errors
-              }
-            })
-          )
+          for (const task of toDelete) {
+            try {
+              const res = await client.api.task[':id'].$delete({
+                param: { id: task.id }
+              })
+              const json = await res.json()
+              if (json.success) successCount++
+            } catch (e) {
+              // ignore individual errors
+            }
+          }
           message.success(`成功删除 ${successCount} 个已下载任务`)
           fetchTasks()
         } catch (error) {
