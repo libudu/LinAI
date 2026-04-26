@@ -62,7 +62,7 @@ export function TaskListFinishedAlertButton({
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-base text-gray-600">
+      <span className="text-base text-gray-600 hidden sm:block">
         <BellOutlined /> 完成提醒
       </span>
       <Switch

@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 
+/* 全局滚动条优化 */
 @layer base {
   ::-webkit-scrollbar {
     width: 6px;
@@ -17,5 +18,14 @@
 
   ::-webkit-scrollbar-thumb:hover {
     background: #aaa;
+  }
+}
+
+/* 移动端禁用 tooltip */
+@media (pointer: coarse) {
+  .ant-tooltip {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
   }
 }

@@ -18,13 +18,13 @@ export function Header() {
             <img src={LinpxLogo} alt="LinAI Logo" />
           </div>
           <div className="flex items-baseline gap-2">
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent m-0">
+            <h1 className="hidden md:block text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent m-0">
               LinAI：AI 任务编排集成
             </h1>
             <span className="text-sm text-gray-400">v{pkg.version}</span>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-1 sm:gap-4">
           <GPTImageQuota />
           <div
             className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-slate-100 cursor-pointer transition-colors"

@@ -1,15 +1,15 @@
-import { Button, Space, Modal, message, Dropdown } from 'antd'
-import type { MenuProps } from 'antd'
 import {
-  SyncOutlined,
   DeleteOutlined,
-  EllipsisOutlined
+  EllipsisOutlined,
+  ScheduleOutlined,
+  SyncOutlined
 } from '@ant-design/icons'
+import type { MenuProps } from 'antd'
+import { Button, Dropdown, Modal, Space, message } from 'antd'
 import { hc } from 'hono/client'
+import { useState } from 'react'
 import type { AppType } from '../../../server'
 import type { Task } from '../../../server/common/task-manager'
-import { ScheduleOutlined } from '@ant-design/icons'
-import { useState } from 'react'
 import { TaskListDownloadButton } from './components/TaskListDownloadButton'
 import { TaskListFinishedAlertButton } from './components/TaskListFinishedAlertButton'
 
@@ -76,7 +76,7 @@ export function TaskListHeader({
       title: '确认删除所有已下载任务？',
       content: (
         <div>
-          <p className="text-red-500 font-bold mb-2">
+          <p className="mb-2 font-bold text-red-500">
             警告：将删除源文件且无法找回！
           </p>
           <p>请确保您已妥善保存好下载的图片/视频。</p>
@@ -140,13 +140,13 @@ export function TaskListHeader({
   ]
 
   return (
-    <div className="flex items-center justify-between mt-4 mb-4">
+    <div className="mt-4 mb-4 flex items-center justify-between">
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
-          <div className="p-2 bg-blue-100 rounded-lg text-blue-600 flex items-center justify-center">
+          <div className="flex items-center justify-center rounded-lg bg-blue-100 p-2 text-blue-600">
             <ScheduleOutlined className="text-xl" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-800 tracking-tight m-0">
+          <h2 className="m-0 hidden text-2xl font-bold tracking-tight text-slate-800 sm:block">
             任务列表
           </h2>
         </div>
