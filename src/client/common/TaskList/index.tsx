@@ -54,7 +54,16 @@ export function TaskList() {
       />
       <List
         className={styles['task-list']}
-        grid={{ gutter: 16, xs: 1, sm: 1, md: 2, lg: 2, xl: 2, xxl: 2 }}
+        grid={{
+          gutter: 16,
+          xs: 1,
+          sm: 1,
+          md: 2,
+          lg: 2,
+          xl: 2,
+          xxl: 2,
+          xxxl: 2
+        }}
         dataSource={gptImageTasks}
         loading={loading}
         pagination={{
