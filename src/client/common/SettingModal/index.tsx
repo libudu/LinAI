@@ -47,13 +47,20 @@ export function openSettingModal(options?: {
         key: 'gpt-image',
         label: 'GPTImage2 配置',
         children: <GPTImageSetting ref={gptImageRef} />
-      },
-      {
+      }
+    ]
+
+    const isAdmin =
+      window.location.hostname === 'localhost' ||
+      !!localStorage.getItem('admin')
+
+    if (isAdmin) {
+      items.push({
         key: 'admin',
         label: '管理员设置',
         children: <AdminSetting ref={adminRef} />
-      }
-    ]
+      })
+    }
 
     return (
       <Modal

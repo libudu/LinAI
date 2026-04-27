@@ -17,24 +17,28 @@ export const defaultGPTImageSettings: GPTImageSettings = {
   quality: 'medium'
 }
 
-interface LocalSettingState {
+export interface LocalSettingState {
   gptImageSettings: GPTImageSettings
+  systemToken?: string
   setGptImageSettings: (
     settings: GPTImageSettings | ((prev: GPTImageSettings) => GPTImageSettings)
   ) => void
+  setSystemToken: (token: string) => void
 }
 
 const useLocalSettingStore = create<LocalSettingState>()(
   persist(
     (set) => ({
       gptImageSettings: defaultGPTImageSettings,
+      systemToken: undefined,
       setGptImageSettings: (settings) =>
         set((state) => ({
           gptImageSettings:
             typeof settings === 'function'
               ? settings(state.gptImageSettings)
               : settings
-        }))
+        })),
+      setSystemToken: (token) => set({ systemToken: token })
     }),
     {
       name: 'gpt-image-settings'
@@ -44,9 +48,11 @@ const useLocalSettingStore = create<LocalSettingState>()(
 
 export function useLocalSetting() {
   const gptImageSettings = useLocalSettingStore((state) => state.gptImageSettings)
+  const systemToken = useLocalSettingStore((state) => state.systemToken)
   const setGptImageSettings = useLocalSettingStore(
     (state) => state.setGptImageSettings
   )
+  const setSystemToken = useLocalSettingStore((state) => state.setSystemToken)
 
   const mergedSettings = useMemo(
     () => ({ ...defaultGPTImageSettings, ...gptImageSettings }),
@@ -55,6 +61,8 @@ export function useLocalSetting() {
 
   return {
     gptImageSettings: mergedSettings,
-    setGptImageSettings
+    systemToken,
+    setGptImageSettings,
+    setSystemToken
   }
 }
