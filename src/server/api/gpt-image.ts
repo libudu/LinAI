@@ -134,5 +134,57 @@ const gptImageApi = new Hono()
       return c.json(result.data, result.status as any)
     }
   )
+  .post(
+    '/generate-api-key',
+    zValidator(
+      'json',
+      z.object({
+        systemToken: z.string().min(1, 'System Token is required'),
+        userId: z.string().min(1, 'User ID is required'),
+        name: z.string().min(1, 'Name is required'),
+        quota: z.number().min(0, 'Quota must be a positive number'),
+        group: z.string()
+      })
+    ),
+    async (c) => {
+      const { systemToken, userId, name, quota, group } = c.req.valid('json')
+      try {
+        const response = await fetch('https://yunwu.ai/api/token/', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'new-api-user': userId,
+            ...(systemToken ? { Authorization: systemToken } : {})
+          },
+          body: JSON.stringify({
+            remain_quota: quota * 1000000,
+            expired_time: -1,
+            unlimited_quota: false,
+            model_limits_enabled: false,
+            model_limits: '',
+            group,
+            mj_image_mode: 'default',
+            mj_custom_proxy: '',
+            selected_groups: [],
+            name: name,
+            allow_ips: ''
+          })
+        })
+        const data = await response.json()
+        return c.json(
+          data as { success?: boolean; data: string; message?: string }
+        )
+      } catch (error: any) {
+        return c.json(
+          {
+            success: false as const,
+            message: error.message || '生成失败',
+            data: null
+          },
+          500
+        )
+      }
+    }
+  )
 
 export default gptImageApi

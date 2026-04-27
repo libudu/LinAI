@@ -19,18 +19,21 @@ export const defaultGPTImageSettings: GPTImageSettings = {
 
 export interface LocalSettingState {
   gptImageSettings: GPTImageSettings
-  systemToken?: string
+  yunwuSystemToken?: string
+  yunwuUserId?: string
   setGptImageSettings: (
     settings: GPTImageSettings | ((prev: GPTImageSettings) => GPTImageSettings)
   ) => void
-  setSystemToken: (token: string) => void
+  setYunwuSystemToken: (token: string) => void
+  setYunwuUserId: (userId: string) => void
 }
 
 const useLocalSettingStore = create<LocalSettingState>()(
   persist(
     (set) => ({
       gptImageSettings: defaultGPTImageSettings,
-      systemToken: undefined,
+      yunwuSystemToken: undefined,
+      yunwuUserId: undefined,
       setGptImageSettings: (settings) =>
         set((state) => ({
           gptImageSettings:
@@ -38,7 +41,8 @@ const useLocalSettingStore = create<LocalSettingState>()(
               ? settings(state.gptImageSettings)
               : settings
         })),
-      setSystemToken: (token) => set({ systemToken: token })
+      setYunwuSystemToken: (token) => set({ yunwuSystemToken: token }),
+      setYunwuUserId: (userId) => set({ yunwuUserId: userId })
     }),
     {
       name: 'gpt-image-settings'
@@ -48,11 +52,13 @@ const useLocalSettingStore = create<LocalSettingState>()(
 
 export function useLocalSetting() {
   const gptImageSettings = useLocalSettingStore((state) => state.gptImageSettings)
-  const systemToken = useLocalSettingStore((state) => state.systemToken)
+  const yunwuSystemToken = useLocalSettingStore((state) => state.yunwuSystemToken)
+  const yunwuUserId = useLocalSettingStore((state) => state.yunwuUserId)
   const setGptImageSettings = useLocalSettingStore(
     (state) => state.setGptImageSettings
   )
-  const setSystemToken = useLocalSettingStore((state) => state.setSystemToken)
+  const setYunwuSystemToken = useLocalSettingStore((state) => state.setYunwuSystemToken)
+  const setYunwuUserId = useLocalSettingStore((state) => state.setYunwuUserId)
 
   const mergedSettings = useMemo(
     () => ({ ...defaultGPTImageSettings, ...gptImageSettings }),
@@ -61,8 +67,10 @@ export function useLocalSetting() {
 
   return {
     gptImageSettings: mergedSettings,
-    systemToken,
+    yunwuSystemToken,
+    yunwuUserId,
     setGptImageSettings,
-    setSystemToken
+    setYunwuSystemToken,
+    setYunwuUserId
   }
 }

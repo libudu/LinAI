@@ -1,8 +1,8 @@
 import { Modal, Tabs } from 'antd'
 import { useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { GPTImageSetting, GPTImageSettingRef } from './GPTImageSetting'
 import { AdminSetting, AdminSettingRef } from './AdminSetting'
+import { GPTImageSetting, GPTImageSettingRef } from './GPTImageSetting'
 
 export function openSettingModal(options?: {
   initialTab?: string
@@ -45,7 +45,7 @@ export function openSettingModal(options?: {
     const items = [
       {
         key: 'gpt-image',
-        label: 'GPTImage2 配置',
+        label: 'GPTImage 配置',
         children: <GPTImageSetting ref={gptImageRef} />
       }
     ]
@@ -71,7 +71,7 @@ export function openSettingModal(options?: {
         okText={options?.onSuccess ? '保存并继续' : '保存'}
         cancelText="取消"
         destroyOnClose
-        width={600}
+        width={620}
       >
         <div className="min-h-[200px] pt-4">
           <Tabs
@@ -79,6 +79,11 @@ export function openSettingModal(options?: {
             activeKey={activeTab}
             onChange={setActiveTab}
             items={items}
+            styles={{
+              item: {
+                padding: '8px 16px' // 你要的 padding
+              }
+            }}
           />
         </div>
       </Modal>
