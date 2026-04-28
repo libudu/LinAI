@@ -9,7 +9,6 @@ import { useLocalSetting } from '../../../hooks/useLocalSetting'
 import { useGlobalStore } from '../../../store/global'
 
 import type { GptImageSize } from '../../../../server/module/gpt-image/enum'
-import { useTasks } from '../../../hooks/useTasks'
 import { FolderFormItem } from './FolderSelectInput'
 import { ImageUpload } from './ImageUpload'
 
@@ -135,7 +134,6 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
   const [trialImage, setTrialImage] = useState<string | null>(null)
   const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
   const { gptImageSettings } = useLocalSetting()
-  const { refresh } = useTasks()
   const trialRequestIdRef = useRef(0)
 
   const doTrial = async (size: GptImageSize) => {
@@ -152,7 +150,6 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
     setTrialImage(null)
 
     message.success('任务提交成功')
-    setTimeout(() => refresh(), 500)
     try {
       const res = await client.api.gptImage.trial.$post({
         json: {
@@ -182,7 +179,6 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
       if (currentRequestId === trialRequestIdRef.current) {
         setTrialGenerating(false)
       }
-      refresh()
     }
   }
 

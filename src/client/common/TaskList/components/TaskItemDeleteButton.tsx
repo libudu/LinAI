@@ -8,7 +8,7 @@ const client = hc<AppType>('/')
 
 interface DeleteTaskButtonProps {
   id: string
-  onSuccess: () => void
+  onSuccess?: () => void
 }
 
 export function TaskItemDeleteButton({ id, onSuccess }: DeleteTaskButtonProps) {
@@ -27,7 +27,7 @@ export function TaskItemDeleteButton({ id, onSuccess }: DeleteTaskButtonProps) {
       const json = await res.json()
       if (json.success) {
         message.success('删除成功')
-        onSuccess()
+        onSuccess?.()
       } else {
         message.error(json.error || '删除失败')
       }

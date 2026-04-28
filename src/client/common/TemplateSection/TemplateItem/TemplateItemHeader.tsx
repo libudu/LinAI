@@ -7,7 +7,6 @@ import { TaskTemplate } from '../../../../server/common/template-manager'
 import type { GptImageSize } from '../../../../server/module/gpt-image/enum'
 import openaiIcon from '../../../assets/icon/openai.svg'
 import { useLocalSetting } from '../../../hooks/useLocalSetting'
-import { useTasks } from '../../../hooks/useTasks'
 import { useTemplates } from '../../../hooks/useTemplates'
 import { useGlobalStore } from '../../../store/global'
 import { openSettingModal } from '../../SettingModal'
@@ -20,12 +19,9 @@ export const TemplateItemGenerateButtons: React.FC<{
 }> = ({ template }) => {
   const { gptImageSettings } = useLocalSetting()
   const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
-  const { refresh } = useTasks()
 
   const doGenerate = async (templateId: string, size: GptImageSize) => {
     message.success('任务提交成功')
-    // give server some time to create the task
-    setTimeout(() => refresh(), 500)
     try {
       await client.api.gptImage.generate.$post({
         json: {
@@ -36,8 +32,6 @@ export const TemplateItemGenerateButtons: React.FC<{
       })
     } catch (error) {
       message.error('请求失败')
-    } finally {
-      refresh()
     }
   }
 

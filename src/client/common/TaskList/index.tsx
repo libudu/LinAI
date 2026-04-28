@@ -17,7 +17,7 @@ import { TaskListHeader } from './TaskListHeader'
 const client = hc<AppType>('/')
 
 export function TaskList() {
-  const { data: tasks = [], loading, refresh: fetchTasks } = useTasks()
+  const { data: tasks = [], loading } = useTasks()
   const [downloadedIds, setDownloadedIds] = useLocalStorageState<string[]>(
     'downloadedTaskIds',
     { defaultValue: [] }
@@ -32,9 +32,6 @@ export function TaskList() {
       }
     })
     message.success('已创建重试任务')
-    setTimeout(() => {
-      fetchTasks()
-    }, 500)
   }
 
   // 暂时仅显示 GPT-Image 任务
@@ -49,7 +46,6 @@ export function TaskList() {
         tasks={gptImageTasks}
         downloadedIds={downloadedIds || []}
         setDownloadedIds={setDownloadedIds}
-        fetchTasks={fetchTasks}
         loading={loading}
       />
       <List
@@ -168,14 +164,7 @@ export function TaskList() {
                           />
                         </Tooltip>
                       )}
-                      <TaskItemDeleteButton
-                        id={task.id}
-                        onSuccess={() => {
-                          setTimeout(() => {
-                            fetchTasks()
-                          }, 500)
-                        }}
-                      />
+                      <TaskItemDeleteButton id={task.id} />
                     </div>
                   </div>
                 </div>

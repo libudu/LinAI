@@ -1,5 +1,6 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
+import { streamSSE } from 'hono/streaming'
 import { z } from 'zod'
 import { TaskManager } from '../../common/task-manager'
 
@@ -13,6 +14,59 @@ const taskApi = new Hono()
     } catch (error: any) {
       return c.json({ success: false as const, error: error.message }, 500)
     }
+  })
+  .get('/stream', (c) => {
+    return streamSSE(c, async (stream) => {
+      let aborted = false
+      // Send initial tasks
+      try {
+        const initialTasks = await taskManager.getTasks()
+        await stream.writeSSE({
+          data: JSON.stringify({ success: true, data: initialTasks }),
+          event: 'message',
+        })
+      } catch (error: any) {
+        await stream.writeSSE({
+          data: JSON.stringify({ success: false, error: error.message }),
+          event: 'error',
+        })
+      }
+
+      // Listen for updates
+      const listener = async (tasks: any[]) => {
+        if (aborted) return
+        try {
+          await stream.writeSSE({
+            data: JSON.stringify({ success: true, data: tasks }),
+            event: 'message',
+          })
+        } catch (e) {
+          console.error('Failed to send SSE update:', e)
+        }
+      }
+
+      taskManager.on('tasks-updated', listener)
+
+      // Cleanup on disconnect
+      stream.onAbort(() => {
+        aborted = true
+        taskManager.off('tasks-updated', listener)
+      })
+
+      // Keep connection alive
+      while (!aborted) {
+        await stream.sleep(30000)
+        if (aborted) break
+        try {
+          await stream.writeSSE({
+            data: 'ping',
+            event: 'ping'
+          })
+        } catch (e) {
+          break
+        }
+      }
+    })
   })
   .delete(
     '/:id',

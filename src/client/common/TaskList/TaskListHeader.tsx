@@ -1,9 +1,9 @@
 import {
   DeleteOutlined,
   EllipsisOutlined,
-  ScheduleOutlined,
-  SyncOutlined
+  ScheduleOutlined
 } from '@ant-design/icons'
+
 import type { MenuProps } from 'antd'
 import { Button, Dropdown, Modal, Space, message } from 'antd'
 import { hc } from 'hono/client'
@@ -19,16 +19,13 @@ interface TaskListHeaderProps {
   tasks: Task[]
   downloadedIds: string[]
   setDownloadedIds: (ids: string[]) => void
-  fetchTasks: () => void
   loading: boolean
 }
 
 export function TaskListHeader({
   tasks,
   downloadedIds,
-  setDownloadedIds,
-  fetchTasks,
-  loading
+  setDownloadedIds
 }: TaskListHeaderProps) {
   const [deletingErrors, setDeletingErrors] = useState(false)
   const [deletingDownloaded, setDeletingDownloaded] = useState(false)
@@ -55,7 +52,6 @@ export function TaskListHeader({
         }
       }
       message.success(`成功删除 ${successCount} 个错误任务`)
-      fetchTasks()
     } catch (error) {
       message.error('删除错误任务失败')
     } finally {
@@ -100,7 +96,6 @@ export function TaskListHeader({
             }
           }
           message.success(`成功删除 ${successCount} 个已下载任务`)
-          fetchTasks()
         } catch (error) {
           message.error('批量删除失败')
         } finally {
@@ -151,10 +146,6 @@ export function TaskListHeader({
       </div>
 
       <div className="flex gap-4">
-        <Button icon={<SyncOutlined />} onClick={fetchTasks} loading={loading}>
-          刷新
-        </Button>
-
         <div className="hidden md:block">
           <Space.Compact>
             <TaskListDownloadButton
