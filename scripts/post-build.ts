@@ -1,6 +1,6 @@
-import fs from 'fs-extra'
-import { execSync } from 'child_process'
 import AdmZip from 'adm-zip'
+import { execSync } from 'child_process'
+import fs from 'fs-extra'
 
 function main() {
   console.log('🚀 [Post-build] Starting...')
@@ -38,9 +38,8 @@ function main() {
     process.exit(1)
   }
 
-  // 1. 复制 package.json 到 dist 目录
-  fs.copyFileSync('package.json', 'dist/package.json')
-  console.log('✅ [Post-build] Copied package.json to dist/')
+  // 1. package.json 已经在 tsup 构建时自动生成到了 dist 目录，无需复制
+  console.log('✅ [Post-build] package.json is already generated in dist/')
 
   // 2. 复制 dist-template 目录中的所有文件到 dist 目录
   const templateDir = 'dist-template'
