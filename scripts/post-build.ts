@@ -1,8 +1,9 @@
-import AdmZip from 'adm-zip'
 import { execSync } from 'child_process'
 import fs from 'fs-extra'
+import JSZip from 'jszip'
+import path from 'path'
 
-function main() {
+async function main() {
   console.log('🚀 [Post-build] Starting...')
 
   // 0. 检查 git 状态与打 tag
@@ -80,9 +81,32 @@ function main() {
     const zipName = `LinAI v${version}.zip`
     console.log(`📦 [Post-build] Zipping dist directory to ${zipName}...`)
 
-    const zip = new AdmZip()
-    zip.addLocalFolder('dist')
-    zip.writeZip(zipName)
+    const zip = new JSZip()
+
+    const addFolderToZip = (folderPath: string, zipFolder: JSZip) => {
+      const items = fs.readdirSync(folderPath)
+      for (const item of items) {
+        const itemPath = path.join(folderPath, item)
+        const stat = fs.statSync(itemPath)
+        if (stat.isDirectory()) {
+          const subFolder = zipFolder.folder(item)
+          if (subFolder) addFolderToZip(itemPath, subFolder)
+        } else {
+          zipFolder.file(item, fs.readFileSync(itemPath))
+        }
+      }
+    }
+
+    addFolderToZip('dist', zip)
+
+    const content = await zip.generateAsync({
+      type: 'nodebuffer',
+      compression: 'DEFLATE',
+      compressionOptions: {
+        level: 9
+      }
+    })
+    fs.writeFileSync(zipName, content)
     console.log(`✅ [Post-build] Successfully created ${zipName}`)
   } catch (error) {
     console.error('❌ [Post-build] 打包压缩文件失败:', error)
@@ -92,4 +116,7 @@ function main() {
   console.log('🎉 [Post-build] Completed successfully.')
 }
 
-main()
+main().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
