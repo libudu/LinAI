@@ -9,7 +9,7 @@ export interface AdminSettingRef {
 }
 
 const client = hc<AppType>('/')
-const fixedGroup = '限时特价,Codex专属,default,逆向,纯AZ,官转'
+const fixedGroup = '限时特价,default,逆向,纯AZ,官转'
 
 export const AdminSetting = forwardRef<AdminSettingRef>((_props, ref) => {
   const [form] = Form.useForm()

@@ -116,6 +116,7 @@ export function TemplateFolder({
         onCancel={() => setIsModalOpen(false)}
         confirmLoading={submitting}
         destroyOnClose
+        width={400}
       >
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item
