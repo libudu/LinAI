@@ -12,7 +12,7 @@ const client = hc<AppType>('/')
 interface TemplateItemListProps {
   filteredTemplates: TaskTemplate[]
   selectedFolder: string | null
-  onSelectFolder: (folder: string) => void
+  onSelectFolder: (folder: string | null) => void
 }
 
 export function TemplateItemList({
@@ -78,6 +78,9 @@ export function TemplateItemList({
                       count={count}
                       onClick={() => onSelectFolder(folder)}
                       onDropTemplate={handleDropTemplate}
+                      onRenameSuccess={() => {
+                        refreshTemplates()
+                      }}
                     />
                   )
                 })}

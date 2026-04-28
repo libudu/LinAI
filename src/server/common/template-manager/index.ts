@@ -99,6 +99,23 @@ class TemplateManager {
     await fs.writeFile(this.dbPath, JSON.stringify(templates, null, 2), 'utf-8')
     return templates[index]
   }
+
+  public async renameFolder(oldFolder: string, newFolder: string): Promise<number> {
+    const templates = await this.getTemplates()
+    let updatedCount = 0
+
+    for (const t of templates) {
+      if (t.folder === oldFolder) {
+        t.folder = newFolder
+        updatedCount++
+      }
+    }
+
+    if (updatedCount > 0) {
+      await fs.writeFile(this.dbPath, JSON.stringify(templates, null, 2), 'utf-8')
+    }
+    return updatedCount
+  }
 }
 
 export const templateManager = new TemplateManager()

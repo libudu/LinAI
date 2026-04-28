@@ -36,6 +36,28 @@ const templateApi = new Hono()
       }
     }
   )
+  .put(
+    '/folder/rename',
+    zValidator(
+      'json',
+      z.object({
+        oldFolder: z.string(),
+        newFolder: z.string()
+      })
+    ),
+    async (c) => {
+      try {
+        const { oldFolder, newFolder } = c.req.valid('json')
+        const updatedCount = await templateManager.renameFolder(
+          oldFolder,
+          newFolder
+        )
+        return c.json({ success: true as const, data: { updatedCount } })
+      } catch (error: any) {
+        return c.json({ success: false as const, error: error.message }, 500)
+      }
+    }
+  )
   .delete(
     '/:id',
     zValidator('param', z.object({ id: z.string() })),
