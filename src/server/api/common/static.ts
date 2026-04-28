@@ -2,8 +2,8 @@ import { zValidator } from '@hono/zod-validator'
 import crypto from 'crypto'
 import fs from 'fs-extra'
 import { Hono } from 'hono'
+import { Image } from 'imagescript'
 import path from 'path'
-import sharp from 'sharp'
 import { z } from 'zod'
 
 // 图片处理配置
@@ -57,29 +57,26 @@ const staticApi = new Hono()
       try {
         const buffer = Buffer.from(matches[2], 'base64')
 
-        let sharpInstance = sharp(buffer)
-        const metadata = await sharpInstance.metadata()
+        let imageInstance = await Image.decode(buffer)
 
         // 缩放到长宽最多1920px (配置为 IMAGE_MAX_DIMENSION)
         if (
-          metadata.width &&
-          metadata.height &&
-          (metadata.width > IMAGE_MAX_DIMENSION ||
-            metadata.height > IMAGE_MAX_DIMENSION)
+          imageInstance.width &&
+          imageInstance.height &&
+          (imageInstance.width > IMAGE_MAX_DIMENSION ||
+            imageInstance.height > IMAGE_MAX_DIMENSION)
         ) {
-          sharpInstance = sharpInstance.resize({
-            width: IMAGE_MAX_DIMENSION,
-            height: IMAGE_MAX_DIMENSION,
-            fit: 'inside',
-            withoutEnlargement: true
-          })
+          if (imageInstance.width > imageInstance.height) {
+            imageInstance.resize(IMAGE_MAX_DIMENSION, Image.RESIZE_AUTO)
+          } else {
+            imageInstance.resize(Image.RESIZE_AUTO, IMAGE_MAX_DIMENSION)
+          }
         }
 
-        let webpBuffer = await sharpInstance.webp().toBuffer()
-
-        webpBuffer = await sharpInstance
-          .webp({ quality: IMAGE_COMPRESS_QUALITY })
-          .toBuffer()
+        const webpBufferUint8 = await imageInstance.encodeWEBP(
+          IMAGE_COMPRESS_QUALITY as any
+        )
+        const webpBuffer = Buffer.from(webpBufferUint8)
 
         const hash = crypto.createHash('md5').update(webpBuffer).digest('hex')
         const filename = `${hash}.webp`
