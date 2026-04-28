@@ -164,7 +164,9 @@ export function TaskList() {
                           />
                         </Tooltip>
                       )}
-                      <TaskItemDeleteButton id={task.id} />
+                      <TaskItemDeleteButton
+                        id={task.id}
+                      />
                     </div>
                   </div>
                 </div>
