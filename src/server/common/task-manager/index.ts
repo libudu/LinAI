@@ -1,3 +1,4 @@
+import { EventEmitter } from 'events'
 import fs from 'fs-extra'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
@@ -23,12 +24,13 @@ export interface Task {
   [key: string]: any
 }
 
-export class TaskManager {
+export class TaskManager extends EventEmitter {
   private dataDir: string
   private tasksDbPath: string
   private logger: Logger
 
   constructor() {
+    super()
     this.dataDir = path.join(process.cwd(), 'data')
     this.tasksDbPath = path.join(this.dataDir, 'tasks.json')
     this.logger = new Logger('task-manager')
@@ -63,6 +65,15 @@ export class TaskManager {
       } catch (error) {
         this.logger.error('Failed to reset tasks on init:', error)
       }
+    }
+  }
+
+  private async notifyTasksUpdate() {
+    try {
+      const tasks = await this.getTasks()
+      this.emit('tasks-updated', tasks)
+    } catch (error) {
+      this.logger.error('Failed to notify tasks update:', error)
     }
   }
 
@@ -105,6 +116,7 @@ export class TaskManager {
       JSON.stringify(tasks, null, 2),
       'utf-8'
     )
+    this.notifyTasksUpdate()
     return newTask
   }
 
@@ -124,6 +136,7 @@ export class TaskManager {
         JSON.stringify(filtered, null, 2),
         'utf-8'
       )
+      this.notifyTasksUpdate()
 
       if (target.outputUrl && target.outputUrl.startsWith('/api/static/')) {
         try {
@@ -169,6 +182,7 @@ export class TaskManager {
       JSON.stringify(tasks, null, 2),
       'utf-8'
     )
+    this.notifyTasksUpdate()
     return true
   }
 
@@ -192,6 +206,7 @@ export class TaskManager {
       JSON.stringify(tasks, null, 2),
       'utf-8'
     )
+    this.notifyTasksUpdate()
     return true
   }
 }
