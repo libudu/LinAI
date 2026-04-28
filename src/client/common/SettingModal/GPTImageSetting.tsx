@@ -57,7 +57,7 @@ export const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
           label="API Key"
           rules={[{ required: true, message: '请输入 API Key' }]}
         >
-          <Input.Password placeholder="输入 t8star API Key" />
+          <Input.Password placeholder="输入云雾 API Key" />
         </Form.Item>
         <Form.Item>
           <div className="mb-2 text-sm text-gray-500">生成尺寸</div>
