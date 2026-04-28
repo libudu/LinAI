@@ -10,6 +10,7 @@ import { useGlobalStore } from '../../../store/global'
 
 import type { GptImageSize } from '../../../../server/module/gpt-image/enum'
 import { useTasks } from '../../../hooks/useTasks'
+import { FolderFormItem } from './FolderSelectInput'
 import { ImageUpload } from './ImageUpload'
 
 const client = hc<AppType>('/')
@@ -67,6 +68,51 @@ export function PromptFormItem({
         style={{ resize: 'none' }}
       />
     </Form.Item>
+  )
+}
+
+export function TemplateFormFields({
+  form,
+  imageUrls,
+  setImageUrls,
+  setUploadingCount
+}: {
+  form: any
+  imageUrls: string[]
+  setImageUrls: (urls: string[]) => void
+  setUploadingCount: (count: number) => void
+}) {
+  return (
+    <>
+      <div className="flex gap-4">
+        <TitleFormItem className="flex-1" />
+        <FolderFormItem className="w-1/3" />
+      </div>
+
+      <div className="flex gap-4">
+        <Form.Item label="上传图片" className="flex-1">
+          <ImageUpload
+            value={imageUrls}
+            onChange={setImageUrls}
+            onUploadingChange={(isUploading) =>
+              setUploadingCount(isUploading ? 1 : 0)
+            }
+            onFirstImageRatio={(ratio) => {
+              form.setFieldsValue({ aspectRatio: ratio })
+            }}
+          />
+        </Form.Item>
+        <AspectRatioFormItem className="w-1/3" />
+      </div>
+
+      <PromptFormItem
+        label={
+          <div className="flex items-center gap-2">
+            <span>提示词</span>
+          </div>
+        }
+      />
+    </>
   )
 }
 
@@ -226,35 +272,11 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
           </Radio.Group>
         </Form.Item>
 
-        <div className="flex gap-4">
-          <TitleFormItem className="flex-1" />
-          <AspectRatioFormItem className="w-1/3" />
-        </div>
-
-        <div className="flex gap-4">
-          <Form.Item label="上传图片" className="flex-1">
-            <ImageUpload
-              value={imageUrls}
-              onChange={setImageUrls}
-              onUploadingChange={(isUploading) =>
-                setUploadingCount(isUploading ? 1 : 0)
-              }
-              onFirstImageRatio={(ratio) => {
-                form.setFieldsValue({ aspectRatio: ratio })
-              }}
-            />
-          </Form.Item>
-          <Form.Item name="folder" label="分类" className="w-1/3">
-            <Input placeholder="输入分类名称" />
-          </Form.Item>
-        </div>
-
-        <PromptFormItem
-          label={
-            <div className="flex items-center gap-2">
-              <span>提示词</span>
-            </div>
-          }
+        <TemplateFormFields
+          form={form}
+          imageUrls={imageUrls}
+          setImageUrls={setImageUrls}
+          setUploadingCount={setUploadingCount}
         />
 
         {(trialImage || trialGenerating) && (

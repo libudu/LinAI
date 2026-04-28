@@ -84,7 +84,7 @@ class TemplateManager {
 
   public async updateTemplate(
     id: string,
-    updates: Partial<Pick<TaskTemplate, 'title' | 'prompt' | 'aspectRatio' | 'folder'>>
+    updates: Partial<Pick<TaskTemplate, 'title' | 'prompt' | 'aspectRatio' | 'folder' | 'images'>>
   ): Promise<TaskTemplate | null> {
     const templates = await this.getTemplates()
     const index = templates.findIndex((t) => t.id === id)

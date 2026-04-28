@@ -41,9 +41,9 @@ export function TemplateItemList({
             <p className="text-sm font-medium">该分类下暂无模板内容</p>
           </div>
         ) : (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
             {displayFolders.length > 0 && (
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-3 gap-2">
                 {displayFolders.map((folder) => {
                   const count = filteredTemplates.filter(
                     (t) => t.folder === folder
@@ -81,7 +81,7 @@ export function TemplateItemList({
                 size="small"
                 className="shadow-sm transition-shadow hover:shadow-md"
               >
-                <div className="flex gap-4">
+                <div className="flex gap-2">
                   <ImageGroup images={template.images || []} />
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <TemplateItemHeader template={template} />

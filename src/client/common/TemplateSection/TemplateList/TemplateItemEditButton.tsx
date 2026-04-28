@@ -5,11 +5,7 @@ import { useState } from 'react'
 import type { AppType } from '../../../../server'
 import { TaskTemplate } from '../../../../server/common/template-manager'
 import { useTemplates } from '../../../hooks/useTemplates'
-import {
-  AspectRatioFormItem,
-  PromptFormItem,
-  TitleFormItem
-} from '../TemplateForm'
+import { TemplateFormFields } from '../TemplateForm'
 
 const client = hc<AppType>('/')
 
@@ -20,6 +16,8 @@ interface TemplateEditButtonProps {
 export function TemplateEditButton({ template }: TemplateEditButtonProps) {
   const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [imageUrls, setImageUrls] = useState<string[]>([])
+  const [uploadingCount, setUploadingCount] = useState(0)
   const [form] = Form.useForm()
   const { refresh } = useTemplates()
 
@@ -27,8 +25,10 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
     form.setFieldsValue({
       title: template.title,
       prompt: template.prompt,
-      aspectRatio: template.aspectRatio || '1:1'
+      aspectRatio: template.aspectRatio || '1:1',
+      folder: template.folder
     })
+    setImageUrls(template.images || [])
     setOpen(true)
   }
 
@@ -45,7 +45,9 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
         json: {
           title: values.title,
           prompt: values.prompt,
-          aspectRatio: values.aspectRatio
+          aspectRatio: values.aspectRatio,
+          folder: values.folder,
+          images: imageUrls
         }
       })
       const json = await res.json()
@@ -78,10 +80,11 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
         open={open}
         onCancel={handleClose}
         onOk={() => form.submit()}
-        confirmLoading={submitting}
+        confirmLoading={submitting || uploadingCount > 0}
         destroyOnClose
         okText="保存"
         cancelText="取消"
+        width={600}
       >
         <Form
           form={form}
@@ -89,9 +92,12 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
           onFinish={handleFinish}
           className="mt-4"
         >
-          <TitleFormItem />
-          <AspectRatioFormItem />
-          <PromptFormItem />
+          <TemplateFormFields
+            form={form}
+            imageUrls={imageUrls}
+            setImageUrls={setImageUrls}
+            setUploadingCount={setUploadingCount}
+          />
         </Form>
       </Modal>
     </>

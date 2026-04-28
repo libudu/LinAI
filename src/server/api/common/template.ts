@@ -64,7 +64,8 @@ const templateApi = new Hono()
         title: z.string().optional(),
         prompt: z.string().optional(),
         aspectRatio: z.string().optional(),
-        folder: z.string().optional()
+        folder: z.string().optional(),
+        images: z.array(z.string()).optional()
       })
     ),
     async (c) => {
