@@ -11,7 +11,7 @@ import { useLocalSetting } from '../../../hooks/useLocalSetting'
 import { useTasks } from '../../../hooks/useTasks'
 import { useTemplates } from '../../../hooks/useTemplates'
 import { useGlobalStore } from '../../../store/global'
-import { TemplateEditButton } from './TemplateEditButton'
+import { TemplateEditButton } from './TemplateItemEditButton'
 
 const client = hc<AppType>('/')
 

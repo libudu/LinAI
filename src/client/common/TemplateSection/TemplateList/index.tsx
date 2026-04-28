@@ -1,8 +1,8 @@
 import { Spin } from 'antd'
 import { forwardRef, useImperativeHandle, useState } from 'react'
 import { useTemplates } from '../../../hooks/useTemplates'
-import { TemplateFolder } from './TemplateFolder'
 import { TemplateItemList } from './TemplateItemList'
+import { TemplateFolder } from './TemplateRootFolder'
 
 export interface TemplateListRef {
   refresh: () => void
