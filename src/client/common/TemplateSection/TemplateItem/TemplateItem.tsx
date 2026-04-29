@@ -1,7 +1,7 @@
 import { Card, Tooltip, message } from 'antd'
 import copy from 'copy-to-clipboard'
 import { TaskTemplate } from '../../../../server/common/template-manager'
-import { ImageGroup } from '../TemplateList/ImageGroup'
+import { ImageGroup } from '../../components/ImageGroup'
 import {
   TemplateItemGenerateButtons,
   TemplateItemHeader,
