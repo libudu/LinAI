@@ -66,7 +66,7 @@ export function TemplateItemList({
         ) : (
           <div className="flex flex-col gap-2">
             {displayFolders.length > 0 && (
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                 {displayFolders.map((folder) => {
                   const count = filteredTemplates.filter(
                     (t) => t.folder === folder

@@ -198,7 +198,7 @@ export function ImageUpload({
     <div>
       <div className="flex items-center gap-4">
         <Upload
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp"
           showUploadList={false}
           beforeUpload={handleUpload}
           multiple
