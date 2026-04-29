@@ -47,12 +47,14 @@ function RecentImages({
   recentImages,
   currentValue,
   onSelect,
-  onRemove
+  onRemove,
+  onClear
 }: {
   recentImages: string[]
   currentValue: string[]
   onSelect: (url: string) => void
   onRemove: (url: string) => void
+  onClear: () => void
 }) {
   const displayImages = recentImages
     .filter((url) => !currentValue.includes(url))
@@ -73,6 +75,11 @@ function RecentImages({
           onError={() => onRemove(url)}
         />
       ))}
+      <CloseCircleFilled
+        className="cursor-pointer text-slate-400! transition-colors hover:text-slate-600!"
+        onClick={onClear}
+        title="清空最近图片"
+      />
     </div>
   )
 }
@@ -222,6 +229,9 @@ export function ImageUpload({
           }}
           onRemove={(url) => {
             setRecentImages((prev = []) => prev.filter((u) => u !== url))
+          }}
+          onClear={() => {
+            setRecentImages([])
           }}
         />
       </div>

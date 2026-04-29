@@ -74,7 +74,7 @@ const staticApi = new Hono()
         }
 
         const webpBufferUint8 = await imageInstance.encodeWEBP(
-          IMAGE_COMPRESS_QUALITY as any
+          IMAGE_COMPRESS_QUALITY
         )
         const webpBuffer = Buffer.from(webpBufferUint8)
 
