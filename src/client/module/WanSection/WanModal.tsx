@@ -22,7 +22,7 @@ export function WanModal({
       open={open}
       onCancel={onClose}
       footer={null}
-      destroyOnClose
+      destroyOnHidden
       width={800}
     >
       <div className="flex flex-col gap-6 py-4">

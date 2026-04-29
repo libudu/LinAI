@@ -99,7 +99,7 @@ export function GeminiModal({ open, onClose }: GeminiModalProps) {
       onCancel={onClose}
       footer={null}
       width={800}
-      destroyOnClose
+      destroyOnHidden
     >
       <div className="flex flex-col gap-6 py-4">
         <Card

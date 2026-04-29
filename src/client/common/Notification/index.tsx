@@ -150,7 +150,7 @@ export function openNotificationModal() {
         open={true}
         onCancel={destroy}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
         width={650}
       >
         <div className="min-h-[350px]">

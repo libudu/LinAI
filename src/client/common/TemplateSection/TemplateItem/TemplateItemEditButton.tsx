@@ -140,7 +140,7 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
             </div>
           )
         }}
-        destroyOnClose
+        destroyOnHidden
         width={600}
       >
         <Form

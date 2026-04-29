@@ -70,12 +70,12 @@ export function openSettingModal(options?: {
         onOk={handleSave}
         okText={options?.onSuccess ? '保存并继续' : '保存'}
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
         width={620}
       >
         <div className="min-h-[200px] pt-4">
           <Tabs
-            tabPosition="left"
+            tabPlacement="start"
             activeKey={activeTab}
             onChange={setActiveTab}
             items={items}

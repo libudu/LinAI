@@ -115,7 +115,7 @@ export function TemplateFolder({
         cancelText="取消"
         onCancel={() => setIsModalOpen(false)}
         confirmLoading={submitting}
-        destroyOnClose
+        destroyOnHidden
         width={400}
       >
         <Form form={form} layout="vertical" preserve={false}>
