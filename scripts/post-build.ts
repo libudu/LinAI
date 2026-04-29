@@ -112,7 +112,8 @@ async function main() {
       }
     })
     fs.writeFileSync(zipName, content)
-    console.log(`✅ [Post-build] Successfully created ${zipName}`)
+    const sizeMB = (content.length / (1024 * 1024)).toFixed(2)
+    console.log(`✅ [Post-build] Successfully created ${zipName} (大小: ${sizeMB} MB)`)
   } catch (error) {
     console.error('❌ [Post-build] 打包压缩文件失败:', error)
     process.exit(1)

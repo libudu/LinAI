@@ -51,7 +51,7 @@ export function openSettingModal(options?: {
     ]
 
     const isAdmin =
-      window.location.hostname === 'localhost' ||
+      window.location.hostname === 'localhost' &&
       !!localStorage.getItem('admin')
 
     if (isAdmin) {
