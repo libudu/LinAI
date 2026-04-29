@@ -82,6 +82,12 @@ export function useGPTImageQuota() {
   const error = useQuotaStore((state) => state.error)
   const fetchQuota = useQuotaStore((state) => state.fetchQuota)
 
+  const isPublic =
+    data?.name?.includes('公开') ||
+    data?.name?.includes('共用') ||
+    data?.name?.includes('公用') ||
+    false
+
   useEffect(() => {
     fetchQuota(gptImageApiKey)
   }, [gptImageApiKey, fetchQuota])
@@ -122,6 +128,7 @@ export function useGPTImageQuota() {
     quota: data,
     loading,
     error,
+    isPublic,
     refresh: () => fetchQuota(gptImageApiKey, true)
   }
 }

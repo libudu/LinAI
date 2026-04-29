@@ -1,6 +1,7 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { Form, Input, Radio, Switch, message } from 'antd'
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
+import { useGPTImageQuota } from '../../hooks/useGPTImageQuota'
 import { useLocalSetting } from '../../hooks/useLocalSetting'
 import { useGlobalStore } from '../../store/global'
 
@@ -12,6 +13,7 @@ export const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
   const [form] = Form.useForm()
   const { gptImageApiKey, setGptImageApiKey } = useGlobalStore()
   const { gptImageSettings, setGptImageSettings } = useLocalSetting()
+  const { isPublic } = useGPTImageQuota()
 
   useEffect(() => {
     form.setFieldsValue({
@@ -77,17 +79,23 @@ export const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
             <div className="flex items-center gap-2">
               <span>4K</span>
               <Form.Item name="enable4K" valuePropName="checked" noStyle>
-                <Switch />
+                <Switch disabled={isPublic} />
               </Form.Item>
             </div>
           </div>
           <div className="mt-1 flex items-start gap-1 text-xs text-red-500">
             <ExclamationCircleOutlined className="mt-1" />
             <div>
-              <div>开启 4K 后，Token 消耗是 2K 的 2~4 倍</div>
-              <div>单张图片可能产生 0.2 元以上的费用</div>
-              <div>图片将按比例缩放到总像素不超过 8294400</div>
-              <div>更容易失败或命中高倍率的分组</div>
+              {isPublic ? (
+                <div>公用 API Key 无法使用 4K 画质</div>
+              ) : (
+                <>
+                  <div>开启 4K 后，Token 消耗是 2K 的 2~4 倍</div>
+                  <div>单张图片可能产生 0.2 元以上的费用</div>
+                  <div>图片将按比例缩放到总像素不超过 8294400</div>
+                  <div>更容易失败或命中高倍率的分组</div>
+                </>
+              )}
             </div>
           </div>
         </Form.Item>
@@ -96,15 +104,25 @@ export const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
           <Form.Item name="quality" noStyle>
             <Radio.Group>
               <Radio.Button value="medium">Medium</Radio.Button>
-              <Radio.Button value="high">High</Radio.Button>
+              <Radio.Button value="high" disabled={isPublic}>
+                High
+              </Radio.Button>
             </Radio.Group>
           </Form.Item>
           <div className="mt-1 flex items-start gap-1 text-xs text-red-500">
             <ExclamationCircleOutlined className="mt-1" />
             <div>
-              <div>High 画质处理小字扭曲等细节效果更好 </div>
-              <div>但 Token 消耗大约变为 4倍，整体性价比远不如提升画面尺寸</div>
-              <div>更容易失败或命中高倍率的分组</div>
+              {isPublic ? (
+                <div>公用 API Key 无法使用 High 画质</div>
+              ) : (
+                <>
+                  <div>High 画质处理小字扭曲等细节效果更好 </div>
+                  <div>
+                    但 Token 消耗大约变为 4倍，整体性价比远不如提升画面尺寸
+                  </div>
+                  <div>更容易失败或命中高倍率的分组</div>
+                </>
+              )}
             </div>
           </div>
         </Form.Item>
