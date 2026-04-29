@@ -12,8 +12,8 @@ export default defineConfig({
     APP_VERSION: pkg.version
   },
   metafile: true,
-  noExternal: [/^(?!playwright$|playwright-core$|imagescript$).*$/],
-  external: ['playwright', 'playwright-core', 'imagescript'],
+  noExternal: [/^(?!playwright$|playwright-core$|sharp$).*$/],
+  external: ['playwright', 'playwright-core', 'sharp'],
   esbuildPlugins: [
     {
       name: 'generate-package-json',
