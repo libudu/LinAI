@@ -48,8 +48,7 @@ export default defineConfig({
             version: pkg.version,
             main: 'server/index.js',
             scripts: {
-              start: 'NODE_ENV=production node server/index.js',
-              postinstall: pkg.scripts.postinstall
+              start: 'NODE_ENV=production node server/index.js'
             },
             dependencies
           }

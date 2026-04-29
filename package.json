@@ -10,7 +10,6 @@
     "build": "vite build && tsup && tsx scripts/post-build.ts",
     "start": "NODE_ENV=production tsx src/server/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "postinstall": "npx playwright install chromium",
     "prettier": "prettier --write \"src/**/*.{js,jsx,ts,tsx,css,scss,md}\""
   },
   "keywords": [],

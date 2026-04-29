@@ -9,7 +9,7 @@ export class WanAuthManager {
   private static instance: WanAuthManager
   private currentSession: string | false | null = null
 
-  private constructor() {}
+  private constructor() { }
 
   static getInstance(): WanAuthManager {
     if (!WanAuthManager.instance) {
@@ -25,13 +25,26 @@ export class WanAuthManager {
     return !!this.currentSession
   }
 
+  private async launchBrowser(userDataDir: string, headless: boolean) {
+    try {
+      return await chromium.launchPersistentContext(userDataDir, {
+        headless,
+        channel: 'chrome'
+      })
+    } catch (e) {
+      logger.info('⚠️ 启动 Chrome 失败，尝试启动 Edge...')
+      return await chromium.launchPersistentContext(userDataDir, {
+        headless,
+        channel: 'msedge'
+      })
+    }
+  }
+
   private async readSessionCookie(): Promise<void> {
     const userDataDir = path.resolve(config.USER_DATA_DIR)
     fs.ensureDirSync(userDataDir)
 
-    const context = await chromium.launchPersistentContext(userDataDir, {
-      headless: true
-    })
+    const context = await this.launchBrowser(userDataDir, true)
 
     try {
       const page = await context.newPage()
@@ -128,9 +141,7 @@ export class WanAuthManager {
   private async manualLogin(): Promise<string> {
     logger.info('🚀 启动有界面浏览器进行登录...')
     const userDataDir = path.resolve(config.USER_DATA_DIR)
-    const context = await chromium.launchPersistentContext(userDataDir, {
-      headless: false
-    })
+    const context = await this.launchBrowser(userDataDir, false)
 
     const page = await context.newPage()
     await page.goto(config.EXPLORE_URL)
