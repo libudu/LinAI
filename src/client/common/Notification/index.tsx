@@ -36,7 +36,7 @@ export function openNotificationModal() {
       },
       {
         key: 'upgrade',
-        label: '📜 更新记录',
+        label: '💅 更新日志',
         children: <UpgradeContent />,
       },
     ]

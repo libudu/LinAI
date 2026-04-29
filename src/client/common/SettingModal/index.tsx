@@ -3,6 +3,7 @@ import { useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AdminSetting, AdminSettingRef } from './AdminSetting'
 import { GPTImageSetting, GPTImageSettingRef } from './GPTImageSetting'
+import { UploadImageSetting } from './UploadImageSetting'
 
 export function openSettingModal(options?: {
   initialTab?: string
@@ -47,6 +48,11 @@ export function openSettingModal(options?: {
         key: 'gpt-image',
         label: 'GPTImage 配置',
         children: <GPTImageSetting ref={gptImageRef} />,
+      },
+      {
+        key: 'upload-image',
+        label: '输入图片设置',
+        children: <UploadImageSetting />,
       },
     ]
 

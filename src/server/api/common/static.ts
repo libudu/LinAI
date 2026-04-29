@@ -5,6 +5,7 @@ import { Hono } from 'hono'
 import path from 'path'
 import sharp from 'sharp'
 import { z } from 'zod'
+import { templateManager } from '../../common/template-manager'
 
 // 图片处理配置
 export const IMAGE_MAX_DIMENSION = 1600
@@ -119,5 +120,50 @@ const staticApi = new Hono()
       return c.notFound()
     },
   )
+  .post('/images/input/open-dir', async (c) => {
+    try {
+      const { exec } = require('child_process')
+      const command =
+        process.platform === 'win32'
+          ? `start "" "${INPUT_IMAGES_DIR}"`
+          : process.platform === 'darwin'
+            ? `open "${INPUT_IMAGES_DIR}"`
+            : `xdg-open "${INPUT_IMAGES_DIR}"`
+      exec(command)
+      return c.json({ success: true })
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 500)
+    }
+  })
+  .post('/images/input/clear-unreferenced', async (c) => {
+    try {
+      const templates = await templateManager.getTemplates()
+      const referencedImages = new Set<string>()
+
+      for (const t of templates) {
+        if (t.images && Array.isArray(t.images)) {
+          for (const imgUrl of t.images) {
+            if (imgUrl.startsWith(INPUT_IMAGES_API_PATH)) {
+              const filename = imgUrl.split('/').pop()
+              if (filename) referencedImages.add(filename)
+            }
+          }
+        }
+      }
+
+      const files = await fs.readdir(INPUT_IMAGES_DIR)
+      let deletedCount = 0
+      for (const file of files) {
+        if (!referencedImages.has(file)) {
+          await fs.remove(path.join(INPUT_IMAGES_DIR, file))
+          deletedCount++
+        }
+      }
+
+      return c.json({ success: true, deletedCount })
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 500)
+    }
+  })
 
 export default staticApi
