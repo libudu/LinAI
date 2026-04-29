@@ -1,9 +1,4 @@
-import {
-  CheckCircleOutlined,
-  ClockCircleOutlined,
-  CloseCircleOutlined,
-  SyncOutlined
-} from '@ant-design/icons'
+import { ClockCircleOutlined } from '@ant-design/icons'
 import { Tag, Tooltip } from 'antd'
 import type { Task } from '../../../../server/common/task-manager'
 import {
@@ -17,32 +12,6 @@ interface TaskItemTagsProps {
 }
 
 export function TaskItemTags({ task, downloadedIds }: TaskItemTagsProps) {
-  const renderStatus = (status: string) => {
-    if (status === 'completed')
-      return (
-        <Tag icon={<CheckCircleOutlined />} color="success">
-          完成
-        </Tag>
-      )
-    if (status === 'running')
-      return (
-        <Tag icon={<SyncOutlined spin />} color="processing">
-          运行中
-        </Tag>
-      )
-    if (status === 'failed')
-      return (
-        <Tag icon={<CloseCircleOutlined />} color="error">
-          失败
-        </Tag>
-      )
-    return (
-      <Tag icon={<ClockCircleOutlined />} color="default">
-        等待中
-      </Tag>
-    )
-  }
-
   const renderCost = (record: Task) => {
     if (record.gptTokenUsage) {
       const inputTokens = record.gptTokenUsage.input_tokens || 0
@@ -80,7 +49,6 @@ export function TaskItemTags({ task, downloadedIds }: TaskItemTagsProps) {
 
   return (
     <div className="mb-2 flex flex-wrap gap-1">
-      {task.status !== 'completed' && renderStatus(task.status)}
       <Tag color="purple">
         {task.rawTemplate?.usageType === 'image' ? '图片' : '视频'}
       </Tag>

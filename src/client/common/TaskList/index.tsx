@@ -1,4 +1,4 @@
-import { RedoOutlined } from '@ant-design/icons'
+import { RedoOutlined, SyncOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { Button, Card, Image, List, Tooltip, Typography, message } from 'antd'
 import copy from 'copy-to-clipboard'
@@ -72,17 +72,25 @@ export function TaskList() {
                 {/* Left: Image Preview */}
                 <div className="relative flex h-36 w-28 shrink-0 items-center justify-center overflow-hidden rounded border border-gray-100 bg-gray-50">
                   {task.status === 'failed' && task.error ? (
-                    <Typography.Text
-                      type="danger"
-                      className="p-2 text-center text-xs"
-                      ellipsis={{ tooltip: task.error }}
-                    >
-                      {task.error}
-                    </Typography.Text>
+                    <div className="flex w-full flex-col items-center justify-center p-2">
+                      <Typography.Text type="danger" strong className="mb-1">
+                        生成失败
+                      </Typography.Text>
+                      <Typography.Text
+                        type="danger"
+                        className="w-full text-center text-xs"
+                        ellipsis={{ tooltip: task.error }}
+                      >
+                        {task.error}
+                      </Typography.Text>
+                    </div>
                   ) : !task.outputUrl ? (
-                    <Typography.Text type="secondary" className="text-xs">
-                      暂无图片
-                    </Typography.Text>
+                    <div className="flex flex-col items-center justify-center p-2">
+                      <Typography.Text strong className="mb-1 text-blue-500!">
+                        运行中
+                        <SyncOutlined className="ml-1" spin />
+                      </Typography.Text>
+                    </div>
                   ) : (
                     <Image
                       src={task.outputUrl}
@@ -164,9 +172,7 @@ export function TaskList() {
                           />
                         </Tooltip>
                       )}
-                      <TaskItemDeleteButton
-                        id={task.id}
-                      />
+                      <TaskItemDeleteButton id={task.id} />
                     </div>
                   </div>
                 </div>
