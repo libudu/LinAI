@@ -8,6 +8,7 @@ export interface GPTImageSettings {
   enable2K: boolean
   enable4K: boolean
   quality: GptImageQuality
+  enableMultiple?: boolean
 }
 
 export const defaultGPTImageSettings: GPTImageSettings = {
@@ -15,6 +16,7 @@ export const defaultGPTImageSettings: GPTImageSettings = {
   enable2K: true,
   enable4K: false,
   quality: 'medium',
+  enableMultiple: false,
 }
 
 export interface LocalSettingState {
