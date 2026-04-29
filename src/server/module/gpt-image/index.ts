@@ -126,6 +126,7 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
       n,
       size: size as any,
       quality,
+      moderation: 'low',
     })
   }
 
