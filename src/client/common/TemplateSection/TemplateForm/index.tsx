@@ -1,6 +1,15 @@
 import { LoadingOutlined, PlusOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
-import { Button, Form, Image, Input, message, Radio, Select } from 'antd'
+import {
+  Button,
+  Form,
+  Image,
+  Input,
+  InputNumber,
+  message,
+  Radio,
+  Select,
+} from 'antd'
 import { hc } from 'hono/client'
 import { useRef, useState } from 'react'
 import type { AppType } from '../../../../server'
@@ -8,6 +17,7 @@ import { openSettingModal } from '../../../common/SettingModal'
 import { useLocalSetting } from '../../../hooks/useLocalSetting'
 import { useGlobalStore } from '../../../store/global'
 
+import classnames from 'classnames'
 import type { GptImageSize } from '../../../../server/module/gpt-image/enum'
 import { FolderFormItem } from './FolderSelectInput'
 import { ImageUpload } from './ImageUpload'
@@ -43,6 +53,18 @@ export function AspectRatioFormItem({ className }: { className?: string }) {
           { label: '9:21', value: '9:21' },
         ]}
       />
+    </Form.Item>
+  )
+}
+
+export function CountFormItem({ className }: { className?: string }) {
+  return (
+    <Form.Item
+      name="n"
+      label="生成张数"
+      className={classnames(className, '[&_.ant-input-number]:w-full!')}
+    >
+      <InputNumber min={1} max={8} className="" />
     </Form.Item>
   )
 }
@@ -86,6 +108,7 @@ export function TemplateFormFields({
       <div className="flex gap-4">
         <TitleFormItem className="flex-1" />
         <FolderFormItem className="w-1/4" />
+        <CountFormItem className="w-1/4" />
       </div>
 
       <div className="flex gap-4">
@@ -101,7 +124,9 @@ export function TemplateFormFields({
             }}
           />
         </Form.Item>
-        <AspectRatioFormItem className="w-1/4" />
+        <div className="flex w-1/4 flex-col gap-4">
+          <AspectRatioFormItem />
+        </div>
       </div>
 
       <PromptFormItem
@@ -131,13 +156,14 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
   })
   const usageType = Form.useWatch('usageType', form)
   const [trialGenerating, setTrialGenerating] = useState(false)
-  const [trialImage, setTrialImage] = useState<string | null>(null)
+  const [trialImages, setTrialImages] = useState<string[]>([])
   const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
   const { gptImageSettings } = useLocalSetting()
   const trialRequestIdRef = useRef(0)
 
   const doTrial = async (size: GptImageSize) => {
     const prompt = form.getFieldValue('prompt')
+    const n = form.getFieldValue('n') || 1
     if (!prompt) {
       message.warning('请先填写提示词')
       return
@@ -147,7 +173,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
     const currentRequestId = ++trialRequestIdRef.current
 
     setTrialGenerating(true)
-    setTrialImage(null)
+    setTrialImages([])
 
     message.success('任务提交成功')
     try {
@@ -158,6 +184,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
           images: imageUrls,
           size,
           quality: gptImageSettings.quality,
+          n,
         },
       })
 
@@ -168,7 +195,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
       if (currentRequestId !== trialRequestIdRef.current) return
 
       if (data.success) {
-        setTrialImage(data.outputUrl)
+        setTrialImages(data.outputUrls || [data.outputUrl])
       } else {
         message.error(data.error || '生成失败')
       }
@@ -204,7 +231,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
   }
 
   const handleFinish = async (values: any) => {
-    setTrialImage(null)
+    setTrialImages([])
     setSubmitting(true)
     try {
       const payload = {
@@ -242,6 +269,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
         initialValues={{
           usageType: localUsageType,
           aspectRatio: '1:1',
+          n: 1,
         }}
         onValuesChange={(changedValues) => {
           if (changedValues.usageType) {
@@ -275,7 +303,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
           setUploadingCount={setUploadingCount}
         />
 
-        {(trialImage || trialGenerating) && (
+        {(trialImages.length > 0 || trialGenerating) && (
           <div className="group relative mb-4 flex flex-col items-center gap-2 rounded-lg border border-slate-100 bg-slate-50 p-4">
             <span className="text-sm text-slate-500">试用生成结果：</span>
             {trialGenerating ? (
@@ -283,14 +311,17 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
                 <LoadingOutlined className="mb-2 text-3xl" />
                 <span className="text-sm">正在生成中...</span>
               </div>
-            ) : trialImage ? (
-              <div className="relative">
-                <Image
-                  src={trialImage}
-                  alt="trial-preview"
-                  className="rounded-lg shadow-sm"
-                  style={{ maxHeight: '150px', objectFit: 'contain' }}
-                />
+            ) : trialImages.length > 0 ? (
+              <div className="relative flex flex-wrap justify-center gap-2">
+                {trialImages.map((img, i) => (
+                  <Image
+                    key={i}
+                    src={img}
+                    alt={`trial-preview-${i}`}
+                    className="rounded-lg shadow-sm"
+                    style={{ maxHeight: '150px', objectFit: 'contain' }}
+                  />
+                ))}
               </div>
             ) : null}
           </div>

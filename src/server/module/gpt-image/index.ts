@@ -36,6 +36,7 @@ interface GenerateGPTImageOptions {
   size: string
   quality: GptImageQuality
   imagePaths: string[]
+  n?: number
 }
 
 function calculateSize(aspectRatio: string, baseSize: GptImageSize): string {
@@ -92,7 +93,7 @@ function calculateSize(aspectRatio: string, baseSize: GptImageSize): string {
 }
 
 async function generateGPTImageNew(options: GenerateGPTImageOptions) {
-  const { apiKey, prompt, size, quality, imagePaths: images } = options
+  const { apiKey, prompt, size, quality, imagePaths: images, n = 1 } = options
   const client = new OpenAI({
     apiKey,
     baseURL: 'https://api.wlai.vip/v1',
@@ -114,7 +115,7 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
       model: GPT_IMAGE_SOURCE_MODEL,
       image: imagesToUpload || [],
       prompt: prompt,
-      n: 1,
+      n,
       size: size as any,
       quality,
     })
@@ -122,20 +123,29 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
     res = await client.images.generate({
       model: GPT_IMAGE_SOURCE_MODEL,
       prompt,
-      n: 1,
+      n,
       size: size as any,
       quality,
     })
   }
 
-  const imageBuffer = Buffer.from(res.data?.[0].b64_json || '', 'base64')
+  const filenames: string[] = []
 
-  const hash = crypto.createHash('md5').update(imageBuffer).digest('hex')
-  const filename = `${hash}.png`
-  const filepath = path.join(GENERATED_IMAGES_DIR, filename)
-  await writeFile(filepath, imageBuffer)
+  if (res.data && res.data.length > 0) {
+    for (const item of res.data) {
+      if (item.b64_json) {
+        const imageBuffer = Buffer.from(item.b64_json, 'base64')
+        const hash = crypto.createHash('md5').update(imageBuffer).digest('hex')
+        const filename = `${hash}.png`
+        const filepath = path.join(GENERATED_IMAGES_DIR, filename)
+        await writeFile(filepath, imageBuffer)
+        filenames.push(filename)
+      }
+    }
+  }
+
   return {
-    filename,
+    filenames,
     usage: res.usage,
   }
 }
@@ -183,7 +193,7 @@ export async function handleImageGeneration(options: {
       }
     }
 
-    let filename: string
+    let filenames: string[] = []
     let usage: GPTImageResponse['usage'] | undefined
     try {
       const res = await generateGPTImageNew({
@@ -192,9 +202,10 @@ export async function handleImageGeneration(options: {
         size: finalSize,
         quality,
         imagePaths,
+        n: template.n || 1,
       })
       logger.info('GPT image generated successfully')
-      filename = res.filename
+      filenames = res.filenames
       usage = res.usage
     } catch (error: any) {
       logger.error(`Failed to generate GPT image`, error.message)
@@ -206,18 +217,20 @@ export async function handleImageGeneration(options: {
     }
 
     const duration = Date.now() - startTime
-    const outputUrl = `${GENERATED_IMAGES_API_PATH}/${filename}`
+    const outputUrls = filenames.map((f) => `${GENERATED_IMAGES_API_PATH}/${f}`)
+    const outputUrl = outputUrls[0]
     await taskManager.updateTask(task.id, {
       status: 'completed',
       duration,
       outputUrl,
+      outputUrls,
       gptTokenUsage: usage,
     })
 
     logger.info(`GPT image task finished`)
     return {
       status: 200,
-      data: { success: true as const, outputUrl, taskId: task.id },
+      data: { success: true as const, outputUrl, outputUrls, taskId: task.id },
     }
   } catch (error: any) {
     logger.error(`Failed to generate GPT image`, error.message)
