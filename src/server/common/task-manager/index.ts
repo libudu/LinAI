@@ -18,6 +18,7 @@ export interface Task {
   error?: string
   duration?: number
   outputUrl?: string
+  outputUrls?: string[]
   createdAt: number
   size?: GptImageSize
   quality?: GptImageQuality
@@ -138,7 +139,24 @@ export class TaskManager extends EventEmitter {
       )
       this.notifyTasksUpdate()
 
-      if (target.outputUrl && target.outputUrl.startsWith('/api/static/')) {
+      if (target.outputUrls && target.outputUrls.length > 0) {
+        for (const outputUrl of target.outputUrls) {
+          if (outputUrl.startsWith('/api/static/')) {
+            try {
+              const filepath = path.join(
+                GENERATED_IMAGES_DIR,
+                outputUrl.replace(GENERATED_IMAGES_API_PATH + '/', ''),
+              )
+
+              if (filepath && fs.existsSync(filepath)) {
+                await fs.unlink(filepath)
+              }
+            } catch (error: any) {
+              this.logger.error('Failed to delete task file:', error)
+            }
+          }
+        }
+      } else if (target.outputUrl && target.outputUrl.startsWith('/api/static/')) {
         try {
           const filepath = path.join(
             GENERATED_IMAGES_DIR,

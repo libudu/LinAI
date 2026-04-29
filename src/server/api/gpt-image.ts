@@ -6,6 +6,7 @@ import { getConfig } from '../common/config'
 import { TaskTemplate, templateManager } from '../common/template-manager'
 import { TRIAL_TEMPLATE_TITLE } from '../common/template-manager/enum'
 import { handleImageGeneration } from '../module/gpt-image'
+import { GPT_IMAGE_OUTPUT_MAX_N } from '../module/gpt-image/enum'
 
 export interface GPTImageQuotaResponse {
   message: string
@@ -104,10 +105,12 @@ const gptImageApi = new Hono()
         images: z.array(z.string()).optional(),
         size: z.enum(['1k', '2k', '4k']).optional().default('1k'),
         quality: z.enum(['medium', 'high']).optional().default('medium'),
+        n: z.number().min(1).max(GPT_IMAGE_OUTPUT_MAX_N).optional().default(1),
       }),
     ),
     async (c) => {
-      const { prompt, aspectRatio, images, size, quality } = c.req.valid('json')
+      const { prompt, aspectRatio, images, size, quality, n } =
+        c.req.valid('json')
       const config = getConfig()
       const apiKey = config.gptImageApiKey
       if (!apiKey) {
@@ -124,6 +127,7 @@ const gptImageApi = new Hono()
         usageType: 'image',
         images: images || [],
         title: TRIAL_TEMPLATE_TITLE,
+        n,
       }
       const result = await handleImageGeneration({
         apiKey,

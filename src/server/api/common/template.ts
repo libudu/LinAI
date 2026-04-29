@@ -2,6 +2,7 @@ import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { templateManager } from '../../common/template-manager'
+import { GPT_IMAGE_OUTPUT_MAX_N } from '../../module/gpt-image/enum'
 
 const templateApi = new Hono()
   // Chain route declarations so Hono preserves the route type for the client.
@@ -24,6 +25,7 @@ const templateApi = new Hono()
         usageType: z.enum(['image', 'video']),
         aspectRatio: z.string().optional(),
         folder: z.string().optional(),
+        n: z.number().min(1).max(GPT_IMAGE_OUTPUT_MAX_N).optional(),
       }),
     ),
     async (c) => {
@@ -88,6 +90,7 @@ const templateApi = new Hono()
         aspectRatio: z.string().optional(),
         folder: z.string().optional(),
         images: z.array(z.string()).optional(),
+        n: z.number().min(1).max(GPT_IMAGE_OUTPUT_MAX_N).optional(),
       }),
     ),
     async (c) => {

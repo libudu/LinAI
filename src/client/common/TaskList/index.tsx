@@ -84,16 +84,35 @@ export function TaskList() {
                         {task.error}
                       </Typography.Text>
                     </div>
-                  ) : !task.outputUrl ? (
+                  ) : !task.outputUrl && (!task.outputUrls || task.outputUrls.length === 0) ? (
                     <div className="flex flex-col items-center justify-center p-2">
                       <Typography.Text strong className="mb-1 text-blue-500!">
                         运行中
                         <SyncOutlined className="ml-1" spin />
                       </Typography.Text>
                     </div>
+                  ) : task.outputUrls && task.outputUrls.length > 1 ? (
+                    <Image.PreviewGroup>
+                      <Image
+                        src={task.outputUrls[0]}
+                        alt="result"
+                        classNames={{
+                          root: 'w-full h-full',
+                          image: 'w-full! h-full! object-cover',
+                        }}
+                      />
+                      <div style={{ display: 'none' }}>
+                        {task.outputUrls.slice(1).map((url, i) => (
+                          <Image key={i} src={url} alt={`result-${i + 1}`} />
+                        ))}
+                      </div>
+                      <div className="absolute bottom-1 right-1 rounded bg-black/50 px-1 text-[10px] text-white">
+                        {task.outputUrls.length}张
+                      </div>
+                    </Image.PreviewGroup>
                   ) : (
                     <Image
-                      src={task.outputUrl}
+                      src={task.outputUrls?.[0] || task.outputUrl}
                       alt="result"
                       classNames={{
                         root: 'w-full h-full',

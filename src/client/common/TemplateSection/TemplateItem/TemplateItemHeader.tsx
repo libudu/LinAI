@@ -132,6 +132,11 @@ export const TemplateItemHeader = ({
               {template.aspectRatio}
             </Tag>
           )}
+          {template.n && template.n > 1 && (
+            <Tag color="cyan" className="m-0">
+              {template.n}张
+            </Tag>
+          )}
           <div className="hidden sm:flex">
             <TemplateItemGenerateButtons template={template} />
           </div>

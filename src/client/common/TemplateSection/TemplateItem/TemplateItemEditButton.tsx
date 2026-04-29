@@ -27,6 +27,7 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
       prompt: template.prompt,
       aspectRatio: template.aspectRatio || '1:1',
       folder: template.folder,
+      n: template.n || 1,
     })
     setImageUrls(template.images || [])
     setOpen(true)
@@ -43,10 +44,7 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
       const res = await client.api.template[':id'].$put({
         param: { id: template.id },
         json: {
-          title: values.title,
-          prompt: values.prompt,
-          aspectRatio: values.aspectRatio,
-          folder: values.folder,
+          ...values,
           images: imageUrls,
         },
       })

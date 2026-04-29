@@ -11,6 +11,7 @@ export interface TaskTemplate {
   usageType: 'image' | 'video'
   aspectRatio?: string
   folder?: string
+  n?: number
 }
 
 export interface GeminiTaskTemplate extends TaskTemplate {
@@ -87,7 +88,7 @@ class TemplateManager {
     updates: Partial<
       Pick<
         TaskTemplate,
-        'title' | 'prompt' | 'aspectRatio' | 'folder' | 'images'
+        'title' | 'prompt' | 'aspectRatio' | 'folder' | 'images' | 'n'
       >
     >,
   ): Promise<TaskTemplate | null> {
