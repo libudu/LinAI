@@ -13,6 +13,7 @@ import { TaskItemDownloadButton } from './components/TaskItemDownloadButton'
 import { TaskItemTags } from './components/TaskItemTags'
 import styles from './index.module.scss'
 import { TaskListHeader } from './TaskListHeader'
+import { ImageGroup } from '../components/ImageGroup'
 
 const client = hc<AppType>('/')
 
@@ -92,24 +93,9 @@ export function TaskList() {
                       </Typography.Text>
                     </div>
                   ) : task.outputUrls && task.outputUrls.length > 1 ? (
-                    <Image.PreviewGroup>
-                      <Image
-                        src={task.outputUrls[0]}
-                        alt="result"
-                        classNames={{
-                          root: 'w-full h-full',
-                          image: 'w-full! h-full! object-cover',
-                        }}
-                      />
-                      <div style={{ display: 'none' }}>
-                        {task.outputUrls.slice(1).map((url, i) => (
-                          <Image key={i} src={url} alt={`result-${i + 1}`} />
-                        ))}
-                      </div>
-                      <div className="absolute bottom-1 right-1 rounded bg-black/50 px-1 text-[10px] text-white">
-                        {task.outputUrls.length}张
-                      </div>
-                    </Image.PreviewGroup>
+                    <div className="flex h-full w-full items-center justify-center">
+                      <ImageGroup images={task.outputUrls} showCount />
+                    </div>
                   ) : (
                     <Image
                       src={task.outputUrls?.[0] || task.outputUrl}
