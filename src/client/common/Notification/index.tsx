@@ -47,24 +47,28 @@ export function openNotificationModal() {
                 <span className="mr-3 text-xl">🔄</span>
                 <div className="leading-relaxed">
                   <span className="font-bold text-gray-900">快速升级：</span>
-                  将新版本压缩包直接拖放至“版本迁移”批处理（.bat）脚本上，即可保留用户数据的同事自动完成版本升级。
+                  将新版本压缩包直接拖放至“版本迁移”批处理（.bat）脚本上，即可保留用户数据的同时自动完成版本升级。
                 </div>
               </div>
-              <div className="flex items-start">
-                <span className="mr-3 text-xl">💬</span>
-                <div className="leading-relaxed">
-                  <span className="font-bold text-gray-900">工具交流群：</span>
-                  <span
-                    className="cursor-pointer font-medium text-blue-500 underline hover:text-blue-600"
-                    onClick={() => {
-                      copy('1098503823')
-                      message.success('群号已复制')
-                    }}
-                  >
-                    1098503823
-                  </span>
+              {import.meta.env.VITE_IS_PUBLIC !== 'true' && (
+                <div className="flex items-start">
+                  <span className="mr-3 text-xl">💬</span>
+                  <div className="leading-relaxed">
+                    <span className="font-bold text-gray-900">
+                      工具交流群：
+                    </span>
+                    <span
+                      className="cursor-pointer font-medium text-blue-500 underline hover:text-blue-600"
+                      onClick={() => {
+                        copy('1098503823')
+                        message.success('群号已复制')
+                      }}
+                    >
+                      1098503823
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
               {localNetworkUrl && (
                 <div className="flex items-start">
                   <span className="mr-3 text-xl">🌐</span>

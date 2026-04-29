@@ -7,36 +7,41 @@ async function main() {
   console.log('🚀 [Post-build] Starting...')
 
   // 0. 检查 git 状态与打 tag
-  try {
-    console.log('🔍 [Post-build] Checking git status...')
-    const gitStatus = execSync('git status --porcelain').toString().trim()
-    if (gitStatus) {
-      console.error('❌ [Post-build] 工作区存在未提交的文件，请先 commit。')
+  const isVersionBuild = process.argv.includes('--version')
+  if (isVersionBuild) {
+    try {
+      console.log('🔍 [Post-build] Checking git status...')
+      const gitStatus = execSync('git status --porcelain').toString().trim()
+      if (gitStatus) {
+        console.error('❌ [Post-build] 工作区存在未提交的文件，请先 commit。')
+        process.exit(1)
+      }
+
+      const pkg = fs.readJsonSync('package.json')
+      const version = pkg.version
+      const tagName = `v${version}`
+
+      console.log(`🏷️ [Post-build] Checking tag ${tagName}...`)
+      const existingTags = execSync('git tag -l')
+        .toString()
+        .split('\n')
+        .map((t) => t.trim())
+      if (existingTags.includes(tagName)) {
+        console.error(
+          `❌ [Post-build] 标签 ${tagName} 已存在，请在 package.json 中更新版本号。`
+        )
+        process.exit(1)
+      }
+
+      console.log(`🏷️ [Post-build] Creating tag ${tagName}...`)
+      execSync(`git tag ${tagName}`)
+      console.log(`✅ [Post-build] Tag ${tagName} created successfully.`)
+    } catch (error) {
+      console.error('❌ [Post-build] Git 操作失败:', error)
       process.exit(1)
     }
-
-    const pkg = fs.readJsonSync('package.json')
-    const version = pkg.version
-    const tagName = `v${version}`
-
-    console.log(`🏷️ [Post-build] Checking tag ${tagName}...`)
-    const existingTags = execSync('git tag -l')
-      .toString()
-      .split('\n')
-      .map((t) => t.trim())
-    if (existingTags.includes(tagName)) {
-      console.error(
-        `❌ [Post-build] 标签 ${tagName} 已存在，请在 package.json 中更新版本号。`
-      )
-      process.exit(1)
-    }
-
-    console.log(`🏷️ [Post-build] Creating tag ${tagName}...`)
-    execSync(`git tag ${tagName}`)
-    console.log(`✅ [Post-build] Tag ${tagName} created successfully.`)
-  } catch (error) {
-    console.error('❌ [Post-build] Git 操作失败:', error)
-    process.exit(1)
+  } else {
+    console.log('⏭️ [Post-build] Skipping git status and tag check (not a version build).')
   }
 
   // 1. package.json 已经在 tsup 构建时自动生成到了 dist 目录，无需复制
