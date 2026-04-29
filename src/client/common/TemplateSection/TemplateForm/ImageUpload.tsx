@@ -2,7 +2,7 @@ import { CloseCircleFilled, UploadOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { Image as AntImage, Button, message, Upload } from 'antd'
 import { hc } from 'hono/client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { AppType } from '../../../../server'
 
 const client = hc<AppType>('/')
@@ -83,7 +83,7 @@ export function ImageUpload({
   onUploadingChange,
   onFirstImageRatio
 }: ImageUploadProps) {
-  const [_, setUploadingCount] = useState(0)
+  const uploadingCountRef = useRef(0)
   const [recentImages = [], setRecentImages] = useLocalStorageState<string[]>(
     LOCAL_STORAGE_KEY,
     { defaultValue: [] }
@@ -100,11 +100,9 @@ export function ImageUpload({
   latestValueRef.current = value
 
   const handleUploadCountChange = (delta: number) => {
-    setUploadingCount((c) => {
-      const newCount = Math.max(0, c + delta)
-      onUploadingChange?.(newCount > 0)
-      return newCount
-    })
+    const newCount = Math.max(0, uploadingCountRef.current + delta)
+    uploadingCountRef.current = newCount
+    onUploadingChange?.(newCount > 0)
   }
 
   const handleUpload = (file: File) => {
