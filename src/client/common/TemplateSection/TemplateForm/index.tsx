@@ -1,17 +1,8 @@
-import { LoadingOutlined, PlusOutlined } from '@ant-design/icons'
+import { PlusOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
-import {
-  Button,
-  Form,
-  Image,
-  Input,
-  InputNumber,
-  message,
-  Radio,
-  Select,
-} from 'antd'
+import { Button, Form, Input, InputNumber, message, Radio, Select } from 'antd'
 import { hc } from 'hono/client'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import type { AppType } from '../../../../server'
 import { openSettingModal } from '../../../common/SettingModal'
 import { useLocalSetting } from '../../../hooks/useLocalSetting'
@@ -156,11 +147,9 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
     defaultValue: 'image',
   })
   const usageType = Form.useWatch('usageType', form)
-  const [trialGenerating, setTrialGenerating] = useState(false)
-  const [trialImages, setTrialImages] = useState<string[]>([])
   const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
   const { gptImageSettings } = useLocalSetting()
-  const trialRequestIdRef = useRef(0)
+  const [hasTrialed, setHasTrialed] = useState(false)
 
   const doTrial = async (size: GptImageSize) => {
     const prompt = form.getFieldValue('prompt')
@@ -171,11 +160,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
     }
     const aspectRatio = form.getFieldValue('aspectRatio') || '1:1'
 
-    const currentRequestId = ++trialRequestIdRef.current
-
-    setTrialGenerating(true)
-    setTrialImages([])
-
+    setHasTrialed(true)
     message.success('任务提交成功')
     try {
       const res = await client.api.gptImage.trial.$post({
@@ -189,24 +174,13 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
         },
       })
 
-      if (currentRequestId !== trialRequestIdRef.current) return
-
       const data = await res.json()
 
-      if (currentRequestId !== trialRequestIdRef.current) return
-
-      if (data.success) {
-        setTrialImages(data.outputUrls || [data.outputUrl])
-      } else {
+      if (!data.success) {
         message.error(data.error || '生成失败')
       }
     } catch (error) {
-      if (currentRequestId !== trialRequestIdRef.current) return
       message.error('请求失败')
-    } finally {
-      if (currentRequestId === trialRequestIdRef.current) {
-        setTrialGenerating(false)
-      }
     }
   }
 
@@ -232,7 +206,6 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
   }
 
   const handleFinish = async (values: any) => {
-    setTrialImages([])
     setSubmitting(true)
     try {
       const payload = {
@@ -304,30 +277,6 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
           setUploadingCount={setUploadingCount}
         />
 
-        {(trialImages.length > 0 || trialGenerating) && (
-          <div className="group relative mb-4 flex flex-col items-center gap-2 rounded-lg border border-slate-100 bg-slate-50 p-4">
-            <span className="text-sm text-slate-500">试用生成结果：</span>
-            {trialGenerating ? (
-              <div className="flex h-[200px] w-full flex-col items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-slate-400">
-                <LoadingOutlined className="mb-2 text-3xl" />
-                <span className="text-sm">正在生成中...</span>
-              </div>
-            ) : trialImages.length > 0 ? (
-              <div className="relative flex flex-wrap justify-center gap-2">
-                {trialImages.map((img, i) => (
-                  <Image
-                    key={i}
-                    src={img}
-                    alt={`trial-preview-${i}`}
-                    className="rounded-lg shadow-sm"
-                    style={{ maxHeight: '150px', objectFit: 'contain' }}
-                  />
-                ))}
-              </div>
-            ) : null}
-          </div>
-        )}
-
         <Form.Item className="mb-0! border-t border-slate-100 pt-4">
           <div className="flex gap-4">
             {usageType === 'image' && gptImageSettings.enable1K && (
@@ -337,7 +286,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
                 size="large"
                 className="grow border-purple-300 text-purple-600 hover:border-purple-400 hover:text-purple-500"
               >
-                生成1K图
+                {hasTrialed ? '继续生成1K图' : '生成1K图'}
               </Button>
             )}
             {usageType === 'image' && gptImageSettings.enable2K && (
@@ -347,7 +296,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
                 size="large"
                 className="grow border-purple-300 text-purple-600 hover:border-purple-400 hover:text-purple-500"
               >
-                生成2K图
+                {hasTrialed ? '继续生成2K图' : '生成2K图'}
               </Button>
             )}
             <Button
