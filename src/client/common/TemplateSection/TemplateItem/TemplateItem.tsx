@@ -4,7 +4,7 @@ import { TaskTemplate } from '../../../../server/common/template-manager'
 import { ImageGroup } from '../TemplateList/ImageGroup'
 import {
   TemplateItemGenerateButtons,
-  TemplateItemHeader
+  TemplateItemHeader,
 } from './TemplateItemHeader'
 
 interface TemplateItemProps {
@@ -14,7 +14,7 @@ interface TemplateItemProps {
 
 export function TemplateItem({
   template,
-  draggable = false
+  draggable = false,
 }: TemplateItemProps) {
   return (
     <Card size="small" className="shadow-sm transition-shadow hover:shadow-md">

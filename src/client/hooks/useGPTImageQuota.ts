@@ -59,7 +59,7 @@ const useQuotaStore = create<QuotaStore>((set, get) => ({
           data: json.data.data,
           error: null,
           loading: false,
-          fetchPromise: null
+          fetchPromise: null,
         })
       } catch (error: any) {
         console.error(error)
@@ -69,7 +69,7 @@ const useQuotaStore = create<QuotaStore>((set, get) => ({
 
     set({ fetchPromise: promise })
     return promise
-  }
+  },
 }))
 
 export function useGPTImageQuota() {
@@ -129,6 +129,6 @@ export function useGPTImageQuota() {
     loading,
     error,
     isPublic,
-    refresh: () => fetchQuota(gptImageApiKey, true)
+    refresh: () => fetchQuota(gptImageApiKey, true),
   }
 }

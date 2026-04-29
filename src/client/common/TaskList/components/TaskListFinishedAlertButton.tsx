@@ -9,11 +9,11 @@ interface TaskListFinishedAlertButtonProps {
 }
 
 export function TaskListFinishedAlertButton({
-  tasks
+  tasks,
 }: TaskListFinishedAlertButtonProps) {
   const [notifyEnabled, setNotifyEnabled] = useLocalStorageState(
     'taskCompletionNotification',
-    { defaultValue: false }
+    { defaultValue: false },
   )
 
   const handleNotifyChange = (checked: boolean) => {
@@ -34,7 +34,7 @@ export function TaskListFinishedAlertButton({
     const prevTasks = prevTasksRef.current
     if (prevTasks.length > 0 && tasks.length > 0) {
       const isAllDone = tasks.every(
-        (t) => t.status === 'completed' || t.status === 'failed'
+        (t) => t.status === 'completed' || t.status === 'failed',
       )
 
       const hasNewlyFinishedTask = tasks.some((t) => {
@@ -52,7 +52,7 @@ export function TaskListFinishedAlertButton({
         Notification.permission === 'granted'
       ) {
         new Notification('LinAI 所有任务已完成', {
-          body: '请在任务列表查看详情'
+          body: '请在任务列表查看详情',
         })
       }
     }

@@ -18,7 +18,7 @@ interface TemplateItemListProps {
 export function TemplateItemList({
   filteredTemplates,
   selectedFolder,
-  onSelectFolder
+  onSelectFolder,
 }: TemplateItemListProps) {
   const { refresh: refreshTemplates } = useTemplates()
 
@@ -26,7 +26,7 @@ export function TemplateItemList({
     try {
       const res = await client.api.template[':id'].$put({
         param: { id: templateId },
-        json: { folder }
+        json: { folder },
       })
       const json = await res.json()
       if (json.success) {
@@ -41,7 +41,7 @@ export function TemplateItemList({
   }
 
   const folders = Array.from(
-    new Set(filteredTemplates.map((t) => t.folder).filter(Boolean))
+    new Set(filteredTemplates.map((t) => t.folder).filter(Boolean)),
   ) as string[]
 
   const displayTemplates = selectedFolder
@@ -69,7 +69,7 @@ export function TemplateItemList({
               <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                 {displayFolders.map((folder) => {
                   const count = filteredTemplates.filter(
-                    (t) => t.folder === folder
+                    (t) => t.folder === folder,
                   ).length
                   return (
                     <TemplateFolder

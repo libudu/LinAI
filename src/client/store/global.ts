@@ -17,11 +17,14 @@ export const useGlobalStore = create<GlobalState>()((set) => ({
   setGptImageApiKey: async (key) => {
     try {
       const res = await client.api.config.$post({
-        json: { gptImageApiKey: key }
+        json: { gptImageApiKey: key },
       })
       const json = await res.json()
       if (json.success) {
-        set({ gptImageApiKey: json.data.gptImageApiKey, localNetworkUrl: json.data.localNetworkUrl })
+        set({
+          gptImageApiKey: json.data.gptImageApiKey,
+          localNetworkUrl: json.data.localNetworkUrl,
+        })
       }
     } catch (error) {
       console.error('Failed to update config', error)
@@ -32,10 +35,13 @@ export const useGlobalStore = create<GlobalState>()((set) => ({
       const res = await client.api.config.$get()
       const json = await res.json()
       if (json.success) {
-        set({ gptImageApiKey: json.data.gptImageApiKey, localNetworkUrl: json.data.localNetworkUrl })
+        set({
+          gptImageApiKey: json.data.gptImageApiKey,
+          localNetworkUrl: json.data.localNetworkUrl,
+        })
       }
     } catch (error) {
       console.error('Failed to fetch config', error)
     }
-  }
+  },
 }))

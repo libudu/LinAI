@@ -19,7 +19,7 @@ export function TemplateFolder({
   count,
   onClick,
   onDropTemplate,
-  onRenameSuccess
+  onRenameSuccess,
 }: TemplateFolderProps) {
   const [isDragOver, setIsDragOver] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -39,8 +39,8 @@ export function TemplateFolder({
       const res = await client.api.template.folder.rename.$put({
         json: {
           oldFolder: folder,
-          newFolder: values.newFolder
-        }
+          newFolder: values.newFolder,
+        },
       })
       const json = await res.json()
       if (json.success) {
@@ -129,8 +129,8 @@ export function TemplateFolder({
                   if (value === folder) {
                     throw new Error('新名称不能与原名称相同')
                   }
-                }
-              }
+                },
+              },
             ]}
           >
             <Input placeholder="输入新的文件夹名称" />

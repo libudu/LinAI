@@ -9,10 +9,12 @@ function getLocalIpAddress() {
   const interfaces = os.networkInterfaces()
 
   const allInterfaces = Object.entries(interfaces).flatMap(([name, ifaces]) =>
-    (ifaces || []).map((iface) => ({ name, ...iface }))
+    (ifaces || []).map((iface) => ({ name, ...iface })),
   )
 
-  const validInterfaces = allInterfaces.filter((i) => i.family === 'IPv4' && !i.internal)
+  const validInterfaces = allInterfaces.filter(
+    (i) => i.family === 'IPv4' && !i.internal,
+  )
 
   const isVirtual = (name: string) => {
     const n = name.toLowerCase()
@@ -28,7 +30,9 @@ function getLocalIpAddress() {
   }
 
   const isLocal = (ip: string) =>
-    ip.startsWith('192.168.') || ip.startsWith('10.') || /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip)
+    ip.startsWith('192.168.') ||
+    ip.startsWith('10.') ||
+    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip)
 
   const physicalInterfaces = validInterfaces.filter((i) => !isVirtual(i.name))
 
@@ -50,8 +54,8 @@ const configApi = new Hono()
       success: true,
       data: {
         ...getConfig(),
-        localNetworkUrl
-      }
+        localNetworkUrl,
+      },
     })
   })
   .post(
@@ -59,8 +63,8 @@ const configApi = new Hono()
     zValidator(
       'json',
       z.object({
-        gptImageApiKey: z.string().nullable().optional()
-      })
+        gptImageApiKey: z.string().nullable().optional(),
+      }),
     ),
     (c) => {
       const body = c.req.valid('json')
@@ -73,10 +77,10 @@ const configApi = new Hono()
         success: true,
         data: {
           ...newConfig,
-          localNetworkUrl
-        }
+          localNetworkUrl,
+        },
       })
-    }
+    },
   )
 
 export default configApi

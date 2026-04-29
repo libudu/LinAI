@@ -21,7 +21,7 @@ export function openSettingModal(options?: {
 
   function ModalComponent() {
     const [activeTab, setActiveTab] = useState(
-      options?.initialTab || 'gpt-image'
+      options?.initialTab || 'gpt-image',
     )
     const gptImageRef = useRef<GPTImageSettingRef>(null)
     const adminRef = useRef<AdminSettingRef>(null)
@@ -46,8 +46,8 @@ export function openSettingModal(options?: {
       {
         key: 'gpt-image',
         label: 'GPTImage 配置',
-        children: <GPTImageSetting ref={gptImageRef} />
-      }
+        children: <GPTImageSetting ref={gptImageRef} />,
+      },
     ]
 
     const isAdmin =
@@ -58,7 +58,7 @@ export function openSettingModal(options?: {
       items.push({
         key: 'admin',
         label: '管理员设置',
-        children: <AdminSetting ref={adminRef} />
+        children: <AdminSetting ref={adminRef} />,
       })
     }
 
@@ -81,8 +81,8 @@ export function openSettingModal(options?: {
             items={items}
             styles={{
               item: {
-                padding: '8px 16px' // 你要的 padding
-              }
+                padding: '8px 16px', // 你要的 padding
+              },
             }}
           />
         </div>

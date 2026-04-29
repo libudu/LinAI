@@ -6,7 +6,7 @@ import path from 'path'
 import {
   GENERATED_IMAGES_API_PATH,
   GENERATED_IMAGES_DIR,
-  INPUT_IMAGES_DIR
+  INPUT_IMAGES_DIR,
 } from '../../api/common/static'
 import { taskManager } from '../../api/common/task'
 import { TaskTemplate } from '../../common/template-manager'
@@ -95,16 +95,16 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
   const { apiKey, prompt, size, quality, imagePaths: images } = options
   const client = new OpenAI({
     apiKey,
-    baseURL: 'https://api.wlai.vip/v1'
+    baseURL: 'https://api.wlai.vip/v1',
   })
   const imagesToUpload = images.length
     ? await Promise.all(
         images.map(
           async (file) =>
             await toFile(fs.createReadStream(file), null, {
-              type: 'image/png'
-            })
-        )
+              type: 'image/png',
+            }),
+        ),
       )
     : undefined
 
@@ -116,7 +116,7 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
       prompt: prompt,
       n: 1,
       size: size as any,
-      quality
+      quality,
     })
   } else {
     res = await client.images.generate({
@@ -124,7 +124,7 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
       prompt,
       n: 1,
       size: size as any,
-      quality
+      quality,
     })
   }
 
@@ -136,7 +136,7 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
   await writeFile(filepath, imageBuffer)
   return {
     filename,
-    usage: res.usage
+    usage: res.usage,
   }
 }
 
@@ -155,13 +155,13 @@ export async function handleImageGeneration(options: {
       template,
       source: GPT_IMAGE_SOURCE_MODEL,
       size,
-      quality
+      quality,
     })
 
     if (!task) {
       return {
         status: 500,
-        data: { success: false as const, error: 'Failed to create task' }
+        data: { success: false as const, error: 'Failed to create task' },
       }
     }
 
@@ -191,7 +191,7 @@ export async function handleImageGeneration(options: {
         prompt: template.prompt,
         size: finalSize,
         quality,
-        imagePaths
+        imagePaths,
       })
       logger.info('GPT image generated successfully')
       filename = res.filename
@@ -201,7 +201,7 @@ export async function handleImageGeneration(options: {
       await taskManager.updateTaskStatus(task.id, 'failed', error.message)
       return {
         status: 500,
-        data: { success: false as const, error: error.message }
+        data: { success: false as const, error: error.message },
       }
     }
 
@@ -211,19 +211,19 @@ export async function handleImageGeneration(options: {
       status: 'completed',
       duration,
       outputUrl,
-      gptTokenUsage: usage
+      gptTokenUsage: usage,
     })
 
     logger.info(`GPT image task finished`)
     return {
       status: 200,
-      data: { success: true as const, outputUrl, taskId: task.id }
+      data: { success: true as const, outputUrl, taskId: task.id },
     }
   } catch (error: any) {
     logger.error(`Failed to generate GPT image`, error.message)
     return {
       status: 500,
-      data: { success: false as const, error: error.message }
+      data: { success: false as const, error: error.message },
     }
   }
 }

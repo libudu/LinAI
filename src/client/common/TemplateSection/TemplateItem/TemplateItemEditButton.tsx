@@ -26,7 +26,7 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
       title: template.title,
       prompt: template.prompt,
       aspectRatio: template.aspectRatio || '1:1',
-      folder: template.folder
+      folder: template.folder,
     })
     setImageUrls(template.images || [])
     setOpen(true)
@@ -47,8 +47,8 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
           prompt: values.prompt,
           aspectRatio: values.aspectRatio,
           folder: values.folder,
-          images: imageUrls
-        }
+          images: imageUrls,
+        },
       })
       const json = await res.json()
       if (json.success) {
@@ -76,8 +76,8 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
           aspectRatio: values.aspectRatio,
           folder: values.folder,
           usageType: template.usageType,
-          images: imageUrls
-        }
+          images: imageUrls,
+        },
       })
       const json = await res.json()
       if (json.success) {

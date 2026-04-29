@@ -38,7 +38,7 @@ class TemplateManager {
         images: [],
         prompt: '生成一张2030年福瑞（furry）科目的中考试卷',
         usageType: 'image',
-        aspectRatio: '16:9'
+        aspectRatio: '16:9',
       })
     }
   }
@@ -54,7 +54,7 @@ class TemplateManager {
   }
 
   public async addTemplate(
-    template: Omit<TaskTemplate, 'id' | 'createdAt'>
+    template: Omit<TaskTemplate, 'id' | 'createdAt'>,
   ): Promise<TaskTemplate> {
     const templates = await this.getTemplates()
     const id = uuidv4()
@@ -63,7 +63,7 @@ class TemplateManager {
       ...template,
       images: template.images || [],
       id,
-      createdAt: Date.now()
+      createdAt: Date.now(),
     }
     templates.push(newTemplate)
     await fs.writeFile(this.dbPath, JSON.stringify(templates, null, 2), 'utf-8')
@@ -84,7 +84,12 @@ class TemplateManager {
 
   public async updateTemplate(
     id: string,
-    updates: Partial<Pick<TaskTemplate, 'title' | 'prompt' | 'aspectRatio' | 'folder' | 'images'>>
+    updates: Partial<
+      Pick<
+        TaskTemplate,
+        'title' | 'prompt' | 'aspectRatio' | 'folder' | 'images'
+      >
+    >,
   ): Promise<TaskTemplate | null> {
     const templates = await this.getTemplates()
     const index = templates.findIndex((t) => t.id === id)
@@ -94,13 +99,16 @@ class TemplateManager {
 
     templates[index] = {
       ...templates[index],
-      ...updates
+      ...updates,
     }
     await fs.writeFile(this.dbPath, JSON.stringify(templates, null, 2), 'utf-8')
     return templates[index]
   }
 
-  public async renameFolder(oldFolder: string, newFolder: string): Promise<number> {
+  public async renameFolder(
+    oldFolder: string,
+    newFolder: string,
+  ): Promise<number> {
     const templates = await this.getTemplates()
     let updatedCount = 0
 
@@ -112,7 +120,11 @@ class TemplateManager {
     }
 
     if (updatedCount > 0) {
-      await fs.writeFile(this.dbPath, JSON.stringify(templates, null, 2), 'utf-8')
+      await fs.writeFile(
+        this.dbPath,
+        JSON.stringify(templates, null, 2),
+        'utf-8',
+      )
     }
     return updatedCount
   }

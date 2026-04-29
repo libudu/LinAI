@@ -9,7 +9,7 @@ export class WanAuthManager {
   private static instance: WanAuthManager
   private currentSession: string | false | null = null
 
-  private constructor() { }
+  private constructor() {}
 
   static getInstance(): WanAuthManager {
     if (!WanAuthManager.instance) {
@@ -29,13 +29,13 @@ export class WanAuthManager {
     try {
       return await chromium.launchPersistentContext(userDataDir, {
         headless,
-        channel: 'chrome'
+        channel: 'chrome',
       })
     } catch (e) {
       logger.info('⚠️ 启动 Chrome 失败，尝试启动 Edge...')
       return await chromium.launchPersistentContext(userDataDir, {
         headless,
-        channel: 'msedge'
+        channel: 'msedge',
       })
     }
   }
@@ -51,7 +51,7 @@ export class WanAuthManager {
       // 访问官网，这会自动刷新 Cookie
       await page.goto(config.EXPLORE_URL, {
         waitUntil: 'domcontentloaded',
-        timeout: 10000
+        timeout: 10000,
       })
 
       const cookies = await context.cookies()
@@ -96,9 +96,9 @@ export class WanAuthManager {
         {
           headers: {
             'content-type': 'application/json',
-            Cookie: `WANX_CN_SESSION=${session}`
-          }
-        }
+            Cookie: `WANX_CN_SESSION=${session}`,
+          },
+        },
       )
       return !!response.data?.success
     } catch (error: any) {
@@ -153,7 +153,7 @@ export class WanAuthManager {
         try {
           const cookies = await context.cookies()
           const sessionCookie = cookies.find(
-            (c) => c.name === 'WANX_CN_SESSION'
+            (c) => c.name === 'WANX_CN_SESSION',
           )
           if (sessionCookie) {
             // 同样需要验证手动登录后的 cookie

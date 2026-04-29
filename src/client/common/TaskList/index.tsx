@@ -20,7 +20,7 @@ export function TaskList() {
   const { data: tasks = [], loading } = useTasks()
   const [downloadedIds, setDownloadedIds] = useLocalStorageState<string[]>(
     'downloadedTaskIds',
-    { defaultValue: [] }
+    { defaultValue: [] },
   )
 
   const handleRetry = async (task: Task) => {
@@ -28,8 +28,8 @@ export function TaskList() {
       json: {
         templateId: task.rawTemplate?.id || '',
         size: (task.size as any) || '2k',
-        quality: (task.quality as any) || 'medium'
-      }
+        quality: (task.quality as any) || 'medium',
+      },
     })
     message.success('已创建重试任务')
   }
@@ -58,12 +58,12 @@ export function TaskList() {
           lg: 2,
           xl: 2,
           xxl: 2,
-          xxxl: 2
+          xxxl: 2,
         }}
         dataSource={gptImageTasks}
         loading={loading}
         pagination={{
-          pageSize: 10
+          pageSize: 10,
         }}
         renderItem={(task) => (
           <List.Item>
@@ -97,7 +97,7 @@ export function TaskList() {
                       alt="result"
                       classNames={{
                         root: 'w-full h-full',
-                        image: 'w-full! h-full! object-cover'
+                        image: 'w-full! h-full! object-cover',
                       }}
                     />
                   )}
@@ -157,7 +157,7 @@ export function TaskList() {
                             if (!downloadedIds?.includes(task.id)) {
                               setDownloadedIds([
                                 ...(downloadedIds || []),
-                                task.id
+                                task.id,
                               ])
                             }
                           }}

@@ -10,8 +10,8 @@ const geminiApi = new Hono().post(
     'json',
     z.object({
       apiKey: z.string().min(1, 'API Key is required'),
-      templateId: z.string().min(1, 'Template ID is required')
-    })
+      templateId: z.string().min(1, 'Template ID is required'),
+    }),
   ),
   async (c) => {
     try {
@@ -27,7 +27,7 @@ const geminiApi = new Hono().post(
       if (template.usageType !== 'image') {
         return c.json(
           { success: false, error: 'Template is not a Gemini template' },
-          400
+          400,
         )
       }
 
@@ -41,7 +41,7 @@ const geminiApi = new Hono().post(
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 500)
     }
-  }
+  },
 )
 
 export default geminiApi

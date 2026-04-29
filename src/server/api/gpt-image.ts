@@ -26,34 +26,34 @@ const gptImageApi = new Hono()
     if (!apiKey) {
       return c.json(
         { success: false as const, error: 'API Key is not configured' },
-        400
+        400,
       )
     }
 
     try {
       const response = await fetch('https://yunwu.ai/api/usage/token/', {
         headers: {
-          Authorization: `Bearer ${apiKey}`
-        }
+          Authorization: `Bearer ${apiKey}`,
+        },
       })
       const data: GPTImageQuotaResponse = await response.json()
       if (!response.ok || data.message) {
         return c.json(
           {
             success: false as const,
-            error: data?.message || '获取余额失败'
+            error: data?.message || '获取余额失败',
           },
-          500
+          500,
         )
       }
       return c.json({
         success: true as const,
-        data: data
+        data: data,
       })
     } catch (error: any) {
       return c.json(
         { success: false as const, error: error.message || '获取余额失败' },
-        500
+        500,
       )
     }
   })
@@ -64,8 +64,8 @@ const gptImageApi = new Hono()
       z.object({
         templateId: z.string().min(1, 'Template ID is required'),
         size: z.enum(['1k', '2k', '4k']),
-        quality: z.enum(['medium', 'high'])
-      })
+        quality: z.enum(['medium', 'high']),
+      }),
     ),
     async (c) => {
       const { templateId, size, quality } = c.req.valid('json')
@@ -74,7 +74,7 @@ const gptImageApi = new Hono()
       if (!apiKey) {
         return c.json(
           { success: false as const, error: 'API Key is not configured' },
-          400
+          400,
         )
       }
       const templates = await templateManager.getTemplates()
@@ -82,17 +82,17 @@ const gptImageApi = new Hono()
       if (!template) {
         return c.json(
           { success: false as const, error: 'Template not found' },
-          404
+          404,
         )
       }
       const result = await handleImageGeneration({
         apiKey,
         template,
         size,
-        quality
+        quality,
       })
       return c.json(result.data)
-    }
+    },
   )
   .post(
     '/trial',
@@ -103,8 +103,8 @@ const gptImageApi = new Hono()
         aspectRatio: z.string().optional().default('1:1'),
         images: z.array(z.string()).optional(),
         size: z.enum(['1k', '2k', '4k']).optional().default('1k'),
-        quality: z.enum(['medium', 'high']).optional().default('medium')
-      })
+        quality: z.enum(['medium', 'high']).optional().default('medium'),
+      }),
     ),
     async (c) => {
       const { prompt, aspectRatio, images, size, quality } = c.req.valid('json')
@@ -113,7 +113,7 @@ const gptImageApi = new Hono()
       if (!apiKey) {
         return c.json(
           { success: false as const, error: 'API Key is not configured' },
-          400
+          400,
         )
       }
       const template: TaskTemplate = {
@@ -123,16 +123,16 @@ const gptImageApi = new Hono()
         aspectRatio,
         usageType: 'image',
         images: images || [],
-        title: TRIAL_TEMPLATE_TITLE
+        title: TRIAL_TEMPLATE_TITLE,
       }
       const result = await handleImageGeneration({
         apiKey,
         template,
         size,
-        quality
+        quality,
       })
       return c.json(result.data, result.status as any)
-    }
+    },
   )
   .post(
     '/generate-api-key',
@@ -143,8 +143,8 @@ const gptImageApi = new Hono()
         userId: z.string().min(1, 'User ID is required'),
         name: z.string().min(1, 'Name is required'),
         quota: z.number().min(0, 'Quota must be a positive number'),
-        group: z.string()
-      })
+        group: z.string(),
+      }),
     ),
     async (c) => {
       const { systemToken, userId, name, quota, group } = c.req.valid('json')
@@ -154,7 +154,7 @@ const gptImageApi = new Hono()
           headers: {
             'content-type': 'application/json',
             'new-api-user': userId,
-            ...(systemToken ? { Authorization: systemToken } : {})
+            ...(systemToken ? { Authorization: systemToken } : {}),
           },
           body: JSON.stringify({
             remain_quota: quota * 1000000,
@@ -167,24 +167,24 @@ const gptImageApi = new Hono()
             mj_custom_proxy: '',
             selected_groups: [],
             name: name,
-            allow_ips: ''
-          })
+            allow_ips: '',
+          }),
         })
         const data = await response.json()
         return c.json(
-          data as { success?: boolean; data: string; message?: string }
+          data as { success?: boolean; data: string; message?: string },
         )
       } catch (error: any) {
         return c.json(
           {
             success: false as const,
             message: error.message || '生成失败',
-            data: null
+            data: null,
           },
-          500
+          500,
         )
       }
-    }
+    },
   )
 
 export default gptImageApi

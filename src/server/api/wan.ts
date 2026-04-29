@@ -30,7 +30,7 @@ const wanApi = new Hono()
       }
 
       return c.json({ success: true, isRunning: enable })
-    }
+    },
   )
 
 export default wanApi

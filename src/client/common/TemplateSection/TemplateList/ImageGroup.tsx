@@ -27,7 +27,7 @@ export function ImageGroup({ images }: ImageGroupProps) {
                 left: `${leftOffset}px`,
                 zIndex: zIndex,
                 transform: `rotate(${rotation}deg)`,
-                transformOrigin: 'bottom center'
+                transformOrigin: 'bottom center',
               }}
             >
               <Image

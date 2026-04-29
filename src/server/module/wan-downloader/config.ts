@@ -26,7 +26,7 @@ export const config = {
       selectedResolution: '1080P',
       multiShots: 'single',
       subType: 'basic',
-      parentTaskId: ''
-    }
-  }
+      parentTaskId: '',
+    },
+  },
 }

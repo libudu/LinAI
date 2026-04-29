@@ -1,7 +1,7 @@
 {
   "semi": false,
   "singleQuote": true,
-  "trailingComma": "none",
+  "trailingComma": "all",
   "bracketSpacing": true,
   "endOfLine": "lf",
   "plugins": ["prettier-plugin-organize-imports", "prettier-plugin-tailwindcss"]

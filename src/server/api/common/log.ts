@@ -15,7 +15,7 @@ const logApi = new Hono()
         for (const log of initialLogs) {
           await stream.writeSSE({
             data: log,
-            event: 'log'
+            event: 'log',
           })
         }
 
@@ -24,7 +24,7 @@ const logApi = new Hono()
           try {
             await stream.writeSSE({
               data: message,
-              event: 'log'
+              event: 'log',
             })
           } catch (e) {
             // 流可能已关闭
@@ -44,7 +44,7 @@ const logApi = new Hono()
           await stream.writeSSE({ data: 'ping', event: 'ping' })
         }
       })
-    }
+    },
   )
   .delete(
     '/:moduleId',
@@ -52,7 +52,7 @@ const logApi = new Hono()
     (c) => {
       logger.clearLogs()
       return c.json({ success: true as const })
-    }
+    },
   )
 
 export default logApi

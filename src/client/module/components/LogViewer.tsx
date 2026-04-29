@@ -16,7 +16,7 @@ export function LogViewer({ moduleId, title = '系统日志' }: LogViewerProps) 
   const clearLogs = async () => {
     try {
       const res = await client.api.log[':moduleId'].$delete({
-        param: { moduleId }
+        param: { moduleId },
       })
       if (res.ok) {
         setLogs([])

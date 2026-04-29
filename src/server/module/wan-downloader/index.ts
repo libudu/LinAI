@@ -21,7 +21,7 @@ export class WanxBot {
     return {
       isLoggedIn: await wanAuthManager.isWanLoggedIn(),
       autoSubmit: this.isRunning,
-      errorMsg: this.currentError
+      errorMsg: this.currentError,
     }
   }
 
@@ -49,7 +49,7 @@ export class WanxBot {
 
     logger.log(`🚀 Wan 视频下载 & 自动提交小工具已启动!`)
     logger.log(
-      `📅 设置的开始时间: ${new Date(this.startTime).toLocaleString()}`
+      `📅 设置的开始时间: ${new Date(this.startTime).toLocaleString()}`,
     )
 
     const loggedIn = await wanAuthManager.isWanLoggedIn()
@@ -71,7 +71,7 @@ export class WanxBot {
       }
       if (!this.isRunning) break
       logger.log(
-        `⏳ 等待 ${config.POLL_INTERVAL / 60000} 分钟后进行下一次轮询... 💤`
+        `⏳ 等待 ${config.POLL_INTERVAL / 60000} 分钟后进行下一次轮询... 💤`,
       )
       await new Promise((resolve) => setTimeout(resolve, config.POLL_INTERVAL))
     }
@@ -88,10 +88,10 @@ export class WanxBot {
 
     const tasks = response.data || []
     const inProgressTasks = tasks.filter(
-      (t) => t.status === -1 || t.status === 1
+      (t) => t.status === -1 || t.status === 1,
     )
     const completedTasks = tasks.filter(
-      (t) => t.status === 2 && t.gmtCreateTimeStamp >= this.startTime
+      (t) => t.status === 2 && t.gmtCreateTimeStamp >= this.startTime,
     )
 
     logger.log(`📊 统计信息:`)
@@ -107,7 +107,7 @@ export class WanxBot {
     if (inProgressTasks.length < config.MAX_IN_PROGRESS) {
       const needed = config.MAX_IN_PROGRESS - inProgressTasks.length
       logger.log(
-        `🆕 当前进行中任务少于 ${config.MAX_IN_PROGRESS}，准备提交 ${needed} 个新任务... 🛠️`
+        `🆕 当前进行中任务少于 ${config.MAX_IN_PROGRESS}，准备提交 ${needed} 个新任务... 🛠️`,
       )
 
       for (let i = 0; i < needed; i++) {
@@ -116,7 +116,7 @@ export class WanxBot {
           logger.log(`✅ 任务提交成功! 任务 ID: ${submitRes.data} 🎈`)
         } else if (submitRes.httpCode === 429) {
           logger.log(
-            `⚠️ 提交过于频繁或已有处理中任务: ${submitRes.errorMsg} 🛑`
+            `⚠️ 提交过于频繁或已有处理中任务: ${submitRes.errorMsg} 🛑`,
           )
           break // 停止当前批次提交
         } else {
@@ -127,7 +127,7 @@ export class WanxBot {
       }
     } else {
       logger.log(
-        `✅ 队列已满 (当前有 ${inProgressTasks.length} 个任务在运行)，无需提交新任务。😎`
+        `✅ 队列已满 (当前有 ${inProgressTasks.length} 个任务在运行)，无需提交新任务。😎`,
       )
     }
   }

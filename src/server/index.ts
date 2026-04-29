@@ -37,7 +37,7 @@ if (process.env.NODE_ENV !== 'development') {
 serve(
   {
     fetch: app.fetch,
-    port: BACKEND_PORT
+    port: BACKEND_PORT,
   },
   (info) => {
     console.log(`Server is running on http://localhost:${info.port}`)
@@ -52,7 +52,7 @@ serve(
             : 'xdg-open'
       exec(`${start} ${url}`)
     }
-  }
+  },
 )
 
 export default app

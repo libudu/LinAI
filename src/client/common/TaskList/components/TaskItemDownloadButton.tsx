@@ -5,7 +5,7 @@ import { downloadFile } from '../../../utils/download'
 export const TaskItemDownloadButton = ({
   outputUrl,
   fileName,
-  onDownloaded
+  onDownloaded,
 }: {
   outputUrl: string
   fileName: string

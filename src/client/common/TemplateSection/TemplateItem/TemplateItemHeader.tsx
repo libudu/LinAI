@@ -27,8 +27,8 @@ export const TemplateItemGenerateButtons: React.FC<{
         json: {
           templateId,
           size,
-          quality: gptImageSettings.quality
-        }
+          quality: gptImageSettings.quality,
+        },
       })
     } catch (error) {
       message.error('请求失败')
@@ -42,7 +42,7 @@ export const TemplateItemGenerateButtons: React.FC<{
         initialTab: 'gpt-image',
         onSuccess: () => {
           doGenerate(templateId, size)
-        }
+        },
       })
       return
     }
@@ -95,7 +95,7 @@ export const TemplateItemGenerateButtons: React.FC<{
 
 export const TemplateItemHeader = ({
   template,
-  draggable
+  draggable,
 }: {
   template: TaskTemplate
   draggable: boolean
@@ -156,7 +156,7 @@ export const TemplateItemHeader = ({
               onDragStart={(e) => {
                 e.dataTransfer.setData(
                   'application/json',
-                  JSON.stringify({ type: 'template', id: template.id })
+                  JSON.stringify({ type: 'template', id: template.id }),
                 )
                 e.dataTransfer.effectAllowed = 'move'
               }}

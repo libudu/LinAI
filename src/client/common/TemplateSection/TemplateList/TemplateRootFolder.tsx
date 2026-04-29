@@ -9,7 +9,7 @@ interface TemplateFolderProps {
 export function TemplateFolder({
   wanCount,
   geminiCount,
-  onSelect
+  onSelect,
 }: TemplateFolderProps) {
   return (
     <div className="mt-2 grid h-full grid-cols-2 content-start gap-4">

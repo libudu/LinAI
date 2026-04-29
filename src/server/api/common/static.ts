@@ -16,13 +16,13 @@ export const GENERATED_IMAGES_DIR = path.join(
   process.cwd(),
   'data',
   'images',
-  'generated'
+  'generated',
 )
 export const INPUT_IMAGES_DIR = path.join(
   process.cwd(),
   'data',
   'images',
-  'input'
+  'input',
 )
 
 if (!fs.existsSync(GENERATED_IMAGES_DIR)) {
@@ -74,7 +74,7 @@ const staticApi = new Hono()
         }
 
         const webpBufferUint8 = await imageInstance.encodeWEBP(
-          IMAGE_COMPRESS_QUALITY
+          IMAGE_COMPRESS_QUALITY,
         )
         const webpBuffer = Buffer.from(webpBufferUint8)
 
@@ -88,13 +88,13 @@ const staticApi = new Hono()
 
         return c.json({
           success: true,
-          url: `${INPUT_IMAGES_API_PATH}/${filename}`
+          url: `${INPUT_IMAGES_API_PATH}/${filename}`,
         })
       } catch (error) {
         console.error('Image upload failed:', error)
         return c.json({ success: false, error: 'Image processing failed' })
       }
-    }
+    },
   )
   .get(
     '/images/generated/:filename',
@@ -111,7 +111,7 @@ const staticApi = new Hono()
         return c.body(file)
       }
       return c.notFound()
-    }
+    },
   )
   .get(
     '/images/input/:filename',
@@ -130,7 +130,7 @@ const staticApi = new Hono()
         return c.body(file)
       }
       return c.notFound()
-    }
+    },
   )
 
 export default staticApi

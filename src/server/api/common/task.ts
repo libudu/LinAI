@@ -60,7 +60,7 @@ const taskApi = new Hono()
         try {
           await stream.writeSSE({
             data: 'ping',
-            event: 'ping'
+            event: 'ping',
           })
         } catch (e) {
           break
@@ -79,16 +79,16 @@ const taskApi = new Hono()
           return c.json(
             {
               success: false as const,
-              error: result.error || 'Failed to delete task'
+              error: result.error || 'Failed to delete task',
             },
-            404
+            404,
           )
         }
         return c.json({ success: true as const })
       } catch (error: any) {
         return c.json({ success: false as const, error: error.message }, 500)
       }
-    }
+    },
   )
 
 export default taskApi

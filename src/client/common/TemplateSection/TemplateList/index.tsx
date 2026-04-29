@@ -17,14 +17,14 @@ export const TemplateList = forwardRef<TemplateListRef, unknown>((_, ref) => {
   const { data: templates = [], loading, refresh } = useTemplates()
 
   useImperativeHandle(ref, () => ({
-    refresh
+    refresh,
   }))
 
   const renderTemplateList = () => {
     if (selectedSource === null) {
       const wanCount = templates.filter((t) => t.usageType === 'video').length
       const geminiCount = templates.filter(
-        (t) => t.usageType === 'image'
+        (t) => t.usageType === 'image',
       ).length
 
       return (
@@ -87,7 +87,7 @@ export const TemplateList = forwardRef<TemplateListRef, unknown>((_, ref) => {
                       templates.filter(
                         (t) =>
                           t.usageType === selectedSource &&
-                          t.folder === selectedFolder
+                          t.folder === selectedFolder,
                       ).length
                     }
                     )

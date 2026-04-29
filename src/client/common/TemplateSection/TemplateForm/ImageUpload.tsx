@@ -23,7 +23,7 @@ const ASPECT_RATIOS = [
   { label: '3:4', value: '3:4', ratio: 3 / 4 },
   { label: '9:16', value: '9:16', ratio: 9 / 16 },
   { label: '1:2', value: '1:2', ratio: 1 / 2 },
-  { label: '9:21', value: '9:21', ratio: 9 / 21 }
+  { label: '9:21', value: '9:21', ratio: 9 / 21 },
 ]
 
 function getClosestAspectRatio(width: number, height: number) {
@@ -48,7 +48,7 @@ function RecentImages({
   currentValue,
   onSelect,
   onRemove,
-  onClear
+  onClear,
 }: {
   recentImages: string[]
   currentValue: string[]
@@ -88,12 +88,12 @@ export function ImageUpload({
   value = [],
   onChange,
   onUploadingChange,
-  onFirstImageRatio
+  onFirstImageRatio,
 }: ImageUploadProps) {
   const uploadingCountRef = useRef(0)
   const [recentImages = [], setRecentImages] = useLocalStorageState<string[]>(
     LOCAL_STORAGE_KEY,
-    { defaultValue: [] }
+    { defaultValue: [] },
   )
 
   const addRecentImage = (url: string) => {
@@ -129,7 +129,7 @@ export function ImageUpload({
       handleUploadCountChange(1)
       try {
         const res = await client.api.static.images.upload.$post({
-          json: { image: base64 }
+          json: { image: base64 },
         })
         const data = await res.json()
         if (data.success && 'url' in data) {

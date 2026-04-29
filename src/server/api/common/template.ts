@@ -23,8 +23,8 @@ const templateApi = new Hono()
         prompt: z.string(),
         usageType: z.enum(['image', 'video']),
         aspectRatio: z.string().optional(),
-        folder: z.string().optional()
-      })
+        folder: z.string().optional(),
+      }),
     ),
     async (c) => {
       try {
@@ -34,7 +34,7 @@ const templateApi = new Hono()
       } catch (error: any) {
         return c.json({ success: false as const, error: error.message }, 500)
       }
-    }
+    },
   )
   .put(
     '/folder/rename',
@@ -42,21 +42,21 @@ const templateApi = new Hono()
       'json',
       z.object({
         oldFolder: z.string(),
-        newFolder: z.string()
-      })
+        newFolder: z.string(),
+      }),
     ),
     async (c) => {
       try {
         const { oldFolder, newFolder } = c.req.valid('json')
         const updatedCount = await templateManager.renameFolder(
           oldFolder,
-          newFolder
+          newFolder,
         )
         return c.json({ success: true as const, data: { updatedCount } })
       } catch (error: any) {
         return c.json({ success: false as const, error: error.message }, 500)
       }
-    }
+    },
   )
   .delete(
     '/:id',
@@ -68,14 +68,14 @@ const templateApi = new Hono()
         if (!success) {
           return c.json(
             { success: false as const, error: 'Template not found' },
-            404
+            404,
           )
         }
         return c.json({ success: true as const })
       } catch (error: any) {
         return c.json({ success: false as const, error: error.message }, 500)
       }
-    }
+    },
   )
   .put(
     '/:id',
@@ -87,8 +87,8 @@ const templateApi = new Hono()
         prompt: z.string().optional(),
         aspectRatio: z.string().optional(),
         folder: z.string().optional(),
-        images: z.array(z.string()).optional()
-      })
+        images: z.array(z.string()).optional(),
+      }),
     ),
     async (c) => {
       try {
@@ -96,19 +96,19 @@ const templateApi = new Hono()
         const updates = c.req.valid('json')
         const updatedTemplate = await templateManager.updateTemplate(
           id,
-          updates
+          updates,
         )
         if (!updatedTemplate) {
           return c.json(
             { success: false as const, error: 'Template not found' },
-            404
+            404,
           )
         }
         return c.json({ success: true as const, data: updatedTemplate })
       } catch (error: any) {
         return c.json({ success: false as const, error: error.message }, 500)
       }
-    }
+    },
   )
 
 export default templateApi

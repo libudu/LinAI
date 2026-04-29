@@ -9,7 +9,7 @@ async function run() {
 
   if (!fs.existsSync(batPath)) {
     console.error(
-      '错误：当前项目不存在旧版软件，请将迁移脚本放在正确的软件目录下。'
+      '错误：当前项目不存在旧版软件，请将迁移脚本放在正确的软件目录下。',
     )
     // 暂停以防命令行窗口一闪而过
     process.exitCode = 1
@@ -19,7 +19,7 @@ async function run() {
   const zipPath = process.argv[2]
   if (!zipPath) {
     console.error(
-      '错误：未提供新版本压缩包路径。请将压缩包拖拽到“版本迁移，把新版压缩包拖进来.bat”文件上。'
+      '错误：未提供新版本压缩包路径。请将压缩包拖拽到“版本迁移，把新版压缩包拖进来.bat”文件上。',
     )
     process.exitCode = 1
     return
@@ -63,14 +63,14 @@ async function run() {
       batZipPath = relativePath
       zipRootPath = relativePath.substring(
         0,
-        relativePath.length - '双击运行.bat'.length
+        relativePath.length - '双击运行.bat'.length,
       )
     }
   })
 
   if (!batZipPath) {
     console.error(
-      '错误：压缩包错误，未在压缩包中找到“双击运行.bat”。这可能不是一个有效的新版本压缩包。'
+      '错误：压缩包错误，未在压缩包中找到“双击运行.bat”。这可能不是一个有效的新版本压缩包。',
     )
     process.exitCode = 1
     return

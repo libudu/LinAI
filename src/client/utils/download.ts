@@ -19,7 +19,7 @@ export const downloadFile = async (url: string, fileName: string) => {
 
 export const downloadFilesZip = async (
   files: { url: string; fileName: string; id: string }[],
-  zipName: string
+  zipName: string,
 ) => {
   const zip = new JSZip()
   await Promise.all(
@@ -33,7 +33,7 @@ export const downloadFilesZip = async (
       } catch (error) {
         console.error(`下载任务 ${file.id} 失败`, error)
       }
-    })
+    }),
   )
   const content = await zip.generateAsync({ type: 'blob' })
   saveAs(content, `${zipName}.zip`)

@@ -1,7 +1,7 @@
 import {
   BellOutlined,
   GithubOutlined,
-  SettingOutlined
+  SettingOutlined,
 } from '@ant-design/icons'
 import pkg from '../../../../package.json'
 import LinpxLogo from '../../assets/icon/linpx.png'

@@ -57,7 +57,7 @@ export function WanPreview() {
     setAutoSubmit(checked)
     try {
       const res = await client.api.wan['auto-submit'].$post({
-        json: { enable: checked }
+        json: { enable: checked },
       })
       const data = await res.json()
       if (!data.success) {

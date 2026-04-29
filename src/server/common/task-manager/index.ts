@@ -4,7 +4,7 @@ import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import {
   GENERATED_IMAGES_API_PATH,
-  GENERATED_IMAGES_DIR
+  GENERATED_IMAGES_DIR,
 } from '../../api/common/static'
 import { GptImageQuality, GptImageSize } from '../../module/gpt-image/enum'
 import { Logger } from '../../module/utils/logger'
@@ -59,7 +59,7 @@ export class TaskManager extends EventEmitter {
           fs.writeFileSync(
             this.tasksDbPath,
             JSON.stringify(tasks, null, 2),
-            'utf-8'
+            'utf-8',
           )
         }
       } catch (error) {
@@ -88,7 +88,7 @@ export class TaskManager extends EventEmitter {
   }
 
   public async getTasksByUsageType(
-    usageType: TaskTemplate['usageType']
+    usageType: TaskTemplate['usageType'],
   ): Promise<Task[]> {
     const tasks = await this.getTasks()
     return tasks.filter((t) => t.rawTemplate?.usageType === usageType)
@@ -108,20 +108,20 @@ export class TaskManager extends EventEmitter {
       size: options.size,
       quality: options.quality,
       status: 'pending',
-      createdAt: Date.now()
+      createdAt: Date.now(),
     }
     tasks.push(newTask)
     await fs.writeFile(
       this.tasksDbPath,
       JSON.stringify(tasks, null, 2),
-      'utf-8'
+      'utf-8',
     )
     this.notifyTasksUpdate()
     return newTask
   }
 
   public async deleteTask(
-    id: string
+    id: string,
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const tasks = await this.getTasks()
@@ -134,7 +134,7 @@ export class TaskManager extends EventEmitter {
       await fs.writeFile(
         this.tasksDbPath,
         JSON.stringify(filtered, null, 2),
-        'utf-8'
+        'utf-8',
       )
       this.notifyTasksUpdate()
 
@@ -142,7 +142,7 @@ export class TaskManager extends EventEmitter {
         try {
           const filepath = path.join(
             GENERATED_IMAGES_DIR,
-            target.outputUrl.replace(GENERATED_IMAGES_API_PATH + '/', '')
+            target.outputUrl.replace(GENERATED_IMAGES_API_PATH + '/', ''),
           )
 
           if (filepath && fs.existsSync(filepath)) {
@@ -152,7 +152,7 @@ export class TaskManager extends EventEmitter {
           this.logger.error('Failed to delete task file:', error)
           return {
             success: false,
-            error: `Failed to delete task file: ${error.message}`
+            error: `Failed to delete task file: ${error.message}`,
           }
         }
       }
@@ -161,14 +161,14 @@ export class TaskManager extends EventEmitter {
       this.logger.error('Failed to delete task:', error)
       return {
         success: false,
-        error: `Failed to delete task: ${error.message}`
+        error: `Failed to delete task: ${error.message}`,
       }
     }
   }
 
   public async updateTask(
     id: string,
-    updates: Partial<Task>
+    updates: Partial<Task>,
   ): Promise<boolean> {
     const tasks = await this.getTasks()
     const index = tasks.findIndex((t) => t.id === id)
@@ -180,7 +180,7 @@ export class TaskManager extends EventEmitter {
     await fs.writeFile(
       this.tasksDbPath,
       JSON.stringify(tasks, null, 2),
-      'utf-8'
+      'utf-8',
     )
     this.notifyTasksUpdate()
     return true
@@ -189,7 +189,7 @@ export class TaskManager extends EventEmitter {
   public async updateTaskStatus(
     id: string,
     status: Task['status'],
-    error?: string
+    error?: string,
   ): Promise<boolean> {
     const tasks = await this.getTasks()
     const index = tasks.findIndex((t) => t.id === id)
@@ -204,7 +204,7 @@ export class TaskManager extends EventEmitter {
     await fs.writeFile(
       this.tasksDbPath,
       JSON.stringify(tasks, null, 2),
-      'utf-8'
+      'utf-8',
     )
     this.notifyTasksUpdate()
     return true

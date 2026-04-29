@@ -3,7 +3,7 @@ import { Tag, Tooltip } from 'antd'
 import type { Task } from '../../../../server/common/task-manager'
 import {
   GPT_IMAGE_RMB_RATIO,
-  MODEL_GROUP_RATIO
+  MODEL_GROUP_RATIO,
 } from '../../../hooks/useGPTImageQuota'
 
 interface TaskItemTagsProps {

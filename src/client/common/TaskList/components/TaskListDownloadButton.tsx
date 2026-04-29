@@ -13,14 +13,16 @@ interface TaskListDownloadButtonProps {
 export function TaskListDownloadButton({
   tasks,
   downloadedIds,
-  setDownloadedIds
+  setDownloadedIds,
 }: TaskListDownloadButtonProps) {
   const [downloading, setDownloading] = useState(false)
 
   const handleDownloadAll = async () => {
     const unDownloadedTasks = tasks.filter(
       (t) =>
-        t.status === 'completed' && t.outputUrl && !downloadedIds.includes(t.id)
+        t.status === 'completed' &&
+        t.outputUrl &&
+        !downloadedIds.includes(t.id),
     )
 
     if (unDownloadedTasks.length === 0) {
@@ -36,7 +38,7 @@ export function TaskListDownloadButton({
           task.rawTemplate?.title ||
           task.rawTemplate?.prompt ||
           `task_${task.id}`,
-        id: task.id
+        id: task.id,
       }))
 
       if (unDownloadedTasks.length > 3) {
@@ -49,8 +51,8 @@ export function TaskListDownloadButton({
           filesToDownload.map((file) =>
             downloadFile(file.url, file.fileName).catch((error) => {
               console.error(`下载任务 ${file.id} 失败`, error)
-            })
-          )
+            }),
+          ),
         )
         message.success({ content: '下载完成', key: 'download' })
       }
@@ -58,7 +60,7 @@ export function TaskListDownloadButton({
       // 标记为已下载
       setDownloadedIds([
         ...downloadedIds,
-        ...unDownloadedTasks.map((t) => t.id)
+        ...unDownloadedTasks.map((t) => t.id),
       ])
     } catch (error) {
       message.error({ content: '下载失败', key: 'download' })

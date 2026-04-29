@@ -21,7 +21,7 @@ export const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
       enable1K: gptImageSettings.enable1K,
       enable2K: gptImageSettings.enable2K,
       enable4K: gptImageSettings.enable4K,
-      quality: gptImageSettings.quality
+      quality: gptImageSettings.quality,
     })
   }, [
     gptImageApiKey,
@@ -29,7 +29,7 @@ export const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
     gptImageSettings.enable2K,
     gptImageSettings.enable4K,
     gptImageSettings.quality,
-    form
+    form,
   ])
 
   useImperativeHandle(ref, () => ({
@@ -44,11 +44,11 @@ export const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
         enable1K: values.enable1K,
         enable2K: values.enable2K,
         enable4K: values.enable4K,
-        quality: values.quality
+        quality: values.quality,
       })
       message.success('配置保存成功')
       return values.apiKey
-    }
+    },
   }))
 
   return (

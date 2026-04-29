@@ -9,7 +9,7 @@ export class WanxClient {
     const session = await wanAuthManager.getSessionToken()
     return {
       'content-type': 'application/json',
-      Cookie: `WANX_CN_SESSION=${session}`
+      Cookie: `WANX_CN_SESSION=${session}`,
     }
   }
 
@@ -19,7 +19,7 @@ export class WanxClient {
       const response = await axios.post<PagingListResponse>(
         `${config.BASE_URL}/v2/task/pagingList`,
         { pageSize, mediaType: 'all' },
-        { headers }
+        { headers },
       )
       return response.data
     } catch (error: any) {
@@ -39,7 +39,7 @@ export class WanxClient {
       const response = await axios.post<ImageGenResponse>(
         `${config.BASE_URL}/imageGen`,
         config.SUBMIT_PAYLOAD,
-        { headers }
+        { headers },
       )
       return response.data
     } catch (error: any) {

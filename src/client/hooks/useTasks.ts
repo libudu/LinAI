@@ -45,7 +45,7 @@ const useTasksStore = create<TasksState>((set, get) => ({
           return {
             subscriberCount: newCount,
             eventSource: es,
-            loading: get().data.length === 0
+            loading: get().data.length === 0,
           }
         }
       }
@@ -61,7 +61,7 @@ const useTasksStore = create<TasksState>((set, get) => ({
       }
       return { subscriberCount: newCount }
     })
-  }
+  },
 }))
 
 export function useTasks() {
@@ -79,6 +79,6 @@ export function useTasks() {
 
   return {
     data,
-    loading
+    loading,
   }
 }

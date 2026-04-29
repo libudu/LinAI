@@ -10,7 +10,7 @@ const CONFIG_DIR = path.join(process.cwd(), 'data')
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json')
 
 const DEFAULT_CONFIG: Config = {
-  gptImageApiKey: null
+  gptImageApiKey: null,
 }
 
 let currentConfig: Config = { ...DEFAULT_CONFIG }
@@ -27,7 +27,7 @@ try {
     fs.writeFileSync(
       CONFIG_FILE,
       JSON.stringify(DEFAULT_CONFIG, null, 2),
-      'utf-8'
+      'utf-8',
     )
   }
 } catch (error) {
@@ -47,7 +47,7 @@ export const updateConfig = (newConfig: Partial<Config>): Config => {
     fs.writeFileSync(
       CONFIG_FILE,
       JSON.stringify(currentConfig, null, 2),
-      'utf-8'
+      'utf-8',
     )
   } catch (error) {
     console.error('Failed to write config:', error)

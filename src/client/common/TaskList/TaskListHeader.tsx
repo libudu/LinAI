@@ -1,7 +1,7 @@
 import {
   DeleteOutlined,
   EllipsisOutlined,
-  ScheduleOutlined
+  ScheduleOutlined,
 } from '@ant-design/icons'
 
 import type { MenuProps } from 'antd'
@@ -25,7 +25,7 @@ interface TaskListHeaderProps {
 export function TaskListHeader({
   tasks,
   downloadedIds,
-  setDownloadedIds
+  setDownloadedIds,
 }: TaskListHeaderProps) {
   const [deletingErrors, setDeletingErrors] = useState(false)
   const [deletingDownloaded, setDeletingDownloaded] = useState(false)
@@ -43,7 +43,7 @@ export function TaskListHeader({
       for (const task of errorTasks) {
         try {
           const res = await client.api.task[':id'].$delete({
-            param: { id: task.id }
+            param: { id: task.id },
           })
           const json = await res.json()
           if (json.success) successCount++
@@ -87,7 +87,7 @@ export function TaskListHeader({
           for (const task of toDelete) {
             try {
               const res = await client.api.task[':id'].$delete({
-                param: { id: task.id }
+                param: { id: task.id },
               })
               const json = await res.json()
               if (json.success) successCount++
@@ -101,7 +101,7 @@ export function TaskListHeader({
         } finally {
           setDeletingDownloaded(false)
         }
-      }
+      },
     })
   }
 
@@ -119,15 +119,15 @@ export function TaskListHeader({
       danger: true,
       icon: <DeleteOutlined />,
       label: '所有错误任务',
-      disabled: deletingErrors || deletingDownloaded
+      disabled: deletingErrors || deletingDownloaded,
     },
     {
       key: 'delete-downloaded',
       danger: true,
       icon: <DeleteOutlined />,
       label: '所有已下载任务',
-      disabled: deletingErrors || deletingDownloaded
-    }
+      disabled: deletingErrors || deletingDownloaded,
+    },
   ]
 
   return (

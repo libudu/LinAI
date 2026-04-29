@@ -8,7 +8,7 @@ import {
   Modal,
   Space,
   Spin,
-  Tag
+  Tag,
 } from 'antd'
 import { hc } from 'hono/client'
 import { useEffect, useMemo, useState } from 'react'
@@ -27,7 +27,7 @@ export function GeminiModal({ open, onClose }: GeminiModalProps) {
   const {
     data: allTemplates = [],
     loading,
-    refresh: fetchTemplates
+    refresh: fetchTemplates,
   } = useTemplates()
 
   const templates = useMemo(() => {
@@ -72,15 +72,15 @@ export function GeminiModal({ open, onClose }: GeminiModalProps) {
       const res = await client.api.gemini.generate.$post({
         json: {
           apiKey,
-          templateId
-        }
+          templateId,
+        },
       })
       const data = await res.json()
       if (data.success && 'image' in data && data.image) {
         message.success('生成成功')
         setGeneratedImages((prev) => ({
           ...prev,
-          [templateId]: data.image as string
+          [templateId]: data.image as string,
         }))
       } else {
         message.error((data as any).error || '生成失败')

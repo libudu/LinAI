@@ -23,7 +23,7 @@ export const AdminSetting = forwardRef<AdminSettingRef>((_props, ref) => {
       yunwuSystemToken: yunwuSystemToken || '',
       yunwuUserId: yunwuUserId || '',
       name: '',
-      quota: 10
+      quota: 10,
     })
   }, [yunwuSystemToken, yunwuUserId, form])
 
@@ -32,7 +32,7 @@ export const AdminSetting = forwardRef<AdminSettingRef>((_props, ref) => {
       const values = await form.validateFields()
       setYunwuSystemToken(values.yunwuSystemToken)
       setYunwuUserId(values.yunwuUserId)
-    }
+    },
   }))
 
   const handleGenerate = async () => {
@@ -49,8 +49,8 @@ export const AdminSetting = forwardRef<AdminSettingRef>((_props, ref) => {
           userId: values.yunwuUserId,
           name: values.name,
           quota: Number(values.quota),
-          group: fixedGroup
-        }
+          group: fixedGroup,
+        },
       })
       const data = await response.json()
 

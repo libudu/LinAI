@@ -23,8 +23,8 @@ export class GeminiManager {
         prompt: prompt,
         config: {
           numberOfImages: 1,
-          outputMimeType: 'image/jpeg'
-        }
+          outputMimeType: 'image/jpeg',
+        },
       })
 
       if (response.generatedImages && response.generatedImages.length > 0) {
@@ -34,7 +34,7 @@ export class GeminiManager {
         }
         return {
           success: true,
-          image: `data:image/jpeg;base64,${imageBase64}`
+          image: `data:image/jpeg;base64,${imageBase64}`,
         }
       }
 
@@ -43,7 +43,7 @@ export class GeminiManager {
       logger.error('Failed to generate image', JSON.stringify(error))
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       }
     }
   }

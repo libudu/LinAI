@@ -40,7 +40,7 @@ export function AspectRatioFormItem({ className }: { className?: string }) {
           { label: '3:4', value: '3:4' },
           { label: '9:16', value: '9:16' },
           { label: '1:2', value: '1:2' },
-          { label: '9:21', value: '9:21' }
+          { label: '9:21', value: '9:21' },
         ]}
       />
     </Form.Item>
@@ -49,7 +49,7 @@ export function AspectRatioFormItem({ className }: { className?: string }) {
 
 export function PromptFormItem({
   className,
-  label = '提示词'
+  label = '提示词',
 }: {
   className?: string
   label?: React.ReactNode
@@ -74,7 +74,7 @@ export function TemplateFormFields({
   form,
   imageUrls,
   setImageUrls,
-  setUploadingCount
+  setUploadingCount,
 }: {
   form: any
   imageUrls: string[]
@@ -127,7 +127,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
   const [localUsageType, setLocalUsageType] = useLocalStorageState<
     'image' | 'video'
   >('template-usage-type', {
-    defaultValue: 'image'
+    defaultValue: 'image',
   })
   const usageType = Form.useWatch('usageType', form)
   const [trialGenerating, setTrialGenerating] = useState(false)
@@ -157,8 +157,8 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
           aspectRatio,
           images: imageUrls,
           size,
-          quality: gptImageSettings.quality
-        }
+          quality: gptImageSettings.quality,
+        },
       })
 
       if (currentRequestId !== trialRequestIdRef.current) return
@@ -195,7 +195,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
         initialTab: 'gpt-image',
         onSuccess: () => {
           doTrial(size)
-        }
+        },
       })
       return
     }
@@ -209,7 +209,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
     try {
       const payload = {
         ...values,
-        images: imageUrls
+        images: imageUrls,
       }
 
       const res = await client.api.template.$post({ json: payload })
@@ -241,7 +241,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
         onFinish={handleFinish}
         initialValues={{
           usageType: localUsageType,
-          aspectRatio: '1:1'
+          aspectRatio: '1:1',
         }}
         onValuesChange={(changedValues) => {
           if (changedValues.usageType) {

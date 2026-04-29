@@ -15,14 +15,14 @@ export function TaskItemDeleteButton({ id, onSuccess }: DeleteTaskButtonProps) {
   const [skipDeleteConfirm, setSkipDeleteConfirm] = useLocalStorageState(
     'skipDeleteTaskConfirm',
     {
-      defaultValue: false
-    }
+      defaultValue: false,
+    },
   )
 
   const doDelete = async () => {
     try {
       const res = await client.api.task[':id'].$delete({
-        param: { id }
+        param: { id },
       })
       const json = await res.json()
       if (json.success) {
@@ -66,7 +66,7 @@ export function TaskItemDeleteButton({ id, onSuccess }: DeleteTaskButtonProps) {
           setSkipDeleteConfirm(true)
         }
         doDelete()
-      }
+      },
     })
   }
 

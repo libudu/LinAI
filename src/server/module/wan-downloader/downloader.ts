@@ -46,7 +46,7 @@ export class Downloader {
       const response = await axios({
         url: videoUrl,
         method: 'GET',
-        responseType: 'stream'
+        responseType: 'stream',
       })
 
       const writer = fs.createWriteStream(filePath)
@@ -59,7 +59,7 @@ export class Downloader {
             prompt: task.taskInput.prompt,
             downloadUrl: videoUrl,
             gmtCreate: task.gmtCreate,
-            filePath: filePath
+            filePath: filePath,
           }
           this.saveRecords()
           logger.log(`✅ 视频下载完成: ${fileName} ✨`)

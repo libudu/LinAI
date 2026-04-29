@@ -14,7 +14,7 @@ export function WanModal({
   open,
   onClose,
   autoSubmit,
-  onToggleAutoSubmit
+  onToggleAutoSubmit,
 }: WanModalProps) {
   return (
     <Modal
