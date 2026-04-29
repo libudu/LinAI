@@ -84,7 +84,10 @@ export function PromptFormItem({
       rules={[{ required: true, message: '请填写提示词' }]}
     >
       <Input.TextArea
-        rows={5}
+        autoSize={{
+          minRows: 5,
+          maxRows: 10,
+        }}
         placeholder="请输入生成内容的提示词..."
         style={{ resize: 'none' }}
       />
@@ -108,7 +111,7 @@ export function TemplateFormFields({
       <div className="flex gap-4">
         <TitleFormItem className="flex-1" />
         <FolderFormItem className="w-1/4" />
-        <CountFormItem className="w-1/4" />
+        <AspectRatioFormItem className="w-1/4" />
       </div>
 
       <div className="flex gap-4">
@@ -124,9 +127,7 @@ export function TemplateFormFields({
             }}
           />
         </Form.Item>
-        <div className="flex w-1/4 flex-col gap-4">
-          <AspectRatioFormItem />
-        </div>
+        <CountFormItem className="w-1/4" />
       </div>
 
       <PromptFormItem
