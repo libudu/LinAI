@@ -21,7 +21,8 @@ export function TaskListDownloadButton({
     const unDownloadedTasks = tasks.filter(
       (t) =>
         t.status === 'completed' &&
-        t.outputUrl &&
+        t.outputUrls &&
+        t.outputUrls.length > 0 &&
         !downloadedIds.includes(t.id),
     )
 
@@ -32,16 +33,20 @@ export function TaskListDownloadButton({
 
     setDownloading(true)
     try {
-      const filesToDownload = unDownloadedTasks.map((task) => ({
-        url: task.outputUrl!,
-        fileName:
+      const filesToDownload = unDownloadedTasks.flatMap((task) => {
+        const baseName =
           task.rawTemplate?.title ||
           task.rawTemplate?.prompt ||
-          `task_${task.id}`,
-        id: task.id,
-      }))
+          `task_${task.id}`
+        
+        return task.outputUrls!.map((url, index) => ({
+          url,
+          fileName: task.outputUrls!.length > 1 ? `${baseName}_${index + 1}` : baseName,
+          id: `${task.id}_${index}`,
+        }))
+      })
 
-      if (unDownloadedTasks.length > 3) {
+      if (filesToDownload.length > 3) {
         message.loading({ content: '正在打包压缩...', key: 'download' })
         await downloadFilesZip(filesToDownload, `tasks_${new Date().getTime()}`)
         message.success({ content: '打包下载完成', key: 'download' })
