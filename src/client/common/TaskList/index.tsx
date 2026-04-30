@@ -36,7 +36,16 @@ export function TaskList() {
   }
 
   // 暂时仅显示 GPT-Image 任务
-  const gptImageTasks = tasks.filter((t) => t.source === GPT_IMAGE_SOURCE_MODEL)
+  const gptImageTasks = tasks
+    .filter((t) => t.source === GPT_IMAGE_SOURCE_MODEL)
+    .map((t) => ({
+      ...t,
+      outputUrls: t.outputUrls
+        ? t.outputUrls
+        : t.outputUrl
+          ? [t.outputUrl]
+          : [],
+    }))
 
   return (
     <Card
@@ -85,15 +94,14 @@ export function TaskList() {
                         {task.error}
                       </Typography.Text>
                     </div>
-                  ) : !task.outputUrl &&
-                    (!task.outputUrls || task.outputUrls.length === 0) ? (
+                  ) : !task.outputUrls || task.outputUrls.length === 0 ? (
                     <div className="flex flex-col items-center justify-center p-2">
                       <Typography.Text strong className="mb-1 text-blue-500!">
                         运行中
                         <SyncOutlined className="ml-1" spin />
                       </Typography.Text>
                     </div>
-                  ) : task.outputUrls && task.outputUrls.length > 1 ? (
+                  ) : task.outputUrls.length > 1 ? (
                     <div className="flex h-full w-full items-center justify-center">
                       <ImageGroup
                         images={task.outputUrls}
@@ -103,7 +111,7 @@ export function TaskList() {
                     </div>
                   ) : (
                     <Image
-                      src={task.outputUrls?.[0] || task.outputUrl}
+                      src={task.outputUrls[0]}
                       alt="result"
                       classNames={{
                         root: 'w-full h-full',
@@ -157,11 +165,13 @@ export function TaskList() {
                       {new Date(task.createdAt).toLocaleString()}
                     </div>
                     <div className="flex items-center gap-1">
-                      {task.outputUrl && (
+                      {task.outputUrls && task.outputUrls.length > 0 && (
                         <TaskItemDownloadButton
-                          outputUrl={task.outputUrl}
+                          outputUrls={task.outputUrls}
                           fileName={
-                            task.rawTemplate?.title || task.rawTemplate.prompt
+                            task.rawTemplate?.title ||
+                            task.rawTemplate?.prompt ||
+                            `task_${task.id}`
                           }
                           onDownloaded={() => {
                             if (!downloadedIds?.includes(task.id)) {

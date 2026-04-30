@@ -139,38 +139,25 @@ export class TaskManager extends EventEmitter {
       )
       this.notifyTasksUpdate()
 
-      if (target.outputUrls && target.outputUrls.length > 0) {
-        for (const outputUrl of target.outputUrls) {
-          if (outputUrl.startsWith('/api/static/')) {
-            try {
-              const filepath = path.join(
-                GENERATED_IMAGES_DIR,
-                outputUrl.replace(GENERATED_IMAGES_API_PATH + '/', ''),
-              )
+      const urlsToDelete = target.outputUrls
+        ? target.outputUrls
+        : target.outputUrl
+          ? [target.outputUrl]
+          : []
 
-              if (filepath && fs.existsSync(filepath)) {
-                await fs.unlink(filepath)
-              }
-            } catch (error: any) {
-              this.logger.error('Failed to delete task file:', error)
+      for (const outputUrl of urlsToDelete) {
+        if (outputUrl.startsWith('/api/static/')) {
+          try {
+            const filepath = path.join(
+              GENERATED_IMAGES_DIR,
+              outputUrl.replace(GENERATED_IMAGES_API_PATH + '/', ''),
+            )
+
+            if (filepath && fs.existsSync(filepath)) {
+              await fs.unlink(filepath)
             }
-          }
-        }
-      } else if (target.outputUrl && target.outputUrl.startsWith('/api/static/')) {
-        try {
-          const filepath = path.join(
-            GENERATED_IMAGES_DIR,
-            target.outputUrl.replace(GENERATED_IMAGES_API_PATH + '/', ''),
-          )
-
-          if (filepath && fs.existsSync(filepath)) {
-            await fs.unlink(filepath)
-          }
-        } catch (error: any) {
-          this.logger.error('Failed to delete task file:', error)
-          return {
-            success: false,
-            error: `Failed to delete task file: ${error.message}`,
+          } catch (error: any) {
+            this.logger.error('Failed to delete task file:', error)
           }
         }
       }
