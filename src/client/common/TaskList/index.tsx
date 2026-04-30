@@ -8,12 +8,12 @@ import type { Task } from '../../../server/common/task-manager'
 import { TRIAL_TEMPLATE_TITLE } from '../../../server/common/template-manager/enum'
 import { GPT_IMAGE_SOURCE_MODEL } from '../../../server/module/gpt-image/enum'
 import { useTasks } from '../../hooks/useTasks'
+import { ImageGroup } from '../components/ImageGroup'
 import { TaskItemDeleteButton } from './components/TaskItemDeleteButton'
 import { TaskItemDownloadButton } from './components/TaskItemDownloadButton'
 import { TaskItemTags } from './components/TaskItemTags'
 import styles from './index.module.scss'
 import { TaskListHeader } from './TaskListHeader'
-import { ImageGroup } from '../components/ImageGroup'
 
 const client = hc<AppType>('/')
 
@@ -85,7 +85,8 @@ export function TaskList() {
                         {task.error}
                       </Typography.Text>
                     </div>
-                  ) : !task.outputUrl && (!task.outputUrls || task.outputUrls.length === 0) ? (
+                  ) : !task.outputUrl &&
+                    (!task.outputUrls || task.outputUrls.length === 0) ? (
                     <div className="flex flex-col items-center justify-center p-2">
                       <Typography.Text strong className="mb-1 text-blue-500!">
                         运行中
@@ -94,7 +95,7 @@ export function TaskList() {
                     </div>
                   ) : task.outputUrls && task.outputUrls.length > 1 ? (
                     <div className="flex h-full w-full items-center justify-center">
-                      <ImageGroup images={task.outputUrls} showCount />
+                      <ImageGroup images={task.outputUrls} />
                     </div>
                   ) : (
                     <Image

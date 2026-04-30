@@ -76,7 +76,7 @@ const ImportantContent = () => {
           ☕ 感谢赞助支持，可以备注你的昵称
         </div>
         <div className="flex items-center justify-center rounded-md bg-gray-200 p-2">
-          <Image src={QRCodeImg} alt="赞助二维码" width={200} />
+          <Image src={QRCodeImg} alt="赞助二维码" width={180} />
         </div>
       </div>
     </div>

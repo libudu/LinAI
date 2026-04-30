@@ -100,13 +100,13 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
   })
   const imagesToUpload = images.length
     ? await Promise.all(
-        images.map(
-          async (file) =>
-            await toFile(fs.createReadStream(file), null, {
-              type: 'image/png',
-            }),
-        ),
-      )
+      images.map(
+        async (file) =>
+          await toFile(fs.createReadStream(file), null, {
+            type: 'image/png',
+          }),
+      ),
+    )
     : undefined
 
   let res: OpenAI.Images.ImagesResponse
@@ -219,11 +219,9 @@ export async function handleImageGeneration(options: {
 
     const duration = Date.now() - startTime
     const outputUrls = filenames.map((f) => `${GENERATED_IMAGES_API_PATH}/${f}`)
-    const outputUrl = outputUrls[0]
     await taskManager.updateTask(task.id, {
       status: 'completed',
       duration,
-      outputUrl,
       outputUrls,
       gptTokenUsage: usage,
     })
@@ -231,7 +229,7 @@ export async function handleImageGeneration(options: {
     logger.info(`GPT image task finished`)
     return {
       status: 200,
-      data: { success: true as const, outputUrl, outputUrls, taskId: task.id },
+      data: { success: true as const, outputUrls, taskId: task.id },
     }
   } catch (error: any) {
     logger.error(`Failed to generate GPT image`, error.message)
