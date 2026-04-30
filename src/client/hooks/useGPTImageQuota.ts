@@ -72,6 +72,12 @@ const useQuotaStore = create<QuotaStore>((set, get) => ({
   },
 }))
 
+export const isPublicApiKey = (name?: string | null) =>
+  name?.includes('公开') ||
+  name?.includes('共用') ||
+  name?.includes('公用') ||
+  false
+
 export function useGPTImageQuota() {
   const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
   const { data: tasks } = useTasks()
@@ -82,11 +88,7 @@ export function useGPTImageQuota() {
   const error = useQuotaStore((state) => state.error)
   const fetchQuota = useQuotaStore((state) => state.fetchQuota)
 
-  const isPublic =
-    data?.name?.includes('公开') ||
-    data?.name?.includes('共用') ||
-    data?.name?.includes('公用') ||
-    false
+  const isPublic = isPublicApiKey(data?.name)
 
   useEffect(() => {
     fetchQuota(gptImageApiKey)
