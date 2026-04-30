@@ -30,7 +30,13 @@ export function TemplateItem({
               {template.title}
             </div>
           )}
-          <Tooltip title={template.prompt} placement="bottom">
+          <Tooltip
+            title={template.prompt}
+            placement="bottom"
+            classNames={{
+              container: 'w-[500px]!',
+            }}
+          >
             <p
               className="m-0 line-clamp-2 cursor-pointer text-sm text-slate-600 transition-colors hover:text-blue-500"
               onClick={() => {
@@ -46,7 +52,7 @@ export function TemplateItem({
           <div className="mt-auto pt-1 text-xs text-slate-400">
             {new Date(template.createdAt).toLocaleString()}
           </div>
-          <div className="flex justify-end sm:hidden">
+          <div className="ml-2 flex justify-end gap-2 sm:hidden">
             <TemplateItemGenerateButtons template={template} />
           </div>
         </div>
