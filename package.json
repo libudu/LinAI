@@ -9,7 +9,8 @@
     "dev:server": "tsx watch src/server/index.ts",
     "build:private": "vite build && tsup && tsx scripts/post-build.ts --private",
     "build:public": "vite build --mode public && tsup && tsx scripts/post-build.ts --public",
-    "build:version": "vite build && tsup && tsx scripts/post-build.ts --version",
+    "build:privateSkipTag": "vite build && tsup && tsx scripts/post-build.ts --private --skip-tag",
+    "build:publicSkipTag": "vite build --mode public && tsup && tsx scripts/post-build.ts --public --skip-tag",
     "start": "NODE_ENV=production tsx src/server/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "prettier": "prettier --write \"src/**/*.{js,jsx,ts,tsx,css,scss,md}\""

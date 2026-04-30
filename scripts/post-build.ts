@@ -7,8 +7,8 @@ async function main() {
   console.log('🚀 [Post-build] Starting...')
 
   // 0. 检查 git 状态与打 tag
-  const isVersionBuild = process.argv.includes('--version')
-  if (isVersionBuild) {
+  const skipTag = process.argv.includes('--skip-tag')
+  if (skipTag) {
     try {
       console.log('🔍 [Post-build] Checking git status...')
       const gitStatus = execSync('git status --porcelain').toString().trim()
