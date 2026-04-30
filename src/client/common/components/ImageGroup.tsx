@@ -28,7 +28,7 @@ export function ImageGroup({ images, width, height }: ImageGroupProps) {
 
   return (
     <div
-      className="relative ml-2 shrink-0 rounded-lg bg-gray-200"
+      className="relative shrink-0 rounded-lg bg-gray-200"
       style={{ width: `${width}px`, height: `${height}px` }}
     >
       <Image.PreviewGroup>
