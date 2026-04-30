@@ -2,6 +2,7 @@ import { Button, Form, Input, message } from 'antd'
 import { hc } from 'hono/client'
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 import type { AppType } from '../../../server'
+import { isPublicApiKey } from '../../hooks/useGPTImageQuota'
 import { useLocalSetting } from '../../hooks/useLocalSetting'
 
 export interface AdminSettingRef {
@@ -17,6 +18,10 @@ export const AdminSetting = forwardRef<AdminSettingRef>((_props, ref) => {
     useLocalSetting()
   const [loading, setLoading] = useState(false)
   const [generatedApiKey, setGeneratedApiKey] = useState<string>('')
+
+  const nameValue = Form.useWatch('name', form)
+  const isPublic = isPublicApiKey(nameValue)
+  const currentGroup = isPublic ? fixedGroup.replace(',官转', '') : fixedGroup
 
   useEffect(() => {
     form.setFieldsValue({
@@ -49,7 +54,7 @@ export const AdminSetting = forwardRef<AdminSettingRef>((_props, ref) => {
           userId: values.yunwuUserId,
           name: values.name,
           quota: Number(values.quota),
-          group: fixedGroup,
+          group: currentGroup,
         },
       })
       const data = await response.json()
@@ -84,23 +89,15 @@ export const AdminSetting = forwardRef<AdminSettingRef>((_props, ref) => {
         >
           <Input placeholder="请输入云雾用户 ID" />
         </Form.Item>
-        <Form.Item
-          name="name"
-          label="API Key 标题"
-          rules={[{ required: true, message: '请输入 API Key 标题' }]}
-        >
+        <Form.Item name="name" label="API Key 标题">
           <Input placeholder="请输入 API Key 标题" />
         </Form.Item>
-        <Form.Item
-          name="quota"
-          label="限额 (RMB)"
-          rules={[{ required: true, message: '请输入限额' }]}
-        >
+        <Form.Item name="quota" label="限额 (RMB)">
           <Input type="number" placeholder="请输入限额" />
         </Form.Item>
         <Form.Item label="API Key 分组">
           <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
-            {fixedGroup.replace(/,/g, ' → ')}
+            {currentGroup.replace(/,/g, ' → ')}
           </div>
         </Form.Item>
         <Form.Item>

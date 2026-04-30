@@ -141,19 +141,14 @@ export const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
           </div>
           <div className="mt-1 flex items-start gap-1 text-xs text-red-500">
             <ExclamationCircleOutlined className="mt-1" />
-            <div>
-              {isPublic ? (
-                <div className="mt-1 flex items-start gap-1 text-xs text-red-500">
-                  <ExclamationCircleOutlined className="mt-1" />
-                  <div>公用 API Key 无法一次生成多张</div>
-                </div>
-              ) : (
-                <>
-                  <div>生成多张与提交多次相同任务的效果和开销完全等价</div>
-                  <div>不会节省输入费用，不同张数之间也没有前后关联</div>
-                </>
-              )}
-            </div>
+            {isPublic ? (
+              <div>公用 API Key 无法一次生成多张</div>
+            ) : (
+              <div>
+                <div>生成多张与提交多次相同任务的效果和开销完全等价</div>
+                <div>不会节省输入费用，不同张数之间也没有前后关联</div>
+              </div>
+            )}
           </div>
         </Form.Item>
       </Form>
