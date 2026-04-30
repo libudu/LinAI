@@ -1,14 +1,14 @@
 {
   "name": "wan-video-download",
-  "version": "1.0.6",
+  "version": "1.1.0",
   "description": "",
   "main": "index.js",
   "scripts": {
     "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
     "dev:client": "vite --host",
     "dev:server": "tsx watch src/server/index.ts",
-    "build": "vite build && tsup && tsx scripts/post-build.ts",
-    "build:public": "vite build --mode public && tsup && tsx scripts/post-build.ts",
+    "build:private": "vite build && tsup && tsx scripts/post-build.ts --private",
+    "build:public": "vite build --mode public && tsup && tsx scripts/post-build.ts --public",
     "build:version": "vite build && tsup && tsx scripts/post-build.ts --version",
     "start": "NODE_ENV=production tsx src/server/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",

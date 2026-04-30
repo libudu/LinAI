@@ -3,6 +3,11 @@ import copy from 'copy-to-clipboard'
 import { MessageList } from './MessageList'
 
 const upgradeHistory = [
+  `LinAI v1.1.0 更新内容 🐱：
+🖼️ 支持批量生成和展示多张图像图片，可在设置中开启
+📁 设置新增输入图片管理功能，可清理无引用输入图片
+🛡️ GPT 图像生成审核选项改为 low，不知道有没有效果
+📱 优化任务列表、模板表单、移动端的交互，优化消息通知文案`,
   `LinAI v1.0.6 更新内容 🐱：
 ✨ 新增了模板分类与文件夹管理功能，支持拖拽排序、移动、另存模板，新增了最近上传图片快速选择功能
 ✨ 更新了系统内置模板，新用户上手体验更好

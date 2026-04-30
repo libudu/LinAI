@@ -67,7 +67,7 @@ async function main() {
 
   // 4. 在 dist 目录中安装生产环境依赖
   console.log('📦 [Post-build] Installing production dependencies in dist/ ...')
-  execSync('pnpm install --prod --shamefully-hoist', {
+  execSync('pnpm install --prod --shamefully-hoist --ignore-workspace', {
     cwd: 'dist',
     stdio: 'inherit'
   })
@@ -83,7 +83,15 @@ async function main() {
   try {
     const pkg = fs.readJsonSync('package.json')
     const version = pkg.version
-    const zipName = `LinAI v${version}.zip`
+
+    let suffix = ''
+    if (process.argv.includes('--private')) {
+      suffix = '-private'
+    } else if (process.argv.includes('--public')) {
+      suffix = '-public'
+    }
+
+    const zipName = `LinAI v${version}${suffix}.zip`
     console.log(`📦 [Post-build] Zipping dist directory to ${zipName}...`)
 
     const zip = new JSZip()
