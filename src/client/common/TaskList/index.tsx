@@ -95,7 +95,11 @@ export function TaskList() {
                     </div>
                   ) : task.outputUrls && task.outputUrls.length > 1 ? (
                     <div className="flex h-full w-full items-center justify-center">
-                      <ImageGroup images={task.outputUrls} />
+                      <ImageGroup
+                        images={task.outputUrls}
+                        width={110}
+                        height={140}
+                      />
                     </div>
                   ) : (
                     <Image

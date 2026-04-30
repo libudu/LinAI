@@ -2,15 +2,19 @@ import { Image } from 'antd'
 
 interface ImageGroupProps {
   images: string[]
+  width: number
+  height: number
 }
 
-export function ImageGroup({ images }: ImageGroupProps) {
+const MAX_VISIBLE_IMAGES = 8
+const WARP_MAX_IMAGE_COUNT = 3
+
+export function ImageGroup({ images, width, height }: ImageGroupProps) {
   if (!images || images.length === 0) return null
 
-  const visibleImages = images.slice(0, 8)
-  const hiddenImages = images.slice(8)
-  const containerSize = 100
-  const rows = visibleImages.length >= 4 ? 2 : 1
+  const visibleImages = images.slice(0, MAX_VISIBLE_IMAGES)
+  const hiddenImages = images.slice(MAX_VISIBLE_IMAGES)
+  const rows = visibleImages.length > WARP_MAX_IMAGE_COUNT ? 2 : 1
   const rowCounts =
     rows === 1
       ? [visibleImages.length]
@@ -18,14 +22,14 @@ export function ImageGroup({ images }: ImageGroupProps) {
           Math.ceil(visibleImages.length / 2),
           Math.floor(visibleImages.length / 2),
         ]
-  const cardHeight = rows === 1 ? containerSize : 80
+  const cardHeight = rows === 1 ? height : height * 0.7
   const cardWidth = Math.round(cardHeight * 0.64)
-  const stepY = rows > 1 ? (containerSize - cardHeight) / (rows - 1) : 0
+  const stepY = rows > 1 ? (height - cardHeight) / (rows - 1) : 0
 
   return (
     <div
-      className="relative ml-2 shrink-0"
-      style={{ width: `${containerSize}px`, height: `${containerSize}px` }}
+      className="relative ml-2 shrink-0 rounded-lg bg-gray-200"
+      style={{ width: `${width}px`, height: `${height}px` }}
     >
       <Image.PreviewGroup>
         {visibleImages.map((url, index) => {
@@ -35,8 +39,7 @@ export function ImageGroup({ images }: ImageGroupProps) {
 
           const cols = rowCounts[rowIndex] ?? 0
           const overlapX = 0.45
-          const maxStepX =
-            cols > 1 ? (containerSize - cardWidth) / (cols - 1) : 0
+          const maxStepX = cols > 1 ? (width - cardWidth) / (cols - 1) : 0
           const stepX =
             cols > 1
               ? cols === 2
@@ -47,7 +50,7 @@ export function ImageGroup({ images }: ImageGroupProps) {
                 : maxStepX
               : 0
           const groupWidth = cardWidth + (cols - 1) * stepX
-          const offsetX = (containerSize - groupWidth) / 2
+          const offsetX = (width - groupWidth) / 2
 
           const isFirst = colIndex === 0
           const isLast = colIndex === cols - 1 && cols > 1
