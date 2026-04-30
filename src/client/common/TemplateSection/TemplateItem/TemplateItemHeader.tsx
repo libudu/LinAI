@@ -77,7 +77,6 @@ export const TemplateItemGenerateButtons: React.FC<{
         {gptImageSettings.enable4K && (
           <Tooltip title="GPTImage2 生成 4K 图">
             <Button
-              type="text"
               className="flex items-center justify-center px-2! text-slate-500 hover:bg-purple-50 hover:text-purple-600"
               icon={<img src={openaiIcon} className="h-4 w-4 opacity-70" />}
               onClick={() => handleGenerate(template.id, '4k')}
@@ -135,7 +134,7 @@ export const TemplateItemHeader = ({
               {template.n}张
             </Tag>
           )}
-          <div className="ml-2 hidden gap-2 sm:flex">
+          <div className="ml-2 hidden gap-1 sm:flex">
             <TemplateItemGenerateButtons template={template} />
           </div>
         </Space>

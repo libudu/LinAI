@@ -52,7 +52,7 @@ export function TemplateItem({
           <div className="mt-auto pt-1 text-xs text-slate-400">
             {new Date(template.createdAt).toLocaleString()}
           </div>
-          <div className="ml-2 flex justify-end gap-2 sm:hidden">
+          <div className="ml-2 flex justify-end gap-1 sm:hidden">
             <TemplateItemGenerateButtons template={template} />
           </div>
         </div>

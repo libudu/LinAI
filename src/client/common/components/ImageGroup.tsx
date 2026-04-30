@@ -22,8 +22,8 @@ export function ImageGroup({ images, width, height }: ImageGroupProps) {
           Math.ceil(visibleImages.length / 2),
           Math.floor(visibleImages.length / 2),
         ]
-  const cardHeight = rows === 1 ? height : height * 0.7
-  const cardWidth = Math.round(cardHeight * 0.64)
+  const cardHeight = rows === 1 ? height : height * 0.6
+  const cardWidth = Math.round(cardHeight * 0.6)
   const stepY = rows > 1 ? (height - cardHeight) / (rows - 1) : 0
 
   return (
