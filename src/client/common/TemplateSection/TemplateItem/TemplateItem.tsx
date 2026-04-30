@@ -19,7 +19,7 @@ export function TemplateItem({
   return (
     <Card size="small" className="shadow-sm transition-shadow hover:shadow-md">
       <div className="flex gap-2">
-        <ImageGroup images={template.images || []} width={100} height={100} />
+        <ImageGroup images={template.images || []} width={80} height={100} />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <TemplateItemHeader template={template} draggable={draggable} />
           {template.title && (
