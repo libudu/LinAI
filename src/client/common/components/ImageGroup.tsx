@@ -2,10 +2,9 @@ import { Image } from 'antd'
 
 interface ImageGroupProps {
   images: string[]
-  showCount?: boolean
 }
 
-export function ImageGroup({ images, showCount }: ImageGroupProps) {
+export function ImageGroup({ images }: ImageGroupProps) {
   if (!images || images.length === 0) return null
 
   const visibleImages = images.slice(0, 8)
@@ -95,11 +94,9 @@ export function ImageGroup({ images, showCount }: ImageGroupProps) {
           </div>
         )}
       </Image.PreviewGroup>
-      {showCount !== false && (
-        <div className="absolute right-1 bottom-0 z-20 rounded bg-black/50 px-1 text-[10px] text-white">
-          {images.length}张
-        </div>
-      )}
+      <div className="absolute right-1 bottom-0 z-20 rounded bg-black/50 px-1 text-[10px] text-white">
+        {images.length}张
+      </div>
     </div>
   )
 }
