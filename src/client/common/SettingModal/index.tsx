@@ -2,8 +2,12 @@ import { Modal, Tabs } from 'antd'
 import { useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AdminSetting, AdminSettingRef } from './AdminSetting'
+import { ExperimentalFeatureSettings } from './ExperimentalFeatureSetting'
 import { GPTImageSetting, GPTImageSettingRef } from './GPTImageSetting'
+import { PresetExportImport } from './PresetExportImport'
 import { UploadImageSetting } from './UploadImageSetting'
+import { useLocalSetting } from '../../hooks/useLocalSetting'
+import { isFeatureEnabled } from '../../utils/featureFlags'
 
 export function openSettingModal(options?: {
   initialTab?: string
@@ -26,6 +30,12 @@ export function openSettingModal(options?: {
     )
     const gptImageRef = useRef<GPTImageSettingRef>(null)
     const adminRef = useRef<AdminSettingRef>(null)
+    const { featureFlags } = useLocalSetting()
+
+    const isPresetExportEnabled = isFeatureEnabled(
+      'preset_export_import',
+      featureFlags,
+    )
 
     const handleSave = async () => {
       try {
@@ -55,6 +65,20 @@ export function openSettingModal(options?: {
         children: <UploadImageSetting />,
       },
     ]
+
+    if (isPresetExportEnabled) {
+      items.push({
+        key: 'preset-export-import',
+        label: '预设管理',
+        children: <PresetExportImport />,
+      })
+    }
+
+    items.push({
+      key: 'experimental',
+      label: '实验性功能',
+      children: <ExperimentalFeatureSettings />,
+    })
 
     const isAdmin =
       window.location.hostname === 'localhost' &&
