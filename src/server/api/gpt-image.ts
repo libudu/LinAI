@@ -6,6 +6,7 @@ import { getConfig } from '../common/config'
 import { TaskTemplate, templateManager } from '../common/template-manager'
 import { TRIAL_TEMPLATE_TITLE } from '../common/template-manager/enum'
 import { handleImageGeneration } from '../module/gpt-image'
+import { decryptApiKey } from '../module/gpt-image/encrypt'
 import { GPT_IMAGE_OUTPUT_MAX_N } from '../module/gpt-image/enum'
 
 export interface GPTImageQuotaResponse {
@@ -24,6 +25,8 @@ const gptImageApi = new Hono()
   .get('/quota', async (c) => {
     const config = getConfig()
     const apiKey = config.gptImageApiKey
+      ? decryptApiKey(config.gptImageApiKey)
+      : undefined
     if (!apiKey) {
       return c.json(
         { success: false as const, error: 'API Key is not configured' },
@@ -72,6 +75,8 @@ const gptImageApi = new Hono()
       const { templateId, size, quality } = c.req.valid('json')
       const config = getConfig()
       const apiKey = config.gptImageApiKey
+        ? decryptApiKey(config.gptImageApiKey)
+        : undefined
       if (!apiKey) {
         return c.json(
           { success: false as const, error: 'API Key is not configured' },
@@ -113,6 +118,8 @@ const gptImageApi = new Hono()
         c.req.valid('json')
       const config = getConfig()
       const apiKey = config.gptImageApiKey
+        ? decryptApiKey(config.gptImageApiKey)
+        : undefined
       if (!apiKey) {
         return c.json(
           { success: false as const, error: 'API Key is not configured' },
