@@ -100,13 +100,13 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
   })
   const imagesToUpload = images.length
     ? await Promise.all(
-      images.map(
-        async (file) =>
-          await toFile(fs.createReadStream(file), null, {
-            type: 'image/png',
-          }),
-      ),
-    )
+        images.map(
+          async (file) =>
+            await toFile(fs.createReadStream(file), null, {
+              type: 'image/png',
+            }),
+        ),
+      )
     : undefined
 
   let res: OpenAI.Images.ImagesResponse

@@ -27,6 +27,7 @@ export function GPTImageQuota() {
             {quota.unlimited_quota
               ? '不限'
               : (quota.total_available * 0.000001).toFixed(2)}
+            ￥
           </span>
         </span>
       ) : (
