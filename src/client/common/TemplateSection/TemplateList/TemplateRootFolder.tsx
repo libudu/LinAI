@@ -12,7 +12,7 @@ export function TemplateFolder({
   onSelect,
 }: TemplateFolderProps) {
   return (
-    <div className="mt-2 grid h-full grid-cols-2 content-start gap-4">
+    <div className="grid h-full grid-cols-2 content-start gap-4">
       <Card
         hoverable
         onClick={() => onSelect('image')}

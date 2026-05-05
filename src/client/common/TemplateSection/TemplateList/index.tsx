@@ -50,8 +50,8 @@ export const TemplateList = forwardRef<TemplateListRef, unknown>((_, ref) => {
   }
 
   return (
-    <div className="w-full md:relative md:w-1/2">
-      <div className="flex w-full flex-col rounded-2xl border border-slate-200 bg-white px-4 py-6 shadow-sm md:absolute md:inset-0 md:px-6">
+    <>
+      <div className="flex max-h-120 w-full flex-col rounded-2xl p-0 md:absolute md:inset-0 md:max-h-none md:p-6">
         <div className="mb-4 flex shrink-0 items-center justify-between">
           <h3 className="m-0 flex items-center text-base font-semibold text-slate-800 md:text-lg">
             {selectedSource === null ? (
@@ -119,6 +119,6 @@ export const TemplateList = forwardRef<TemplateListRef, unknown>((_, ref) => {
           )}
         </div>
       </div>
-    </div>
+    </>
   )
 })

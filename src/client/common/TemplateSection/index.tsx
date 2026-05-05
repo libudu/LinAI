@@ -4,6 +4,14 @@ import { usePlatform } from '../../hooks/usePlatform'
 import { TemplateForm } from './TemplateForm'
 import { TemplateList, TemplateListRef } from './TemplateList'
 
+const ModuleWrapper = ({ children }: { children: React.ReactElement }) => {
+  return (
+    <div className="w-full rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:relative md:w-1/2 md:p-6">
+      {children}
+    </div>
+  )
+}
+
 export function TemplateSection() {
   const listRef = useRef<TemplateListRef>(null)
   const { isMobile } = usePlatform()
@@ -30,9 +38,13 @@ export function TemplateSection() {
           />
         </div>
         {activeTab === 'form' ? (
-          <TemplateForm onSuccess={handleSuccess} />
+          <ModuleWrapper>
+            <TemplateForm onSuccess={handleSuccess} />
+          </ModuleWrapper>
         ) : (
-          <TemplateList ref={listRef} />
+          <ModuleWrapper>
+            <TemplateList ref={listRef} />
+          </ModuleWrapper>
         )}
       </div>
     )
@@ -41,10 +53,14 @@ export function TemplateSection() {
   return (
     <div className="flex gap-6">
       {/* 左侧：表单 */}
-      <TemplateForm onSuccess={handleSuccess} />
+      <ModuleWrapper>
+        <TemplateForm onSuccess={handleSuccess} />
+      </ModuleWrapper>
 
       {/* 右侧：模板列表 */}
-      <TemplateList ref={listRef} />
+      <ModuleWrapper>
+        <TemplateList ref={listRef} />
+      </ModuleWrapper>
     </div>
   )
 }
