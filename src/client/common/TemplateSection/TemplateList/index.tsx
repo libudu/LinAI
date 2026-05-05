@@ -50,29 +50,52 @@ export const TemplateList = forwardRef<TemplateListRef, unknown>((_, ref) => {
   }
 
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 pr-4 shadow-sm">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="m-0 flex items-center text-base font-semibold text-slate-800 md:text-lg">
-          {selectedSource === null ? (
-            `所有模板 (${templates.length})`
-          ) : (
-            <>
-              <span
-                className="cursor-pointer text-slate-500 transition-colors hover:text-blue-600"
-                onClick={() => {
-                  setSelectedSource(null)
-                  setSelectedFolder(null)
-                }}
-              >
-                所有模板 ({templates.length})
-              </span>
-              <span className="mx-2 font-normal text-slate-400">/</span>
-              {selectedFolder ? (
-                <>
-                  <span
-                    className="cursor-pointer text-slate-500 transition-colors hover:text-blue-600"
-                    onClick={() => setSelectedFolder(null)}
-                  >
+    <div className="w-full md:relative md:w-1/2">
+      <div className="flex w-full flex-col rounded-2xl border border-slate-200 bg-white px-4 py-6 shadow-sm md:absolute md:inset-0 md:px-6">
+        <div className="mb-4 flex shrink-0 items-center justify-between">
+          <h3 className="m-0 flex items-center text-base font-semibold text-slate-800 md:text-lg">
+            {selectedSource === null ? (
+              `所有模板 (${templates.length})`
+            ) : (
+              <>
+                <span
+                  className="cursor-pointer text-slate-500 transition-colors hover:text-blue-600"
+                  onClick={() => {
+                    setSelectedSource(null)
+                    setSelectedFolder(null)
+                  }}
+                >
+                  所有模板 ({templates.length})
+                </span>
+                <span className="mx-2 font-normal text-slate-400">/</span>
+                {selectedFolder ? (
+                  <>
+                    <span
+                      className="cursor-pointer text-slate-500 transition-colors hover:text-blue-600"
+                      onClick={() => setSelectedFolder(null)}
+                    >
+                      {selectedSource === 'video' ? '视频' : '图片'}模板 (
+                      {
+                        templates.filter((t) => t.usageType === selectedSource)
+                          .length
+                      }
+                      )
+                    </span>
+                    <span className="mx-2 font-normal text-slate-400">/</span>
+                    <span>
+                      {selectedFolder} (
+                      {
+                        templates.filter(
+                          (t) =>
+                            t.usageType === selectedSource &&
+                            t.folder === selectedFolder,
+                        ).length
+                      }
+                      )
+                    </span>
+                  </>
+                ) : (
+                  <span>
                     {selectedSource === 'video' ? '视频' : '图片'}模板 (
                     {
                       templates.filter((t) => t.usageType === selectedSource)
@@ -80,41 +103,22 @@ export const TemplateList = forwardRef<TemplateListRef, unknown>((_, ref) => {
                     }
                     )
                   </span>
-                  <span className="mx-2 font-normal text-slate-400">/</span>
-                  <span>
-                    {selectedFolder} (
-                    {
-                      templates.filter(
-                        (t) =>
-                          t.usageType === selectedSource &&
-                          t.folder === selectedFolder,
-                      ).length
-                    }
-                    )
-                  </span>
-                </>
-              ) : (
-                <span>
-                  {selectedSource === 'video' ? '视频' : '图片'}模板 (
-                  {
-                    templates.filter((t) => t.usageType === selectedSource)
-                      .length
-                  }
-                  )
-                </span>
-              )}
-            </>
-          )}
-        </h3>
-      </div>
-
-      {loading ? (
-        <div className="flex h-40 items-center justify-center">
-          <Spin />
+                )}
+              </>
+            )}
+          </h3>
         </div>
-      ) : (
-        renderTemplateList()
-      )}
+
+        <div className="flex min-h-0 flex-1 flex-col">
+          {loading ? (
+            <div className="flex h-40 items-center justify-center">
+              <Spin />
+            </div>
+          ) : (
+            renderTemplateList()
+          )}
+        </div>
+      </div>
     </div>
   )
 })

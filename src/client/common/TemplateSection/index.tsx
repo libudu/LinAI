@@ -39,7 +39,7 @@ export function TemplateSection() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+    <div className="flex gap-6">
       {/* 左侧：表单 */}
       <TemplateForm onSuccess={handleSuccess} />
 
