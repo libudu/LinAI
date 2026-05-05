@@ -5,6 +5,12 @@ import { AdminSetting, AdminSettingRef } from './AdminSetting'
 import { GPTImageSetting, GPTImageSettingRef } from './GPTImageSetting'
 import { UploadImageSetting } from './UploadImageSetting'
 
+export const isAdmin = () => {
+  return (
+    window.location.hostname === 'localhost' && !!localStorage.getItem('admin')
+  )
+}
+
 export function openSettingModal(options?: {
   initialTab?: string
   onSuccess?: (apiKey: string) => void
@@ -56,11 +62,7 @@ export function openSettingModal(options?: {
       },
     ]
 
-    const isAdmin =
-      window.location.hostname === 'localhost' &&
-      !!localStorage.getItem('admin')
-
-    if (isAdmin) {
+    if (isAdmin()) {
       items.push({
         key: 'admin',
         label: '管理员设置',

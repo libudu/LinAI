@@ -49,9 +49,6 @@ export function TaskItemTags({ task, downloadedIds }: TaskItemTagsProps) {
 
   return (
     <div className="mb-2 flex flex-wrap gap-1">
-      <Tag color="purple">
-        {task.rawTemplate?.usageType === 'image' ? '图片' : '视频'}
-      </Tag>
       {task.rawTemplate?.aspectRatio && (
         <Tag color="blue">{task.rawTemplate.aspectRatio}</Tag>
       )}

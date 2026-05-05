@@ -29,7 +29,6 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
   const usageType = Form.useWatch('usageType', form)
   const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
   const { gptImageSettings } = useLocalSetting()
-  const [hasTrialed, setHasTrialed] = useState(false)
 
   const doTrial = async (size: GptImageSize) => {
     const prompt = form.getFieldValue('prompt')
@@ -40,7 +39,6 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
     }
     const aspectRatio = form.getFieldValue('aspectRatio') || '1:1'
 
-    setHasTrialed(true)
     message.success('任务提交成功')
     try {
       const res = await client.api.gptImage.trial.$post({
@@ -166,7 +164,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
                 size="large"
                 className="grow border-purple-300 text-purple-600 hover:border-purple-400 hover:text-purple-500"
               >
-                {hasTrialed ? '继续生成1K图' : '生成1K图'}
+                生成1K图
               </Button>
             )}
             {usageType === 'image' && gptImageSettings.enable2K && (
@@ -174,9 +172,18 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
                 onClick={() => handleTrial('2k')}
                 disabled={uploadingCount > 0}
                 size="large"
-                className="grow border-purple-300 text-purple-600 hover:border-purple-400 hover:text-purple-500"
+                className="grow"
               >
-                {hasTrialed ? '继续生成2K图' : '生成2K图'}
+                生成2K图
+              </Button>
+            )}
+            {usageType === 'image' && gptImageSettings.enable4K && (
+              <Button
+                onClick={() => handleTrial('4k')}
+                disabled={uploadingCount > 0}
+                size="large"
+              >
+                生成4K图
               </Button>
             )}
             <Button
@@ -185,7 +192,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
               loading={submitting}
               disabled={uploadingCount > 0}
               block={usageType !== 'image'}
-              className="grow-2 bg-emerald-600 hover:bg-emerald-700"
+              className="grow"
               size="large"
             >
               保存模板

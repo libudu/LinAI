@@ -2,6 +2,7 @@ import { RedoOutlined, SyncOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { Button, Card, Image, List, Tooltip, Typography, message } from 'antd'
 import copy from 'copy-to-clipboard'
+import dayjs from 'dayjs'
 import { hc } from 'hono/client'
 import type { AppType } from '../../../server'
 import type { Task } from '../../../server/common/task-manager'
@@ -77,10 +78,16 @@ export function TaskList() {
         }}
         renderItem={(task) => (
           <List.Item>
-            <Card size="small" className="w-full shadow-sm">
+            <Card
+              size="small"
+              className="w-full shadow-sm transition-shadow hover:shadow-md"
+              classNames={{
+                body: 'p-[10px]! hover:bg-gray-100 transition-colors duration-100',
+              }}
+            >
               <div className="flex gap-4">
                 {/* Left: Image Preview */}
-                <div className="relative flex h-36 w-28 shrink-0 items-center justify-center overflow-hidden rounded border border-gray-100 bg-gray-50">
+                <div className="relative flex h-[130px] w-[100px] shrink-0 items-center justify-center overflow-hidden rounded border border-gray-100 bg-gray-50">
                   {task.status === 'failed' && task.error ? (
                     <div className="flex w-full flex-col items-center justify-center p-2">
                       <Typography.Text type="danger" strong className="mb-1">
@@ -105,8 +112,8 @@ export function TaskList() {
                     <div className="flex h-full w-full items-center justify-center">
                       <ImageGroup
                         images={task.outputUrls}
-                        width={110}
-                        height={140}
+                        width={100}
+                        height={130}
                       />
                     </div>
                   ) : (
@@ -122,25 +129,28 @@ export function TaskList() {
                 </div>
 
                 {/* Right: Info and Actions */}
-                <div className="flex min-w-0 flex-grow flex-col justify-between overflow-hidden">
+                <div className="flex min-w-0 flex-col justify-between overflow-hidden">
                   <div>
                     {/* Tags */}
                     <TaskItemTags
                       task={task}
                       downloadedIds={downloadedIds || []}
                     />
-
                     {/* Title */}
-                    {task.rawTemplate?.title && (
-                      <Typography.Text
-                        strong
-                        className="mb-1 block truncate"
-                        title={task.rawTemplate.title}
-                      >
-                        {task.rawTemplate.title}
-                      </Typography.Text>
-                    )}
-
+                    <div className="flex items-center gap-2">
+                      {task.rawTemplate?.title && (
+                        <Typography.Text
+                          strong
+                          className="truncate"
+                          title={task.rawTemplate.title}
+                        >
+                          {task.rawTemplate.title}
+                        </Typography.Text>
+                      )}
+                      <div className="shrink-0 text-xs text-slate-400">
+                        {dayjs(task.createdAt).format('YY/MM/DD HH:mm')}
+                      </div>
+                    </div>
                     {/* Prompt */}
                     {task.rawTemplate?.prompt && (
                       <Typography.Paragraph
@@ -160,10 +170,7 @@ export function TaskList() {
                   </div>
 
                   {/* Actions */}
-                  <div className="mt-2 flex items-center justify-between gap-1">
-                    <div className="text-xs text-slate-400">
-                      {new Date(task.createdAt).toLocaleString()}
-                    </div>
+                  <div className="flex items-center justify-end">
                     <div className="flex items-center gap-1">
                       {task.outputUrls && task.outputUrls.length > 0 && (
                         <TaskItemDownloadButton

@@ -1,8 +1,9 @@
 import { hc } from 'hono/client'
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { create } from 'zustand'
 import type { AppType } from '../../server'
 import type { GPTImageQuotaResponse } from '../../server/api/gpt-image'
+import { isAdmin } from '../common/SettingModal'
 import { useGlobalStore } from '../store/global'
 import { useTasks } from './useTasks'
 
@@ -88,7 +89,10 @@ export function useGPTImageQuota() {
   const error = useQuotaStore((state) => state.error)
   const fetchQuota = useQuotaStore((state) => state.fetchQuota)
 
-  const isPublic = isPublicApiKey(data?.name)
+  const isPublic = useMemo(
+    () => isPublicApiKey(data?.name) && !isAdmin(),
+    [data?.name],
+  )
 
   useEffect(() => {
     fetchQuota(gptImageApiKey)
