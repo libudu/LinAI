@@ -7,7 +7,7 @@ import { ImageUpload } from './ImageUpload'
 
 function TitleFormItem({ className }: { className?: string }) {
   return (
-    <Form.Item name="title" label="（可选）标题" className={className}>
+    <Form.Item name="title" label="标题" className={className}>
       <Input placeholder="请输入模板标题..." />
     </Form.Item>
   )
@@ -42,7 +42,7 @@ function CountFormItem({ className }: { className?: string }) {
   return (
     <Form.Item
       name="n"
-      label="生成张数"
+      label="张数"
       className={classnames(className, '[&_.ant-input-number]:w-full!')}
     >
       <InputNumber min={1} max={8} className="" />
@@ -94,7 +94,7 @@ export function TemplateFormFields({
       <div className="flex gap-4">
         <TitleFormItem className="flex-1" />
         <FolderFormItem className="w-1/4" />
-        <AspectRatioFormItem className="w-1/4" />
+        <AspectRatioFormItem className="w-1/5" />
       </div>
 
       <div className="flex gap-4">
@@ -110,7 +110,7 @@ export function TemplateFormFields({
             }}
           />
         </Form.Item>
-        {gptImageSettings.enableMultiple && <CountFormItem className="w-1/4" />}
+        {gptImageSettings.enableMultiple && <CountFormItem className="w-1/5" />}
       </div>
 
       <PromptFormItem

@@ -1,3 +1,4 @@
+import { useLocalStorageState } from 'ahooks'
 import { Spin } from 'antd'
 import { forwardRef, useImperativeHandle, useState } from 'react'
 import { useTemplates } from '../../../hooks/useTemplates'
@@ -9,9 +10,11 @@ export interface TemplateListRef {
 }
 
 export const TemplateList = forwardRef<TemplateListRef, unknown>((_, ref) => {
-  const [selectedSource, setSelectedSource] = useState<
+  const [selectedSource, setSelectedSource] = useLocalStorageState<
     'video' | 'image' | null
-  >(null)
+  >('template-list-selected-source', {
+    defaultValue: null,
+  })
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
 
   const { data: templates = [], loading, refresh } = useTemplates()
