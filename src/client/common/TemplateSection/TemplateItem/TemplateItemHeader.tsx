@@ -52,38 +52,26 @@ export const TemplateItemGenerateButtons: React.FC<{
   return (
     template.usageType === 'image' && (
       <>
-        {gptImageSettings.enable1K && (
-          <Tooltip title="GPTImage2 生成 1K 图">
-            <Button
-              className="flex items-center justify-center px-2! text-slate-500 hover:bg-purple-50 hover:text-purple-600"
-              icon={<img src={openaiIcon} className="h-4 w-4 opacity-70" />}
-              onClick={() => handleGenerate(template.id, '1k')}
-            >
-              1K
-            </Button>
-          </Tooltip>
-        )}
-        {gptImageSettings.enable2K && (
-          <Tooltip title="GPTImage2 生成 2K 图">
-            <Button
-              className="flex items-center justify-center px-2! text-slate-500 hover:bg-purple-50 hover:text-purple-600"
-              icon={<img src={openaiIcon} className="h-4 w-4 opacity-70" />}
-              onClick={() => handleGenerate(template.id, '2k')}
-            >
-              2K
-            </Button>
-          </Tooltip>
-        )}
-        {gptImageSettings.enable4K && (
-          <Tooltip title="GPTImage2 生成 4K 图">
-            <Button
-              className="flex items-center justify-center px-2! text-slate-500 hover:bg-purple-50 hover:text-purple-600"
-              icon={<img src={openaiIcon} className="h-4 w-4 opacity-70" />}
-              onClick={() => handleGenerate(template.id, '4k')}
-            >
-              4K
-            </Button>
-          </Tooltip>
+        {(
+          [
+            { size: '1K', key: 'enable1K', value: '1k' },
+            { size: '2K', key: 'enable2K', value: '2k' },
+            { size: '4K', key: 'enable4K', value: '4k' },
+          ] as const
+        ).map(
+          (item) =>
+            gptImageSettings[item.key] && (
+              <Tooltip key={item.key} title={`GPTImage2 生成 ${item.size} 图`}>
+                <Button
+                  className="flex items-center justify-center px-2!"
+                  variant="outlined"
+                  icon={<img src={openaiIcon} className="h-4 w-4 opacity-70" />}
+                  onClick={() => handleGenerate(template.id, item.value)}
+                >
+                  {item.size}
+                </Button>
+              </Tooltip>
+            ),
         )}
       </>
     )
@@ -118,14 +106,8 @@ export const TemplateItemHeader = ({
     <div>
       <div className="flex items-center justify-between">
         <Space size={4}>
-          <Tag
-            color={template.usageType === 'image' ? 'blue' : 'purple'}
-            className="m-0"
-          >
-            {template.usageType === 'image' ? '图片' : '视频'}
-          </Tag>
           {template.aspectRatio && (
-            <Tag color="default" className="m-0">
+            <Tag color="blue" className="m-0">
               {template.aspectRatio}
             </Tag>
           )}
@@ -134,7 +116,7 @@ export const TemplateItemHeader = ({
               {template.n}张
             </Tag>
           )}
-          <div className="ml-2 hidden gap-1 sm:flex">
+          <div className="ml-2 hidden gap-2 sm:flex">
             <TemplateItemGenerateButtons template={template} />
           </div>
         </Space>

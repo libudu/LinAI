@@ -61,7 +61,7 @@ export function TemplateItem({
               {template.prompt}
             </p>
           </Tooltip>
-          <div className="ml-2 flex justify-end gap-1 sm:hidden">
+          <div className="ml-2 flex justify-end gap-2 sm:hidden">
             <TemplateItemGenerateButtons template={template} />
           </div>
         </div>

@@ -132,7 +132,7 @@ export function TaskList() {
                 </div>
 
                 {/* Right: Info and Actions */}
-                <div className="flex min-w-0 flex-col justify-between overflow-hidden">
+                <div className="flex min-w-0 grow flex-col justify-between overflow-hidden">
                   <div>
                     {/* Tags */}
                     <TaskItemTags
@@ -202,7 +202,7 @@ export function TaskList() {
                           />
                         </Tooltip>
                       )}
-                      <TaskItemDeleteButton id={task.id} />
+                      <TaskItemDeleteButton id={task.id} status={task.status} />
                     </div>
                   </div>
                 </div>

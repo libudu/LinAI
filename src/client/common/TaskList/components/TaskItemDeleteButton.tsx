@@ -8,10 +8,11 @@ const client = hc<AppType>('/')
 
 interface DeleteTaskButtonProps {
   id: string
+  status?: string
   onSuccess?: () => void
 }
 
-export function TaskItemDeleteButton({ id, onSuccess }: DeleteTaskButtonProps) {
+export function TaskItemDeleteButton({ id, status, onSuccess }: DeleteTaskButtonProps) {
   const [skipDeleteConfirm, setSkipDeleteConfirm] = useLocalStorageState(
     'skipDeleteTaskConfirm',
     {
@@ -37,7 +38,7 @@ export function TaskItemDeleteButton({ id, onSuccess }: DeleteTaskButtonProps) {
   }
 
   const handleDelete = () => {
-    if (skipDeleteConfirm) {
+    if (skipDeleteConfirm || status === 'failed') {
       doDelete()
       return
     }
