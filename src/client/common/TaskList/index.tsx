@@ -51,6 +51,9 @@ export function TaskList() {
   return (
     <Card
       className="w-full border-slate-200 shadow-sm"
+      classNames={{
+        body: 'px-3! md:px-6!',
+      }}
       styles={{ body: { paddingTop: 0 } }}
     >
       <TaskListHeader

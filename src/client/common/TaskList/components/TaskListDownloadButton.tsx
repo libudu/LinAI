@@ -2,7 +2,11 @@ import { DownloadOutlined } from '@ant-design/icons'
 import { Button, message } from 'antd'
 import { useState } from 'react'
 import type { Task } from '../../../../server/common/task-manager'
-import { downloadFile, downloadFilesZip } from '../../../utils/download'
+import {
+  DOWNLOAD_ZIP_MAX_FILES,
+  downloadFile,
+  downloadFilesZip,
+} from '../../../utils/download'
 
 interface TaskListDownloadButtonProps {
   tasks: Task[]
@@ -47,7 +51,7 @@ export function TaskListDownloadButton({
         }))
       })
 
-      if (filesToDownload.length > 3) {
+      if (filesToDownload.length > DOWNLOAD_ZIP_MAX_FILES) {
         message.loading({ content: '正在打包压缩...', key: 'download' })
         await downloadFilesZip(filesToDownload, `tasks_${new Date().getTime()}`)
         message.success({ content: '打包下载完成', key: 'download' })

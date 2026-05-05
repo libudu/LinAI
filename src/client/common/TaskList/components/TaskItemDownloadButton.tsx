@@ -1,6 +1,10 @@
 import { DownloadOutlined } from '@ant-design/icons'
 import { Button, message, Tooltip } from 'antd'
-import { downloadFile, downloadFilesZip } from '../../../utils/download'
+import {
+  DOWNLOAD_ZIP_MAX_FILES,
+  downloadFile,
+  downloadFilesZip,
+} from '../../../utils/download'
 
 export const TaskItemDownloadButton = ({
   outputUrls,
@@ -18,7 +22,7 @@ export const TaskItemDownloadButton = ({
     }
 
     try {
-      if (outputUrls.length > 3) {
+      if (outputUrls.length > DOWNLOAD_ZIP_MAX_FILES) {
         message.loading({ content: '正在打包压缩...', key: 'download' })
         const filesToDownload = outputUrls.map((url, index) => ({
           url,

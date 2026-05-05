@@ -5,6 +5,7 @@ import {
   GPT_IMAGE_RMB_RATIO,
   MODEL_GROUP_RATIO,
 } from '../../../hooks/useGPTImageQuota'
+import { usePlatform } from '../../../hooks/usePlatform'
 
 interface TaskItemTagsProps {
   task: Task
@@ -12,6 +13,8 @@ interface TaskItemTagsProps {
 }
 
 export function TaskItemTags({ task, downloadedIds }: TaskItemTagsProps) {
+  const { isDesktop } = usePlatform()
+
   const renderCost = (record: Task) => {
     if (record.gptTokenUsage) {
       const inputTokens = record.gptTokenUsage.input_tokens || 0
@@ -70,8 +73,8 @@ export function TaskItemTags({ task, downloadedIds }: TaskItemTagsProps) {
       ) : (
         <Tag color="geekblue">未下载</Tag>
       )}
-      {renderCost(task)}
-      {task.duration && (
+      {isDesktop && renderCost(task)}
+      {isDesktop && task.duration && (
         <Tag color="lime">
           <ClockCircleOutlined className="mr-1" />
           {(task.duration / 1000).toFixed(1)}s

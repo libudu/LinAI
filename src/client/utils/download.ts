@@ -17,6 +17,9 @@ export const downloadFile = async (url: string, fileName: string) => {
   saveAs(blob, `${safeName}.${ext}`)
 }
 
+/** 打压缩包下载的文件数量下限 */
+export const DOWNLOAD_ZIP_MAX_FILES = 10
+
 export const downloadFilesZip = async (
   files: { url: string; fileName: string; id: string }[],
   zipName: string,
