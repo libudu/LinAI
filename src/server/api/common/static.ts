@@ -61,7 +61,7 @@ const staticApi = new Hono()
         const webpBuffer = await sharp(buffer)
           .resize(IMAGE_MAX_DIMENSION, IMAGE_MAX_DIMENSION, {
             fit: 'inside',
-            withoutEnlargement: true
+            withoutEnlargement: true,
           })
           .webp({ quality: IMAGE_COMPRESS_QUALITY })
           .toBuffer()

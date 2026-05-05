@@ -50,7 +50,9 @@ export const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
         enable2K: values.enable2K ?? gptImageSettings.enable2K,
         enable4K: values.enable4K ?? gptImageSettings.enable4K,
         quality: values.quality ?? gptImageSettings.quality,
-        enableMultiple: isPublic ? false : (values.enableMultiple ?? gptImageSettings.enableMultiple),
+        enableMultiple: isPublic
+          ? false
+          : (values.enableMultiple ?? gptImageSettings.enableMultiple),
       })
       message.success('配置保存成功')
       return values.apiKey
@@ -138,7 +140,11 @@ export const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-lg">
                   <span className="text-sm text-gray-500">生成多张</span>
-                  <Form.Item name="enableMultiple" valuePropName="checked" noStyle>
+                  <Form.Item
+                    name="enableMultiple"
+                    valuePropName="checked"
+                    noStyle
+                  >
                     <Switch disabled={isPublic} />
                   </Form.Item>
                 </div>

@@ -52,7 +52,7 @@ export const TemplateList = forwardRef<TemplateListRef, unknown>((_, ref) => {
   return (
     <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 pr-4 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="m-0 flex items-center text-lg font-semibold text-slate-800">
+        <h3 className="m-0 flex items-center text-base font-semibold text-slate-800 md:text-lg">
           {selectedSource === null ? (
             `所有模板 (${templates.length})`
           ) : (

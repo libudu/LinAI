@@ -38,10 +38,11 @@ export function TaskListDownloadButton({
           task.rawTemplate?.title ||
           task.rawTemplate?.prompt ||
           `task_${task.id}`
-        
+
         return task.outputUrls!.map((url, index) => ({
           url,
-          fileName: task.outputUrls!.length > 1 ? `${baseName}_${index + 1}` : baseName,
+          fileName:
+            task.outputUrls!.length > 1 ? `${baseName}_${index + 1}` : baseName,
           id: `${task.id}_${index}`,
         }))
       })
