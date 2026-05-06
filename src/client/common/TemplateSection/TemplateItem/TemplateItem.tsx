@@ -42,13 +42,7 @@ export function TemplateItem({
               {dayjs(template.createdAt).format('YY/MM/DD HH:mm')}
             </div>
           </div>
-          <Tooltip
-            title={template.prompt}
-            placement="bottom"
-            classNames={{
-              container: 'w-[500px]!',
-            }}
-          >
+          <Tooltip title={template.prompt} placement="bottom">
             <p
               className="m-0 line-clamp-2 cursor-pointer text-sm text-slate-600 transition-colors hover:text-blue-500"
               onClick={() => {

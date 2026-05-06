@@ -2,7 +2,8 @@ import { PlusOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { Button, Form, message, Radio } from 'antd'
 import { hc } from 'hono/client'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useShallow } from 'zustand/shallow'
 import type { AppType } from '../../../../server'
 import type { GptImageSize } from '../../../../server/module/gpt-image/enum'
 import { openSettingModal } from '../../../common/SettingModal'
@@ -17,6 +18,7 @@ interface TemplateFormProps {
 }
 
 export function TemplateForm({ onSuccess }: TemplateFormProps) {
+  const formRef = useRef<HTMLDivElement>(null)
   const [form] = Form.useForm()
   const [submitting, setSubmitting] = useState(false)
   const [imageUrls, setImageUrls] = useState<string[]>([])
@@ -27,8 +29,37 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
     defaultValue: 'image',
   })
   const usageType = Form.useWatch('usageType', form)
-  const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
+  const { gptImageApiKey, fillTemplateData, setFillTemplateData } =
+    useGlobalStore(
+      useShallow((state) => ({
+        gptImageApiKey: state.gptImageApiKey,
+        fillTemplateData: state.fillTemplateData,
+        setFillTemplateData: state.setFillTemplateData,
+      })),
+    )
   const { gptImageSettings } = useLocalSetting()
+
+  // 触发填入模板数据
+  useEffect(() => {
+    if (fillTemplateData) {
+      form.setFieldsValue({
+        title: fillTemplateData.title,
+        folder: fillTemplateData.folder,
+        aspectRatio: fillTemplateData.aspectRatio,
+        n: fillTemplateData.n,
+        prompt: fillTemplateData.prompt,
+        usageType: fillTemplateData.usageType || 'image',
+      })
+      if (fillTemplateData.images) {
+        setImageUrls(fillTemplateData.images)
+      }
+      setFillTemplateData(null)
+
+      setTimeout(() => {
+        formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
+    }
+  }, [fillTemplateData, form])
 
   const doTrial = async (size: GptImageSize) => {
     const prompt = form.getFieldValue('prompt')
@@ -129,6 +160,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
           }
         }}
       >
+        <div ref={formRef} />
         <Form.Item
           name="usageType"
           label="模板用途"

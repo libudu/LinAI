@@ -1,4 +1,8 @@
-import { RedoOutlined, SyncOutlined } from '@ant-design/icons'
+import {
+  RedoOutlined,
+  SyncOutlined,
+  VerticalAlignTopOutlined,
+} from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { Button, Card, Image, List, Tooltip, Typography, message } from 'antd'
 import copy from 'copy-to-clipboard'
@@ -9,6 +13,7 @@ import type { Task } from '../../../server/common/task-manager'
 import { TRIAL_TEMPLATE_TITLE } from '../../../server/common/template-manager/enum'
 import { GPT_IMAGE_SOURCE_MODEL } from '../../../server/module/gpt-image/enum'
 import { useTasks } from '../../hooks/useTasks'
+import { useGlobalStore } from '../../store/global'
 import { ImageGroup } from '../components/ImageGroup'
 import { TaskItemDeleteButton } from './components/TaskItemDeleteButton'
 import { TaskItemDownloadButton } from './components/TaskItemDownloadButton'
@@ -159,7 +164,13 @@ export function TaskList() {
                       <Typography.Paragraph
                         type="secondary"
                         className="mb-0! cursor-pointer text-xs transition-colors hover:text-blue-500"
-                        ellipsis={{ rows: 2, tooltip: task.rawTemplate.prompt }}
+                        ellipsis={{
+                          rows: 2,
+                          tooltip: {
+                            title: task.rawTemplate.prompt,
+                            placement: 'top',
+                          },
+                        }}
                         onClick={() => {
                           if (task.rawTemplate?.prompt) {
                             copy(task.rawTemplate.prompt)
@@ -175,6 +186,20 @@ export function TaskList() {
                   {/* Actions */}
                   <div className="flex items-center justify-end">
                     <div className="flex items-center gap-1">
+                      {task.rawTemplate && (
+                        <Tooltip title="重新填入">
+                          <Button
+                            type="text"
+                            icon={<VerticalAlignTopOutlined />}
+                            onClick={() => {
+                              useGlobalStore
+                                .getState()
+                                .setFillTemplateData(task.rawTemplate)
+                              message.success('已重新填入表单')
+                            }}
+                          />
+                        </Tooltip>
+                      )}
                       {task.outputUrls && task.outputUrls.length > 0 && (
                         <TaskItemDownloadButton
                           outputUrls={task.outputUrls}

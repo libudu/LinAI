@@ -1,12 +1,15 @@
 import { hc } from 'hono/client'
 import { create } from 'zustand'
 import type { AppType } from '../../server'
+import type { TaskTemplate } from '../../server/common/template-manager'
 
 const client = hc<AppType>('/')
 
 interface GlobalState {
   gptImageApiKey: string | null
   localNetworkUrl: string | null
+  fillTemplateData: Partial<TaskTemplate> | null
+  setFillTemplateData: (data: Partial<TaskTemplate> | null) => void
   setGptImageApiKey: (key: string | null) => Promise<void>
   fetchConfig: () => Promise<void>
 }
@@ -14,6 +17,8 @@ interface GlobalState {
 export const useGlobalStore = create<GlobalState>()((set) => ({
   gptImageApiKey: null,
   localNetworkUrl: null,
+  fillTemplateData: null,
+  setFillTemplateData: (data) => set({ fillTemplateData: data }),
   setGptImageApiKey: async (key) => {
     try {
       const res = await client.api.config.$post({

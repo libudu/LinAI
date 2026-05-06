@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 // import { WanPreview } from './module/WanSection/WanPreview'
+import { ConfigProvider } from 'antd'
 import pkg from '../../package.json'
 import { Header } from './common/Header'
 import { openNotificationModal } from './common/Notification'
@@ -21,23 +22,33 @@ function App() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
-      <Header />
+    <ConfigProvider
+      theme={{
+        components: {
+          Tooltip: {
+            maxWidth: 500,
+          },
+        },
+      }}
+    >
+      <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
+        <Header />
 
-      {/* Main Content */}
-      <main className="mx-auto max-w-6xl space-y-4 p-3 sm:p-6">
-        <TemplateSection />
+        {/* Main Content */}
+        <main className="mx-auto max-w-6xl space-y-4 p-3 sm:p-6">
+          <TemplateSection />
 
-        <section className="space-y-4">
-          {/* 单独占一行的任务列表 */}
-          <TaskList />
+          <section className="space-y-4">
+            {/* 单独占一行的任务列表 */}
+            <TaskList />
 
-          {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <WanPreview />
           </div> */}
-        </section>
-      </main>
-    </div>
+          </section>
+        </main>
+      </div>
+    </ConfigProvider>
   )
 }
 
