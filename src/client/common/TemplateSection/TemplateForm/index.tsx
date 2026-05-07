@@ -10,7 +10,7 @@ import { openSettingModal } from '../../../common/SettingModal'
 import { useLocalSetting } from '../../../hooks/useLocalSetting'
 import { useGlobalStore } from '../../../store/global'
 import { TemplateFormFields } from './TemplateFormItems'
-import { WanPreview } from './WanVideoForm/WanPreview'
+import { WanVideoForm } from './WanVideoForm'
 
 const client = hc<AppType>('/')
 
@@ -181,7 +181,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
           </Radio.Group>
         </Form.Item>
 
-        {usageType === 'video' && <WanPreview />}
+        {usageType === 'video' && <WanVideoForm />}
         {usageType === 'image' && (
           <TemplateFormFields
             form={form}

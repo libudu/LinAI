@@ -13,7 +13,7 @@ export class WanxClient {
     }
   }
 
-  async getTaskList(pageSize = 10): Promise<PagingListResponse> {
+  async getTaskList(pageSize = 20): Promise<PagingListResponse> {
     try {
       const headers = await this.getHeaders()
       const response = await axios.post<PagingListResponse>(

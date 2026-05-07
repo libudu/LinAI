@@ -32,5 +32,13 @@ const wanApi = new Hono()
       return c.json({ success: true, isRunning: enable })
     },
   )
+  .get('/task-list', async (c) => {
+    try {
+      const result = await bot.getTaskList()
+      return c.json(result)
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 500)
+    }
+  })
 
 export default wanApi

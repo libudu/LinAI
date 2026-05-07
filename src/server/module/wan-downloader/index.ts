@@ -32,6 +32,10 @@ export class WanxBot {
     }
   }
 
+  public async getTaskList(pageSize?: number) {
+    return this.client.getTaskList(pageSize)
+  }
+
   public stop() {
     this.isRunning = false
     logger.log(`🛑 停止自动轮询...`)

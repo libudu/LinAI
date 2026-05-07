@@ -1,4 +1,4 @@
-import { LockOutlined, RocketOutlined } from '@ant-design/icons'
+import { LockOutlined } from '@ant-design/icons'
 import { Button, Spin, message } from 'antd'
 import { hc } from 'hono/client'
 import { useEffect, useState } from 'react'
@@ -8,7 +8,6 @@ const client = hc<AppType>('/')
 
 export function WanPreview() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [autoSubmit, setAutoSubmit] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -17,7 +16,6 @@ export function WanPreview() {
       const res = await client.api.wan.status.$get()
       const data = await res.json()
       setIsLoggedIn(data.isLoggedIn)
-      setAutoSubmit(data.autoSubmit)
       setErrorMsg(data.errorMsg)
     } catch (e) {
       console.error(e)
@@ -60,17 +58,8 @@ export function WanPreview() {
   }
 
   return (
-    <div
-      className={`flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md ${isLoggedIn ? 'cursor-pointer' : ''}`}
-    >
-      <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/50 p-5">
-        <div className="flex items-center justify-center rounded-lg bg-indigo-100 p-2 text-indigo-600">
-          <RocketOutlined className="text-xl" />
-        </div>
-        <h3 className="m-0 text-lg font-bold text-slate-800">Wan 视频下载</h3>
-      </div>
-
-      <div className="flex flex-1 flex-col gap-4 p-5">
+    <div className={`flex flex-col overflow-hidden transition-all`}>
+      <div className="flex flex-1 flex-col gap-4">
         {errorMsg && (
           <div className="px-2 text-sm text-red-500">{errorMsg}</div>
         )}
