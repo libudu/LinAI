@@ -17,7 +17,7 @@ export class WanxClient {
     try {
       const headers = await this.getHeaders()
       const response = await axios.post<PagingListResponse>(
-        `${config.BASE_URL}/v2/task/pagingList`,
+        `${config.API_URL}/v2/task/pagingList`,
         { pageSize, mediaType: 'all' },
         { headers },
       )
@@ -37,7 +37,7 @@ export class WanxClient {
     try {
       const headers = await this.getHeaders()
       const response = await axios.post<ImageGenResponse>(
-        `${config.BASE_URL}/imageGen`,
+        `${config.API_URL}/imageGen`,
         config.SUBMIT_PAYLOAD,
         { headers },
       )

@@ -1,16 +1,13 @@
-import dotenv from 'dotenv'
-dotenv.config()
+
 
 export const config = {
-  SESSION: process.env.WANX_CN_SESSION || '',
-  BASE_URL: 'https://wanx.biz.aliyun.com/wanx/api/common',
+  API_URL: 'https://wanx.biz.aliyun.com/wanx/api/common',
+  EXPLORE_URL: 'https://tongyi.aliyun.com/wan/explore',
   POLL_INTERVAL: 10 * 60 * 1000,
   MAX_IN_PROGRESS: 3,
   DOWNLOAD_DIR: './data/wan',
   RECORD_FILE: './data/logs/records.json',
   USER_DATA_DIR: './data/wan/.user_data',
-  EXPLORE_URL: 'https://tongyi.aliyun.com/wan/explore',
-  START_TIME: new Date('2036-04-17 00:00:00 GMT+0800').getTime(),
   SUBMIT_PAYLOAD: {
     deductMode: 'relax_mode',
     taskType: 'image_to_video',

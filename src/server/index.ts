@@ -10,6 +10,8 @@ import templateApi from './api/common/template'
 import geminiApi from './api/gemini'
 import gptImageApi from './api/gpt-image'
 import wanApi from './api/wan'
+import dotenv from 'dotenv'
+dotenv.config()
 
 const app = new Hono()
 

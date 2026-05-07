@@ -7,14 +7,12 @@ import { Downloader } from './downloader'
 export class WanxBot {
   private client: WanxClient
   private downloader: Downloader
-  private startTime: number
   private isRunning: boolean = false
   private currentError: string = ''
 
   constructor() {
     this.client = new WanxClient()
     this.downloader = new Downloader()
-    this.startTime = config.START_TIME
   }
 
   public async getStatus() {
@@ -48,9 +46,6 @@ export class WanxBot {
     this.currentError = ''
 
     logger.log(`🚀 Wan 视频下载 & 自动提交小工具已启动!`)
-    logger.log(
-      `📅 设置的开始时间: ${new Date(this.startTime).toLocaleString()}`,
-    )
 
     const loggedIn = await wanAuthManager.isWanLoggedIn()
     if (!loggedIn) {
@@ -91,12 +86,12 @@ export class WanxBot {
       (t) => t.status === -1 || t.status === 1,
     )
     const completedTasks = tasks.filter(
-      (t) => t.status === 2 && t.gmtCreateTimeStamp >= this.startTime,
+      (t) => t.status === 2,
     )
 
     logger.log(`📊 统计信息:`)
     logger.log(`   - 正在进行中的任务: ${inProgressTasks.length} ⏳`)
-    logger.log(`   - 符合条件的已完成任务: ${completedTasks.length} ✅`)
+    logger.log(`   - 已完成任务: ${completedTasks.length} ✅`)
 
     // 1. 处理下载
     for (const task of completedTasks) {

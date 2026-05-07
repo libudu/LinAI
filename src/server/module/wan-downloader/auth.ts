@@ -9,7 +9,7 @@ export class WanAuthManager {
   private static instance: WanAuthManager
   private currentSession: string | false | null = null
 
-  private constructor() {}
+  private constructor() { }
 
   static getInstance(): WanAuthManager {
     if (!WanAuthManager.instance) {
@@ -91,7 +91,7 @@ export class WanAuthManager {
   private async validateSession(session: string): Promise<boolean> {
     try {
       const response = await axios.post(
-        `${config.BASE_URL}/v2/task/pagingList`,
+        `${config.API_URL}/v2/task/pagingList`,
         { pageSize: 1, mediaType: 'all' },
         {
           headers: {
