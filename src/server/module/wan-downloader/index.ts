@@ -2,17 +2,14 @@ import { logger } from '../utils/logger'
 import { WanxClient } from './api'
 import { wanAuthManager } from './auth'
 import { config } from './config'
-import { Downloader } from './downloader'
 
 export class WanxBot {
   private client: WanxClient
-  private downloader: Downloader
   private isRunning: boolean = false
   private currentError: string = ''
 
   constructor() {
     this.client = new WanxClient()
-    this.downloader = new Downloader()
   }
 
   public async getStatus() {
@@ -93,12 +90,7 @@ export class WanxBot {
     logger.log(`   - 正在进行中的任务: ${inProgressTasks.length} ⏳`)
     logger.log(`   - 已完成任务: ${completedTasks.length} ✅`)
 
-    // 1. 处理下载
-    for (const task of completedTasks) {
-      await this.downloader.downloadVideo(task)
-    }
-
-    // 2. 检查是否需要提交新任务
+    // 检查是否需要提交新任务
     if (inProgressTasks.length < config.MAX_IN_PROGRESS) {
       const needed = config.MAX_IN_PROGRESS - inProgressTasks.length
       logger.log(

@@ -10,6 +10,7 @@ import { openSettingModal } from '../../../common/SettingModal'
 import { useLocalSetting } from '../../../hooks/useLocalSetting'
 import { useGlobalStore } from '../../../store/global'
 import { TemplateFormFields } from './TemplateFormItems'
+import { WanPreview } from './WanVideoForm/WanPreview'
 
 const client = hc<AppType>('/')
 
@@ -172,20 +173,23 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
             className="flex w-full"
           >
             <Radio.Button value="image" className="flex-1 text-center">
-              图片生成
+              GPT 图片生成
             </Radio.Button>
-            <Radio.Button disabled value="video" className="flex-1 text-center">
-              视频生成
+            <Radio.Button value="video" className="flex-1 text-center">
+              Wan 视频生成
             </Radio.Button>
           </Radio.Group>
         </Form.Item>
 
-        <TemplateFormFields
-          form={form}
-          imageUrls={imageUrls}
-          setImageUrls={setImageUrls}
-          setUploadingCount={setUploadingCount}
-        />
+        {usageType === 'video' && <WanPreview />}
+        {usageType === 'image' && (
+          <TemplateFormFields
+            form={form}
+            imageUrls={imageUrls}
+            setImageUrls={setImageUrls}
+            setUploadingCount={setUploadingCount}
+          />
+        )}
 
         <Form.Item className="mb-0! border-t border-slate-100 pt-4">
           <div className="flex gap-4">
