@@ -8,6 +8,7 @@ import staticApi from './api/common/static'
 import taskApi from './api/common/task'
 import templateApi from './api/common/template'
 import geminiApi from './api/gemini'
+import geminiTtsApi from './api/gemini-tts'
 import gptImageApi from './api/gpt-image'
 import wanApi from './api/wan'
 import dotenv from 'dotenv'
@@ -19,6 +20,7 @@ const routes = app
   // module
   .route('/api/wan', wanApi)
   .route('/api/gemini', geminiApi)
+  .route('/api/gemini-tts', geminiTtsApi)
   .route('/api/gptImage', gptImageApi)
   // common
   .route('/api/task', taskApi)

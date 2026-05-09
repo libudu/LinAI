@@ -1,11 +1,10 @@
-import { useEffect } from 'react'
-// import { WanPreview } from './module/WanSection/WanPreview'
 import { ConfigProvider } from 'antd'
+import { useEffect } from 'react'
+import { Route, Routes } from 'react-router-dom'
 import pkg from '../../package.json'
 import { Header } from './common/Header'
 import { openNotificationModal } from './common/Notification'
-import { TaskList } from './common/TaskList'
-import { TemplateSection } from './common/TemplateSection'
+import { appRoutes } from './routes'
 import { useGlobalStore } from './store/global'
 
 function App() {
@@ -36,16 +35,15 @@ function App() {
 
         {/* Main Content */}
         <main className="mx-auto max-w-6xl space-y-4 p-3 sm:p-6">
-          <TemplateSection />
-
-          <section className="space-y-4">
-            {/* 单独占一行的任务列表 */}
-            <TaskList />
-
-            {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <WanPreview />
-          </div> */}
-          </section>
+          <Routes>
+            {appRoutes.map((route) => (
+              <Route
+                key={route.key}
+                path={route.path}
+                element={route.element}
+              />
+            ))}
+          </Routes>
         </main>
       </div>
     </ConfigProvider>
