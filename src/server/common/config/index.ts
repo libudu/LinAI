@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { decryptApiKey } from '../../module/gpt-image/encrypt'
 
 export interface Config {
   gptImageApiKey: string | null
@@ -53,4 +54,8 @@ export const updateConfig = (newConfig: Partial<Config>): Config => {
     console.error('Failed to write config:', error)
   }
   return currentConfig
+}
+
+export const getYunwuApiKey = (): string | null => {
+  return decryptApiKey(currentConfig.gptImageApiKey || '')
 }
