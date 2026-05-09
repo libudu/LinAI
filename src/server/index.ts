@@ -11,11 +11,15 @@ import templateApi from './api/common/template'
 import geminiApi from './api/gemini'
 import geminiTtsApi from './api/gemini-tts'
 import gptImageApi from './api/gpt-image'
-import wanApi from './api/wan'
+import type WanApiType from './api/wan'
 
 dotenv.config()
 
 const app = new Hono()
+
+const wanApi = (
+  process.platform === 'android' ? new Hono() : require('./api/wan').default
+) as typeof WanApiType
 
 const routes = app
   // module
