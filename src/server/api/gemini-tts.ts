@@ -3,8 +3,11 @@ import fs from 'fs-extra'
 import { Hono } from 'hono'
 import path from 'path'
 import { z } from 'zod'
-import { GEMINI_TTS_OUTPUT_DIR } from '../module/gemini-tts/constants'
-import { generateAndSaveAudio } from '../module/gemini-tts/index'
+import {
+  GEMINI_TTS_OUTPUT_DIR,
+  generateAndSaveAudio,
+  projectManager,
+} from '../module/gemini-tts/index'
 
 const geminiTtsApi = new Hono()
   .post(
@@ -36,6 +39,49 @@ const geminiTtsApi = new Hono()
         return c.body(file)
       }
       return c.notFound()
+    },
+  )
+  .get('/projects', async (c) => {
+    try {
+      const projects = await projectManager.getProjects()
+      return c.json({ success: true, data: projects })
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 500)
+    }
+  })
+  .post(
+    '/projects',
+    zValidator(
+      'json',
+      z.object({
+        name: z.string(),
+        description: z.string().optional().default(''),
+      }),
+    ),
+    async (c) => {
+      try {
+        const data = c.req.valid('json')
+        const project = await projectManager.createProject(data)
+        return c.json({ success: true, data: project })
+      } catch (error: any) {
+        return c.json({ success: false, error: error.message }, 500)
+      }
+    },
+  )
+  .get(
+    '/projects/:id',
+    zValidator('param', z.object({ id: z.string() })),
+    async (c) => {
+      try {
+        const { id } = c.req.valid('param')
+        const project = await projectManager.getProjectById(id)
+        if (!project) {
+          return c.json({ success: false, error: 'Project not found' }, 404)
+        }
+        return c.json({ success: true, data: project })
+      } catch (error: any) {
+        return c.json({ success: false, error: error.message }, 500)
+      }
     },
   )
 
