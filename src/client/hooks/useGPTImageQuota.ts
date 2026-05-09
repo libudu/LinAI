@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { create } from 'zustand'
 import type { AppType } from '../../server'
 import type { GPTImageQuotaResponse } from '../../server/api/gpt-image'
-import { isAdmin } from '../common/SettingModal'
+import { isAdmin } from '../pages/common/SettingModal'
 import { useGlobalStore } from '../store/global'
 import { useTasks } from './useTasks'
 
