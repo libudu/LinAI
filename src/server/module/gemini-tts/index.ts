@@ -62,7 +62,13 @@ async function saveWav(
   })
 }
 
-export const generateAndSaveAudio = async (prompt: string): Promise<string> => {
+export const generateAndSaveAudio = async ({
+  prompt,
+  voiceName,
+}: {
+  prompt: string
+  voiceName: string
+}): Promise<string> => {
   const MODEL_NAME = 'gemini-3.1-flash-tts-preview'
   const apiKey = getYunwuApiKey()
   const response = await fetch(
@@ -88,7 +94,7 @@ export const generateAndSaveAudio = async (prompt: string): Promise<string> => {
           speechConfig: {
             voiceConfig: {
               prebuiltVoiceConfig: {
-                voiceName: 'Kore',
+                voiceName,
               },
             },
           },

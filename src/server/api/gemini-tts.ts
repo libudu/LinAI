@@ -9,11 +9,11 @@ import { generateAndSaveAudio } from '../module/gemini-tts/index'
 const geminiTtsApi = new Hono()
   .post(
     '/generate',
-    zValidator('json', z.object({ prompt: z.string() })),
+    zValidator('json', z.object({ prompt: z.string(), voiceName: z.string() })),
     async (c) => {
       try {
-        const { prompt } = c.req.valid('json')
-        const filename = await generateAndSaveAudio(prompt)
+        const { prompt, voiceName } = c.req.valid('json')
+        const filename = await generateAndSaveAudio({ prompt, voiceName })
         return c.json({
           success: true,
           url: `/api/gemini-tts/output/${filename}`,

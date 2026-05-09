@@ -1,14 +1,17 @@
-import { Button, Input, message } from 'antd'
+import { Button, Input, Select, Tag, message } from 'antd'
 import { hc } from 'hono/client'
 import { useState } from 'react'
 import type { AppType } from '../../../../server'
+import { voiceList } from './voiceConfig'
 
 const { TextArea } = Input
+const { Option } = Select
 
 const client = hc<AppType>('/')
 
 export const GeminiTTS = () => {
   const [prompt, setPrompt] = useState('')
+  const [voiceName, setVoiceName] = useState('Puck')
   const [loading, setLoading] = useState(false)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
 
@@ -21,7 +24,7 @@ export const GeminiTTS = () => {
     setLoading(true)
     try {
       const response = await client.api['gemini-tts'].generate.$post({
-        json: { prompt },
+        json: { prompt, voiceName },
       })
 
       const data = await response.json()
@@ -43,6 +46,35 @@ export const GeminiTTS = () => {
       <div className="rounded-xl bg-white p-6 shadow-sm">
         <h2 className="mb-4 text-xl font-bold text-slate-800">Gemini TTS</h2>
         <div className="space-y-4">
+          <div className="flex items-center gap-4">
+            <span className="font-medium text-slate-600">音色选择：</span>
+            <Select
+              value={voiceName}
+              onChange={setVoiceName}
+              className="w-80"
+              optionLabelProp="label"
+              dropdownMatchSelectWidth={false}
+            >
+              {voiceList.map((item) => (
+                <Option key={item.name} value={item.name} label={item.name}>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="font-medium">{item.name}</span>
+                    <div className="flex gap-1">
+                      <Tag color="blue" className="m-0 border-0">
+                        {item.voice}
+                      </Tag>
+                      <Tag
+                        color={item.gender === '男' ? 'cyan' : 'magenta'}
+                        className="m-0 border-0"
+                      >
+                        {item.gender}
+                      </Tag>
+                    </div>
+                  </div>
+                </Option>
+              ))}
+            </Select>
+          </div>
           <TextArea
             rows={6}
             placeholder="请输入想要转换为语音的文本或对话..."

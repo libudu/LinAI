@@ -51,8 +51,6 @@ export const AdminSetting = forwardRef<AdminSettingRef>((_props, ref) => {
       setLoading(true)
       setGeneratedApiKey('')
 
-      console.log(values)
-
       const response = await client.api.gptImage['generate-api-key'].$post({
         json: {
           systemToken: values.yunwuSystemToken,
