@@ -12,7 +12,11 @@ interface DeleteTaskButtonProps {
   onSuccess?: () => void
 }
 
-export function TaskItemDeleteButton({ id, status, onSuccess }: DeleteTaskButtonProps) {
+export function TaskItemDeleteButton({
+  id,
+  status,
+  onSuccess,
+}: DeleteTaskButtonProps) {
   const [skipDeleteConfirm, setSkipDeleteConfirm] = useLocalStorageState(
     'skipDeleteTaskConfirm',
     {

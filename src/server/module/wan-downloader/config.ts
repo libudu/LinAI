@@ -1,5 +1,3 @@
-
-
 export const config = {
   API_URL: 'https://wanx.biz.aliyun.com/wanx/api/common',
   EXPLORE_URL: 'https://tongyi.aliyun.com/wan/explore',

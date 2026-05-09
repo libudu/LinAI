@@ -9,7 +9,7 @@ export class WanAuthManager {
   private static instance: WanAuthManager
   private currentSession: string | false | null = null
 
-  private constructor() { }
+  private constructor() {}
 
   static getInstance(): WanAuthManager {
     if (!WanAuthManager.instance) {

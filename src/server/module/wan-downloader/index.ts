@@ -86,9 +86,7 @@ export class WanxBot {
     const inProgressTasks = tasks.filter(
       (t) => t.status === -1 || t.status === 1,
     )
-    const completedTasks = tasks.filter(
-      (t) => t.status === 2,
-    )
+    const completedTasks = tasks.filter((t) => t.status === 2)
 
     logger.log(`📊 统计信息:`)
     logger.log(`   - 正在进行中的任务: ${inProgressTasks.length} ⏳`)

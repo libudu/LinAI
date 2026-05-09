@@ -32,7 +32,10 @@ export function WanTaskCard({ task, onSelect }: WanTaskCardProps) {
           )}
         </div>
         <div className="flex flex-1 flex-col justify-between overflow-hidden">
-          <div className="line-clamp-2 text-sm text-slate-700" title={task.taskInput.prompt}>
+          <div
+            className="line-clamp-2 text-sm text-slate-700"
+            title={task.taskInput.prompt}
+          >
             {task.taskInput.prompt || '无提示词'}
           </div>
           <div className="mt-2 flex items-center justify-between">
@@ -40,7 +43,9 @@ export function WanTaskCard({ task, onSelect }: WanTaskCardProps) {
               {new Date(task.gmtCreateTimeStamp).toLocaleString()}
             </div>
             <div className="flex items-center gap-2">
-              <span className={`text-xs ${isSuccess ? 'text-emerald-500' : isFailed ? 'text-red-500' : 'text-amber-500'}`}>
+              <span
+                className={`text-xs ${isSuccess ? 'text-emerald-500' : isFailed ? 'text-red-500' : 'text-amber-500'}`}
+              >
                 {isSuccess ? '已完成' : isFailed ? '失败' : '处理中'}
               </span>
             </div>

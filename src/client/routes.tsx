@@ -1,5 +1,5 @@
-import { Home } from './pages/Home'
 import { GeminiTTS } from './module/GeminiTTS'
+import { Home } from './pages/Home'
 
 export const appRoutes = [
   {

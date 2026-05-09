@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
+import dotenv from 'dotenv'
 import { Hono } from 'hono'
 import * as path from 'path'
 import configApi from './api/common/config'
@@ -11,7 +12,7 @@ import geminiApi from './api/gemini'
 import geminiTtsApi from './api/gemini-tts'
 import gptImageApi from './api/gpt-image'
 import wanApi from './api/wan'
-import dotenv from 'dotenv'
+
 dotenv.config()
 
 const app = new Hono()
