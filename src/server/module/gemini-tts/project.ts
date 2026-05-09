@@ -2,10 +2,28 @@ import fs from 'fs-extra'
 import { v4 as uuidv4 } from 'uuid'
 import { PROJECTS_FILE } from './constants'
 
+export interface GeminiTTSCharacter {
+  id: string
+  name: string
+  gender: string
+  voiceName: string
+  description?: string
+}
+
+export interface GeminiTTSDialogue {
+  id: string
+  characterId: string
+  content: string
+  audioUrl?: string
+  createdAt: number
+}
+
 export interface Project {
   id: string
   name: string
   description: string
+  characters: GeminiTTSCharacter[]
+  dialogues: GeminiTTSDialogue[]
   createdAt: number
   updatedAt: number
 }
@@ -51,6 +69,8 @@ class ProjectManager {
       id: uuidv4(),
       name: data.name,
       description: data.description,
+      characters: [],
+      dialogues: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
     }
@@ -66,7 +86,7 @@ class ProjectManager {
 
   async updateProject(
     id: string,
-    data: Partial<Pick<Project, 'name' | 'description'>>,
+    data: Partial<Omit<Project, 'id' | 'createdAt'>>,
   ): Promise<Project | null> {
     const projects = await this.getProjects()
     const index = projects.findIndex((p) => p.id === id)

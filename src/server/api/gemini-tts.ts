@@ -84,5 +84,39 @@ const geminiTtsApi = new Hono()
       }
     },
   )
+  .put(
+    '/projects/:id',
+    zValidator('param', z.object({ id: z.string() })),
+    zValidator('json', z.any()), // Assuming we accept partial project updates
+    async (c) => {
+      try {
+        const { id } = c.req.valid('param')
+        const data = c.req.valid('json')
+        const project = await projectManager.updateProject(id, data)
+        if (!project) {
+          return c.json({ success: false, error: 'Project not found' }, 404)
+        }
+        return c.json({ success: true, data: project })
+      } catch (error: any) {
+        return c.json({ success: false, error: error.message }, 500)
+      }
+    },
+  )
+  .delete(
+    '/projects/:id',
+    zValidator('param', z.object({ id: z.string() })),
+    async (c) => {
+      try {
+        const { id } = c.req.valid('param')
+        const success = await projectManager.deleteProject(id)
+        if (!success) {
+          return c.json({ success: false, error: 'Project not found' }, 404)
+        }
+        return c.json({ success: true })
+      } catch (error: any) {
+        return c.json({ success: false, error: error.message }, 500)
+      }
+    },
+  )
 
 export default geminiTtsApi

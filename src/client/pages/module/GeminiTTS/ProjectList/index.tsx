@@ -1,7 +1,8 @@
-import { Button, Card, Col, Form, Input, Modal, Row, message } from 'antd'
+import { Button, Col, Form, Input, Modal, Row, message } from 'antd'
 import { hc } from 'hono/client'
 import { useEffect, useState } from 'react'
-import type { AppType } from '../../../../server'
+import type { AppType } from '../../../../../server'
+import { ProjectCard } from './ProjectCard'
 
 const client = hc<AppType>('/')
 
@@ -13,6 +14,7 @@ export const ProjectList = ({ onSelectProject }: ProjectListProps) => {
   const [projects, setProjects] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingProject, setEditingProject] = useState<any>(null)
   const [form] = Form.useForm()
 
   const fetchProjects = async () => {
@@ -36,23 +38,46 @@ export const ProjectList = ({ onSelectProject }: ProjectListProps) => {
     fetchProjects()
   }, [])
 
-  const handleCreateProject = async (values: any) => {
+  const handleCreateOrUpdateProject = async (values: any) => {
     try {
-      const response = await client.api['gemini-tts'].projects.$post({
-        json: values,
-      })
+      let response;
+      if (editingProject) {
+        response = await client.api['gemini-tts'].projects[':id'].$put({
+          param: { id: editingProject.id },
+          json: values,
+        })
+      } else {
+        response = await client.api['gemini-tts'].projects.$post({
+          json: values,
+        })
+      }
+      
       const data = await response.json()
       if (data.success) {
-        message.success('创建成功')
-        setIsModalOpen(false)
-        form.resetFields()
+        message.success(editingProject ? '更新成功' : '创建成功')
+        handleCloseModal()
         fetchProjects()
       } else {
-        message.error(data.error || '创建失败')
+        message.error(data.error || (editingProject ? '更新失败' : '创建失败'))
       }
     } catch (error: any) {
       message.error(error.message || '网络错误')
     }
+  }
+
+  const handleEdit = (project: any) => {
+    setEditingProject(project)
+    form.setFieldsValue({
+      name: project.name,
+      description: project.description,
+    })
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setEditingProject(null)
+    form.resetFields()
   }
 
   return (
@@ -68,35 +93,24 @@ export const ProjectList = ({ onSelectProject }: ProjectListProps) => {
         <Row gutter={[16, 16]}>
           {projects.map((project) => (
             <Col xs={24} sm={12} md={8} lg={6} key={project.id}>
-            <Card
-              hoverable
-              className="h-full"
-              onClick={() => onSelectProject(project)}
-            >
-              <Card.Meta
-                title={project.name}
-                description={
-                  <div className="text-slate-500 line-clamp-2">
-                    {project.description || '暂无描述'}
-                  </div>
-                }
+              <ProjectCard
+                project={project}
+                onSelectProject={onSelectProject}
+                onUpdate={fetchProjects}
+                onEdit={handleEdit}
               />
-              <div className="mt-4 text-xs text-slate-400">
-                {new Date(project.updatedAt).toLocaleString()}
-              </div>
-            </Card>
-          </Col>
-        ))}
+            </Col>
+          ))}
         </Row>
       </div>
 
       <Modal
-        title="新增项目"
+        title={editingProject ? "编辑项目" : "新增项目"}
         open={isModalOpen}
-        onCancel={() => setIsModalOpen(false)}
+        onCancel={handleCloseModal}
         onOk={() => form.submit()}
       >
-        <Form form={form} layout="vertical" onFinish={handleCreateProject}>
+        <Form form={form} layout="vertical" onFinish={handleCreateOrUpdateProject}>
           <Form.Item
             name="name"
             label="项目名称"
