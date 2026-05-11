@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { AppType } from '../../../../../server'
 import { CharacterList } from './CharacterList'
 import { DialogueList } from './DialogueList'
+import { VoicePreviewList } from './VoicePreviewList'
 
 const client = hc<AppType>('/')
 
@@ -66,6 +67,15 @@ export const ProjectDetail = ({
               <CharacterList
                 characters={project.characters || []}
                 onUpdateCharacters={handleUpdateCharacters}
+                backgroundPrompt={project.backgroundPrompt || ''}
+              />
+            ),
+          },
+          {
+            key: 'voice-preview',
+            label: '音色试听',
+            children: (
+              <VoicePreviewList
                 backgroundPrompt={project.backgroundPrompt || ''}
               />
             ),

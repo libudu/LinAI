@@ -34,6 +34,10 @@ export const CharacterModal = forwardRef<
       defaultValue: '你好，我是当前音色的测试语音。',
     },
   )
+  const [disabledVoices] = useLocalStorageState<string[]>(
+    'gemini-tts-disabled-voices',
+    { defaultValue: [] },
+  )
   const [previewAudio, setPreviewAudio] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
 
@@ -125,24 +129,26 @@ export const CharacterModal = forwardRef<
             dropdownMatchSelectWidth={false}
             onChange={() => setPreviewAudio(null)}
           >
-            {voiceList.map((item) => (
-              <Option key={item.name} value={item.name} label={item.name}>
-                <div className="flex items-center justify-between gap-4">
-                  <span className="font-medium">{item.name}</span>
-                  <div className="flex gap-1">
-                    <Tag color="blue" className="m-0 border-0">
-                      {item.voice}
-                    </Tag>
-                    <Tag
-                      color={item.gender === '男' ? 'cyan' : 'magenta'}
-                      className="m-0 border-0"
-                    >
-                      {item.gender}
-                    </Tag>
+            {voiceList
+              .filter((item) => !(disabledVoices || []).includes(item.name))
+              .map((item) => (
+                <Option key={item.name} value={item.name} label={item.name}>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="font-medium">{item.name}</span>
+                    <div className="flex gap-1">
+                      <Tag color="blue" className="m-0 border-0">
+                        {item.voice}
+                      </Tag>
+                      <Tag
+                        color={item.gender === '男' ? 'cyan' : 'magenta'}
+                        className="m-0 border-0"
+                      >
+                        {item.gender}
+                      </Tag>
+                    </div>
                   </div>
-                </div>
-              </Option>
-            ))}
+                </Option>
+              ))}
           </Select>
         </Form.Item>
 

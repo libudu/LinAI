@@ -1,10 +1,5 @@
 export const voiceList = [
   {
-    name: 'Zephyr',
-    voice: '明亮',
-    gender: '女',
-  },
-  {
     name: 'Puck',
     voice: '开朗',
     gender: '男',
@@ -15,39 +10,14 @@ export const voiceList = [
     gender: '男',
   },
   {
-    name: 'Kore',
-    voice: '坚定',
-    gender: '女',
-  },
-  {
     name: 'Fenrir',
     voice: '活泼激动',
     gender: '男',
   },
   {
-    name: 'Leda',
-    voice: '年轻朝气',
-    gender: '女',
-  },
-  {
     name: 'Orus',
     voice: '坚定',
     gender: '男',
-  },
-  {
-    name: 'Aoede',
-    voice: '轻快',
-    gender: '女',
-  },
-  {
-    name: 'Callirrhoe',
-    voice: '随和',
-    gender: '女',
-  },
-  {
-    name: 'Autonoe',
-    voice: '明亮',
-    gender: '女',
   },
   {
     name: 'Enceladus',
@@ -60,24 +30,9 @@ export const voiceList = [
     gender: '男',
   },
   {
-    name: 'Umbriel',
-    voice: '随和',
-    gender: '女',
-  },
-  {
     name: 'Algieba',
     voice: '顺滑',
     gender: '男',
-  },
-  {
-    name: 'Despina',
-    voice: '顺滑',
-    gender: '女',
-  },
-  {
-    name: 'Erinome',
-    voice: '清澈',
-    gender: '女',
   },
   {
     name: 'Algenib',
@@ -88,11 +43,6 @@ export const voiceList = [
     name: 'Rasalgethi',
     voice: '知性',
     gender: '男',
-  },
-  {
-    name: 'Laomedeia',
-    voice: '开朗',
-    gender: '女',
   },
   {
     name: 'Achernar',
@@ -115,11 +65,6 @@ export const voiceList = [
     gender: '男',
   },
   {
-    name: 'Pulcherrima',
-    voice: '直率外放',
-    gender: '女',
-  },
-  {
     name: 'Achird',
     voice: '友善',
     gender: '男',
@@ -128,11 +73,6 @@ export const voiceList = [
     name: 'Zubenelgenubi',
     voice: '随性',
     gender: '男',
-  },
-  {
-    name: 'Vindemiatrix',
-    voice: '温柔',
-    gender: '女',
   },
   {
     name: 'Sadachbia',
@@ -148,5 +88,65 @@ export const voiceList = [
     name: 'Sulafat',
     voice: '温暖',
     gender: '男',
+  },
+  {
+    name: 'Zephyr',
+    voice: '明亮',
+    gender: '女',
+  },
+  {
+    name: 'Kore',
+    voice: '坚定',
+    gender: '女',
+  },
+  {
+    name: 'Leda',
+    voice: '年轻朝气',
+    gender: '女',
+  },
+  {
+    name: 'Aoede',
+    voice: '轻快',
+    gender: '女',
+  },
+  {
+    name: 'Callirrhoe',
+    voice: '随和',
+    gender: '女',
+  },
+  {
+    name: 'Autonoe',
+    voice: '明亮',
+    gender: '女',
+  },
+  {
+    name: 'Umbriel',
+    voice: '随和',
+    gender: '女',
+  },
+  {
+    name: 'Despina',
+    voice: '顺滑',
+    gender: '女',
+  },
+  {
+    name: 'Erinome',
+    voice: '清澈',
+    gender: '女',
+  },
+  {
+    name: 'Laomedeia',
+    voice: '开朗',
+    gender: '女',
+  },
+  {
+    name: 'Pulcherrima',
+    voice: '直率外放',
+    gender: '女',
+  },
+  {
+    name: 'Vindemiatrix',
+    voice: '温柔',
+    gender: '女',
   },
 ]

@@ -3,9 +3,10 @@ import { voiceList } from './voiceConfig'
 
 interface VoiceTagProps {
   voiceName: string
+  hideName?: boolean
 }
 
-export const VoiceTag = ({ voiceName }: VoiceTagProps) => {
+export const VoiceTag = ({ voiceName, hideName }: VoiceTagProps) => {
   const voiceInfo = voiceList.find((v) => v.name === voiceName)
 
   if (!voiceInfo) {
@@ -14,7 +15,7 @@ export const VoiceTag = ({ voiceName }: VoiceTagProps) => {
 
   return (
     <div className="flex items-center gap-1">
-      <Tag color="blue">{voiceInfo.name}</Tag>
+      {!hideName && <Tag color="blue">{voiceInfo.name}</Tag>}
       <Tag color={voiceInfo.gender === '男' ? 'cyan' : 'magenta'}>
         {voiceInfo.gender}
       </Tag>
