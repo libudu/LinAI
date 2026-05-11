@@ -13,7 +13,7 @@ import {
   GeminiTTSDialogue,
 } from '../../../../../server/module/gemini-tts'
 import { generateTTS } from '../generate'
-import { VoiceTag } from './VoiceTag'
+import { VoiceTag } from './components/VoiceTag'
 
 const { TextArea } = Input
 const { Option } = Select

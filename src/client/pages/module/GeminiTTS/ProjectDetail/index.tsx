@@ -4,7 +4,7 @@ import { useState } from 'react'
 import type { AppType } from '../../../../../server'
 import { CharacterList } from './CharacterList'
 import { DialogueList } from './DialogueList'
-import { VoicePreviewList } from './VoicePreviewList'
+import { VoicePreview } from './VoicePreview'
 
 const client = hc<AppType>('/')
 
@@ -75,9 +75,7 @@ export const ProjectDetail = ({
             key: 'voice-preview',
             label: '音色试听',
             children: (
-              <VoicePreviewList
-                backgroundPrompt={project.backgroundPrompt || ''}
-              />
+              <VoicePreview backgroundPrompt={project.backgroundPrompt || ''} />
             ),
           },
         ]}

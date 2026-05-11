@@ -1,5 +1,5 @@
 import { Tag } from 'antd'
-import { voiceList } from './voiceConfig'
+import { voiceList } from '../VoicePreview/voiceConfig'
 
 interface VoiceTagProps {
   voiceName: string

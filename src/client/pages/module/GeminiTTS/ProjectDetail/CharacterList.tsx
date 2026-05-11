@@ -9,7 +9,7 @@ import { useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { GeminiTTSCharacter } from '../../../../../server/module/gemini-tts'
 import { CharacterModal, CharacterModalRef } from './CharacterModal'
-import { VoiceTag } from './VoiceTag'
+import { VoiceTag } from './components/VoiceTag'
 
 const { confirm } = Modal
 

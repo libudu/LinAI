@@ -1,17 +1,15 @@
 import { useLocalStorageState } from 'ahooks'
 import { Button, Input, List, Switch, message } from 'antd'
 import { useState } from 'react'
-import { generateTTS } from '../generate'
+import { generateTTS } from '../../generate'
+import { VoiceTag } from '../components/VoiceTag'
 import { voiceList } from './voiceConfig'
-import { VoiceTag } from './VoiceTag'
 
-interface VoicePreviewListProps {
+interface VoicePreviewProps {
   backgroundPrompt: string
 }
 
-export const VoicePreviewList = ({
-  backgroundPrompt,
-}: VoicePreviewListProps) => {
+export const VoicePreview = ({ backgroundPrompt }: VoicePreviewProps) => {
   const [disabledVoices, setDisabledVoices] = useLocalStorageState<string[]>(
     'gemini-tts-disabled-voices',
     { defaultValue: [] },
