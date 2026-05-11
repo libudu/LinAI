@@ -1,21 +1,23 @@
-import { useLocalStorageState } from 'ahooks'
+import { useAsyncEffect, useLocalStorageState } from 'ahooks'
 import { Button, Input, List, message } from 'antd'
+import { hc } from 'hono/client'
 import { useState } from 'react'
+import type { AppType } from '../../../../../../server'
 import { generateTTS } from '../../generate'
+import { useDisabledVoices } from './useDisabledVoices'
 import { voiceList } from './voiceConfig'
 import { VoicePreviewCard } from './VoicePreviewCard'
+
+const client = hc<AppType>('/')
 
 interface VoicePreviewProps {
   backgroundPrompt: string
 }
 
 export const VoicePreview = ({ backgroundPrompt }: VoicePreviewProps) => {
-  const [disabledVoices, setDisabledVoices] = useLocalStorageState<string[]>(
-    'gemini-tts-disabled-voices',
-    { defaultValue: [] },
-  )
+  const [disabledVoices, setDisabledVoices] = useDisabledVoices()
   const [previewText, setPreviewText] = useLocalStorageState(
-    'gemini-tts-preview-text',
+    'gemini-tts-preview-text-global',
     { defaultValue: '你好，我是当前音色的测试语音。' },
   )
   const [audioUrls, setAudioUrls] = useState<Record<string, string>>({})
@@ -23,6 +25,20 @@ export const VoicePreview = ({ backgroundPrompt }: VoicePreviewProps) => {
     Record<string, boolean>
   >({})
   const [isBatchGenerating, setIsBatchGenerating] = useState(false)
+
+  useAsyncEffect(async () => {
+    const res = await client.api['gemini-tts'].output.trial.$get()
+    const data = await res.json()
+    if (data.success) {
+      const urls: Record<string, string> = {}
+      data.data.forEach((filename: string) => {
+        const voiceName = filename.replace('.wav', '')
+        urls[voiceName] =
+          `/api/gemini-tts/output/trial/${filename}?t=${Date.now()}`
+      })
+      setAudioUrls(urls)
+    }
+  }, [])
 
   const handleToggleDisable = (voiceName: string, checked: boolean) => {
     const current = disabledVoices || []
@@ -118,12 +134,12 @@ export const VoicePreview = ({ backgroundPrompt }: VoicePreviewProps) => {
       </div>
 
       <List
-        grid={{ gutter: 16, xs: 2, sm: 3, md: 3, lg: 4, xl: 5 }}
+        grid={{ gutter: 16, xs: 2, sm: 2, md: 3, lg: 4, xl: 5 }}
         dataSource={voiceList}
         renderItem={(item) => {
           const isDisabled = (disabledVoices || []).includes(item.name)
           const isGenerating = generatingStatus[item.name]
-          const audioUrl = audioUrls[item.name]
+          const audioUrl = audioUrls?.[item.name]
 
           return (
             <VoicePreviewCard

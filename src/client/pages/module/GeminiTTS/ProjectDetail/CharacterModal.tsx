@@ -4,6 +4,7 @@ import { Button, Form, Input, message, Modal, Select, Tag } from 'antd'
 import { forwardRef, useImperativeHandle, useState } from 'react'
 import { GeminiTTSCharacter } from '../../../../../server/module/gemini-tts'
 import { generateTTS } from '../generate'
+import { useDisabledVoices } from './VoicePreview/useDisabledVoices'
 import { voiceList } from './VoicePreview/voiceConfig'
 
 const { Option } = Select
@@ -34,10 +35,7 @@ export const CharacterModal = forwardRef<
       defaultValue: '你好，我是当前音色的测试语音。',
     },
   )
-  const [disabledVoices] = useLocalStorageState<string[]>(
-    'gemini-tts-disabled-voices',
-    { defaultValue: [] },
-  )
+  const [disabledVoices] = useDisabledVoices()
   const [previewAudio, setPreviewAudio] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
 

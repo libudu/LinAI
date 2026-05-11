@@ -22,12 +22,11 @@ export const VoicePreviewCard = ({
   return (
     <List.Item>
       <div
-        className={`flex cursor-pointer flex-col gap-3 rounded-lg border p-4 transition-all ${
+        className={`flex flex-col gap-3 rounded-lg border p-4 transition-all ${
           isDisabled
             ? 'bg-gray-50 opacity-60 hover:opacity-80'
             : 'bg-white shadow-sm hover:shadow-md'
         }`}
-        onClick={() => onToggleDisable(item.name, isDisabled)}
       >
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">

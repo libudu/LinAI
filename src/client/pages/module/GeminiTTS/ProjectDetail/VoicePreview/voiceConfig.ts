@@ -10,11 +10,6 @@ export const voiceList = [
     gender: '男',
   },
   {
-    name: 'Fenrir',
-    voice: '活泼激动',
-    gender: '男',
-  },
-  {
     name: 'Orus',
     voice: '坚定',
     gender: '男',
@@ -45,11 +40,6 @@ export const voiceList = [
     gender: '男',
   },
   {
-    name: 'Achernar',
-    voice: '柔和',
-    gender: '男',
-  },
-  {
     name: 'Alnilam',
     voice: '坚定',
     gender: '男',
@@ -57,11 +47,6 @@ export const voiceList = [
   {
     name: 'Schedar',
     voice: '平稳',
-    gender: '男',
-  },
-  {
-    name: 'Gacrux',
-    voice: '成熟',
     gender: '男',
   },
   {
@@ -87,11 +72,16 @@ export const voiceList = [
   {
     name: 'Sulafat',
     voice: '温暖',
-    gender: '男',
+    gender: '女',
   },
   {
     name: 'Zephyr',
     voice: '明亮',
+    gender: '女',
+  },
+  {
+    name: 'Fenrir',
+    voice: '活泼激动',
     gender: '女',
   },
   {
@@ -122,7 +112,7 @@ export const voiceList = [
   {
     name: 'Umbriel',
     voice: '随和',
-    gender: '女',
+    gender: '男',
   },
   {
     name: 'Despina',
@@ -142,11 +132,23 @@ export const voiceList = [
   {
     name: 'Pulcherrima',
     voice: '直率外放',
-    gender: '女',
+    gender: '男',
   },
   {
     name: 'Vindemiatrix',
     voice: '温柔',
     gender: '女',
   },
+  {
+    name: 'Achernar',
+    voice: '柔和',
+    gender: '女',
+  },
+  {
+    name: 'Gacrux',
+    voice: '成熟',
+    gender: '女',
+  },
 ]
+  .sort((a, b) => a.name.localeCompare(b.name))
+  .sort((a, b) => a.gender.localeCompare(b.gender))

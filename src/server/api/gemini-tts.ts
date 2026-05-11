@@ -12,11 +12,22 @@ import {
 const geminiTtsApi = new Hono()
   .post(
     '/generate',
-    zValidator('json', z.object({ prompt: z.string(), voiceName: z.string(), isTrial: z.boolean().optional() })),
+    zValidator(
+      'json',
+      z.object({
+        prompt: z.string(),
+        voiceName: z.string(),
+        isTrial: z.boolean().optional(),
+      }),
+    ),
     async (c) => {
       try {
         const { prompt, voiceName, isTrial } = c.req.valid('json')
-        const filename = await generateAndSaveAudio({ prompt, voiceName, isTrial })
+        const filename = await generateAndSaveAudio({
+          prompt,
+          voiceName,
+          isTrial,
+        })
         return c.json({
           success: true,
           url: `/api/gemini-tts/output/${filename}?t=${Date.now()}`,
@@ -26,6 +37,19 @@ const geminiTtsApi = new Hono()
       }
     },
   )
+  .get('/output/trial', async (c) => {
+    try {
+      const trialDir = path.join(GEMINI_TTS_OUTPUT_DIR, 'trial')
+      if (!(await fs.pathExists(trialDir))) {
+        return c.json({ success: true, data: [] })
+      }
+      const files = await fs.readdir(trialDir)
+      const audioFiles = files.filter((f) => f.endsWith('.wav'))
+      return c.json({ success: true, data: audioFiles })
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 500)
+    }
+  })
   .get(
     '/output/trial/:filename',
     zValidator('param', z.object({ filename: z.string() })),

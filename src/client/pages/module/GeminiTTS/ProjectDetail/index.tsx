@@ -73,7 +73,7 @@ export const ProjectDetail = ({
           },
           {
             key: 'voice-preview',
-            label: '音色试听',
+            label: '全局音色试听',
             children: (
               <VoicePreview backgroundPrompt={project.backgroundPrompt || ''} />
             ),
