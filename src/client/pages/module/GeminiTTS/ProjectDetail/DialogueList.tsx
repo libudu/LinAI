@@ -5,18 +5,7 @@ import {
   PlayCircleOutlined,
   PlusOutlined,
 } from '@ant-design/icons'
-import {
-  Button,
-  Card,
-  Form,
-  Input,
-  message,
-  Modal,
-  Pagination,
-  Select,
-  Space,
-  Tag,
-} from 'antd'
+import { Button, Form, Input, message, Modal, Select, Space, Table } from 'antd'
 import { hc } from 'hono/client'
 import { useMemo, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
@@ -25,6 +14,7 @@ import {
   GeminiTTSCharacter,
   GeminiTTSDialogue,
 } from '../../../../../server/module/gemini-tts'
+import { VoiceTag } from './VoiceTag'
 
 const client = hc<AppType>('/')
 const { TextArea } = Input
@@ -41,23 +31,15 @@ export const DialogueList = ({
   characters = [],
   onUpdateDialogues,
 }: DialogueListProps) => {
-  const [currentPage, setCurrentPage] = useState(1)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingDialogue, setEditingDialogue] =
     useState<GeminiTTSDialogue | null>(null)
   const [generatingId, setGeneratingId] = useState<string | null>(null)
   const [form] = Form.useForm()
 
-  const pageSize = 10
-
   const sortedDialogues = useMemo(() => {
     return [...dialogues].sort((a, b) => a.createdAt - b.createdAt)
   }, [dialogues])
-
-  const currentData = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize
-    return sortedDialogues.slice(startIndex, startIndex + pageSize)
-  }, [sortedDialogues, currentPage])
 
   const handleOpenModal = (dialogue?: GeminiTTSDialogue) => {
     if (dialogue) {
@@ -139,6 +121,90 @@ export const DialogueList = ({
     }
   }
 
+  const columns = [
+    {
+      title: '人物',
+      dataIndex: 'characterId',
+      key: 'character',
+      width: 150,
+      render: (characterId: string) => {
+        const character = characters.find((c) => c.id === characterId)
+        return (
+          <span className="font-bold text-slate-700">
+            {character ? (
+              character.name
+            ) : (
+              <span className="text-red-500">人物已删除</span>
+            )}
+          </span>
+        )
+      },
+    },
+    {
+      title: '音色',
+      dataIndex: 'characterId',
+      key: 'voice',
+      width: 200,
+      render: (characterId: string) => {
+        const character = characters.find((c) => c.id === characterId)
+        return character ? <VoiceTag voiceName={character.voiceName} /> : null
+      },
+    },
+    {
+      title: '对话内容',
+      dataIndex: 'content',
+      key: 'content',
+      render: (content: string) => (
+        <div className="whitespace-pre-wrap text-slate-600">{content}</div>
+      ),
+    },
+    {
+      title: '音频',
+      key: 'audio',
+      width: 250,
+      render: (_: any, record: GeminiTTSDialogue) => {
+        const character = characters.find((c) => c.id === record.characterId)
+        const isGenerating = generatingId === record.id
+
+        return record.audioUrl ? (
+          <audio controls src={record.audioUrl} className="h-8 w-48" />
+        ) : (
+          <Button
+            type="primary"
+            size="small"
+            disabled={!character || isGenerating}
+            onClick={() => handleGenerate(record)}
+            icon={isGenerating ? <LoadingOutlined /> : <PlayCircleOutlined />}
+          >
+            {isGenerating ? '生成中' : '生成语音'}
+          </Button>
+        )
+      },
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 120,
+      render: (_: any, record: GeminiTTSDialogue) => (
+        <Space>
+          <Button
+            type="text"
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => handleOpenModal(record)}
+          />
+          <Button
+            type="text"
+            size="small"
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => handleDelete(record.id)}
+          />
+        </Space>
+      ),
+    },
+  ]
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -152,100 +218,22 @@ export const DialogueList = ({
         </Button>
       </div>
 
-      <div className="space-y-4">
-        {currentData.map((dialogue) => {
-          const character = characters.find(
-            (c) => c.id === dialogue.characterId,
-          )
-          const isGenerating = generatingId === dialogue.id
-
-          return (
-            <Card key={dialogue.id} size="small" className="shadow-sm">
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <div className="mb-2 flex items-center gap-2">
-                    <span className="font-bold text-slate-700">
-                      {character ? (
-                        character.name
-                      ) : (
-                        <span className="text-red-500">人物已删除</span>
-                      )}
-                    </span>
-                    {character && (
-                      <Tag color="blue" className="m-0 border-0 text-xs">
-                        音色: {character.voiceName}
-                      </Tag>
-                    )}
-                  </div>
-                  <div className="rounded-lg bg-slate-50 p-3 whitespace-pre-wrap text-slate-600">
-                    {dialogue.content}
-                  </div>
-                </div>
-                <div className="flex w-32 shrink-0 flex-col items-end justify-between border-l border-slate-100 pl-4">
-                  <Space>
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<EditOutlined />}
-                      onClick={() => handleOpenModal(dialogue)}
-                    />
-                    <Button
-                      type="text"
-                      size="small"
-                      danger
-                      icon={<DeleteOutlined />}
-                      onClick={() => handleDelete(dialogue.id)}
-                    />
-                  </Space>
-                  <div className="mt-4 flex w-full justify-end">
-                    {dialogue.audioUrl ? (
-                      <audio
-                        controls
-                        src={dialogue.audioUrl}
-                        className="h-8 w-48"
-                      />
-                    ) : (
-                      <Button
-                        type="primary"
-                        size="small"
-                        disabled={!character || isGenerating}
-                        onClick={() => handleGenerate(dialogue)}
-                        icon={
-                          isGenerating ? (
-                            <LoadingOutlined />
-                          ) : (
-                            <PlayCircleOutlined />
-                          )
-                        }
-                      >
-                        {isGenerating ? '生成中' : '生成语音'}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </Card>
-          )
-        })}
-
-        {dialogues.length === 0 && (
-          <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 py-8 text-center text-slate-400">
-            暂无对话，请先添加对话块
-          </div>
-        )}
-      </div>
-
-      {dialogues.length > 0 && (
-        <div className="mt-4 flex justify-end">
-          <Pagination
-            current={currentPage}
-            pageSize={pageSize}
-            total={dialogues.length}
-            onChange={setCurrentPage}
-            showSizeChanger={false}
-          />
-        </div>
-      )}
+      <Table
+        columns={columns}
+        dataSource={sortedDialogues}
+        rowKey="id"
+        pagination={{
+          pageSize: 10,
+          showSizeChanger: false,
+        }}
+        locale={{
+          emptyText: (
+            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 py-8 text-center text-slate-400">
+              暂无对话，请先添加对话块
+            </div>
+          ),
+        }}
+      />
 
       <Modal
         title={editingDialogue ? '编辑对话' : '添加对话'}
@@ -264,7 +252,10 @@ export const DialogueList = ({
             <Select placeholder="请选择人物">
               {characters.map((c) => (
                 <Option key={c.id} value={c.id}>
-                  {c.name} ({c.voiceName})
+                  <div className="flex items-center gap-2">
+                    <span>{c.name}</span>
+                    <VoiceTag voiceName={c.voiceName} />
+                  </div>
                 </Option>
               ))}
             </Select>

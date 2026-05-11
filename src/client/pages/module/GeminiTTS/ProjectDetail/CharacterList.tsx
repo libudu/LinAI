@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { GeminiTTSCharacter } from '../../../../../server/module/gemini-tts'
 import { voiceList } from './voiceConfig'
+import { VoiceTag } from './VoiceTag'
 
 const { confirm } = Modal
 const { Option } = Select
@@ -46,10 +47,8 @@ export const CharacterList = ({
 
   const handleSave = () => {
     form.validateFields().then((values) => {
-      const selectedVoice = voiceList.find((v) => v.name === values.voiceName)
       const characterData = {
         ...values,
-        gender: selectedVoice?.gender || '男',
       }
 
       let newCharacters
@@ -95,7 +94,7 @@ export const CharacterList = ({
         {characters.map((character) => (
           <Card
             key={character.id}
-            hoverable
+            className="transition-shadow hover:shadow-md"
             size="small"
             actions={[
               <EditOutlined
@@ -113,21 +112,11 @@ export const CharacterList = ({
               title={
                 <div className="flex items-center justify-between">
                   <span>{character.name}</span>
-                  <Tag
-                    color={character.gender === '男' ? 'cyan' : 'magenta'}
-                    className="m-0 border-0"
-                  >
-                    {character.gender}
-                  </Tag>
+                  <VoiceTag voiceName={character.voiceName} />
                 </div>
               }
               description={
                 <div className="mt-2 space-y-2">
-                  <div>
-                    <Tag color="blue" className="border-0">
-                      音色: {character.voiceName}
-                    </Tag>
-                  </div>
                   <div className="line-clamp-2 h-8 text-xs text-slate-500">
                     {character.description || '暂无描述'}
                   </div>

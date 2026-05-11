@@ -5,7 +5,6 @@ import { PROJECTS_FILE } from './constants'
 export interface GeminiTTSCharacter {
   id: string
   name: string
-  gender: string
   voiceName: string
   description?: string
 }
