@@ -6,7 +6,7 @@ export interface GeminiTTSCharacter {
   id: string
   name: string
   voiceName: string
-  description?: string
+  voicePrompt?: string
 }
 
 export interface GeminiTTSDialogue {
@@ -20,7 +20,7 @@ export interface GeminiTTSDialogue {
 export interface Project {
   id: string
   name: string
-  description: string
+  backgroundPrompt: string
   characters: GeminiTTSCharacter[]
   dialogues: GeminiTTSDialogue[]
   createdAt: number
@@ -61,13 +61,13 @@ class ProjectManager {
   }
 
   async createProject(
-    data: Pick<Project, 'name' | 'description'>,
+    data: Pick<Project, 'name' | 'backgroundPrompt'>,
   ): Promise<Project> {
     const projects = await this.getProjects()
     const newProject: Project = {
       id: uuidv4(),
       name: data.name,
-      description: data.description,
+      backgroundPrompt: data.backgroundPrompt,
       characters: [],
       dialogues: [],
       createdAt: Date.now(),

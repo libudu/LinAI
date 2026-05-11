@@ -5,14 +5,39 @@ const client = hc<AppType>('/')
 
 /**
  * 调用 Gemini TTS 接口生成语音
- * @param prompt 文本内容
+ * @param backgroundPrompt 故事背景
+ * @param voicePrompt 音色微调
+ * @param contentPrompt 对话内容
  * @param voiceName 音色名称
  * @returns 生成的音频 URL
  */
-export async function generateTTS(
-  prompt: string,
-  voiceName: string,
-): Promise<string> {
+export interface GenerateTTSParams {
+  backgroundPrompt?: string
+  voicePrompt?: string
+  contentPrompt: string
+  voiceName: string
+}
+
+export async function generateTTS({
+  backgroundPrompt,
+  voicePrompt,
+  contentPrompt,
+  voiceName,
+}: GenerateTTSParams): Promise<string> {
+  const promptParts: string[] = []
+
+  if (backgroundPrompt) {
+    promptParts.push(`### Story Background\n${backgroundPrompt}`)
+  }
+
+  if (voicePrompt) {
+    promptParts.push(`### Character Voice\n${voicePrompt}`)
+  }
+
+  promptParts.push(`### TRANSCRIPT\n${contentPrompt}`)
+
+  const prompt = promptParts.join('\n\n')
+
   const response = await client.api['gemini-tts'].generate.$post({
     json: { prompt, voiceName },
   })

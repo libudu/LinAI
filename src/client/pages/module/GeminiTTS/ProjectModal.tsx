@@ -25,7 +25,7 @@ export const ProjectModal = ({
       if (editingProject) {
         form.setFieldsValue({
           name: editingProject.name,
-          description: editingProject.description,
+          backgroundPrompt: editingProject.backgroundPrompt,
         })
       } else {
         form.resetFields()
@@ -80,8 +80,14 @@ export const ProjectModal = ({
         >
           <Input placeholder="请输入项目名称" />
         </Form.Item>
-        <Form.Item name="description" label="项目描述">
-          <Input.TextArea placeholder="请输入项目描述" rows={4} />
+        <Form.Item name="backgroundPrompt" label="故事背景">
+          <Input.TextArea
+            placeholder="请输入故事背景"
+            autoSize={{
+              minRows: 1,
+              maxRows: 4,
+            }}
+          />
         </Form.Item>
       </Form>
     </Modal>

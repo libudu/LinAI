@@ -12,19 +12,21 @@ import {
   GeminiTTSCharacter,
   GeminiTTSDialogue,
 } from '../../../../../server/module/gemini-tts'
-import { VoiceTag } from './VoiceTag'
 import { generateTTS } from '../generate'
+import { VoiceTag } from './VoiceTag'
 
 const { TextArea } = Input
 const { Option } = Select
 
 interface DialogueListProps {
+  backgroundPrompt: string
   dialogues: GeminiTTSDialogue[]
   characters: GeminiTTSCharacter[]
   onUpdateDialogues: (dialogues: GeminiTTSDialogue[]) => void
 }
 
 export const DialogueList = ({
+  backgroundPrompt,
   dialogues = [],
   characters = [],
   onUpdateDialogues,
@@ -98,7 +100,12 @@ export const DialogueList = ({
 
     setGeneratingId(dialogue.id)
     try {
-      const url = await generateTTS(dialogue.content, character.voiceName)
+      const url = await generateTTS({
+        backgroundPrompt,
+        voicePrompt: character.voicePrompt || '',
+        contentPrompt: dialogue.content,
+        voiceName: character.voiceName,
+      })
       const newDialogues = dialogues.map((d) =>
         d.id === dialogue.id ? { ...d, audioUrl: url } : d,
       )
@@ -257,7 +264,13 @@ export const DialogueList = ({
             rules={[{ required: true, message: '请输入对话内容' }]}
             extra={editingDialogue && '修改对话内容后需要重新生成语音'}
           >
-            <TextArea rows={6} placeholder="请输入该人物的对话内容..." />
+            <TextArea
+              autoSize={{
+                minRows: 3,
+                maxRows: 6,
+              }}
+              placeholder="请输入该人物的对话内容..."
+            />
           </Form.Item>
         </Form>
       </Modal>

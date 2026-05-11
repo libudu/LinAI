@@ -55,7 +55,7 @@ const geminiTtsApi = new Hono()
       'json',
       z.object({
         name: z.string(),
-        description: z.string().optional().default(''),
+        backgroundPrompt: z.string().optional().default(''),
       }),
     ),
     async (c) => {

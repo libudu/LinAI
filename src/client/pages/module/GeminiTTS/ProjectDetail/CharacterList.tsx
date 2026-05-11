@@ -14,11 +14,13 @@ import { VoiceTag } from './VoiceTag'
 const { confirm } = Modal
 
 interface CharacterListProps {
+  backgroundPrompt: string
   characters: GeminiTTSCharacter[]
   onUpdateCharacters: (characters: GeminiTTSCharacter[]) => void
 }
 
 export const CharacterList = ({
+  backgroundPrompt,
   characters = [],
   onUpdateCharacters,
 }: CharacterListProps) => {
@@ -96,7 +98,7 @@ export const CharacterList = ({
               description={
                 <div className="mt-2 space-y-2">
                   <div className="line-clamp-2 h-8 text-xs text-slate-500">
-                    {character.description || '暂无描述'}
+                    {character.voicePrompt || '暂无描述'}
                   </div>
                 </div>
               }
@@ -110,7 +112,11 @@ export const CharacterList = ({
         )}
       </div>
 
-      <CharacterModal ref={modalRef} onSave={handleSave} />
+      <CharacterModal
+        ref={modalRef}
+        onSave={handleSave}
+        backgroundPrompt={backgroundPrompt}
+      />
     </div>
   )
 }

@@ -13,6 +13,7 @@ export interface CharacterModalRef {
 }
 
 interface CharacterModalProps {
+  backgroundPrompt: string
   onSave: (
     characterData: Omit<GeminiTTSCharacter, 'id'> | GeminiTTSCharacter,
   ) => void
@@ -21,7 +22,7 @@ interface CharacterModalProps {
 export const CharacterModal = forwardRef<
   CharacterModalRef,
   CharacterModalProps
->(({ onSave }, ref) => {
+>(({ backgroundPrompt, onSave }, ref) => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCharacter, setEditingCharacter] =
     useState<GeminiTTSCharacter | null>(null)
@@ -81,7 +82,13 @@ export const CharacterModal = forwardRef<
 
     setIsGenerating(true)
     try {
-      const url = await generateTTS(previewText, voiceName)
+      const voicePrompt = form.getFieldValue('voicePrompt') || ''
+      const url = await generateTTS({
+        backgroundPrompt,
+        voicePrompt,
+        contentPrompt: previewText,
+        voiceName,
+      })
       setPreviewAudio(url)
     } catch (error: any) {
       message.error(error.message || '网络错误')
@@ -139,8 +146,14 @@ export const CharacterModal = forwardRef<
           </Select>
         </Form.Item>
 
-        <Form.Item name="description" label="音色微调">
-          <Input.TextArea placeholder="请输入音色微调提示词" rows={3} />
+        <Form.Item name="voicePrompt" label="音色微调">
+          <Input.TextArea
+            placeholder="角色年龄/性格/声音类型/其他特征"
+            autoSize={{
+              minRows: 4,
+              maxRows: 4,
+            }}
+          />
         </Form.Item>
 
         <Form.Item label="音色试听">

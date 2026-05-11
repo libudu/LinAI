@@ -62,7 +62,7 @@ export const ProjectCard = ({ project, onSelectProject, onUpdate, onEdit }: Proj
         title={project.name}
         description={
           <div className="line-clamp-2 text-slate-500 h-10">
-            {project.description || '暂无描述'}
+            {project.backgroundPrompt || '暂无描述'}
           </div>
         }
       />

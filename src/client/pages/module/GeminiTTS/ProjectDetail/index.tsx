@@ -55,6 +55,7 @@ export const ProjectDetail = ({
                 dialogues={project.dialogues || []}
                 characters={project.characters || []}
                 onUpdateDialogues={handleUpdateDialogues}
+                backgroundPrompt={project.backgroundPrompt || ''}
               />
             ),
           },
@@ -65,6 +66,7 @@ export const ProjectDetail = ({
               <CharacterList
                 characters={project.characters || []}
                 onUpdateCharacters={handleUpdateCharacters}
+                backgroundPrompt={project.backgroundPrompt || ''}
               />
             ),
           },
