@@ -90,8 +90,8 @@ export const CharacterList = ({
           >
             <Card.Meta
               title={
-                <div className="flex items-center justify-between">
-                  <span>{character.name}</span>
+                <div className="flex items-start justify-between gap-2">
+                  <span className="leading-tight">{character.name}</span>
                   <VoiceTag voiceName={character.voiceName} />
                 </div>
               }
