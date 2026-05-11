@@ -2,7 +2,7 @@ export const voiceList = [
   {
     name: 'Zephyr',
     voice: '明亮',
-    gender: '男',
+    gender: '女',
   },
   {
     name: 'Puck',

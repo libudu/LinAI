@@ -6,17 +6,15 @@ import {
   PlusOutlined,
 } from '@ant-design/icons'
 import { Button, Form, Input, message, Modal, Select, Space, Table } from 'antd'
-import { hc } from 'hono/client'
 import { useMemo, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import type { AppType } from '../../../../../server'
 import {
   GeminiTTSCharacter,
   GeminiTTSDialogue,
 } from '../../../../../server/module/gemini-tts'
 import { VoiceTag } from './VoiceTag'
+import { generateTTS } from '../generate'
 
-const client = hc<AppType>('/')
 const { TextArea } = Input
 const { Option } = Select
 
@@ -100,20 +98,12 @@ export const DialogueList = ({
 
     setGeneratingId(dialogue.id)
     try {
-      const response = await client.api['gemini-tts'].generate.$post({
-        json: { prompt: dialogue.content, voiceName: character.voiceName },
-      })
-
-      const data = await response.json()
-      if (data.success) {
-        const newDialogues = dialogues.map((d) =>
-          d.id === dialogue.id ? { ...d, audioUrl: data.url } : d,
-        )
-        onUpdateDialogues(newDialogues)
-        message.success('生成成功')
-      } else {
-        message.error(data.error || '生成失败')
-      }
+      const url = await generateTTS(dialogue.content, character.voiceName)
+      const newDialogues = dialogues.map((d) =>
+        d.id === dialogue.id ? { ...d, audioUrl: url } : d,
+      )
+      onUpdateDialogues(newDialogues)
+      message.success('生成成功')
     } catch (error: any) {
       message.error(error.message || '网络错误')
     } finally {
@@ -126,7 +116,7 @@ export const DialogueList = ({
       title: '人物',
       dataIndex: 'characterId',
       key: 'character',
-      width: 150,
+      width: 100,
       render: (characterId: string) => {
         const character = characters.find((c) => c.id === characterId)
         return (
@@ -144,7 +134,7 @@ export const DialogueList = ({
       title: '音色',
       dataIndex: 'characterId',
       key: 'voice',
-      width: 200,
+      width: 150,
       render: (characterId: string) => {
         const character = characters.find((c) => c.id === characterId)
         return character ? <VoiceTag voiceName={character.voiceName} /> : null

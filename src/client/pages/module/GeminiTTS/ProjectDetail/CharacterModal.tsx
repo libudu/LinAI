@@ -1,14 +1,12 @@
 import { PlayCircleOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { Button, Form, Input, message, Modal, Select, Tag } from 'antd'
-import { hc } from 'hono/client'
 import { forwardRef, useImperativeHandle, useState } from 'react'
-import type { AppType } from '../../../../../server/index'
 import { GeminiTTSCharacter } from '../../../../../server/module/gemini-tts'
+import { generateTTS } from '../generate'
 import { voiceList } from './voiceConfig'
 
 const { Option } = Select
-const client = hc<AppType>('/')
 
 export interface CharacterModalRef {
   open: (character?: GeminiTTSCharacter) => void
@@ -83,16 +81,8 @@ export const CharacterModal = forwardRef<
 
     setIsGenerating(true)
     try {
-      const response = await client.api['gemini-tts'].generate.$post({
-        json: { prompt: previewText, voiceName },
-      })
-
-      const data = await response.json()
-      if (data.success) {
-        setPreviewAudio(data.url)
-      } else {
-        message.error(data.error || '生成失败')
-      }
+      const url = await generateTTS(previewText, voiceName)
+      setPreviewAudio(url)
     } catch (error: any) {
       message.error(error.message || '网络错误')
     } finally {

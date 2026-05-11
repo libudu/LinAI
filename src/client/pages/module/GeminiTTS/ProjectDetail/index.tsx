@@ -44,6 +44,7 @@ export const ProjectDetail = ({
   return (
     <div className="rounded-xl bg-white p-6 pt-2 shadow-sm">
       <Tabs
+        size="large"
         defaultActiveKey="dialogues"
         items={[
           {
