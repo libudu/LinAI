@@ -1,5 +1,5 @@
 import { useAsyncEffect, useLocalStorageState } from 'ahooks'
-import { Button, Input, List, message } from 'antd'
+import { Button, Input, message } from 'antd'
 import { hc } from 'hono/client'
 import { useState } from 'react'
 import type { AppType } from '../../../../../../server'
@@ -133,10 +133,8 @@ export const VoicePreview = ({ backgroundPrompt }: VoicePreviewProps) => {
         </Button>
       </div>
 
-      <List
-        grid={{ gutter: 16, xs: 2, sm: 2, md: 3, lg: 3, xl: 4 }}
-        dataSource={voiceList}
-        renderItem={(item) => {
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
+        {voiceList.map((item) => {
           const isDisabled = (disabledVoices || []).includes(item.name)
           const isGenerating = generatingStatus[item.name]
           const audioUrl = audioUrls?.[item.name]
@@ -152,8 +150,8 @@ export const VoicePreview = ({ backgroundPrompt }: VoicePreviewProps) => {
               onGenerateSingle={generateSingleTTS}
             />
           )
-        }}
-      />
+        })}
+      </div>
     </div>
   )
 }

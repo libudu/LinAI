@@ -103,7 +103,7 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
           type="text"
           icon={<EditOutlined />}
           onClick={handleOpen}
-          className="text-slate-500 hover:text-blue-600"
+          className="hover:text-blue-600!"
         />
       </Tooltip>
       <Modal

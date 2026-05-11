@@ -1,15 +1,10 @@
-import {
-  DeleteOutlined,
-  EditOutlined,
-  ExclamationCircleFilled,
-  PlusOutlined,
-} from '@ant-design/icons'
-import { Button, Card, Modal } from 'antd'
+import { ExclamationCircleFilled, PlusOutlined } from '@ant-design/icons'
+import { Button, Modal } from 'antd'
 import { useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import { GeminiTTSCharacter } from '../../../../../server/module/gemini-tts'
+import { GeminiTTSCharacter } from '../../../../../../server/module/gemini-tts'
+import { CharacterCard } from './CharacterCard'
 import { CharacterModal, CharacterModalRef } from './CharacterModal'
-import { VoiceTag } from './components/VoiceTag'
 
 const { confirm } = Modal
 
@@ -72,38 +67,12 @@ export const CharacterList = ({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {characters.map((character) => (
-          <Card
+          <CharacterCard
             key={character.id}
-            className="transition-shadow hover:shadow-md"
-            size="small"
-            actions={[
-              <EditOutlined
-                key="edit"
-                onClick={() => handleOpenModal(character)}
-              />,
-              <DeleteOutlined
-                key="delete"
-                className="text-red-500"
-                onClick={() => handleDelete(character.id)}
-              />,
-            ]}
-          >
-            <Card.Meta
-              title={
-                <div className="flex items-start justify-between gap-2">
-                  <span className="leading-tight">{character.name}</span>
-                  <VoiceTag voiceName={character.voiceName} />
-                </div>
-              }
-              description={
-                <div className="mt-2 space-y-2">
-                  <div className="line-clamp-2 h-8 text-xs text-slate-500">
-                    {character.voicePrompt || '暂无描述'}
-                  </div>
-                </div>
-              }
-            />
-          </Card>
+            character={character}
+            onEdit={handleOpenModal}
+            onDelete={handleDelete}
+          />
         ))}
         {characters.length === 0 && (
           <div className="col-span-full rounded-lg border border-dashed border-slate-200 bg-slate-50 py-8 text-center text-slate-400">

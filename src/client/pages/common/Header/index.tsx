@@ -51,7 +51,7 @@ export function Header() {
               className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-slate-100"
               title="应用导航"
             >
-              <AppstoreOutlined className="text-xl text-slate-600" />
+              <AppstoreOutlined className="text-xl" />
             </div>
           </Dropdown>
           <div
@@ -59,14 +59,14 @@ export function Header() {
             onClick={() => openNotificationModal()}
             title="通知与说明"
           >
-            <BellOutlined className="text-xl text-slate-600" />
+            <BellOutlined className="text-xl" />
           </div>
           <div
             className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-slate-100"
             onClick={() => openSettingModal()}
             title="设置"
           >
-            <SettingOutlined className="text-xl text-slate-600" />
+            <SettingOutlined className="text-xl" />
           </div>
           <a
             className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-slate-100"
@@ -75,7 +75,7 @@ export function Header() {
             rel="noreferrer"
             title="GitHub 源码"
           >
-            <GithubOutlined className="text-xl text-slate-600" />
+            <GithubOutlined className="text-xl" />
           </a>
         </div>
       </div>

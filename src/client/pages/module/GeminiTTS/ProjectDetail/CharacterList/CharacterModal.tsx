@@ -2,10 +2,10 @@ import { PlayCircleOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { Button, Form, Input, message, Modal, Select, Tag } from 'antd'
 import { forwardRef, useImperativeHandle, useState } from 'react'
-import { GeminiTTSCharacter } from '../../../../../server/module/gemini-tts'
-import { generateTTS } from '../generate'
-import { useDisabledVoices } from './VoicePreview/useDisabledVoices'
-import { voiceList } from './VoicePreview/voiceConfig'
+import { GeminiTTSCharacter } from '../../../../../../server/module/gemini-tts'
+import { generateTTS } from '../../generate'
+import { useDisabledVoices } from '../VoicePreview/useDisabledVoices'
+import { voiceList } from '../VoicePreview/voiceConfig'
 
 const { Option } = Select
 

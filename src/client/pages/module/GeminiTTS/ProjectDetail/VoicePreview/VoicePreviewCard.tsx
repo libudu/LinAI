@@ -1,4 +1,4 @@
-import { Button, List, Switch } from 'antd'
+import { Button, Switch } from 'antd'
 import { VoiceTag } from '../components/VoiceTag'
 import type { voiceList } from './voiceConfig'
 
@@ -20,49 +20,45 @@ export const VoicePreviewCard = ({
   onGenerateSingle,
 }: VoicePreviewCardProps) => {
   return (
-    <List.Item>
-      <div
-        className={`flex flex-col gap-2 rounded-lg border p-4 transition-all ${
-          isDisabled
-            ? 'bg-gray-50 opacity-60 hover:opacity-80'
-            : 'bg-white shadow-sm hover:shadow-md'
-        }`}
-      >
-        <div className="flex items-center justify-between">
-          <span
-            className="min-w-0 truncate text-lg font-bold"
-            title={item.name}
-          >
-            {item.name}
-          </span>
-          <Switch
-            className="shrink-0"
-            checked={!isDisabled}
-            onChange={(checked, e) => {
-              e.stopPropagation()
-              onToggleDisable(item.name, checked)
-            }}
-          />
-        </div>
-        <div className="shrink-0">
-          <VoiceTag allowCustomTag hideName voiceName={item.name} />
-        </div>
-        <div
-          className="mt-2 flex items-center justify-between gap-2"
-          onClick={(e) => e.stopPropagation()}
+    <div
+      className={`flex flex-col gap-2 rounded-lg border border-slate-200 p-4 pt-2 transition-shadow ${
+        isDisabled
+          ? 'bg-slate-50 opacity-60 hover:opacity-80'
+          : 'bg-white shadow-sm hover:shadow-md'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span
+          className="min-w-0 truncate text-base leading-tight font-bold text-slate-800"
+          title={item.name}
         >
-          <Button
-            onClick={() => onGenerateSingle(item.name)}
-            loading={isGenerating}
-            disabled={isDisabled}
-          >
-            {audioUrl ? '重新生成' : '生成试听'}
-          </Button>
-          {audioUrl && !isDisabled && (
-            <audio controls src={audioUrl} className="h-8 w-full" />
-          )}
-        </div>
+          {item.name}
+        </span>
+        <Switch
+          className="shrink-0"
+          checked={!isDisabled}
+          onChange={(checked, e) => {
+            e.stopPropagation()
+            onToggleDisable(item.name, checked)
+          }}
+        />
       </div>
-    </List.Item>
+      <VoiceTag allowCustomTag hideName voiceName={item.name} />
+      <div
+        className="mt-1 flex items-center justify-between gap-2"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Button
+          onClick={() => onGenerateSingle(item.name)}
+          loading={isGenerating}
+          disabled={isDisabled}
+        >
+          {audioUrl ? '重新生成' : '生成试听'}
+        </Button>
+        {audioUrl && !isDisabled && (
+          <audio controls src={audioUrl} className="h-8 w-full" />
+        )}
+      </div>
+    </div>
   )
 }
