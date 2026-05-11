@@ -16,6 +16,7 @@ export interface GenerateTTSParams {
   voicePrompt?: string
   contentPrompt: string
   voiceName: string
+  isTrial?: boolean
 }
 
 export async function generateTTS({
@@ -23,6 +24,7 @@ export async function generateTTS({
   voicePrompt,
   contentPrompt,
   voiceName,
+  isTrial,
 }: GenerateTTSParams): Promise<string> {
   const promptParts: string[] = []
 
@@ -39,7 +41,7 @@ export async function generateTTS({
   const prompt = promptParts.join('\n\n')
 
   const response = await client.api['gemini-tts'].generate.$post({
-    json: { prompt, voiceName },
+    json: { prompt, voiceName, isTrial },
   })
 
   const data = await response.json()

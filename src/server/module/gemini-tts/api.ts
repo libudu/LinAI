@@ -65,9 +65,11 @@ async function saveWav(
 export const generateAndSaveAudio = async ({
   prompt,
   voiceName,
+  isTrial = false,
 }: {
   prompt: string
   voiceName: string
+  isTrial?: boolean
 }): Promise<string> => {
   const MODEL_NAME = 'gemini-3.1-flash-tts-preview'
   const apiKey = getYunwuApiKey()
@@ -106,7 +108,6 @@ export const generateAndSaveAudio = async ({
   if (res.error) {
     throw new Error(res.error.message)
   }
-  fs.writeFile('./output.json', JSON.stringify(res, null, 2))
   const part = res.candidates?.[0]?.content?.parts?.[0]
   if (!part || !part.inlineData || !part.inlineData.data) {
     throw new Error('No audio data returned from Gemini')
@@ -114,10 +115,17 @@ export const generateAndSaveAudio = async ({
 
   const audioBase64 = part.inlineData.data
 
-  await fs.ensureDir(GEMINI_TTS_OUTPUT_DIR)
+  let fileName = `${uuidv4()}.wav`
+  let filePath = path.join(GEMINI_TTS_OUTPUT_DIR, fileName)
 
-  const fileName = `${uuidv4()}.wav`
-  const filePath = path.join(GEMINI_TTS_OUTPUT_DIR, fileName)
+  if (isTrial) {
+    const trialDir = path.join(GEMINI_TTS_OUTPUT_DIR, 'trial')
+    await fs.ensureDir(trialDir)
+    fileName = `trial/${voiceName}.wav`
+    filePath = path.join(trialDir, `${voiceName}.wav`)
+  } else {
+    await fs.ensureDir(GEMINI_TTS_OUTPUT_DIR)
+  }
 
   await saveWav(filePath, Buffer.from(audioBase64, 'base64'))
 

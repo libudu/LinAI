@@ -92,6 +92,7 @@ export const CharacterModal = forwardRef<
         voicePrompt,
         contentPrompt: previewText,
         voiceName,
+        isTrial: true,
       })
       setPreviewAudio(url)
     } catch (error: any) {

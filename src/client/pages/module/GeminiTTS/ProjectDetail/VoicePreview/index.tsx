@@ -1,9 +1,9 @@
 import { useLocalStorageState } from 'ahooks'
-import { Button, Input, List, Switch, message } from 'antd'
+import { Button, Input, List, message } from 'antd'
 import { useState } from 'react'
 import { generateTTS } from '../../generate'
-import { VoiceTag } from '../components/VoiceTag'
 import { voiceList } from './voiceConfig'
+import { VoicePreviewCard } from './VoicePreviewCard'
 
 interface VoicePreviewProps {
   backgroundPrompt: string
@@ -46,6 +46,7 @@ export const VoicePreview = ({ backgroundPrompt }: VoicePreviewProps) => {
         voicePrompt: '',
         contentPrompt: previewText,
         voiceName,
+        isTrial: true,
       })
       setAudioUrls((prev) => ({ ...prev, [voiceName]: url }))
     } catch (error: any) {
@@ -81,6 +82,7 @@ export const VoicePreview = ({ backgroundPrompt }: VoicePreviewProps) => {
               voicePrompt: '',
               contentPrompt: previewText,
               voiceName: voice.name,
+              isTrial: true,
             })
             setAudioUrls((prev) => ({ ...prev, [voice.name]: url }))
           } catch (error: any) {
@@ -124,41 +126,15 @@ export const VoicePreview = ({ backgroundPrompt }: VoicePreviewProps) => {
           const audioUrl = audioUrls[item.name]
 
           return (
-            <List.Item>
-              <div
-                className={`flex flex-col gap-3 rounded-lg border p-4 transition-all ${isDisabled ? 'bg-gray-50 opacity-60' : 'bg-white shadow-sm hover:shadow-md'}`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold">{item.name}</span>
-                    <VoiceTag hideName voiceName={item.name} />
-                  </div>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-2">
-                  <Switch
-                    checked={!isDisabled}
-                    onChange={(checked) =>
-                      handleToggleDisable(item.name, checked)
-                    }
-                    checkedChildren="启用"
-                    unCheckedChildren="禁用"
-                  />
-                  {!isDisabled && (
-                    <Button
-                      size="small"
-                      onClick={() => generateSingleTTS(item.name)}
-                      loading={isGenerating}
-                      disabled={isBatchGenerating && !isGenerating}
-                    >
-                      {audioUrl ? '重新生成' : '生成试听'}
-                    </Button>
-                  )}
-                  {audioUrl && !isDisabled && (
-                    <audio controls src={audioUrl} className="h-8 w-full" />
-                  )}
-                </div>
-              </div>
-            </List.Item>
+            <VoicePreviewCard
+              key={item.name}
+              item={item}
+              isDisabled={isDisabled}
+              isGenerating={isGenerating}
+              audioUrl={audioUrl}
+              onToggleDisable={handleToggleDisable}
+              onGenerateSingle={generateSingleTTS}
+            />
           )
         }}
       />
