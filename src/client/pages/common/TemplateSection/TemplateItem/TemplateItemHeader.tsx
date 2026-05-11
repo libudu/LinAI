@@ -125,8 +125,6 @@ export const TemplateItemHeader = ({
           <Popconfirm
             title="确定要删除该模板吗？"
             onConfirm={() => handleDelete(template.id)}
-            okText="确定"
-            cancelText="取消"
             okButtonProps={{ danger: true }}
             placement="bottom"
           >

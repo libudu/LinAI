@@ -110,9 +110,7 @@ export function TemplateFolder({
       <Modal
         title="重命名文件夹"
         open={isModalOpen}
-        okText="确定"
         onOk={handleRename}
-        cancelText="取消"
         onCancel={() => setIsModalOpen(false)}
         confirmLoading={submitting}
         destroyOnHidden

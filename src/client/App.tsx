@@ -1,4 +1,5 @@
 import { ConfigProvider } from 'antd'
+import zhCN from 'antd/locale/zh_CN'
 import { useEffect } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import pkg from '../../package.json'
@@ -22,6 +23,7 @@ function App() {
 
   return (
     <ConfigProvider
+      locale={zhCN}
       theme={{
         components: {
           Tooltip: {

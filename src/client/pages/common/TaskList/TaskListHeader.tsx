@@ -79,7 +79,6 @@ export function TaskListHeader({
       ),
       okText: '确认删除',
       okType: 'danger',
-      cancelText: '取消',
       onOk: async () => {
         setDeletingDownloaded(true)
         try {

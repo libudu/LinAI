@@ -23,8 +23,6 @@ export const UploadImageSetting = forwardRef((_props, _ref) => {
       title: '清理无引用图片',
       content:
         '运行后将清除输入图片目录下所有没有模板引用的文件，可能导致文件丢失。确定要继续吗？',
-      okText: '确定',
-      cancelText: '取消',
       onOk: async () => {
         try {
           const response =
