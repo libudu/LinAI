@@ -100,6 +100,7 @@ export const generateAndSaveAudio = async ({
               },
             },
           },
+          temperature: 0,
         },
       }),
     },
