@@ -13,6 +13,7 @@ import {
   GeminiTTSDialogue,
 } from '../../../../../server/module/gemini-tts'
 import { generateTTS } from '../generate'
+import { CustomAudio } from './components/Audio'
 import { VoiceTag } from './components/VoiceTag'
 
 const { TextArea } = Input
@@ -164,7 +165,7 @@ export const DialogueList = ({
         const isGenerating = generatingId === record.id
 
         return record.audioUrl ? (
-          <audio controls src={record.audioUrl} className="h-8 w-48" />
+          <CustomAudio src={record.audioUrl} className="h-10 w-48" />
         ) : (
           <Button
             type="primary"

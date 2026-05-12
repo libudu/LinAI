@@ -1,5 +1,6 @@
 import { Button, Switch } from 'antd'
 import { VoiceTag } from '../components/VoiceTag'
+import { CustomAudio } from '../components/Audio'
 import type { voiceList } from './voiceConfig'
 
 interface VoicePreviewCardProps {
@@ -56,7 +57,7 @@ export const VoicePreviewCard = ({
           {audioUrl ? '重新生成' : '生成试听'}
         </Button>
         {audioUrl && !isDisabled && (
-          <audio controls src={audioUrl} className="h-8 w-full" />
+          <CustomAudio src={audioUrl} className="h-10 w-full" />
         )}
       </div>
     </div>

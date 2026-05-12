@@ -6,6 +6,7 @@ import { GeminiTTSCharacter } from '../../../../../../server/module/gemini-tts'
 import { generateTTS } from '../../generate'
 import { useDisabledVoices } from '../VoicePreview/useDisabledVoices'
 import { voiceList } from '../VoicePreview/voiceConfig'
+import { CustomAudio } from '../components/Audio'
 
 const { Option } = Select
 
@@ -179,12 +180,7 @@ export const CharacterModal = forwardRef<
               </Button>
             </div>
             {previewAudio && (
-              <audio
-                controls
-                src={previewAudio}
-                className="mt-2 w-full"
-                autoPlay
-              />
+              <CustomAudio src={previewAudio} className="mt-2 w-full" />
             )}
           </div>
         </Form.Item>

@@ -1,0 +1,106 @@
+.custom-audio-player {
+  box-shadow: none !important;
+  background-color: transparent !important;
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  min-width: 0; // Essential for flex items to shrink below their minimum content size
+
+  .rhap_main {
+    width: 100%;
+  }
+  /* Controls Section (Play button) */
+  .rhap_controls-section {
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+  }
+
+  .rhap_main-controls {
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+  }
+
+  .rhap_main-controls-button {
+    font-size: 24px !important;
+    width: 24px !important;
+    height: 24px !important;
+    color: #1677ff !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    margin: 0 !important;
+
+    &:hover {
+      color: #4096ff !important;
+      transform: scale(1.05);
+    }
+    
+    svg {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  /* Progress Section */
+  .rhap_progress-section {
+    flex: 1 1 auto !important;
+    min-width: 0 !important; // Allow shrinking in narrow containers
+    display: flex !important;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .rhap_time {
+    font-size: 12px !important;
+    color: #8c8c8c !important;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+    user-select: none;
+    flex-shrink: 0 !important; // Prevent time text from shrinking
+    margin: 0 !important;
+  }
+
+  .rhap_progress-container {
+    margin: 0 !important;
+    height: 20px !important; // Larger hit area for usability
+    display: flex !important;
+    align-items: center;
+    flex: 1 1 auto !important;
+    min-width: 40px !important; // Minimum width before it gets completely squished
+  }
+
+  .rhap_progress-bar {
+    height: 4px !important;
+    background-color: #e5e7eb !important; // Gray-200
+    border-radius: 2px !important;
+    width: 100% !important;
+  }
+
+  .rhap_progress-filled {
+    background-color: #1677ff !important;
+    border-radius: 2px !important;
+  }
+
+  .rhap_progress-indicator {
+    width: 10px !important;
+    height: 10px !important;
+    margin-left: -5px !important;
+    top: -3px !important;
+    background: #fff !important;
+    border: 2px solid #1677ff !important;
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.2) !important;
+    transition: transform 0.2s;
+  }
+
+  .rhap_progress-container:hover .rhap_progress-indicator {
+    transform: scale(1.2);
+  }
+
+  /* Hide elements that are not needed */
+  .rhap_additional-controls,
+  .rhap_volume-controls {
+    display: none !important;
+  }
+}
