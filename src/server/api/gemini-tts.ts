@@ -58,9 +58,27 @@ const geminiTtsApi = new Hono()
       const filepath = path.join(GEMINI_TTS_OUTPUT_DIR, 'trial', filename)
 
       if (await fs.pathExists(filepath)) {
-        const file = await fs.readFile(filepath)
+        const fileBuffer = await fs.readFile(filepath)
+        const fileSize = fileBuffer.length
+        const range = c.req.header('range')
+
+        c.header('Accept-Ranges', 'bytes')
         c.header('Content-Type', 'audio/wav')
-        return c.body(file)
+
+        if (range) {
+          const parts = range.replace(/bytes=/, '').split('-')
+          const start = parseInt(parts[0], 10)
+          const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1
+          const chunksize = end - start + 1
+
+          c.status(206)
+          c.header('Content-Range', `bytes ${start}-${end}/${fileSize}`)
+          c.header('Content-Length', chunksize.toString())
+          return c.body(fileBuffer.subarray(start, end + 1))
+        } else {
+          c.header('Content-Length', fileSize.toString())
+          return c.body(fileBuffer)
+        }
       }
       return c.notFound()
     },
@@ -73,9 +91,27 @@ const geminiTtsApi = new Hono()
       const filepath = path.join(GEMINI_TTS_OUTPUT_DIR, filename)
 
       if (await fs.pathExists(filepath)) {
-        const file = await fs.readFile(filepath)
+        const fileBuffer = await fs.readFile(filepath)
+        const fileSize = fileBuffer.length
+        const range = c.req.header('range')
+
+        c.header('Accept-Ranges', 'bytes')
         c.header('Content-Type', 'audio/wav')
-        return c.body(file)
+
+        if (range) {
+          const parts = range.replace(/bytes=/, '').split('-')
+          const start = parseInt(parts[0], 10)
+          const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1
+          const chunksize = end - start + 1
+
+          c.status(206)
+          c.header('Content-Range', `bytes ${start}-${end}/${fileSize}`)
+          c.header('Content-Length', chunksize.toString())
+          return c.body(fileBuffer.subarray(start, end + 1))
+        } else {
+          c.header('Content-Length', fileSize.toString())
+          return c.body(fileBuffer)
+        }
       }
       return c.notFound()
     },
