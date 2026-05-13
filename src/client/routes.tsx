@@ -1,5 +1,5 @@
 import { Home } from './pages/common/Home'
-import { GeminiTTS } from './pages/module/GeminiTTS'
+import { TTS } from './pages/module/GeminiTTS'
 
 export const appRoutes = [
   {
@@ -9,9 +9,9 @@ export const appRoutes = [
     key: 'home',
   },
   {
-    path: '/gemini-tts',
-    label: 'Gemini-TTS',
-    element: <GeminiTTS />,
-    key: 'gemini-tts',
+    path: '/tts',
+    label: '语音合成',
+    element: <TTS />,
+    key: 'tts',
   },
 ]

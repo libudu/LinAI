@@ -2,7 +2,7 @@ import { ExclamationCircleFilled, PlusOutlined } from '@ant-design/icons'
 import { Button, Modal } from 'antd'
 import { useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import { GeminiTTSCharacter } from '../../../../../../server/module/gemini-tts'
+import { TTSCharacter } from '../../../../../../server/module/tts'
 import { CharacterCard } from './CharacterCard'
 import { CharacterModal, CharacterModalRef } from './CharacterModal'
 
@@ -10,8 +10,8 @@ const { confirm } = Modal
 
 interface CharacterListProps {
   backgroundPrompt: string
-  characters: GeminiTTSCharacter[]
-  onUpdateCharacters: (characters: GeminiTTSCharacter[]) => void
+  characters: TTSCharacter[]
+  onUpdateCharacters: (characters: TTSCharacter[]) => void
 }
 
 export const CharacterList = ({
@@ -21,12 +21,12 @@ export const CharacterList = ({
 }: CharacterListProps) => {
   const modalRef = useRef<CharacterModalRef>(null)
 
-  const handleOpenModal = (character?: GeminiTTSCharacter) => {
+  const handleOpenModal = (character?: TTSCharacter) => {
     modalRef.current?.open(character)
   }
 
   const handleSave = (
-    characterData: Omit<GeminiTTSCharacter, 'id'> | GeminiTTSCharacter,
+    characterData: Omit<TTSCharacter, 'id'> | TTSCharacter,
   ) => {
     let newCharacters
     if ('id' in characterData) {

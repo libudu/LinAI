@@ -8,10 +8,7 @@ import {
 import { Button, Form, Input, message, Modal, Select, Space, Table } from 'antd'
 import { useMemo, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import {
-  GeminiTTSCharacter,
-  GeminiTTSDialogue,
-} from '../../../../../server/module/gemini-tts'
+import { TTSCharacter, TTSDialogue } from '../../../../../server/module/tts'
 import { generateTTS } from '../generate'
 import { CustomAudio } from './components/Audio'
 import { VoiceTag } from './components/VoiceTag'
@@ -21,9 +18,9 @@ const { Option } = Select
 
 interface DialogueListProps {
   backgroundPrompt: string
-  dialogues: GeminiTTSDialogue[]
-  characters: GeminiTTSCharacter[]
-  onUpdateDialogues: (dialogues: GeminiTTSDialogue[]) => void
+  dialogues: TTSDialogue[]
+  characters: TTSCharacter[]
+  onUpdateDialogues: (dialogues: TTSDialogue[]) => void
 }
 
 export const DialogueList = ({
@@ -33,8 +30,9 @@ export const DialogueList = ({
   onUpdateDialogues,
 }: DialogueListProps) => {
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingDialogue, setEditingDialogue] =
-    useState<GeminiTTSDialogue | null>(null)
+  const [editingDialogue, setEditingDialogue] = useState<TTSDialogue | null>(
+    null,
+  )
   const [generatingId, setGeneratingId] = useState<string | null>(null)
   const [form] = Form.useForm()
 
@@ -42,7 +40,7 @@ export const DialogueList = ({
     return [...dialogues].sort((a, b) => a.createdAt - b.createdAt)
   }, [dialogues])
 
-  const handleOpenModal = (dialogue?: GeminiTTSDialogue) => {
+  const handleOpenModal = (dialogue?: TTSDialogue) => {
     if (dialogue) {
       setEditingDialogue(dialogue)
       form.setFieldsValue(dialogue)
@@ -92,7 +90,7 @@ export const DialogueList = ({
     onUpdateDialogues(newDialogues)
   }
 
-  const handleGenerate = async (dialogue: GeminiTTSDialogue) => {
+  const handleGenerate = async (dialogue: TTSDialogue) => {
     const character = characters.find((c) => c.id === dialogue.characterId)
     if (!character) {
       message.error('该对话关联的人物不存在，无法生成语音')
@@ -160,7 +158,7 @@ export const DialogueList = ({
       title: '音频',
       key: 'audio',
       width: 250,
-      render: (_: any, record: GeminiTTSDialogue) => {
+      render: (_: any, record: TTSDialogue) => {
         const character = characters.find((c) => c.id === record.characterId)
         const isGenerating = generatingId === record.id
 
@@ -183,7 +181,7 @@ export const DialogueList = ({
       title: '操作',
       key: 'action',
       width: 120,
-      render: (_: any, record: GeminiTTSDialogue) => (
+      render: (_: any, record: TTSDialogue) => (
         <Space>
           <Button
             type="text"

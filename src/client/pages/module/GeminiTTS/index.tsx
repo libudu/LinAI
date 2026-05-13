@@ -4,7 +4,7 @@ import { ProjectDetail } from './ProjectDetail'
 import { ProjectList } from './ProjectList'
 import { ProjectModal } from './ProjectModal'
 
-export const GeminiTTS = () => {
+export const TTS = () => {
   const [selectedProject, setSelectedProject] = useState<any>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<any>(null)

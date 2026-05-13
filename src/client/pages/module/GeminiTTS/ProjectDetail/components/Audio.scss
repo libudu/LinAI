@@ -50,7 +50,7 @@
     min-width: 0 !important; // Allow shrinking in narrow containers
     display: flex !important;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
   }
 
   .rhap_time {
@@ -68,7 +68,7 @@
     display: flex !important;
     align-items: center;
     flex: 1 1 auto !important;
-    min-width: 40px !important; // Minimum width before it gets completely squished
+    min-width: 20px !important; // Minimum width before it gets completely squished
   }
 
   .rhap_progress-bar {

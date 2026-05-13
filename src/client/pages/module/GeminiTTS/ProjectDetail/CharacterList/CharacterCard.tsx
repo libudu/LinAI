@@ -1,11 +1,11 @@
 import { DeleteOutlined, EditOutlined } from '@ant-design/icons'
 import { Button, Tooltip } from 'antd'
-import { GeminiTTSCharacter } from '../../../../../../server/module/gemini-tts'
+import { TTSCharacter } from '../../../../../../server/module/tts'
 import { VoiceTag } from '../components/VoiceTag'
 
 interface CharacterCardProps {
-  character: GeminiTTSCharacter
-  onEdit: (character: GeminiTTSCharacter) => void
+  character: TTSCharacter
+  onEdit: (character: TTSCharacter) => void
   onDelete: (id: string) => void
 }
 

@@ -7,7 +7,7 @@ import {
   GEMINI_TTS_OUTPUT_DIR,
   generateAndSaveAudio,
   projectManager,
-} from '../module/gemini-tts/index'
+} from '../module/tts/index'
 
 const geminiTtsApi = new Hono()
   .post(

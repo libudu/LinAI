@@ -2,14 +2,14 @@ import fs from 'fs-extra'
 import { v4 as uuidv4 } from 'uuid'
 import { PROJECTS_FILE } from './constants'
 
-export interface GeminiTTSCharacter {
+export interface TTSCharacter {
   id: string
   name: string
   voiceName: string
   voicePrompt?: string
 }
 
-export interface GeminiTTSDialogue {
+export interface TTSDialogue {
   id: string
   characterId: string
   content: string
@@ -21,8 +21,8 @@ export interface Project {
   id: string
   name: string
   backgroundPrompt: string
-  characters: GeminiTTSCharacter[]
-  dialogues: GeminiTTSDialogue[]
+  characters: TTSCharacter[]
+  dialogues: TTSDialogue[]
   createdAt: number
   updatedAt: number
 }

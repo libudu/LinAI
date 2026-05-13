@@ -2,7 +2,7 @@ import { PlayCircleOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { Button, Form, Input, message, Modal, Select, Tag } from 'antd'
 import { forwardRef, useImperativeHandle, useState } from 'react'
-import { GeminiTTSCharacter } from '../../../../../../server/module/gemini-tts'
+import { TTSCharacter } from '../../../../../../server/module/tts'
 import { generateTTS } from '../../generate'
 import { useDisabledVoices } from '../VoicePreview/useDisabledVoices'
 import { voiceList } from '../VoicePreview/voiceConfig'
@@ -11,14 +11,12 @@ import { CustomAudio } from '../components/Audio'
 const { Option } = Select
 
 export interface CharacterModalRef {
-  open: (character?: GeminiTTSCharacter) => void
+  open: (character?: TTSCharacter) => void
 }
 
 interface CharacterModalProps {
   backgroundPrompt: string
-  onSave: (
-    characterData: Omit<GeminiTTSCharacter, 'id'> | GeminiTTSCharacter,
-  ) => void
+  onSave: (characterData: Omit<TTSCharacter, 'id'> | TTSCharacter) => void
 }
 
 export const CharacterModal = forwardRef<
@@ -26,8 +24,9 @@ export const CharacterModal = forwardRef<
   CharacterModalProps
 >(({ backgroundPrompt, onSave }, ref) => {
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingCharacter, setEditingCharacter] =
-    useState<GeminiTTSCharacter | null>(null)
+  const [editingCharacter, setEditingCharacter] = useState<TTSCharacter | null>(
+    null,
+  )
   const [form] = Form.useForm()
 
   const [previewText, setPreviewText] = useLocalStorageState(
