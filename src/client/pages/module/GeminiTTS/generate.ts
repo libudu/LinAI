@@ -40,7 +40,7 @@ export async function generateTTS({
 
   const prompt = promptParts.join('\n\n')
 
-  const response = await client.api['gemini-tts'].generate.$post({
+  const response = await client.api.tts.generate.$post({
     json: { prompt, voiceName, isTrial },
   })
 

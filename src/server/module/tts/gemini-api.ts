@@ -62,7 +62,7 @@ async function saveWav(
   })
 }
 
-export const generateAndSaveAudio = async ({
+export const generateAndSaveAudioGemini = async ({
   prompt,
   voiceName,
   isTrial = false,

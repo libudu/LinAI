@@ -22,7 +22,7 @@ export const ProjectCard = ({ project, onSelectProject, onUpdate, onEdit }: Proj
       content: '删除后无法恢复',
       onOk: async () => {
         try {
-          const response = await client.api['gemini-tts'].projects[':id'].$delete({
+          const response = await client.api.tts.projects[':id'].$delete({
             param: { id: project.id },
           })
           const data = await response.json()

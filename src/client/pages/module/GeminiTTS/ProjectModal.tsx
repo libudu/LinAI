@@ -37,12 +37,12 @@ export const ProjectModal = ({
     try {
       let response
       if (editingProject) {
-        response = await client.api['gemini-tts'].projects[':id'].$put({
+        response = await client.api.tts.projects[':id'].$put({
           param: { id: editingProject.id },
           json: values,
         })
       } else {
-        response = await client.api['gemini-tts'].projects.$post({
+        response = await client.api.tts.projects.$post({
           json: values,
         })
       }

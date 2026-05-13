@@ -19,7 +19,7 @@ export const ProjectDetail = ({
 
   const updateProjectData = async (updates: any) => {
     try {
-      const response = await client.api['gemini-tts'].projects[':id'].$put({
+      const response = await client.api.tts.projects[':id'].$put({
         param: { id: project.id },
         json: updates,
       })

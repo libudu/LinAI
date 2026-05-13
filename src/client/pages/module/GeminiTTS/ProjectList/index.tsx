@@ -23,7 +23,7 @@ export const ProjectList = ({
   const fetchProjects = async () => {
     setLoading(true)
     try {
-      const response = await client.api['gemini-tts'].projects.$get()
+      const response = await client.api.tts.projects.$get()
       const data = await response.json()
       if (data.success) {
         setProjects(data.data)

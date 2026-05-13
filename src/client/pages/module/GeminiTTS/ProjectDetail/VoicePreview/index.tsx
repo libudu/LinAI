@@ -27,14 +27,13 @@ export const VoicePreview = ({ backgroundPrompt }: VoicePreviewProps) => {
   const [isBatchGenerating, setIsBatchGenerating] = useState(false)
 
   useAsyncEffect(async () => {
-    const res = await client.api['gemini-tts'].output.trial.$get()
+    const res = await client.api.tts.output.trial.$get()
     const data = await res.json()
     if (data.success) {
       const urls: Record<string, string> = {}
       data.data.forEach((filename: string) => {
         const voiceName = filename.replace('.wav', '')
-        urls[voiceName] =
-          `/api/gemini-tts/output/trial/${filename}?t=${Date.now()}`
+        urls[voiceName] = `/api/tts/output/trial/${filename}?t=${Date.now()}`
       })
       setAudioUrls(urls)
     }

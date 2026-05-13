@@ -4,12 +4,12 @@ import { Hono } from 'hono'
 import path from 'path'
 import { z } from 'zod'
 import {
-  GEMINI_TTS_OUTPUT_DIR,
-  generateAndSaveAudio,
+  QWEN_TTS_OUTPUT_DIR,
+  generateAndSaveAudioQwen,
   projectManager,
 } from '../module/tts/index'
 
-const geminiTtsApi = new Hono()
+const ttsApi = new Hono()
   .post(
     '/generate',
     zValidator(
@@ -23,14 +23,14 @@ const geminiTtsApi = new Hono()
     async (c) => {
       try {
         const { prompt, voiceName, isTrial } = c.req.valid('json')
-        const filename = await generateAndSaveAudio({
+        const filename = await generateAndSaveAudioQwen({
           prompt,
           voiceName,
           isTrial,
         })
         return c.json({
           success: true,
-          url: `/api/gemini-tts/output/${filename}?t=${Date.now()}`,
+          url: `/api/tts/output/${filename}?t=${Date.now()}`,
         })
       } catch (error: any) {
         return c.json({ success: false, error: error.message }, 500)
@@ -39,7 +39,7 @@ const geminiTtsApi = new Hono()
   )
   .get('/output/trial', async (c) => {
     try {
-      const trialDir = path.join(GEMINI_TTS_OUTPUT_DIR, 'trial')
+      const trialDir = path.join(QWEN_TTS_OUTPUT_DIR, 'trial')
       if (!(await fs.pathExists(trialDir))) {
         return c.json({ success: true, data: [] })
       }
@@ -55,7 +55,7 @@ const geminiTtsApi = new Hono()
     zValidator('param', z.object({ filename: z.string() })),
     async (c) => {
       const { filename } = c.req.valid('param')
-      const filepath = path.join(GEMINI_TTS_OUTPUT_DIR, 'trial', filename)
+      const filepath = path.join(QWEN_TTS_OUTPUT_DIR, 'trial', filename)
 
       if (await fs.pathExists(filepath)) {
         const fileBuffer = await fs.readFile(filepath)
@@ -88,7 +88,7 @@ const geminiTtsApi = new Hono()
     zValidator('param', z.object({ filename: z.string() })),
     async (c) => {
       const { filename } = c.req.valid('param')
-      const filepath = path.join(GEMINI_TTS_OUTPUT_DIR, filename)
+      const filepath = path.join(QWEN_TTS_OUTPUT_DIR, filename)
 
       if (await fs.pathExists(filepath)) {
         const fileBuffer = await fs.readFile(filepath)
@@ -194,4 +194,4 @@ const geminiTtsApi = new Hono()
     },
   )
 
-export default geminiTtsApi
+export default ttsApi
