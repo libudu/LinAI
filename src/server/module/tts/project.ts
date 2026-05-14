@@ -5,7 +5,7 @@ import { PROJECTS_FILE } from './constants'
 export interface TTSCharacter {
   id: string
   name: string
-  voiceName: string
+  voiceId: string
   voicePrompt?: string
 }
 

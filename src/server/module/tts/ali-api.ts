@@ -24,14 +24,12 @@ export interface AliTTSResponse {
 
 export const generateAndSaveAudioQwen = async ({
   prompt,
-  voiceName,
-  isTrial = false,
+  voiceId,
 }: {
   prompt: string
-  voiceName: string
-  isTrial?: boolean
+  voiceId: string
 }): Promise<string> => {
-  const MODEL_NAME = 'cosyvoice-v3-flash' // or 'cosyvoice-v1' depending on requirements
+  const MODEL_NAME = 'cosyvoice-v3.5-plus'
   const apiKey = getTTSAliApiKey() || process.env.DASHSCOPE_API_KEY
 
   if (!apiKey) {
@@ -50,7 +48,7 @@ export const generateAndSaveAudioQwen = async ({
         model: MODEL_NAME,
         input: {
           text: prompt,
-          voice: voiceName,
+          voice: voiceId,
           format: 'wav',
           sample_rate: 24000,
         },
@@ -81,22 +79,30 @@ export const generateAndSaveAudioQwen = async ({
   let fileName = `${uuidv4()}.wav`
   let filePath = path.join(TTS_ALI_OUTPUT_DIR, fileName)
 
-  if (isTrial) {
-    const trialDir = path.join(TTS_ALI_OUTPUT_DIR, 'trial')
-    await fs.ensureDir(trialDir)
-    fileName = `trial/${voiceName}.wav`
-    filePath = path.join(trialDir, `${voiceName}.wav`)
-  } else {
-    await fs.ensureDir(TTS_ALI_OUTPUT_DIR)
-  }
-
+  await fs.ensureDir(TTS_ALI_OUTPUT_DIR)
   await fs.writeFile(filePath, audioBuffer)
 
   return fileName
 }
 
 export interface AliVoiceListItem {
-  voice_name: string
+  gmt_create: string
+  gmt_modified: string
+  status: string
+  target_model: string
+  voice_id: string
+}
+
+export interface AliVoiceListResponse {
+  request_id?: string
+  output?: {
+    voice_list?: AliVoiceListItem[]
+  }
+  usage?: {
+    count?: number
+  }
+  code?: string
+  message?: string
 }
 
 export const listCustomVoices = async (
@@ -120,15 +126,15 @@ export const listCustomVoices = async (
         model: 'voice-enrollment',
         input: {
           action: 'list_voice',
-          prefix: prefix,
-          page_size: 100, // fetching a large number of voices
-          page_index: 1,
+          page_size: 100,
+          page_index: 0,
+          prefix,
         },
       }),
     },
   )
 
-  const res = await response.json()
+  const res: AliVoiceListResponse = await response.json()
 
   if (res.code && res.message) {
     throw new Error(`Qwen TTS Error: ${res.message}`)

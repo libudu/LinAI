@@ -1,14 +1,25 @@
 import { Button } from 'antd'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useGlobalStore } from '../../../store/global'
 import { ProjectDetail } from './ProjectDetail'
 import { ProjectList } from './ProjectList'
 import { ProjectModal } from './ProjectModal'
+import { useTTSStore } from './store'
 
 export const TTS = () => {
   const [selectedProject, setSelectedProject] = useState<any>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<any>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+  const { ttsAliApiKey } = useGlobalStore()
+  const { hasFetchedVoiceList, fetchVoiceList } = useTTSStore()
+
+  useEffect(() => {
+    if (ttsAliApiKey && !hasFetchedVoiceList) {
+      fetchVoiceList(ttsAliApiKey)
+    }
+  }, [ttsAliApiKey, hasFetchedVoiceList, fetchVoiceList])
 
   const handleEditProject = (project: any) => {
     setEditingProject(project)

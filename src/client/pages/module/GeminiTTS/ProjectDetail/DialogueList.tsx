@@ -102,7 +102,7 @@ export const DialogueList = ({
         backgroundPrompt,
         voicePrompt: character.voicePrompt || '',
         contentPrompt: dialogue.content,
-        voiceName: character.voiceName,
+        voiceId: character.voiceId,
       })
       const newDialogues = dialogues.map((d) =>
         d.id === dialogue.id ? { ...d, audioUrl: url } : d,

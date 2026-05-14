@@ -10,17 +10,15 @@ const ttsAliApi = new Hono()
       'json',
       z.object({
         prompt: z.string(),
-        voiceName: z.string(),
-        isTrial: z.boolean().optional(),
+        voiceId: z.string(),
       }),
     ),
     async (c) => {
       try {
-        const { prompt, voiceName, isTrial } = c.req.valid('json')
+        const { prompt, voiceId } = c.req.valid('json')
         const filename = await generateAndSaveAudioQwen({
           prompt,
-          voiceName,
-          isTrial,
+          voiceId,
         })
         return c.json({
           success: true,

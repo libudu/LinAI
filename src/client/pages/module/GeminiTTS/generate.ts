@@ -15,16 +15,14 @@ export interface GenerateTTSParams {
   backgroundPrompt?: string
   voicePrompt?: string
   contentPrompt: string
-  voiceName: string
-  isTrial?: boolean
+  voiceId: string
 }
 
 export async function generateTTS({
   backgroundPrompt,
   voicePrompt,
   contentPrompt,
-  voiceName,
-  isTrial,
+  voiceId,
 }: GenerateTTSParams): Promise<string> {
   const promptParts: string[] = []
 
@@ -41,7 +39,7 @@ export async function generateTTS({
   const prompt = promptParts.join('\n\n')
 
   const response = await client.api['tts-ali'].generate.$post({
-    json: { prompt, voiceName, isTrial },
+    json: { prompt, voiceId },
   })
 
   const data = await response.json()

@@ -1,9 +1,10 @@
 import { PlayCircleOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
-import { Button, Form, Input, message, Modal } from 'antd'
-import { forwardRef, useImperativeHandle, useState } from 'react'
+import { AutoComplete, Button, Form, Input, message, Modal } from 'antd'
+import { forwardRef, useImperativeHandle, useMemo, useState } from 'react'
 import { TTSCharacter } from '../../../../../../server/module/tts'
 import { generateTTS } from '../../generate'
+import { useTTSStore } from '../../store'
 import { CustomAudio } from '../components/Audio'
 
 export interface CharacterModalRef {
@@ -33,6 +34,14 @@ export const CharacterModal = forwardRef<
   )
   const [previewAudio, setPreviewAudio] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
+
+  const { voiceList } = useTTSStore()
+  const voiceOptions = useMemo(() => {
+    return voiceList.map((voice: any) => ({
+      value: voice.voice_id,
+      label: voice.voice_id,
+    }))
+  }, [voiceList])
 
   useImperativeHandle(ref, () => ({
     open: (character) => {
@@ -67,9 +76,9 @@ export const CharacterModal = forwardRef<
   }
 
   const handlePreview = async () => {
-    const voiceName = form.getFieldValue('voiceName')
-    if (!voiceName) {
-      message.warning('请先选择音色')
+    const voiceId = form.getFieldValue('voiceId')
+    if (!voiceId) {
+      message.warning('请先输入音色 ID')
       return
     }
     if (!previewText.trim()) {
@@ -83,9 +92,9 @@ export const CharacterModal = forwardRef<
       const url = await generateTTS({
         backgroundPrompt,
         voicePrompt,
+
         contentPrompt: previewText,
-        voiceName,
-        isTrial: true,
+        voiceId,
       })
       setPreviewAudio(url)
     } catch (error: any) {
@@ -113,37 +122,20 @@ export const CharacterModal = forwardRef<
         </Form.Item>
 
         <Form.Item
-          name="voiceName"
+          name="voiceId"
           label="分配音色"
-          rules={[{ required: true, message: '请选择音色' }]}
+          rules={[{ required: true, message: '请输入音色 ID' }]}
         >
-          {/* <Select
-            placeholder="请选择音色"
-            optionLabelProp="label"
-            dropdownMatchSelectWidth={false}
+          <AutoComplete
+            options={voiceOptions}
+            placeholder="请选择或输入阿里云 DashScope 定制音色 ID"
             onChange={() => setPreviewAudio(null)}
-          >
-            {voiceList
-              .filter((item) => !(disabledVoices || []).includes(item.name))
-              .map((item) => (
-                <Option key={item.name} value={item.name} label={item.name}>
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="font-medium">{item.name}</span>
-                    <div className="flex gap-1">
-                      <Tag color="blue" className="m-0 border-0">
-                        {item.voice}
-                      </Tag>
-                      <Tag
-                        color={item.gender === '男' ? 'cyan' : 'magenta'}
-                        className="m-0 border-0"
-                      >
-                        {item.gender}
-                      </Tag>
-                    </div>
-                  </div>
-                </Option>
-              ))}
-          </Select> */}
+            filterOption={(inputValue, option) =>
+              String(option?.value || '')
+                .toUpperCase()
+                .indexOf(inputValue.toUpperCase()) !== -1
+            }
+          />
         </Form.Item>
 
         <Form.Item name="voicePrompt" label="音色微调">
