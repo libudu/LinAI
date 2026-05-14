@@ -2,12 +2,13 @@ import { Form, Input, Modal, message } from 'antd'
 import { hc } from 'hono/client'
 import { useEffect } from 'react'
 import type { AppType } from '../../../../server'
+import { TTSProject } from '../../../../server/module/tts'
 
 const client = hc<AppType>('/')
 
 interface ProjectModalProps {
   open: boolean
-  editingProject?: any
+  editingProject?: TTSProject
   onClose: () => void
   onSuccess: () => void
 }

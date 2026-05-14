@@ -11,7 +11,6 @@ import { v4 as uuidv4 } from 'uuid'
 import { TTSCharacter, TTSDialogue } from '../../../../../server/module/tts'
 import { generateTTS } from '../generate'
 import { CustomAudio } from './components/Audio'
-import { VoiceTag } from './components/VoiceTag'
 
 const { TextArea } = Input
 const { Option } = Select
@@ -143,7 +142,7 @@ export const DialogueList = ({
       width: 150,
       render: (characterId: string) => {
         const character = characters.find((c) => c.id === characterId)
-        return character ? <VoiceTag voiceName={character.voiceName} /> : null
+        return null
       },
     },
     {
@@ -151,7 +150,9 @@ export const DialogueList = ({
       dataIndex: 'content',
       key: 'content',
       render: (content: string) => (
-        <div className="whitespace-pre-wrap text-slate-600">{content}</div>
+        <div className="min-w-[100px] whitespace-pre-wrap text-slate-600">
+          {content}
+        </div>
       ),
     },
     {
@@ -250,7 +251,6 @@ export const DialogueList = ({
                 <Option key={c.id} value={c.id}>
                   <div className="flex items-center gap-2">
                     <span>{c.name}</span>
-                    <VoiceTag voiceName={c.voiceName} />
                   </div>
                 </Option>
               ))}

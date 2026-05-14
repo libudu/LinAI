@@ -1,14 +1,10 @@
 import { PlayCircleOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
-import { Button, Form, Input, message, Modal, Select, Tag } from 'antd'
+import { Button, Form, Input, message, Modal } from 'antd'
 import { forwardRef, useImperativeHandle, useState } from 'react'
 import { TTSCharacter } from '../../../../../../server/module/tts'
 import { generateTTS } from '../../generate'
-import { useDisabledVoices } from '../VoicePreview/useDisabledVoices'
-import { voiceList } from '../VoicePreview/voiceConfig'
 import { CustomAudio } from '../components/Audio'
-
-const { Option } = Select
 
 export interface CharacterModalRef {
   open: (character?: TTSCharacter) => void
@@ -35,7 +31,6 @@ export const CharacterModal = forwardRef<
       defaultValue: '你好，我是当前音色的测试语音。',
     },
   )
-  const [disabledVoices] = useDisabledVoices()
   const [previewAudio, setPreviewAudio] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
 
@@ -122,7 +117,7 @@ export const CharacterModal = forwardRef<
           label="分配音色"
           rules={[{ required: true, message: '请选择音色' }]}
         >
-          <Select
+          {/* <Select
             placeholder="请选择音色"
             optionLabelProp="label"
             dropdownMatchSelectWidth={false}
@@ -148,7 +143,7 @@ export const CharacterModal = forwardRef<
                   </div>
                 </Option>
               ))}
-          </Select>
+          </Select> */}
         </Form.Item>
 
         <Form.Item name="voicePrompt" label="音色微调">

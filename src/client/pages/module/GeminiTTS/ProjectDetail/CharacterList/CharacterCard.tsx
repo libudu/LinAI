@@ -1,7 +1,6 @@
 import { DeleteOutlined, EditOutlined } from '@ant-design/icons'
 import { Button, Tooltip } from 'antd'
 import { TTSCharacter } from '../../../../../../server/module/tts'
-import { VoiceTag } from '../components/VoiceTag'
 
 interface CharacterCardProps {
   character: TTSCharacter
@@ -41,9 +40,6 @@ export const CharacterCard = ({
           </Tooltip>
         </div>
       </div>
-
-      {/* 第二行：标签 */}
-      <VoiceTag voiceName={character.voiceName} />
 
       {/* 第三行：描述 */}
       <div className="mt-1 line-clamp-1 text-xs text-slate-500">

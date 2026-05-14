@@ -17,7 +17,7 @@ export interface TTSDialogue {
   createdAt: number
 }
 
-export interface Project {
+export interface TTSProject {
   id: string
   name: string
   backgroundPrompt: string
@@ -39,7 +39,7 @@ class ProjectManager {
     return ProjectManager.instance
   }
 
-  async getProjects(): Promise<Project[]> {
+  async getProjects(): Promise<TTSProject[]> {
     if (await fs.pathExists(PROJECTS_FILE)) {
       const data = await fs.readFile(PROJECTS_FILE, 'utf-8')
       try {
@@ -51,7 +51,7 @@ class ProjectManager {
     return []
   }
 
-  async saveProjects(projects: Project[]): Promise<void> {
+  async saveProjects(projects: TTSProject[]): Promise<void> {
     await fs.ensureFile(PROJECTS_FILE)
     await fs.writeFile(
       PROJECTS_FILE,
@@ -61,10 +61,10 @@ class ProjectManager {
   }
 
   async createProject(
-    data: Pick<Project, 'name' | 'backgroundPrompt'>,
-  ): Promise<Project> {
+    data: Pick<TTSProject, 'name' | 'backgroundPrompt'>,
+  ): Promise<TTSProject> {
     const projects = await this.getProjects()
-    const newProject: Project = {
+    const newProject: TTSProject = {
       id: uuidv4(),
       name: data.name,
       backgroundPrompt: data.backgroundPrompt,
@@ -78,15 +78,15 @@ class ProjectManager {
     return newProject
   }
 
-  async getProjectById(id: string): Promise<Project | null> {
+  async getProjectById(id: string): Promise<TTSProject | null> {
     const projects = await this.getProjects()
     return projects.find((p) => p.id === id) || null
   }
 
   async updateProject(
     id: string,
-    data: Partial<Omit<Project, 'id' | 'createdAt'>>,
-  ): Promise<Project | null> {
+    data: Partial<Omit<TTSProject, 'id' | 'createdAt'>>,
+  ): Promise<TTSProject | null> {
     const projects = await this.getProjects()
     const index = projects.findIndex((p) => p.id === id)
     if (index !== -1) {
