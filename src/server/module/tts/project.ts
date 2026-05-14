@@ -12,6 +12,7 @@ export interface TTSDialogue {
   id: string
   characterId: string
   content: string
+  instruction?: string
   audioUrl?: string
   createdAt: number
 }

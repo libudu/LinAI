@@ -5,15 +5,13 @@ import {
   PlayCircleOutlined,
   PlusOutlined,
 } from '@ant-design/icons'
-import { Button, Form, Input, message, Modal, Select, Space, Table } from 'antd'
-import { useMemo, useState } from 'react'
+import { Button, message, Space, Table } from 'antd'
+import { useMemo, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import { TTSCharacter, TTSDialogue } from '../../../../../server/module/tts'
-import { CustomAudio } from './components/Audio'
-import { generateTTS } from './generate'
-
-const { TextArea } = Input
-const { Option } = Select
+import { TTSCharacter, TTSDialogue } from '../../../../../../server/module/tts'
+import { CustomAudio } from '../components/Audio'
+import { generateTTS } from '../generate'
+import { DialogueModal, DialogueModalRef } from './DialogueModal'
 
 interface DialogueListProps {
   dialogues: TTSDialogue[]
@@ -26,60 +24,43 @@ export const DialogueList = ({
   characters = [],
   onUpdateDialogues,
 }: DialogueListProps) => {
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingDialogue, setEditingDialogue] = useState<TTSDialogue | null>(
-    null,
-  )
+  const modalRef = useRef<DialogueModalRef>(null)
   const [generatingId, setGeneratingId] = useState<string | null>(null)
-  const [form] = Form.useForm()
 
   const sortedDialogues = useMemo(() => {
     return [...dialogues].sort((a, b) => a.createdAt - b.createdAt)
   }, [dialogues])
 
   const handleOpenModal = (dialogue?: TTSDialogue) => {
-    if (dialogue) {
-      setEditingDialogue(dialogue)
-      form.setFieldsValue(dialogue)
+    modalRef.current?.open(dialogue)
+  }
+
+  const handleSave = (
+    values: Omit<TTSDialogue, 'id' | 'createdAt'> | TTSDialogue,
+  ) => {
+    let newDialogues
+    if ('id' in values) {
+      newDialogues = dialogues.map((d) =>
+        d.id === values.id
+          ? {
+              ...d,
+              ...values,
+              audioUrl:
+                d.content !== values.content ||
+                d.instruction !== values.instruction
+                  ? undefined
+                  : d.audioUrl,
+            }
+          : d,
+      )
     } else {
-      setEditingDialogue(null)
-      form.resetFields()
-      if (characters.length > 0) {
-        form.setFieldValue('characterId', characters[0].id)
-      }
+      newDialogues = [
+        ...dialogues,
+        { id: uuidv4(), ...values, createdAt: Date.now() },
+      ]
     }
-    setIsModalOpen(true)
-  }
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false)
-    setEditingDialogue(null)
-    form.resetFields()
-  }
-
-  const handleSave = () => {
-    form.validateFields().then((values) => {
-      let newDialogues
-      if (editingDialogue) {
-        newDialogues = dialogues.map((d) =>
-          d.id === editingDialogue.id
-            ? {
-                ...d,
-                ...values,
-                audioUrl: d.content !== values.content ? undefined : d.audioUrl,
-              }
-            : d,
-        )
-      } else {
-        newDialogues = [
-          ...dialogues,
-          { id: uuidv4(), ...values, createdAt: Date.now() },
-        ]
-      }
-
-      onUpdateDialogues(newDialogues)
-      handleCloseModal()
-    })
+    onUpdateDialogues(newDialogues)
   }
 
   const handleDelete = (id: string) => {
@@ -98,7 +79,7 @@ export const DialogueList = ({
     try {
       const url = await generateTTS({
         text: dialogue.content,
-        instruction: '',
+        instruction: dialogue.instruction || '',
         voiceId: character.voiceId,
       })
       const newDialogues = dialogues.map((d) =>
@@ -142,12 +123,17 @@ export const DialogueList = ({
       },
     },
     {
-      title: '对话内容',
+      title: '对话内容/指令控制',
       dataIndex: 'content',
       key: 'content',
-      render: (content: string) => (
-        <div className="min-w-[100px] whitespace-pre-wrap text-slate-600">
-          {content}
+      render: (content: string, record: TTSDialogue) => (
+        <div className="flex min-w-[100px] flex-col gap-1">
+          <div className="whitespace-pre-wrap text-slate-600">{content}</div>
+          {record.instruction && (
+            <div className="text-sm text-slate-400">
+              指令：{record.instruction}
+            </div>
+          )}
         </div>
       ),
     },
@@ -228,47 +214,11 @@ export const DialogueList = ({
         }}
       />
 
-      <Modal
-        title={editingDialogue ? '编辑对话' : '添加对话'}
-        open={isModalOpen}
-        onCancel={handleCloseModal}
-        onOk={handleSave}
-        destroyOnClose
-        width={600}
-      >
-        <Form form={form} layout="vertical">
-          <Form.Item
-            name="characterId"
-            label="选择人物"
-            rules={[{ required: true, message: '请选择人物' }]}
-          >
-            <Select placeholder="请选择人物">
-              {characters.map((c) => (
-                <Option key={c.id} value={c.id}>
-                  <div className="flex items-center gap-2">
-                    <span>{c.name}</span>
-                  </div>
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
-
-          <Form.Item
-            name="content"
-            label="对话内容"
-            rules={[{ required: true, message: '请输入对话内容' }]}
-            extra={editingDialogue && '修改对话内容后需要重新生成语音'}
-          >
-            <TextArea
-              autoSize={{
-                minRows: 3,
-                maxRows: 6,
-              }}
-              placeholder="请输入该人物的对话内容..."
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
+      <DialogueModal
+        ref={modalRef}
+        characters={characters}
+        onSave={handleSave}
+      />
     </div>
   )
 }

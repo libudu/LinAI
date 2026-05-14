@@ -1,6 +1,6 @@
 import { PlayCircleOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
-import { AutoComplete, Button, Form, Input, message, Modal } from 'antd'
+import { AutoComplete, Button, Card, Form, Input, message, Modal } from 'antd'
 import { forwardRef, useImperativeHandle, useMemo, useState } from 'react'
 import { TTSCharacter } from '../../../../../../server/module/tts'
 import { useTTSStore } from '../../store'
@@ -29,6 +29,12 @@ export const CharacterModal = forwardRef<
     'gemini-tts-preview-text',
     {
       defaultValue: '你好，我是当前音色的测试语音。',
+    },
+  )
+  const [previewInstruction, setPreviewInstruction] = useLocalStorageState(
+    'gemini-tts-preview-instruction',
+    {
+      defaultValue: '',
     },
   )
   const [previewAudio, setPreviewAudio] = useState<string | null>(null)
@@ -90,7 +96,7 @@ export const CharacterModal = forwardRef<
     try {
       const url = await generateTTS({
         text: previewText,
-        instruction: '',
+        instruction: previewInstruction || '',
         voiceId,
       })
       setPreviewAudio(url)
@@ -152,14 +158,25 @@ export const CharacterModal = forwardRef<
           </AutoComplete>
         </Form.Item>
 
-        <Form.Item label="音色试听">
-          <div className="flex flex-col gap-2">
-            <div className="flex gap-2">
+        <Card size="small" title="音色试听" className="mt-4 bg-slate-50">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <div className="shrink-0">指令控制</div>
               <Input
-                value={previewText}
-                onChange={(e) => setPreviewText(e.target.value)}
-                placeholder="请输入试听文本"
+                value={previewInstruction}
+                onChange={(e) => setPreviewInstruction(e.target.value)}
+                placeholder="请输入指令控制"
               />
+            </div>
+            <div className="flex gap-2">
+              <div className="flex items-center gap-2">
+                <div className="shrink-0">试听文本</div>
+                <Input
+                  value={previewText}
+                  onChange={(e) => setPreviewText(e.target.value)}
+                  placeholder="请输入试听文本"
+                />
+              </div>
               <Button
                 type="primary"
                 icon={<PlayCircleOutlined />}
@@ -170,10 +187,10 @@ export const CharacterModal = forwardRef<
               </Button>
             </div>
             {previewAudio && (
-              <CustomAudio src={previewAudio} className="mt-2 w-full" />
+              <CustomAudio src={previewAudio} className="w-full" />
             )}
           </div>
-        </Form.Item>
+        </Card>
       </Form>
     </Modal>
   )
