@@ -140,8 +140,7 @@ export const DialogueList = ({
       dataIndex: 'characterId',
       key: 'voice',
       width: 150,
-      render: (characterId: string) => {
-        const character = characters.find((c) => c.id === characterId)
+      render: () => {
         return null
       },
     },

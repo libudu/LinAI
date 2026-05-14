@@ -3,43 +3,12 @@ import fs from 'fs-extra'
 import { Hono } from 'hono'
 import path from 'path'
 import { z } from 'zod'
-import {
-  QWEN_TTS_OUTPUT_DIR,
-  generateAndSaveAudioQwen,
-  projectManager,
-} from '../module/tts/index'
+import { TTS_ALI_OUTPUT_DIR, projectManager } from '../module/tts/index'
 
 const ttsApi = new Hono()
-  .post(
-    '/generate',
-    zValidator(
-      'json',
-      z.object({
-        prompt: z.string(),
-        voiceName: z.string(),
-        isTrial: z.boolean().optional(),
-      }),
-    ),
-    async (c) => {
-      try {
-        const { prompt, voiceName, isTrial } = c.req.valid('json')
-        const filename = await generateAndSaveAudioQwen({
-          prompt,
-          voiceName,
-          isTrial,
-        })
-        return c.json({
-          success: true,
-          url: `/api/tts/output/${filename}?t=${Date.now()}`,
-        })
-      } catch (error: any) {
-        return c.json({ success: false, error: error.message }, 500)
-      }
-    },
-  )
   .get('/output/trial', async (c) => {
     try {
-      const trialDir = path.join(QWEN_TTS_OUTPUT_DIR, 'trial')
+      const trialDir = path.join(TTS_ALI_OUTPUT_DIR, 'trial')
       if (!(await fs.pathExists(trialDir))) {
         return c.json({ success: true, data: [] })
       }
@@ -55,7 +24,7 @@ const ttsApi = new Hono()
     zValidator('param', z.object({ filename: z.string() })),
     async (c) => {
       const { filename } = c.req.valid('param')
-      const filepath = path.join(QWEN_TTS_OUTPUT_DIR, 'trial', filename)
+      const filepath = path.join(TTS_ALI_OUTPUT_DIR, 'trial', filename)
 
       if (await fs.pathExists(filepath)) {
         const fileBuffer = await fs.readFile(filepath)
@@ -88,7 +57,7 @@ const ttsApi = new Hono()
     zValidator('param', z.object({ filename: z.string() })),
     async (c) => {
       const { filename } = c.req.valid('param')
-      const filepath = path.join(QWEN_TTS_OUTPUT_DIR, filename)
+      const filepath = path.join(TTS_ALI_OUTPUT_DIR, filename)
 
       if (await fs.pathExists(filepath)) {
         const fileBuffer = await fs.readFile(filepath)

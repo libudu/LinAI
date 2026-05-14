@@ -4,6 +4,7 @@ import { decryptApiKey } from '../../module/gpt-image/encrypt'
 
 export interface Config {
   gptImageApiKey: string | null
+  ttsAliApiKey?: string | null
   localNetworkUrl?: string
 }
 
@@ -12,6 +13,7 @@ const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json')
 
 const DEFAULT_CONFIG: Config = {
   gptImageApiKey: null,
+  ttsAliApiKey: null,
 }
 
 let currentConfig: Config = { ...DEFAULT_CONFIG }
@@ -58,4 +60,8 @@ export const updateConfig = (newConfig: Partial<Config>): Config => {
 
 export const getYunwuApiKey = (): string | null => {
   return decryptApiKey(currentConfig.gptImageApiKey || '')
+}
+
+export const getTTSAliApiKey = (): string | null => {
+  return currentConfig.ttsAliApiKey || null
 }

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { AppType } from '../../../../../server'
 import { CharacterList } from './CharacterList'
 import { DialogueList } from './DialogueList'
+import { VoiceList } from './VoiceList'
 
 const client = hc<AppType>('/')
 
@@ -69,6 +70,11 @@ export const ProjectDetail = ({
                 backgroundPrompt={project.backgroundPrompt || ''}
               />
             ),
+          },
+          {
+            key: 'voices',
+            label: '阿里 CosyVoice 音色',
+            children: <VoiceList />,
           },
         ]}
       />

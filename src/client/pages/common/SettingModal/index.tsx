@@ -3,6 +3,7 @@ import { useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AdminSetting, AdminSettingRef } from './AdminSetting'
 import { GPTImageSetting, GPTImageSettingRef } from './GPTImageSetting'
+import { TTSSetting, TTSSettingRef } from './TTSSetting'
 import { UploadImageSetting } from './UploadImageSetting'
 
 export const isAdmin = () => {
@@ -31,6 +32,7 @@ export function openSettingModal(options?: {
       options?.initialTab || 'gpt-image',
     )
     const gptImageRef = useRef<GPTImageSettingRef>(null)
+    const ttsRef = useRef<TTSSettingRef>(null)
     const adminRef = useRef<AdminSettingRef>(null)
 
     const handleSave = async () => {
@@ -40,6 +42,8 @@ export function openSettingModal(options?: {
           if (apiKey) {
             options?.onSuccess?.(apiKey)
           }
+        } else if (activeTab === 'tts') {
+          await ttsRef.current?.save()
         } else if (activeTab === 'admin') {
           await adminRef.current?.save()
         }
@@ -54,6 +58,11 @@ export function openSettingModal(options?: {
         key: 'gpt-image',
         label: 'GPTImage 配置',
         children: <GPTImageSetting ref={gptImageRef} />,
+      },
+      {
+        key: 'tts',
+        label: 'TTS 配置',
+        children: <TTSSetting ref={ttsRef} />,
       },
       {
         key: 'upload-image',
