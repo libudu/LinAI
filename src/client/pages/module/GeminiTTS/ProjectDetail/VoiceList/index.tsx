@@ -1,22 +1,27 @@
 import { CopyOutlined, SyncOutlined } from '@ant-design/icons'
-import { Button, Empty, Input, List, Tooltip } from 'antd'
+import { Button, Empty, Input, List, message, Tooltip } from 'antd'
 import copy from 'copy-to-clipboard'
 import { useMemo, useState } from 'react'
 import { useGlobalStore } from '../../../../../store/global'
 import { openSettingModal } from '../../../../common/SettingModal'
 import { useTTSStore } from '../../store'
+import { EditableRemark } from './EditableRemark'
 
 export const VoiceList = () => {
-  const [prefix, setPrefix] = useState('')
+  const [keyword, setKeyword] = useState('')
   const { ttsAliApiKey } = useGlobalStore()
-  const { voiceList, loadingVoiceList, fetchVoiceList } = useTTSStore()
+  const { voiceList, loadingVoiceList, fetchVoiceList, updateVoiceRemark } =
+    useTTSStore()
 
   const data = useMemo(() => {
-    if (!prefix) return voiceList
-    return voiceList.filter((voice) =>
-      voice.voice_id.toLowerCase().includes(prefix.toLowerCase()),
-    )
-  }, [voiceList, prefix])
+    if (!keyword) return voiceList
+    const lowerKeyword = keyword.toLowerCase()
+    return voiceList.filter((voice) => {
+      const idMatch = voice.voice_id.toLowerCase().includes(lowerKeyword)
+      const remarkMatch = voice.remark?.toLowerCase().includes(lowerKeyword)
+      return idMatch || remarkMatch
+    })
+  }, [voiceList, keyword])
 
   if (!ttsAliApiKey) {
     return (
@@ -40,9 +45,9 @@ export const VoiceList = () => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <Input.Search
-          placeholder="搜索音色名称前缀..."
+          placeholder="搜索关键词..."
           allowClear
-          onChange={(e) => setPrefix(e.target.value)}
+          onChange={(e) => setKeyword(e.target.value)}
           style={{ width: 300 }}
         />
         <Button
@@ -73,7 +78,10 @@ export const VoiceList = () => {
                     <Button
                       type="text"
                       icon={<CopyOutlined />}
-                      onClick={() => copy(item.voice_id)}
+                      onClick={() => {
+                        copy(item.voice_id)
+                        message.success('复制成功')
+                      }}
                       className="text-slate-400 hover:text-blue-600!"
                     />
                   </Tooltip>
@@ -85,17 +93,15 @@ export const VoiceList = () => {
                   {item.target_model}
                 </div>
                 <div>
-                  <span className="font-medium text-gray-700">状态:</span>{' '}
-                  {item.status || 'UNKNOWN'}
-                </div>
-                <div>
                   <span className="font-medium text-gray-700">创建时间:</span>{' '}
                   {item.gmt_create}
                 </div>
-                <div>
-                  <span className="font-medium text-gray-700">更新时间:</span>{' '}
-                  {item.gmt_modified}
-                </div>
+              </div>
+              <div className="min-w-0 flex-1">
+                <EditableRemark
+                  value={item.remark || ''}
+                  onChange={(val) => updateVoiceRemark(item.voice_id, val)}
+                />
               </div>
             </div>
           </List.Item>

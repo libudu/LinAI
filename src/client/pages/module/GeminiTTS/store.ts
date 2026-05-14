@@ -5,14 +5,19 @@ import { AliVoiceListItem } from '../../../../server/module/tts'
 
 const client = hc<AppType>('/')
 
+export interface VoiceItemWithRemark extends AliVoiceListItem {
+  remark?: string
+}
+
 interface TTSStore {
-  voiceList: AliVoiceListItem[]
+  voiceList: VoiceItemWithRemark[]
   loadingVoiceList: boolean
   hasFetchedVoiceList: boolean
   fetchVoiceList: (ttsAliApiKey: string) => Promise<void>
+  updateVoiceRemark: (voiceId: string, remark: string) => void
 }
 
-export const useTTSStore = create<TTSStore>((set) => ({
+export const useTTSStore = create<TTSStore>((set, get) => ({
   voiceList: [],
   loadingVoiceList: false,
   hasFetchedVoiceList: false,
@@ -26,7 +31,22 @@ export const useTTSStore = create<TTSStore>((set) => ({
       })
       const json = await res.json()
       if (json.success) {
-        set({ voiceList: json.data, hasFetchedVoiceList: true })
+        let remarks: Record<string, string> = {}
+        try {
+          const storedRemarksStr = localStorage.getItem('tts_voice_remarks')
+          if (storedRemarksStr) {
+            remarks = JSON.parse(storedRemarksStr)
+          }
+        } catch (e) {
+          console.error('Failed to parse tts_voice_remarks', e)
+        }
+
+        const voiceList = json.data.map((item: AliVoiceListItem) => ({
+          ...item,
+          remark: remarks[item.voice_id] || undefined,
+        }))
+
+        set({ voiceList, hasFetchedVoiceList: true })
       } else {
         console.error(json.error || '获取音色列表失败')
       }
@@ -35,5 +55,31 @@ export const useTTSStore = create<TTSStore>((set) => ({
     } finally {
       set({ loadingVoiceList: false })
     }
+  },
+  updateVoiceRemark: (voiceId: string, remark: string) => {
+    let remarks: Record<string, string> = {}
+    try {
+      const storedRemarksStr = localStorage.getItem('tts_voice_remarks')
+      if (storedRemarksStr) {
+        remarks = JSON.parse(storedRemarksStr)
+      }
+    } catch (e) {
+      console.error('Failed to parse tts_voice_remarks', e)
+    }
+
+    if (remark) {
+      remarks[voiceId] = remark
+    } else {
+      delete remarks[voiceId]
+    }
+
+    localStorage.setItem('tts_voice_remarks', JSON.stringify(remarks))
+
+    const { voiceList } = get()
+    set({
+      voiceList: voiceList.map((v) =>
+        v.voice_id === voiceId ? { ...v, remark: remark || undefined } : v,
+      ),
+    })
   },
 }))

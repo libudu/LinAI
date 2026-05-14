@@ -36,9 +36,10 @@ export const CharacterModal = forwardRef<
 
   const { voiceList } = useTTSStore()
   const voiceOptions = useMemo(() => {
-    return voiceList.map((voice: any) => ({
+    return voiceList.map((voice) => ({
       value: voice.voice_id,
-      label: voice.voice_id,
+      remark: voice.remark,
+      searchText: `${voice.voice_id} ${voice.remark || ''}`,
     }))
   }, [voiceList])
 
@@ -123,15 +124,32 @@ export const CharacterModal = forwardRef<
           rules={[{ required: true, message: '请输入音色 ID' }]}
         >
           <AutoComplete
-            options={voiceOptions}
             placeholder="请选择或输入阿里云 DashScope 定制音色 ID"
             onChange={() => setPreviewAudio(null)}
-            filterOption={(inputValue, option) =>
-              String(option?.value || '')
-                .toUpperCase()
-                .indexOf(inputValue.toUpperCase()) !== -1
-            }
-          />
+            showSearch={{
+              filterOption: (inputValue, option: any) =>
+                String(option?.searchText || option?.value || '')
+                  .toUpperCase()
+                  .indexOf(inputValue.toUpperCase()) !== -1,
+            }}
+          >
+            {voiceOptions.map((option) => (
+              <AutoComplete.Option
+                key={option.value}
+                value={option.value}
+                searchText={option.searchText}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="truncate">{option.value}</span>
+                  {option.remark && (
+                    <span className="ml-2 max-w-[150px] text-sm text-gray-400">
+                      {option.remark}
+                    </span>
+                  )}
+                </div>
+              </AutoComplete.Option>
+            ))}
+          </AutoComplete>
         </Form.Item>
 
         <Form.Item label="音色试听">
