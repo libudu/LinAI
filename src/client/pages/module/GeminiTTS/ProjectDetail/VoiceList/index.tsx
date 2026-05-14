@@ -1,5 +1,6 @@
-import { SyncOutlined } from '@ant-design/icons'
-import { Button, Card, Empty, Input, List, Tag } from 'antd'
+import { CopyOutlined, SyncOutlined } from '@ant-design/icons'
+import { Button, Empty, Input, List, Tooltip } from 'antd'
+import copy from 'copy-to-clipboard'
 import { useMemo, useState } from 'react'
 import { useGlobalStore } from '../../../../../store/global'
 import { openSettingModal } from '../../../../common/SettingModal'
@@ -59,24 +60,33 @@ export const VoiceList = () => {
         pagination={{ pageSize: 12 }}
         renderItem={(item: any) => (
           <List.Item>
-            <Card
-              title={
-                <div className="truncate" title={item.voice_id}>
+            <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-4 pt-2 shadow-sm transition-shadow hover:shadow-md">
+              <div className="flex items-center justify-between gap-2">
+                <span
+                  className="truncate text-base leading-tight font-bold text-slate-800"
+                  title={item.voice_id}
+                >
                   {item.voice_id}
+                </span>
+                <div className="flex shrink-0 items-center gap-1 text-base">
+                  <Tooltip title="复制音色 ID">
+                    <Button
+                      type="text"
+                      icon={<CopyOutlined />}
+                      onClick={() => copy(item.voice_id)}
+                      className="text-slate-400 hover:text-blue-600!"
+                    />
+                  </Tooltip>
                 </div>
-              }
-              size="small"
-              extra={
-                <Tag color={item.status === 'OK' ? 'green' : 'red'}>
-                  {item.status || 'UNKNOWN'}
-                </Tag>
-              }
-              className="transition-shadow hover:shadow-md"
-            >
+              </div>
               <div className="space-y-2 text-xs text-gray-500">
                 <div>
                   <span className="font-medium text-gray-700">模型:</span>{' '}
                   {item.target_model}
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">状态:</span>{' '}
+                  {item.status || 'UNKNOWN'}
                 </div>
                 <div>
                   <span className="font-medium text-gray-700">创建时间:</span>{' '}
@@ -87,7 +97,7 @@ export const VoiceList = () => {
                   {item.gmt_modified}
                 </div>
               </div>
-            </Card>
+            </div>
           </List.Item>
         )}
       />

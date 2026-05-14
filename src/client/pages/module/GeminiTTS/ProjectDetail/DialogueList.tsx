@@ -9,21 +9,19 @@ import { Button, Form, Input, message, Modal, Select, Space, Table } from 'antd'
 import { useMemo, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { TTSCharacter, TTSDialogue } from '../../../../../server/module/tts'
-import { generateTTS } from '../generate'
 import { CustomAudio } from './components/Audio'
+import { generateTTS } from './generate'
 
 const { TextArea } = Input
 const { Option } = Select
 
 interface DialogueListProps {
-  backgroundPrompt: string
   dialogues: TTSDialogue[]
   characters: TTSCharacter[]
   onUpdateDialogues: (dialogues: TTSDialogue[]) => void
 }
 
 export const DialogueList = ({
-  backgroundPrompt,
   dialogues = [],
   characters = [],
   onUpdateDialogues,
@@ -99,9 +97,8 @@ export const DialogueList = ({
     setGeneratingId(dialogue.id)
     try {
       const url = await generateTTS({
-        backgroundPrompt,
-        voicePrompt: character.voicePrompt || '',
-        contentPrompt: dialogue.content,
+        text: dialogue.content,
+        instruction: '',
         voiceId: character.voiceId,
       })
       const newDialogues = dialogues.map((d) =>

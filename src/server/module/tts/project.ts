@@ -6,7 +6,6 @@ export interface TTSCharacter {
   id: string
   name: string
   voiceId: string
-  voicePrompt?: string
 }
 
 export interface TTSDialogue {
@@ -20,7 +19,7 @@ export interface TTSDialogue {
 export interface TTSProject {
   id: string
   name: string
-  backgroundPrompt: string
+  description: string
   characters: TTSCharacter[]
   dialogues: TTSDialogue[]
   createdAt: number
@@ -61,13 +60,13 @@ class ProjectManager {
   }
 
   async createProject(
-    data: Pick<TTSProject, 'name' | 'backgroundPrompt'>,
+    data: Pick<TTSProject, 'name' | 'description'>,
   ): Promise<TTSProject> {
     const projects = await this.getProjects()
     const newProject: TTSProject = {
       id: uuidv4(),
       name: data.name,
-      backgroundPrompt: data.backgroundPrompt,
+      description: data.description || '',
       characters: [],
       dialogues: [],
       createdAt: Date.now(),

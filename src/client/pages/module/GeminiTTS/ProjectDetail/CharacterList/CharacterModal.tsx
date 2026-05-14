@@ -3,23 +3,22 @@ import { useLocalStorageState } from 'ahooks'
 import { AutoComplete, Button, Form, Input, message, Modal } from 'antd'
 import { forwardRef, useImperativeHandle, useMemo, useState } from 'react'
 import { TTSCharacter } from '../../../../../../server/module/tts'
-import { generateTTS } from '../../generate'
 import { useTTSStore } from '../../store'
 import { CustomAudio } from '../components/Audio'
+import { generateTTS } from '../generate'
 
 export interface CharacterModalRef {
   open: (character?: TTSCharacter) => void
 }
 
 interface CharacterModalProps {
-  backgroundPrompt: string
   onSave: (characterData: Omit<TTSCharacter, 'id'> | TTSCharacter) => void
 }
 
 export const CharacterModal = forwardRef<
   CharacterModalRef,
   CharacterModalProps
->(({ backgroundPrompt, onSave }, ref) => {
+>(({ onSave }, ref) => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCharacter, setEditingCharacter] = useState<TTSCharacter | null>(
     null,
@@ -88,12 +87,9 @@ export const CharacterModal = forwardRef<
 
     setIsGenerating(true)
     try {
-      const voicePrompt = form.getFieldValue('voicePrompt') || ''
       const url = await generateTTS({
-        backgroundPrompt,
-        voicePrompt,
-
-        contentPrompt: previewText,
+        text: previewText,
+        instruction: '',
         voiceId,
       })
       setPreviewAudio(url)
@@ -135,16 +131,6 @@ export const CharacterModal = forwardRef<
                 .toUpperCase()
                 .indexOf(inputValue.toUpperCase()) !== -1
             }
-          />
-        </Form.Item>
-
-        <Form.Item name="voicePrompt" label="音色微调">
-          <Input.TextArea
-            placeholder="角色年龄/性格/声音类型/其他特征"
-            autoSize={{
-              minRows: 4,
-              maxRows: 4,
-            }}
           />
         </Form.Item>
 

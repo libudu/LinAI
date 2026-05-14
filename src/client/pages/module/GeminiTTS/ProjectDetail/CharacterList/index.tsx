@@ -9,13 +9,11 @@ import { CharacterModal, CharacterModalRef } from './CharacterModal'
 const { confirm } = Modal
 
 interface CharacterListProps {
-  backgroundPrompt: string
   characters: TTSCharacter[]
   onUpdateCharacters: (characters: TTSCharacter[]) => void
 }
 
 export const CharacterList = ({
-  backgroundPrompt,
   characters = [],
   onUpdateCharacters,
 }: CharacterListProps) => {
@@ -81,11 +79,7 @@ export const CharacterList = ({
         )}
       </div>
 
-      <CharacterModal
-        ref={modalRef}
-        onSave={handleSave}
-        backgroundPrompt={backgroundPrompt}
-      />
+      <CharacterModal ref={modalRef} onSave={handleSave} />
     </div>
   )
 }

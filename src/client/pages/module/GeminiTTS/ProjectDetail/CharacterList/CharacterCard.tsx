@@ -40,11 +40,6 @@ export const CharacterCard = ({
           </Tooltip>
         </div>
       </div>
-
-      {/* 第三行：描述 */}
-      <div className="mt-1 line-clamp-1 text-xs text-slate-500">
-        {character.voicePrompt || '暂无描述'}
-      </div>
     </div>
   )
 }

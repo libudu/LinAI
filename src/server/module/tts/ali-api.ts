@@ -23,10 +23,12 @@ export interface AliTTSResponse {
 }
 
 export const generateAndSaveAudioQwen = async ({
-  prompt,
+  text,
+  instruction,
   voiceId,
 }: {
-  prompt: string
+  text: string
+  instruction?: string
   voiceId: string
 }): Promise<string> => {
   const MODEL_NAME = 'cosyvoice-v3.5-plus'
@@ -47,7 +49,8 @@ export const generateAndSaveAudioQwen = async ({
       body: JSON.stringify({
         model: MODEL_NAME,
         input: {
-          text: prompt,
+          text,
+          instruction,
           voice: voiceId,
           format: 'wav',
           sample_rate: 24000,

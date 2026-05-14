@@ -2,6 +2,7 @@ import { message, Tabs } from 'antd'
 import { hc } from 'hono/client'
 import { useState } from 'react'
 import type { AppType } from '../../../../../server'
+import { TTSProject } from '../../../../../server/module/tts'
 import { CharacterList } from './CharacterList'
 import { DialogueList } from './DialogueList'
 import { VoiceList } from './VoiceList'
@@ -9,7 +10,7 @@ import { VoiceList } from './VoiceList'
 const client = hc<AppType>('/')
 
 interface ProjectManagerProps {
-  project: any
+  project: TTSProject
 }
 
 export const ProjectDetail = ({
@@ -56,7 +57,6 @@ export const ProjectDetail = ({
                 dialogues={project.dialogues || []}
                 characters={project.characters || []}
                 onUpdateDialogues={handleUpdateDialogues}
-                backgroundPrompt={project.backgroundPrompt || ''}
               />
             ),
           },
@@ -67,7 +67,6 @@ export const ProjectDetail = ({
               <CharacterList
                 characters={project.characters || []}
                 onUpdateCharacters={handleUpdateCharacters}
-                backgroundPrompt={project.backgroundPrompt || ''}
               />
             ),
           },

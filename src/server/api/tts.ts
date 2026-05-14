@@ -99,7 +99,7 @@ const ttsApi = new Hono()
       'json',
       z.object({
         name: z.string(),
-        backgroundPrompt: z.string().optional().default(''),
+        description: z.string().optional().default(''),
       }),
     ),
     async (c) => {

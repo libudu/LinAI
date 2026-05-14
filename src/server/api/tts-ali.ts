@@ -9,15 +9,17 @@ const ttsAliApi = new Hono()
     zValidator(
       'json',
       z.object({
-        prompt: z.string(),
+        text: z.string(),
+        instruction: z.string().optional(),
         voiceId: z.string(),
       }),
     ),
     async (c) => {
       try {
-        const { prompt, voiceId } = c.req.valid('json')
+        const { text, instruction, voiceId } = c.req.valid('json')
         const filename = await generateAndSaveAudioQwen({
-          prompt,
+          text,
+          instruction,
           voiceId,
         })
         return c.json({
