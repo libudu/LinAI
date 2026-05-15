@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+
+node -e "
+const { execSync } = require('child_process');
+try {
+  const author = execSync('git config user.name', { encoding: 'utf8' }).trim();
+  if (/[\u4e00-\u9fa5]/.test(author)) {
+    console.error('\x1b[31m[Husky] Error: 提交人 (user.name) 不允许包含汉字，避免真名泄露。\x1b[0m');
+    console.error('当前提交人: ' + author);
+    console.error('请使用以下命令修改:');
+    console.error('git config user.name \"Your Name\"');
+    process.exit(1);
+  }
+} catch (e) {
+  process.exit(0);
+}
+"
