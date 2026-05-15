@@ -3,12 +3,12 @@ import fs from 'fs-extra'
 import { Hono } from 'hono'
 import path from 'path'
 import { z } from 'zod'
-import { TTS_ALI_OUTPUT_DIR, projectManager } from '../module/tts/index'
+import { TTS_INWORLD_OUTPUT_DIR, projectManager } from '../module/tts/index'
 
 const ttsApi = new Hono()
   .get('/output/trial', async (c) => {
     try {
-      const trialDir = path.join(TTS_ALI_OUTPUT_DIR, 'trial')
+      const trialDir = path.join(TTS_INWORLD_OUTPUT_DIR, 'trial')
       if (!(await fs.pathExists(trialDir))) {
         return c.json({ success: true, data: [] })
       }
@@ -24,7 +24,7 @@ const ttsApi = new Hono()
     zValidator('param', z.object({ filename: z.string() })),
     async (c) => {
       const { filename } = c.req.valid('param')
-      const filepath = path.join(TTS_ALI_OUTPUT_DIR, 'trial', filename)
+      const filepath = path.join(TTS_INWORLD_OUTPUT_DIR, 'trial', filename)
 
       if (await fs.pathExists(filepath)) {
         const fileBuffer = await fs.readFile(filepath)
@@ -32,7 +32,7 @@ const ttsApi = new Hono()
         const range = c.req.header('range')
 
         c.header('Accept-Ranges', 'bytes')
-        c.header('Content-Type', 'audio/wav')
+        c.header('Content-Type', 'audio/mpeg')
 
         if (range) {
           const parts = range.replace(/bytes=/, '').split('-')
@@ -57,7 +57,7 @@ const ttsApi = new Hono()
     zValidator('param', z.object({ filename: z.string() })),
     async (c) => {
       const { filename } = c.req.valid('param')
-      const filepath = path.join(TTS_ALI_OUTPUT_DIR, filename)
+      const filepath = path.join(TTS_INWORLD_OUTPUT_DIR, filename)
 
       if (await fs.pathExists(filepath)) {
         const fileBuffer = await fs.readFile(filepath)

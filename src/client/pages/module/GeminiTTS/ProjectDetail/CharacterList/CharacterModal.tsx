@@ -43,9 +43,9 @@ export const CharacterModal = forwardRef<
   const { voiceList } = useTTSStore()
   const voiceOptions = useMemo(() => {
     return voiceList.map((voice) => ({
-      value: voice.voice_id,
+      value: voice.voiceId,
       remark: voice.remark,
-      searchText: `${voice.voice_id} ${voice.remark || ''}`,
+      searchText: `${voice.voiceId} ${voice.remark || ''}`,
     }))
   }, [voiceList])
 

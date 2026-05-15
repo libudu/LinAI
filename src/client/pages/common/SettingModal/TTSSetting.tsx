@@ -8,13 +8,13 @@ export interface TTSSettingRef {
 
 export const TTSSetting = forwardRef<TTSSettingRef>((_props, ref) => {
   const [form] = Form.useForm()
-  const { ttsAliApiKey, setTTSAliApiKey } = useGlobalStore()
+  const { ttsInworldApiKey, setTTSInworldApiKey } = useGlobalStore()
 
   useEffect(() => {
     form.setFieldsValue({
-      apiKey: ttsAliApiKey || '',
+      apiKey: ttsInworldApiKey || '',
     })
-  }, [ttsAliApiKey, form])
+  }, [ttsInworldApiKey, form])
 
   useImperativeHandle(ref, () => ({
     save: async () => {
@@ -23,7 +23,7 @@ export const TTSSetting = forwardRef<TTSSettingRef>((_props, ref) => {
         message.warning('请输入 API Key')
         throw new Error('No API Key')
       }
-      await setTTSAliApiKey(values.apiKey)
+      await setTTSInworldApiKey(values.apiKey)
       message.success('配置保存成功')
       return values.apiKey
     },
@@ -34,10 +34,10 @@ export const TTSSetting = forwardRef<TTSSettingRef>((_props, ref) => {
       <Form form={form} layout="vertical">
         <Form.Item
           name="apiKey"
-          label="阿里云 DashScope API Key"
+          label="Inworld API Key"
           rules={[{ required: true, message: '请输入 API Key' }]}
         >
-          <Input.Password placeholder="输入阿里云 DashScope API Key" />
+          <Input.Password placeholder="输入 Inworld API Key" />
         </Form.Item>
       </Form>
     </div>

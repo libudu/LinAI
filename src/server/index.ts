@@ -12,6 +12,7 @@ import geminiApi from './api/gemini'
 import gptImageApi from './api/gpt-image'
 import ttsApi from './api/tts'
 import ttsAliApi from './api/tts-ali'
+import ttsInworldApi from './api/tts-inworld'
 import type WanApiType from './api/wan'
 
 dotenv.config()
@@ -28,6 +29,7 @@ const routes = app
   .route('/api/gemini', geminiApi)
   .route('/api/tts', ttsApi)
   .route('/api/tts-ali', ttsAliApi)
+  .route('/api/tts-inworld', ttsInworldApi)
   .route('/api/gptImage', gptImageApi)
   // common
   .route('/api/task', taskApi)

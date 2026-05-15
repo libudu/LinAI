@@ -9,7 +9,7 @@ import { EditableRemark } from './EditableRemark'
 
 export const VoiceList = () => {
   const [keyword, setKeyword] = useState('')
-  const { ttsAliApiKey } = useGlobalStore()
+  const { ttsInworldApiKey } = useGlobalStore()
   const { voiceList, loadingVoiceList, fetchVoiceList, updateVoiceRemark } =
     useTTSStore()
 
@@ -17,17 +17,18 @@ export const VoiceList = () => {
     if (!keyword) return voiceList
     const lowerKeyword = keyword.toLowerCase()
     return voiceList.filter((voice) => {
-      const idMatch = voice.voice_id.toLowerCase().includes(lowerKeyword)
+      const idMatch = voice.voiceId.toLowerCase().includes(lowerKeyword)
+      const nameMatch = voice.name.toLowerCase().includes(lowerKeyword)
       const remarkMatch = voice.remark?.toLowerCase().includes(lowerKeyword)
-      return idMatch || remarkMatch
+      return idMatch || nameMatch || remarkMatch
     })
   }, [voiceList, keyword])
 
-  if (!ttsAliApiKey) {
+  if (!ttsInworldApiKey) {
     return (
       <div className="flex h-full items-center justify-center py-12">
         <Empty
-          description="请先配置阿里云 DashScope API Key"
+          description="请先配置 Inworld API Key"
           image={Empty.PRESENTED_IMAGE_SIMPLE}
         >
           <Button
@@ -52,7 +53,7 @@ export const VoiceList = () => {
         />
         <Button
           icon={<SyncOutlined />}
-          onClick={() => fetchVoiceList(ttsAliApiKey)}
+          onClick={() => fetchVoiceList(ttsInworldApiKey)}
           loading={loadingVoiceList}
         >
           刷新列表
@@ -69,9 +70,9 @@ export const VoiceList = () => {
               <div className="flex items-center justify-between gap-2">
                 <span
                   className="truncate text-base leading-tight font-bold text-slate-800"
-                  title={item.voice_id}
+                  title={item.voiceId}
                 >
-                  {item.voice_id}
+                  {item.displayName || item.name}
                 </span>
                 <div className="flex shrink-0 items-center gap-1 text-base">
                   <Tooltip title="复制音色 ID">
@@ -79,7 +80,7 @@ export const VoiceList = () => {
                       type="text"
                       icon={<CopyOutlined />}
                       onClick={() => {
-                        copy(item.voice_id)
+                        copy(item.voiceId)
                         message.success('复制成功')
                       }}
                       className="text-slate-400 hover:text-blue-600!"
@@ -89,18 +90,32 @@ export const VoiceList = () => {
               </div>
               <div className="space-y-2 text-xs text-gray-500">
                 <div>
-                  <span className="font-medium text-gray-700">模型:</span>{' '}
-                  {item.target_model}
+                  <span className="font-medium text-gray-700">ID:</span>{' '}
+                  {item.voiceId}
                 </div>
                 <div>
-                  <span className="font-medium text-gray-700">创建时间:</span>{' '}
-                  {item.gmt_create}
+                  <span className="font-medium text-gray-700">语言:</span>{' '}
+                  {item.langCode}
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">性别:</span>{' '}
+                  {item.gender}
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">来源:</span>{' '}
+                  {item.source}
                 </div>
               </div>
+              {item.description && (
+                <div className="text-xs text-gray-500">
+                  <span className="font-medium text-gray-700">描述:</span>{' '}
+                  {item.description}
+                </div>
+              )}
               <div className="min-w-0 flex-1">
                 <EditableRemark
                   value={item.remark || ''}
-                  onChange={(val) => updateVoiceRemark(item.voice_id, val)}
+                  onChange={(val) => updateVoiceRemark(item.voiceId, val)}
                 />
               </div>
             </div>
