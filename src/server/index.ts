@@ -11,7 +11,6 @@ import templateApi from './api/common/template'
 import geminiApi from './api/gemini'
 import gptImageApi from './api/gpt-image'
 import ttsApi from './api/tts'
-import ttsAliApi from './api/tts-ali'
 import ttsInworldApi from './api/tts-inworld'
 import type WanApiType from './api/wan'
 
@@ -28,7 +27,6 @@ const routes = app
   .route('/api/wan', wanApi)
   .route('/api/gemini', geminiApi)
   .route('/api/tts', ttsApi)
-  .route('/api/tts-ali', ttsAliApi)
   .route('/api/tts-inworld', ttsInworldApi)
   .route('/api/gptImage', gptImageApi)
   // common

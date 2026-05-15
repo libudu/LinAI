@@ -12,8 +12,8 @@ export async function generateTTS({
   instruction?: string
   voiceId: string
 }): Promise<string> {
-  const response = await client.api['tts-ali'].generate.$post({
-    json: { text, instruction, voiceId },
+  const response = await client.api['tts-inworld'].generate.$post({
+    json: { text, voiceId },
   })
 
   const data = await response.json()

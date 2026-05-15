@@ -25,7 +25,7 @@ const ttsInworldApi = new Hono()
         })
         return c.json({
           success: true,
-          url: `/api/tts/output/inworld/${filename}?t=${Date.now()}`,
+          url: `/api/tts/output/${filename}?t=${Date.now()}`,
         })
       } catch (error: any) {
         return c.json({ success: false, error: error.message }, 500)

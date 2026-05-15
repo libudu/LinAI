@@ -12,14 +12,14 @@ export const TTS = () => {
   const [editingProject, setEditingProject] = useState<any>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
-  const { ttsAliApiKey } = useGlobalStore()
+  const { ttsInworldApiKey } = useGlobalStore()
   const { hasFetchedVoiceList, fetchVoiceList } = useTTSStore()
 
   useEffect(() => {
-    if (ttsAliApiKey && !hasFetchedVoiceList) {
-      fetchVoiceList(ttsAliApiKey)
+    if (ttsInworldApiKey && !hasFetchedVoiceList) {
+      fetchVoiceList(ttsInworldApiKey)
     }
-  }, [ttsAliApiKey, hasFetchedVoiceList, fetchVoiceList])
+  }, [ttsInworldApiKey, hasFetchedVoiceList, fetchVoiceList])
 
   const handleEditProject = (project: any) => {
     setEditingProject(project)

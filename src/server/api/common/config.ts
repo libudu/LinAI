@@ -24,7 +24,6 @@ const configApi = new Hono()
       'json',
       z.object({
         gptImageApiKey: z.string().nullable().optional(),
-        ttsAliApiKey: z.string().nullable().optional(),
         ttsInworldApiKey: z.string().nullable().optional(),
       }),
     ),
