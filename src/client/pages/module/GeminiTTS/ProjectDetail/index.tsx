@@ -72,7 +72,7 @@ export const ProjectDetail = ({
           },
           {
             key: 'voices',
-            label: '阿里 CosyVoice 音色',
+            label: 'Inworld 音色',
             children: <VoiceList />,
           },
         ]}

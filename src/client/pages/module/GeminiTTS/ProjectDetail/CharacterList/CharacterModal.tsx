@@ -160,23 +160,19 @@ export const CharacterModal = forwardRef<
 
         <Card size="small" title="音色试听" className="mt-4 bg-slate-50">
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-              <div className="shrink-0">指令控制</div>
-              <Input
-                value={previewInstruction}
-                onChange={(e) => setPreviewInstruction(e.target.value)}
-                placeholder="请输入指令控制"
-              />
-            </div>
-            <div className="flex gap-2">
-              <div className="flex items-center gap-2">
-                <div className="shrink-0">试听文本</div>
-                <Input
-                  value={previewText}
-                  onChange={(e) => setPreviewText(e.target.value)}
-                  placeholder="请输入试听文本"
-                />
-              </div>
+            <Input.TextArea
+              autoSize={{
+                minRows: 3,
+                maxRows: 6,
+              }}
+              value={previewText}
+              onChange={(e) => setPreviewText(e.target.value)}
+              placeholder="请输入试听文本"
+            />
+            <div className="flex justify-end gap-2">
+              {previewAudio && (
+                <CustomAudio src={previewAudio} className="w-full" />
+              )}
               <Button
                 type="primary"
                 icon={<PlayCircleOutlined />}
@@ -186,9 +182,6 @@ export const CharacterModal = forwardRef<
                 生成试听
               </Button>
             </div>
-            {previewAudio && (
-              <CustomAudio src={previewAudio} className="w-full" />
-            )}
           </div>
         </Card>
       </Form>

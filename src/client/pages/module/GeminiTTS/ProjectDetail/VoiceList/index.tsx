@@ -5,7 +5,6 @@ import { useMemo, useState } from 'react'
 import { useGlobalStore } from '../../../../../store/global'
 import { openSettingModal } from '../../../../common/SettingModal'
 import { useTTSStore } from '../../store'
-import { EditableRemark } from './EditableRemark'
 
 export const VoiceList = () => {
   const [keyword, setKeyword] = useState('')
@@ -72,7 +71,7 @@ export const VoiceList = () => {
                   className="truncate text-base leading-tight font-bold text-slate-800"
                   title={item.voiceId}
                 >
-                  {item.displayName || item.name}
+                  {item.voiceId}
                 </span>
                 <div className="flex shrink-0 items-center gap-1 text-base">
                   <Tooltip title="复制音色 ID">
@@ -90,8 +89,8 @@ export const VoiceList = () => {
               </div>
               <div className="space-y-2 text-xs text-gray-500">
                 <div>
-                  <span className="font-medium text-gray-700">ID:</span>{' '}
-                  {item.voiceId}
+                  <span className="font-medium text-gray-700">名称:</span>{' '}
+                  {item.displayName || item.name}
                 </div>
                 <div>
                   <span className="font-medium text-gray-700">语言:</span>{' '}
@@ -112,12 +111,6 @@ export const VoiceList = () => {
                   {item.description}
                 </div>
               )}
-              <div className="min-w-0 flex-1">
-                <EditableRemark
-                  value={item.remark || ''}
-                  onChange={(val) => updateVoiceRemark(item.voiceId, val)}
-                />
-              </div>
             </div>
           </List.Item>
         )}
