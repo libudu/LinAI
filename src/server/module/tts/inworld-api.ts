@@ -2,7 +2,8 @@ import fs from 'fs-extra'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import { getTTSInworldApiKey } from '../../common/config'
-import { TTS_INWORLD_MODEL_ID, TTS_INWORLD_OUTPUT_DIR } from './constants'
+import { TTS_INWORLD_MODEL_ID } from './client-const'
+import { TTS_INWORLD_OUTPUT_DIR } from './server-const'
 
 export interface InworldVoiceItem {
   name: string

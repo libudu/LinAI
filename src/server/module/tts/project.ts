@@ -1,6 +1,6 @@
 import fs from 'fs-extra'
 import { v4 as uuidv4 } from 'uuid'
-import { PROJECTS_FILE } from './constants'
+import { PROJECTS_FILE } from './server-const'
 
 export interface TTSCharacter {
   id: string

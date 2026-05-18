@@ -11,39 +11,12 @@
   .rhap_main {
     width: 100%;
   }
-  /* Controls Section (Play button) */
+
   .rhap_controls-section {
     flex: 0 0 auto !important;
     margin: 0 !important;
   }
-
-  .rhap_main-controls {
-    flex: 0 0 auto !important;
-    margin: 0 !important;
-  }
-
-  .rhap_main-controls-button {
-    font-size: 24px !important;
-    width: 24px !important;
-    height: 24px !important;
-    color: #1677ff !important;
-    display: flex !important;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s;
-    margin: 0 !important;
-
-    &:hover {
-      color: #4096ff !important;
-      transform: scale(1.05);
-    }
-    
-    svg {
-      width: 100%;
-      height: 100%;
-    }
-  }
-
+  
   /* Progress Section */
   .rhap_progress-section {
     flex: 1 1 auto !important;
@@ -108,9 +81,10 @@
     margin-left: 8px !important;
     display: flex !important;
     align-items: center;
+    gap: 8px;
   }
 
-  .custom-audio-download {
+  .custom-audio-action-btn {
     border-radius: 100%;
     width: 20px !important;
     height: 20px !important;
@@ -121,6 +95,7 @@
     justify-content: center;
     transition: all 0.3s;
     margin: 0 !important;
+    cursor: pointer;
     
     &:hover {
       background-color: #4096ff !important;

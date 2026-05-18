@@ -164,9 +164,16 @@ export const DialogueList = ({
         const character = characters.find((c) => c.id === record.characterId)
         const isGenerating = generatingId === record.id
 
-        return record.audioUrl ? (
-          <CustomAudio src={record.audioUrl} className="h-10 w-48" />
-        ) : (
+        if (record.audioUrl) {
+          return (
+            <CustomAudio
+              src={record.audioUrl}
+              isReloading={isGenerating}
+              onReload={() => handleGenerate(record)}
+            />
+          )
+        }
+        return (
           <Button
             type="primary"
             size="small"
