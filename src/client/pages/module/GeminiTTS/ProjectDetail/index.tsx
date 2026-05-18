@@ -64,6 +64,7 @@ export const ProjectDetail = ({
             children: (
               <CharacterList
                 characters={project.characters || []}
+                dialogues={project.dialogues || []}
                 onUpdateCharacters={handleUpdateCharacters}
               />
             ),
@@ -71,7 +72,7 @@ export const ProjectDetail = ({
           {
             key: 'voices',
             label: 'Inworld 音色',
-            children: <VoiceList />,
+            children: <VoiceList characters={project.characters || []} />,
           },
         ]}
       />

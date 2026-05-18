@@ -1,7 +1,7 @@
-import { CopyOutlined, SyncOutlined } from '@ant-design/icons'
-import { Button, Empty, Input, List, message, Tag, Tooltip } from 'antd'
-import copy from 'copy-to-clipboard'
+import { SyncOutlined } from '@ant-design/icons'
+import { Button, Empty, Input, List, Tag, Tooltip } from 'antd'
 import { useMemo, useState } from 'react'
+import { TTSCharacter } from '../../../../../../server/module/tts'
 import { useGlobalStore } from '../../../../../store/global'
 import { openSettingModal } from '../../../../common/SettingModal'
 import { useTTSStore } from '../../store'
@@ -10,7 +10,11 @@ export const inworldSourceMap: Record<string, string> = {
   IVC: '音色克隆',
 }
 
-export const VoiceList = () => {
+export interface VoiceListProps {
+  characters?: TTSCharacter[]
+}
+
+export const VoiceList = ({ characters = [] }: VoiceListProps) => {
   const [keyword, setKeyword] = useState('')
   const { ttsInworldApiKey } = useGlobalStore()
   const { voiceList, loadingVoiceList, fetchVoiceList } = useTTSStore()
@@ -65,57 +69,51 @@ export const VoiceList = () => {
         grid={{ gutter: 16, xs: 1, sm: 2, md: 3, lg: 3, xl: 4, xxl: 4 }}
         dataSource={data || []}
         loading={loadingVoiceList}
-        pagination={{ pageSize: 12 }}
-        renderItem={(item) => (
-          <List.Item>
-            <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-4 pt-2 shadow-sm transition-shadow hover:shadow-md">
-              <div className="flex items-center justify-between gap-2">
-                <span
-                  className="truncate text-base leading-tight font-bold text-slate-800"
-                  title={item.voiceId}
-                >
-                  {item.voiceId}
-                </span>
-                <div className="flex shrink-0 items-center gap-1 text-base">
-                  <Tooltip title="复制音色 ID">
-                    <Button
-                      type="text"
-                      icon={<CopyOutlined />}
-                      onClick={() => {
-                        copy(item.voiceId)
-                        message.success('复制成功')
-                      }}
-                      className="text-slate-400 hover:text-blue-600!"
-                    />
-                  </Tooltip>
-                </div>
-              </div>
-              <div className="flex flex-col gap-2 text-sm text-gray-700">
-                <div>
-                  <span>名称:</span>{' '}
-                  <span className="font-bold text-black">
+        renderItem={(item) => {
+          const linkedCharacters = characters.filter(
+            (c) => c.voiceId === item.voiceId,
+          )
+          return (
+            <List.Item>
+              <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-white p-4 pt-2 shadow-sm transition-shadow hover:shadow-md">
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-base leading-tight font-bold text-slate-800">
                     {item.displayName || item.name}
                   </span>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {item.langCode && <Tag color="blue">{item.langCode}</Tag>}
-                  {item.gender && <Tag color="orange">{item.gender}</Tag>}
                   {item.source && (
                     <Tag color="green">
                       {inworldSourceMap[item.source] || item.source}
                     </Tag>
                   )}
                 </div>
-              </div>
-              {item.description && (
-                <div className="text-xs text-gray-500">
-                  <span className="font-medium text-gray-700">描述:</span>{' '}
-                  {item.description}
+                <div className="flex gap-2">
+                  <span className="shrink-0">Voice ID:</span>
+                  <Tooltip title={item.voiceId}>
+                    <span className="line-clamp-1 break-all">
+                      {item.voiceId}
+                    </span>
+                  </Tooltip>
                 </div>
-              )}
-            </div>
-          </List.Item>
-        )}
+                {item.description && (
+                  <div className="text-xs text-gray-500">
+                    <span className="font-medium text-gray-700">描述:</span>{' '}
+                    {item.description}
+                  </div>
+                )}
+                {linkedCharacters.length > 0 && (
+                  <div className="flex items-center gap-1 text-xs text-gray-500">
+                    <span className="font-medium text-gray-700">关联人物:</span>{' '}
+                    {linkedCharacters.map((c) => (
+                      <Tag key={c.id} color="purple">
+                        {c.name}
+                      </Tag>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </List.Item>
+          )
+        }}
       />
     </div>
   )

@@ -99,8 +99,37 @@
   }
 
   /* Hide elements that are not needed */
-  .rhap_additional-controls,
   .rhap_volume-controls {
     display: none !important;
+  }
+
+  .rhap_additional-controls {
+    flex: 0 0 auto !important;
+    margin-left: 8px !important;
+    display: flex !important;
+    align-items: center;
+  }
+
+  .custom-audio-download {
+    border-radius: 100%;
+    width: 20px !important;
+    height: 20px !important;
+    background-color: #1677ff;
+    color: white !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    margin: 0 !important;
+    
+    &:hover {
+      background-color: #4096ff !important;
+      transform: scale(1.05);
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+    }
   }
 }

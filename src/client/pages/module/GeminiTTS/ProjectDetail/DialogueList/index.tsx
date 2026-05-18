@@ -159,7 +159,7 @@ export const DialogueList = ({
     {
       title: '音频',
       key: 'audio',
-      width: 200,
+      width: 250,
       render: (_: any, record: TTSDialogue) => {
         const character = characters.find((c) => c.id === record.characterId)
         const isGenerating = generatingId === record.id

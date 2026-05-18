@@ -1,3 +1,4 @@
+import { DownloadOutlined } from '@ant-design/icons'
 import classNames from 'classnames'
 import React from 'react'
 import AudioPlayer from 'react-h5-audio-player'
@@ -16,7 +17,22 @@ export const CustomAudio: React.FC<AudioProps> = ({ src, className }) => {
       className={classNames(className, 'custom-audio-player')}
       showSkipControls={false}
       showJumpControls={false}
-      customAdditionalControls={[]}
+      customAdditionalControls={
+        src
+          ? [
+              <a
+                key="download"
+                href={src}
+                download
+                className="custom-audio-download"
+                onClick={(e) => e.stopPropagation()}
+                title="下载音频"
+              >
+                <DownloadOutlined />
+              </a>,
+            ]
+          : []
+      }
       customVolumeControls={[]}
       layout="horizontal"
     />

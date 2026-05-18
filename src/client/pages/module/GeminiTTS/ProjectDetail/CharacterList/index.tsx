@@ -2,7 +2,7 @@ import { ExclamationCircleFilled, PlusOutlined } from '@ant-design/icons'
 import { Button, Modal } from 'antd'
 import { useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import { TTSCharacter } from '../../../../../../server/module/tts'
+import { TTSCharacter, TTSDialogue } from '../../../../../../server/module/tts'
 import { CharacterCard } from './CharacterCard'
 import { CharacterModal, CharacterModalRef } from './CharacterModal'
 
@@ -10,11 +10,13 @@ const { confirm } = Modal
 
 interface CharacterListProps {
   characters: TTSCharacter[]
+  dialogues: TTSDialogue[]
   onUpdateCharacters: (characters: TTSCharacter[]) => void
 }
 
 export const CharacterList = ({
   characters = [],
+  dialogues = [],
   onUpdateCharacters,
 }: CharacterListProps) => {
   const modalRef = useRef<CharacterModalRef>(null)
@@ -68,6 +70,7 @@ export const CharacterList = ({
           <CharacterCard
             key={character.id}
             character={character}
+            dialoguesCount={dialogues.filter((d) => d.characterId === character.id).length}
             onEdit={handleOpenModal}
             onDelete={handleDelete}
           />
