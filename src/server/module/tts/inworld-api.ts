@@ -58,6 +58,7 @@ export const generateAndSaveAudioInworld = async ({
       modelId: TTS_INWORLD_MODEL_ID,
       deliveryMode: 'BALANCED',
       applyTextNormalization: 'ON',
+      audioConfig: { speakingRate: 1.1 },
     }),
   })
 

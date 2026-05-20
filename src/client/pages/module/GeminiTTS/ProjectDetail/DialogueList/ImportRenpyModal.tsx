@@ -66,7 +66,7 @@ export const ImportRenpyModal = forwardRef<
       if (!line.trim()) continue
       const cols = line.split('\t')
       const renpyId = cols[idIdx]?.trim()
-      const characterName = cols[charIdx]?.trim()
+      const characterName = cols[charIdx]?.trim() || '【旁白】'
       const content = cols[diagIdx]?.trim()
 
       if (renpyId && characterName && content) {
