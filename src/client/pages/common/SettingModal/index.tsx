@@ -66,7 +66,7 @@ export function openSettingModal(options?: {
       },
       {
         key: 'upload-image',
-        label: '输入图片设置',
+        label: '通用图片设置',
         children: <UploadImageSetting />,
       },
     ]

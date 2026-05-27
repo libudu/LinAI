@@ -10,6 +10,7 @@ import { hc } from 'hono/client'
 import { useState } from 'react'
 import type { AppType } from '../../../../server'
 import type { Task } from '../../../../server/common/task-manager'
+import { useLocalSetting } from '../../../hooks/useLocalSetting'
 import { TaskListDownloadButton } from './components/TaskListDownloadButton'
 import { TaskListFinishedAlertButton } from './components/TaskListFinishedAlertButton'
 
@@ -27,6 +28,7 @@ export function TaskListHeader({
   downloadedIds,
   setDownloadedIds,
 }: TaskListHeaderProps) {
+  const { gptImageSettings } = useLocalSetting()
   const [deletingErrors, setDeletingErrors] = useState(false)
   const [deletingDownloaded, setDeletingDownloaded] = useState(false)
 
@@ -44,6 +46,7 @@ export function TaskListHeader({
         try {
           const res = await client.api.task[':id'].$delete({
             param: { id: task.id },
+            query: { keepImage: gptImageSettings.keepImageWhenDeleteTask ? 'true' : 'false' },
           })
           const json = await res.json()
           if (json.success) successCount++
@@ -71,7 +74,9 @@ export function TaskListHeader({
       content: (
         <div>
           <p className="mb-2 font-bold text-red-500">
-            警告：将删除源文件且无法找回！
+            {gptImageSettings.keepImageWhenDeleteTask
+              ? '警告：将删除任务记录，但图片/视频文件将保留。'
+              : '警告：将删除源文件且无法找回！'}
           </p>
           <p>请确保您已妥善保存好下载的图片/视频。</p>
           <p>共将删除 {toDelete.length} 个任务。</p>
@@ -87,6 +92,7 @@ export function TaskListHeader({
             try {
               const res = await client.api.task[':id'].$delete({
                 param: { id: task.id },
+                query: { keepImage: gptImageSettings.keepImageWhenDeleteTask ? 'true' : 'false' },
               })
               const json = await res.json()
               if (json.success) successCount++

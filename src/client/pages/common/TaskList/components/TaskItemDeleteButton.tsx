@@ -3,6 +3,7 @@ import { useLocalStorageState } from 'ahooks'
 import { Button, Checkbox, message, Modal, Tooltip } from 'antd'
 import { hc } from 'hono/client'
 import type { AppType } from '../../../../../server'
+import { useLocalSetting } from '../../../../hooks/useLocalSetting'
 
 const client = hc<AppType>('/')
 
@@ -17,6 +18,7 @@ export function TaskItemDeleteButton({
   status,
   onSuccess,
 }: DeleteTaskButtonProps) {
+  const { gptImageSettings } = useLocalSetting()
   const [skipDeleteConfirm, setSkipDeleteConfirm] = useLocalStorageState(
     'skipDeleteTaskConfirm',
     {
@@ -28,6 +30,7 @@ export function TaskItemDeleteButton({
     try {
       const res = await client.api.task[':id'].$delete({
         param: { id },
+        query: { keepImage: gptImageSettings.keepImageWhenDeleteTask ? 'true' : 'false' },
       })
       const json = await res.json()
       if (json.success) {
@@ -53,7 +56,11 @@ export function TaskItemDeleteButton({
       title: '确认删除任务？',
       content: (
         <div>
-          <p>删除任务将同时删除其生成的图片/视频文件，且不可恢复。</p>
+          <p>
+            {gptImageSettings.keepImageWhenDeleteTask
+              ? '删除任务不会删除其生成的图片/视频文件。'
+              : '删除任务将同时删除其生成的图片/视频文件，且不可恢复。'}
+          </p>
           <Checkbox
             onChange={(e) => {
               skipNext = e.target.checked

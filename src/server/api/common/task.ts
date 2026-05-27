@@ -71,10 +71,12 @@ const taskApi = new Hono()
   .delete(
     '/:id',
     zValidator('param', z.object({ id: z.string() })),
+    zValidator('query', z.object({ keepImage: z.string().optional() })),
     async (c) => {
       try {
         const { id } = c.req.valid('param')
-        const result = await taskManager.deleteTask(id)
+        const { keepImage } = c.req.valid('query')
+        const result = await taskManager.deleteTask(id, keepImage === 'true')
         if (!result.success) {
           return c.json(
             {

@@ -120,6 +120,21 @@ const staticApi = new Hono()
       return c.notFound()
     },
   )
+  .post('/images/generated/open-dir', async (c) => {
+    try {
+      const { exec } = require('child_process')
+      const command =
+        process.platform === 'win32'
+          ? `start "" "${GENERATED_IMAGES_DIR}"`
+          : process.platform === 'darwin'
+            ? `open "${GENERATED_IMAGES_DIR}"`
+            : `xdg-open "${GENERATED_IMAGES_DIR}"`
+      exec(command)
+      return c.json({ success: true })
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 500)
+    }
+  })
   .post('/images/input/open-dir', async (c) => {
     try {
       const { exec } = require('child_process')

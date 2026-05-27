@@ -123,6 +123,7 @@ export class TaskManager extends EventEmitter {
 
   public async deleteTask(
     id: string,
+    keepImage?: boolean,
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const tasks = await this.getTasks()
@@ -139,25 +140,27 @@ export class TaskManager extends EventEmitter {
       )
       this.notifyTasksUpdate()
 
-      const urlsToDelete = target.outputUrls
-        ? target.outputUrls
-        : target.outputUrl
-          ? [target.outputUrl]
-          : []
+      if (!keepImage) {
+        const urlsToDelete = target.outputUrls
+          ? target.outputUrls
+          : target.outputUrl
+            ? [target.outputUrl]
+            : []
 
-      for (const outputUrl of urlsToDelete) {
-        if (outputUrl.startsWith('/api/static/')) {
-          try {
-            const filepath = path.join(
-              GENERATED_IMAGES_DIR,
-              outputUrl.replace(GENERATED_IMAGES_API_PATH + '/', ''),
-            )
+        for (const outputUrl of urlsToDelete) {
+          if (outputUrl.startsWith('/api/static/')) {
+            try {
+              const filepath = path.join(
+                GENERATED_IMAGES_DIR,
+                outputUrl.replace(GENERATED_IMAGES_API_PATH + '/', ''),
+              )
 
-            if (filepath && fs.existsSync(filepath)) {
-              await fs.unlink(filepath)
+              if (filepath && fs.existsSync(filepath)) {
+                await fs.unlink(filepath)
+              }
+            } catch (error: any) {
+              this.logger.error('Failed to delete task file:', error)
             }
-          } catch (error: any) {
-            this.logger.error('Failed to delete task file:', error)
           }
         }
       }

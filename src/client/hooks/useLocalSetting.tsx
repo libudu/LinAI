@@ -9,6 +9,7 @@ export interface GPTImageSettings {
   enable4K: boolean
   quality: GptImageQuality
   enableMultiple?: boolean
+  keepImageWhenDeleteTask?: boolean
 }
 
 export const defaultGPTImageSettings: GPTImageSettings = {
@@ -17,6 +18,7 @@ export const defaultGPTImageSettings: GPTImageSettings = {
   enable4K: false,
   quality: 'medium',
   enableMultiple: false,
+  keepImageWhenDeleteTask: false,
 }
 
 export interface LocalSettingState {
