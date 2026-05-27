@@ -21,6 +21,7 @@ import { inworldSourceMap } from '../VoiceList'
 import { ControlPanel } from './ControlPanel'
 
 interface DialogueListProps {
+  projectId: string
   dialogues: TTSDialogue[]
   characters: TTSCharacter[]
   onUpdateProject: (
@@ -29,6 +30,7 @@ interface DialogueListProps {
 }
 
 export const DialogueList = ({
+  projectId,
   dialogues = [],
   characters = [],
   onUpdateProject,
@@ -213,6 +215,7 @@ export const DialogueList = ({
   return (
     <div className="space-y-4">
       <ControlPanel
+        projectId={projectId}
         dialogues={dialogues}
         characters={characters}
         onAddClick={() => handleOpenModal()}

@@ -23,6 +23,7 @@ export interface TTSProject {
   id: string
   name: string
   description: string
+  renpyExportDir?: string
   characters: TTSCharacter[]
   dialogues: TTSDialogue[]
   createdAt: number

@@ -3,7 +3,13 @@ import fs from 'fs-extra'
 import { Hono } from 'hono'
 import path from 'path'
 import { z } from 'zod'
-import { TTS_INWORLD_OUTPUT_DIR, projectManager } from '../module/tts/index'
+import {
+  TTS_INWORLD_OUTPUT_DIR,
+  copyRenpyFiles,
+  getRenpySyncStatus,
+  projectManager,
+  validateRenpyWorkDir,
+} from '../module/tts/index'
 
 const ttsApi = new Hono()
   .get('/output/trial', async (c) => {
@@ -123,6 +129,87 @@ const ttsApi = new Hono()
           return c.json({ success: false, error: 'Project not found' }, 404)
         }
         return c.json({ success: true, data: project })
+      } catch (error: any) {
+        return c.json({ success: false, error: error.message }, 500)
+      }
+    },
+  )
+  .get(
+    '/projects/:id/renpy-sync',
+    zValidator('param', z.object({ id: z.string() })),
+    async (c) => {
+      try {
+        const { id } = c.req.valid('param')
+        const project = await projectManager.getProjectById(id)
+        if (!project) {
+          return c.json({ success: false, error: 'Project not found' }, 404)
+        }
+
+        return c.json({
+          success: true,
+          data: await getRenpySyncStatus(project),
+        })
+      } catch (error: any) {
+        return c.json({ success: false, error: error.message }, 500)
+      }
+    },
+  )
+  .post(
+    '/projects/:id/renpy-sync/work-dir',
+    zValidator('param', z.object({ id: z.string() })),
+    zValidator(
+      'json',
+      z.object({
+        workDir: z.string(),
+      }),
+    ),
+    async (c) => {
+      try {
+        const { id } = c.req.valid('param')
+        const { workDir } = c.req.valid('json')
+        const project = await projectManager.getProjectById(id)
+        if (!project) {
+          return c.json({ success: false, error: 'Project not found' }, 404)
+        }
+
+        const validatedWorkDir = await validateRenpyWorkDir(workDir)
+
+        const updatedProject = await projectManager.updateProject(id, {
+          renpyExportDir: validatedWorkDir,
+        })
+
+        if (!updatedProject) {
+          return c.json({ success: false, error: 'Project not found' }, 404)
+        }
+
+        return c.json({
+          success: true,
+          data: {
+            status: await getRenpySyncStatus(updatedProject),
+          },
+        })
+      } catch (error: any) {
+        return c.json({ success: false, error: error.message }, 500)
+      }
+    },
+  )
+  .post(
+    '/projects/:id/renpy-sync',
+    zValidator('param', z.object({ id: z.string() })),
+    async (c) => {
+      try {
+        const { id } = c.req.valid('param')
+        const project = await projectManager.getProjectById(id)
+        if (!project) {
+          return c.json({ success: false, error: 'Project not found' }, 404)
+        }
+
+        await copyRenpyFiles(project)
+
+        return c.json({
+          success: true,
+          data: await getRenpySyncStatus(project),
+        })
       } catch (error: any) {
         return c.json({ success: false, error: error.message }, 500)
       }

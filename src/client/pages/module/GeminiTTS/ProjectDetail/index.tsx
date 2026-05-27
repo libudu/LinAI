@@ -52,6 +52,7 @@ export const ProjectDetail = ({
             label: '对话编排',
             children: (
               <DialogueList
+                projectId={project.id}
                 dialogues={project.dialogues || []}
                 characters={project.characters || []}
                 onUpdateProject={updateProjectData}
