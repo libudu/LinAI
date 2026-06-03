@@ -1,12 +1,16 @@
+import { EditOutlined } from '@ant-design/icons'
+import { useLocalStorageState } from 'ahooks'
 import { Image as AntImage, Button, Input, Modal, message } from 'antd'
+import classNames from 'classnames'
 import { hc } from 'hono/client'
 import { useEffect, useMemo, useState } from 'react'
 import type { AppType } from '../../../../../../server'
+import { PromptTemplateEditModal } from './PromptTemplateEditModal'
 
 const client = hc<AppType>('/')
 
 export const PROMPT_OPTIMIZE_MODEL = 'gemini-3.1-flash-lite'
-const PROMPT_TEMPLATE = `
+export const DEFAULT_PROMPT_TEMPLATE = `
 # 生图提示词优化模板
 
 你是一个生图提示词优化助手。你的任务是把用户提供的想法、简短描述、已有 prompt，整理为一版清晰、具体、可直接复制使用的高质量生图提示词。
@@ -50,6 +54,11 @@ const PROMPT_TEMPLATE = `
 
 {{ USER_PROMPT }}
 `.trim()
+const PROMPT_TEMPLATE_STORAGE_KEY = 'prompt-optimize-template'
+const PROMPT_USAGE_TIPS = [
+  '输入提示词可以按照生文的风格编写提出要求，而不仅仅是生图的提示词的具体直白风格',
+  '生成的提示词并不总是好用，可能造成过拟合，建议对生成的提示词进行人工校对和修改',
+]
 
 interface PromptOptimizeModalProps {
   open: boolean
@@ -162,6 +171,11 @@ export function PromptOptimizeModal({
   const [sourcePrompt, setSourcePrompt] = useState(prompt)
   const [optimizedPrompt, setOptimizedPrompt] = useState('')
   const [generating, setGenerating] = useState(false)
+  const [templateModalOpen, setTemplateModalOpen] = useState(false)
+  const [promptTemplate = DEFAULT_PROMPT_TEMPLATE, setPromptTemplate] =
+    useLocalStorageState(PROMPT_TEMPLATE_STORAGE_KEY, {
+      defaultValue: DEFAULT_PROMPT_TEMPLATE,
+    })
 
   useEffect(() => {
     if (open) {
@@ -171,8 +185,8 @@ export function PromptOptimizeModal({
   }, [open, prompt])
 
   const renderedTemplate = useMemo(
-    () => PROMPT_TEMPLATE.replace('{{ USER_PROMPT }}', sourcePrompt),
-    [sourcePrompt],
+    () => promptTemplate.replace('{{ USER_PROMPT }}', sourcePrompt),
+    [promptTemplate, sourcePrompt],
   )
 
   const handleGenerate = async () => {
@@ -269,23 +283,52 @@ export function PromptOptimizeModal({
             <Input.TextArea
               value={sourcePrompt}
               onChange={(event) => setSourcePrompt(event.target.value)}
-              rows={3}
+              autoSize={{
+                minRows: 2,
+                maxRows: 4,
+              }}
               placeholder="请输入原始提示词"
               style={{ resize: 'none' }}
             />
-            {imageUrls.length > 0 && (
-              <PreviewImages height={100} imageUrls={imageUrls} />
-            )}
+            <div className="mt-3 hidden items-center justify-between gap-3 md:flex">
+              {imageUrls.length > 0 && (
+                <div className="shrink-0">
+                  <PreviewImages height={100} imageUrls={imageUrls} />
+                </div>
+              )}
+              <div
+                className={classNames(
+                  'flex-1 text-xs leading-6 text-slate-500',
+                  { 'max-w-68': imageUrls.length > 0 },
+                )}
+              >
+                {PROMPT_USAGE_TIPS.map((tip, index) => (
+                  <div key={tip}>
+                    {index + 1}. {tip}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div>
-            <div className="mb-2 text-sm font-medium text-slate-700">
-              提示词优化模板
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="text-sm font-medium text-slate-700">
+                提示词优化模板
+              </div>
+              <Button
+                type="link"
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => setTemplateModalOpen(true)}
+              >
+                修改优化模板
+              </Button>
             </div>
             <Input.TextArea
-              value={PROMPT_TEMPLATE}
+              value={promptTemplate}
               disabled
-              rows={3}
+              rows={4}
               style={{ resize: 'none' }}
             />
           </div>
@@ -296,9 +339,10 @@ export function PromptOptimizeModal({
             </div>
             <Input.TextArea
               value={optimizedPrompt}
+              onChange={(event) => setOptimizedPrompt(event.target.value)}
               autoSize={{
-                minRows: 3,
-                maxRows: 10,
+                minRows: 4,
+                maxRows: 6,
               }}
               placeholder="点击生成后展示优化后的提示词"
               style={{ resize: 'none' }}
@@ -306,6 +350,13 @@ export function PromptOptimizeModal({
           </div>
         </div>
       </Modal>
+      <PromptTemplateEditModal
+        open={templateModalOpen}
+        template={promptTemplate}
+        defaultTemplate={DEFAULT_PROMPT_TEMPLATE}
+        onClose={() => setTemplateModalOpen(false)}
+        onSave={setPromptTemplate}
+      />
     </>
   )
 }
