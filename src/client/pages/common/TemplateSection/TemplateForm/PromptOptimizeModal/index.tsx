@@ -114,6 +114,43 @@ function extractOptimizedPrompt(data: any) {
   return ''
 }
 
+function extractErrorMessage(error: unknown) {
+  if (typeof error === 'string') {
+    return error.trim()
+  }
+
+  if (error instanceof Error) {
+    return error.message.trim()
+  }
+
+  if (!error || typeof error !== 'object') {
+    return ''
+  }
+
+  const errorRecord = error as {
+    error?: unknown
+    message?: unknown
+  }
+
+  if (typeof errorRecord.error === 'string') {
+    return errorRecord.error.trim()
+  }
+
+  if (
+    errorRecord.error &&
+    typeof errorRecord.error === 'object' &&
+    typeof (errorRecord.error as { message?: unknown }).message === 'string'
+  ) {
+    return (errorRecord.error as { message: string }).message.trim()
+  }
+
+  if (typeof errorRecord.message === 'string') {
+    return errorRecord.message.trim()
+  }
+
+  return ''
+}
+
 export function PromptOptimizeModal({
   open,
   prompt,
@@ -121,6 +158,7 @@ export function PromptOptimizeModal({
   onClose,
   onApply,
 }: PromptOptimizeModalProps) {
+  const [messageApi, contextHolder] = message.useMessage()
   const [sourcePrompt, setSourcePrompt] = useState(prompt)
   const [optimizedPrompt, setOptimizedPrompt] = useState('')
   const [generating, setGenerating] = useState(false)
@@ -140,7 +178,7 @@ export function PromptOptimizeModal({
   const handleGenerate = async () => {
     const trimmedPrompt = sourcePrompt.trim()
     if (!trimmedPrompt) {
-      message.warning('请先填写原始提示词')
+      messageApi.warning('请先填写原始提示词')
       return
     }
 
@@ -169,102 +207,105 @@ export function PromptOptimizeModal({
 
       const data = await res.json()
       if (!res.ok) {
-        message.error((data as any)?.error || '提示词优化失败')
+        messageApi.error(extractErrorMessage(data) || '提示词优化失败')
         return
       }
 
       const nextPrompt = extractOptimizedPrompt(data)
       if (!nextPrompt) {
-        message.error('未获取到优化后的提示词')
+        messageApi.error('未获取到优化后的提示词')
         return
       }
 
       setOptimizedPrompt(nextPrompt)
-      message.success('提示词优化成功')
+      messageApi.success('提示词优化成功')
     } catch (error) {
-      message.error('提示词优化请求失败')
+      messageApi.error(extractErrorMessage(error) || '提示词优化请求失败')
     } finally {
       setGenerating(false)
     }
   }
 
   return (
-    <Modal
-      title="提示词优化"
-      open={open}
-      onCancel={() => {
-        if (!generating) {
-          onClose()
+    <>
+      {contextHolder}
+      <Modal
+        title="提示词优化"
+        open={open}
+        onCancel={() => {
+          if (!generating) {
+            onClose()
+          }
+        }}
+        destroyOnHidden
+        width={720}
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button onClick={onClose} disabled={generating}>
+              取消
+            </Button>
+            <Button
+              type={optimizedPrompt ? 'default' : 'primary'}
+              onClick={handleGenerate}
+              loading={generating}
+            >
+              生成
+            </Button>
+            <Button
+              type={optimizedPrompt ? 'primary' : 'default'}
+              onClick={() => onApply(optimizedPrompt)}
+              disabled={!optimizedPrompt || generating}
+            >
+              应用
+            </Button>
+          </div>
         }
-      }}
-      destroyOnHidden
-      width={720}
-      footer={
-        <div className="flex justify-end gap-3">
-          <Button onClick={onClose} disabled={generating}>
-            取消
-          </Button>
-          <Button
-            type={optimizedPrompt ? 'default' : 'primary'}
-            onClick={handleGenerate}
-            loading={generating}
-          >
-            生成
-          </Button>
-          <Button
-            type={optimizedPrompt ? 'primary' : 'default'}
-            onClick={() => onApply(optimizedPrompt)}
-            disabled={!optimizedPrompt || generating}
-          >
-            应用
-          </Button>
-        </div>
-      }
-    >
-      <div className="mt-4 space-y-4">
-        <div>
-          <div className="mb-2 text-sm font-medium text-slate-700">
-            原始提示词和输入图片
+      >
+        <div className="mt-4 space-y-4">
+          <div>
+            <div className="mb-2 text-sm font-medium text-slate-700">
+              原始提示词和输入图片
+            </div>
+            <Input.TextArea
+              value={sourcePrompt}
+              onChange={(event) => setSourcePrompt(event.target.value)}
+              rows={3}
+              placeholder="请输入原始提示词"
+              style={{ resize: 'none' }}
+            />
+            {imageUrls.length > 0 && (
+              <PreviewImages height={100} imageUrls={imageUrls} />
+            )}
           </div>
-          <Input.TextArea
-            value={sourcePrompt}
-            onChange={(event) => setSourcePrompt(event.target.value)}
-            rows={3}
-            placeholder="请输入原始提示词"
-            style={{ resize: 'none' }}
-          />
-          {imageUrls.length > 0 && (
-            <PreviewImages height={100} imageUrls={imageUrls} />
-          )}
-        </div>
 
-        <div>
-          <div className="mb-2 text-sm font-medium text-slate-700">
-            提示词优化模板
+          <div>
+            <div className="mb-2 text-sm font-medium text-slate-700">
+              提示词优化模板
+            </div>
+            <Input.TextArea
+              value={PROMPT_TEMPLATE}
+              disabled
+              rows={3}
+              style={{ resize: 'none' }}
+            />
           </div>
-          <Input.TextArea
-            value={PROMPT_TEMPLATE}
-            disabled
-            rows={3}
-            style={{ resize: 'none' }}
-          />
-        </div>
 
-        <div>
-          <div className="mb-2 text-sm font-medium text-slate-700">
-            优化结果
+          <div>
+            <div className="mb-2 text-sm font-medium text-slate-700">
+              优化结果
+            </div>
+            <Input.TextArea
+              value={optimizedPrompt}
+              autoSize={{
+                minRows: 3,
+                maxRows: 10,
+              }}
+              placeholder="点击生成后展示优化后的提示词"
+              style={{ resize: 'none' }}
+            />
           </div>
-          <Input.TextArea
-            value={optimizedPrompt}
-            autoSize={{
-              minRows: 3,
-              maxRows: 10,
-            }}
-            placeholder="点击生成后展示优化后的提示词"
-            style={{ resize: 'none' }}
-          />
         </div>
-      </div>
-    </Modal>
+      </Modal>
+    </>
   )
 }

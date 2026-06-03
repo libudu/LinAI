@@ -17,7 +17,10 @@ export function SideSetting() {
         </div>
         <div className="mt-2 text-xs leading-5 text-gray-400">
           <div>启用后将在提示词输入框旁显示优化按钮</div>
-          <div>使用 {PROMPT_OPTIMIZE_MODEL} 模型</div>
+          <div>
+            使用 {PROMPT_OPTIMIZE_MODEL} 模型，
+            <span className="text-red-500">需要至少包含一个 gemini 分组</span>
+          </div>
           <div>以带单张图估算，200次约消耗1分钱，开销可忽略</div>
         </div>
       </div>
