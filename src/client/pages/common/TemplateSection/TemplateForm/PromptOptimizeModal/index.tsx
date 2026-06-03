@@ -234,7 +234,9 @@ export function PromptOptimizeModal({
             placeholder="请输入原始提示词"
             style={{ resize: 'none' }}
           />
-          <PreviewImages height={100} imageUrls={imageUrls} />
+          {imageUrls.length > 0 && (
+            <PreviewImages height={100} imageUrls={imageUrls} />
+          )}
         </div>
 
         <div>

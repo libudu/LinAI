@@ -103,8 +103,14 @@ export function TaskList() {
                       </Typography.Text>
                       <Typography.Text
                         type="danger"
-                        className="w-full text-center text-xs"
+                        className="w-full cursor-pointer text-center text-xs transition-colors hover:text-red-400!"
                         ellipsis={{ tooltip: task.error }}
+                        onClick={() => {
+                          if (task.error) {
+                            copy(task.error)
+                            message.success('错误信息已复制')
+                          }
+                        }}
                       >
                         {task.error}
                       </Typography.Text>
