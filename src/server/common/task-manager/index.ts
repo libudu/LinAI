@@ -2,10 +2,8 @@ import { EventEmitter } from 'events'
 import fs from 'fs-extra'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
-import {
-  GENERATED_IMAGES_API_PATH,
-  GENERATED_IMAGES_DIR,
-} from '../static'
+import { GENERATED_IMAGES_DIR } from '../static'
+import { GENERATED_IMAGES_API_PATH } from '../static/enum'
 import { GptImageQuality, GptImageSize } from '../../module/gpt-image/enum'
 import { Logger } from '../../module/utils/logger'
 import { TaskTemplate } from '../template-manager'

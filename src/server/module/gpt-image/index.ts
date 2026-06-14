@@ -4,10 +4,10 @@ import { writeFile } from 'fs/promises'
 import OpenAI, { toFile } from 'openai'
 import path from 'path'
 import {
-  GENERATED_IMAGES_API_PATH,
   GENERATED_IMAGES_DIR,
   INPUT_IMAGES_DIR,
 } from '../../common/static'
+import { GENERATED_IMAGES_API_PATH } from '../../common/static/enum'
 import { taskManager } from '../../api/common/task'
 import { TaskTemplate } from '../../common/template-manager'
 import { logger } from '../utils/logger'

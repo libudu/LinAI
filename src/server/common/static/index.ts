@@ -4,6 +4,7 @@ import fs from 'fs-extra'
 import path from 'path'
 import sharp from 'sharp'
 import { templateManager } from '../template-manager'
+import { GENERATED_IMAGES_API_PATH, INPUT_IMAGES_API_PATH } from './enum'
 
 export const IMAGE_MAX_DIMENSION = 1600
 export const IMAGE_COMPRESS_QUALITY = 60
@@ -14,9 +15,6 @@ export const IMAGES_ROOT_DIR = path.join(process.cwd(), 'data', 'images')
 export const GENERATED_IMAGES_DIR = path.join(IMAGES_ROOT_DIR, 'generated')
 export const INPUT_IMAGES_DIR = path.join(IMAGES_ROOT_DIR, 'input')
 export const THUMB_IMAGES_DIR = path.join(IMAGES_ROOT_DIR, 'thumb')
-
-export const GENERATED_IMAGES_API_PATH = '/api/static/images/generated'
-export const INPUT_IMAGES_API_PATH = '/api/static/images/input'
 
 export type ImageDirectoryType = 'generated' | 'input'
 

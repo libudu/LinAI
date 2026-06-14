@@ -3,11 +3,11 @@ import {
   PictureOutlined,
   UploadOutlined,
 } from '@ant-design/icons'
-import { useLocalStorageState } from 'ahooks'
 import { Image as AntImage, Button, message, Upload } from 'antd'
 import { hc } from 'hono/client'
 import { useEffect, useRef } from 'react'
 import type { AppType } from '../../../../../server'
+import { useRecentImages } from '../../../../hooks/useRecentImages'
 import { openGallery } from '../../components/Gallery'
 
 const client = hc<AppType>('/')
@@ -46,8 +46,6 @@ function getClosestAspectRatio(width: number, height: number) {
   return closest.value
 }
 
-const LOCAL_STORAGE_KEY = 'recent_uploaded_images'
-
 export function ImageUpload({
   value = [],
   onChange,
@@ -55,17 +53,7 @@ export function ImageUpload({
   onFirstImageRatio,
 }: ImageUploadProps) {
   const uploadingCountRef = useRef(0)
-  const [, setRecentImages] = useLocalStorageState<string[]>(
-    LOCAL_STORAGE_KEY,
-    { defaultValue: [] },
-  )
-
-  const addRecentImage = (url: string) => {
-    setRecentImages((prev = []) => {
-      const newRecent = [url, ...prev.filter((u) => u !== url)].slice(0, 10)
-      return newRecent
-    })
-  }
+  const { addRecentImages } = useRecentImages()
 
   const latestValueRef = useRef(value)
   latestValueRef.current = value
@@ -101,7 +89,7 @@ export function ImageUpload({
           const newUrls = [...latestValueRef.current, url]
           latestValueRef.current = newUrls
           onChange?.(newUrls)
-          addRecentImage(url)
+          addRecentImages(url)
           message.success('图片上传成功')
         } else {
           message.error((data as any).error || '图片上传失败')
@@ -178,19 +166,24 @@ export function ImageUpload({
           icon={<PictureOutlined />}
           onClick={() => {
             openGallery({
-              onSelect: (url: string) => {
+              onSelect: (urls: string[]) => {
+                if (urls.length === 0) {
+                  return
+                }
+
                 if (latestValueRef.current.length === 0 && onFirstImageRatio) {
                   const img = new Image()
                   img.onload = () => {
                     const ratio = getClosestAspectRatio(img.width, img.height)
                     onFirstImageRatio(ratio)
                   }
-                  img.src = url
+                  img.src = urls[0]
                 }
-                const newUrls = [...latestValueRef.current, url]
+
+                const newUrls = [...latestValueRef.current, ...urls]
                 latestValueRef.current = newUrls
                 onChange?.(newUrls)
-                addRecentImage(url)
+                addRecentImages(urls)
               },
             })
           }}
