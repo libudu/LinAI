@@ -184,13 +184,16 @@ export async function handleImageGeneration(options: {
     const imagePaths: string[] = []
     for (const imgUrl of template.images) {
       const filename = imgUrl.split('/').pop()
-      if (filename) {
-        const imagePath = path.join(INPUT_IMAGES_DIR, filename)
-        if (await fs.pathExists(imagePath)) {
-          imagePaths.push(imagePath)
-        } else {
-          throw new Error(`Template image not found on Input Dir: ${imagePath}`)
-        }
+      if (!filename) continue
+      // Check both input and generated dirs
+      let imagePath = path.join(INPUT_IMAGES_DIR, filename)
+      if (!(await fs.pathExists(imagePath))) {
+        imagePath = path.join(GENERATED_IMAGES_DIR, filename)
+      }
+      if (await fs.pathExists(imagePath)) {
+        imagePaths.push(imagePath)
+      } else {
+        throw new Error(`Template image not found on Input/Generated Dir: ${imagePath}`)
       }
     }
 
