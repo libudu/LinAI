@@ -1,4 +1,5 @@
 import { Home } from './pages/common/Home'
+import GraphEditor from './pages/module/GraphEditor'
 import { TTS } from './pages/module/GeminiTTS'
 import { MediaClassifier } from './pages/module/MediaClassifier'
 
@@ -20,5 +21,11 @@ export const appRoutes = [
     label: '图片整理',
     element: <MediaClassifier />,
     key: 'media-classifier',
+  },
+  {
+    path: '/graph',
+    label: '画板',
+    element: <GraphEditor />,
+    key: 'graph',
   },
 ]
