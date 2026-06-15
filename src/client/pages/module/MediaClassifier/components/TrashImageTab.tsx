@@ -1,5 +1,5 @@
 import { DeleteOutlined, ReloadOutlined } from '@ant-design/icons'
-import { Button, Card, Empty, Modal, Spin, Tag, Typography, message } from 'antd'
+import { Button, Card, Empty, Modal, Spin, Typography, message } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import {
@@ -7,10 +7,7 @@ import {
   getMediaImages,
   restoreMediaImage,
 } from '../api'
-import type {
-  MediaDecisionStatus,
-  MediaImageItem,
-} from '../types'
+import type { MediaImageItem } from '../types'
 
 const TRASH_PAGE_SIZE = 20
 
@@ -27,32 +24,6 @@ const formatFileSize = (size: number) => {
     return `${(size / 1024).toFixed(1)} KB`
   }
   return `${(size / (1024 * 1024)).toFixed(1)} MB`
-}
-
-const getStatusMeta = (status: MediaDecisionStatus) => {
-  switch (status) {
-    case 'keep':
-      return {
-        label: '保留',
-        color: 'success',
-      } as const
-    case 'delete':
-      return {
-        label: '删除',
-        color: 'error',
-      } as const
-    case 'pending':
-    default:
-      return {
-        label: '待筛选',
-        color: 'default',
-      } as const
-  }
-}
-
-function StatusTag({ status }: { status: MediaDecisionStatus }) {
-  const meta = getStatusMeta(status)
-  return <Tag color={meta.color}>{meta.label}</Tag>
 }
 
 function TrashPanel({
@@ -76,7 +47,9 @@ function TrashPanel({
   onRestore: (relativePath: string) => Promise<void>
   onDelete: (relativePath: string) => Promise<void>
 }) {
-  const handleScroll = async (event: React.UIEvent<HTMLDivElement, UIEvent>) => {
+  const handleScroll = async (
+    event: React.UIEvent<HTMLDivElement, UIEvent>,
+  ) => {
     const target = event.currentTarget
     const reachedBottom =
       target.scrollTop + target.clientHeight >= target.scrollHeight - 64
@@ -119,10 +92,13 @@ function TrashPanel({
               />
               <div className="min-w-0 flex-1">
                 <div className="mb-1 flex items-start justify-between gap-2">
-                  <Typography.Text strong className="truncate" title={item.name}>
+                  <Typography.Text
+                    strong
+                    className="truncate"
+                    title={item.name}
+                  >
                     {item.name}
                   </Typography.Text>
-                  <StatusTag status={item.status} />
                 </div>
                 <div className="space-y-1 text-xs text-slate-500">
                   <div className="truncate">{item.relativePath}</div>
@@ -144,7 +120,9 @@ function TrashPanel({
                     size="small"
                     danger
                     icon={<DeleteOutlined />}
-                    loading={actionKey === `${item.relativePath}:permanent-delete`}
+                    loading={
+                      actionKey === `${item.relativePath}:permanent-delete`
+                    }
                     onClick={() => void onDelete(item.relativePath)}
                   >
                     彻底删除
@@ -164,10 +142,7 @@ function TrashPanel({
   )
 }
 
-export function TrashImageTab({
-  refreshKey,
-  onMutated,
-}: TrashImageTabProps) {
+export function TrashImageTab({ refreshKey, onMutated }: TrashImageTabProps) {
   const [trashItems, setTrashItems] = useState<MediaImageItem[]>([])
   const [trashTotal, setTrashTotal] = useState(0)
   const [trashPage, setTrashPage] = useState(1)

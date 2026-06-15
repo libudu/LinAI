@@ -1,5 +1,6 @@
-import { Empty, Image, Pagination, Spin } from 'antd'
+import { Empty, Pagination, Spin } from 'antd'
 import type { MediaImageListResult } from '../../types'
+import { MediaStatusImage } from './MediaStatusImage'
 
 interface OriginalImageListProps {
   data: MediaImageListResult | null
@@ -28,21 +29,14 @@ export function OriginalImageList({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 lg:grid-cols-6">
+      <div className="grid grid-cols-3 gap-2 md:grid-cols-6 lg:grid-cols-8">
         {data.items.map((item) => (
-          <div
+          <MediaStatusImage
             key={item.relativePath}
-            className="aspect-3/4 overflow-hidden rounded bg-slate-100"
-          >
-            <Image
-              src={item.previewUrl}
-              alt={item.name}
-              classNames={{
-                root: 'w-full h-full',
-                image: 'w-full! h-full! object-cover',
-              }}
-            />
-          </div>
+            item={item}
+            rootClassName="aspect-3/4"
+            imageClassName="object-cover"
+          />
         ))}
       </div>
 

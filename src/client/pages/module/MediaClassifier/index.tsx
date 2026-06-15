@@ -97,7 +97,7 @@ export function MediaClassifier() {
         items={[
           {
             key: 'original',
-            label: `原始图片（${workspace?.summary.originalCount ?? 0}）`,
+            label: `总图片（${workspace?.summary.originalCount ?? 0}）`,
             children: (
               <OriginalImageTab
                 refreshKey={refreshKey}

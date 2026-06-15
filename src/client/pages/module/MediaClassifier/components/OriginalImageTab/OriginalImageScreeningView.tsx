@@ -2,13 +2,13 @@ import {
   DeleteOutlined,
   EnterOutlined,
   LeftOutlined,
-  ReloadOutlined,
   RightOutlined,
 } from '@ant-design/icons'
-import { Button, Card, Empty, Space, Spin, Typography } from 'antd'
+import { Button, Card, Empty, Spin } from 'antd'
 import dayjs from 'dayjs'
-import { useEffect, useMemo } from 'react'
+import { useEffect } from 'react'
 import type { MediaDecisionStatus, MediaImageItem } from '../../types'
+import { MediaStatusImage } from './MediaStatusImage'
 
 interface OriginalImageScreeningViewProps {
   images: MediaImageItem[]
@@ -42,10 +42,9 @@ export function OriginalImageScreeningView({
   actionKey,
 }: OriginalImageScreeningViewProps) {
   const currentImage = images[currentIndex]
-  const pendingCount = useMemo(
-    () => images.filter((image) => image.status === 'pending').length,
-    [images],
-  )
+  const previousImage = currentIndex > 0 ? images[currentIndex - 1] : null
+  const nextImage =
+    currentIndex < images.length - 1 ? images[currentIndex + 1] : null
 
   useEffect(() => {
     if (!currentImage) {
@@ -105,58 +104,75 @@ export function OriginalImageScreeningView({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-        <Space wrap>
-          <Typography.Text strong>
-            {currentIndex + 1} / {images.length}
-          </Typography.Text>
-          <Typography.Text type="secondary">
-            待筛选 {pendingCount} 张
-          </Typography.Text>
-        </Space>
-        <Space wrap>
-          <Button
-            icon={<LeftOutlined />}
-            disabled={currentIndex <= 0}
-            onClick={() => onChangeIndex(Math.max(currentIndex - 1, 0))}
-          >
-            上一张
-          </Button>
-          <Button
-            icon={<RightOutlined />}
-            disabled={currentIndex >= images.length - 1}
-            onClick={() =>
-              onChangeIndex(Math.min(currentIndex + 1, images.length - 1))
-            }
-          >
-            下一张
-          </Button>
-        </Space>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="flex flex-col gap-4">
         <Card
           className="border-slate-200 shadow-sm"
           classNames={{ body: 'p-3! md:p-5!' }}
         >
-          <div className="flex min-h-[500px] items-center justify-center rounded-2xl bg-slate-100 p-4">
-            <img
-              src={currentImage.previewUrl}
-              alt={currentImage.name}
-              className="max-h-[70vh] max-w-full rounded-xl object-contain shadow-sm"
-            />
+          <div className="flex h-[500px] items-center justify-center gap-3 rounded-2xl bg-slate-100 p-4 md:gap-5">
+            <div className="flex h-full w-36 items-center justify-center md:w-44">
+              {previousImage ? (
+                <div className="flex h-full w-full flex-col items-center justify-center gap-3">
+                  <MediaStatusImage
+                    item={previousImage}
+                    preview={false}
+                    onClick={() => onChangeIndex(currentIndex - 1)}
+                    ariaLabel={`查看上一张：${previousImage.name}`}
+                    rootClassName="h-[60%] w-full opacity-80"
+                    imageClassName="object-contain"
+                  />
+                  <Button
+                    type="text"
+                    icon={<LeftOutlined />}
+                    onClick={() => onChangeIndex(currentIndex - 1)}
+                  >
+                    上一张
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="h-full min-w-0 flex-1">
+              <MediaStatusImage
+                item={currentImage}
+                rootClassName="h-full w-full shadow-sm"
+                imageClassName="max-w-full object-contain"
+              />
+            </div>
+
+            <div className="flex h-full w-36 items-center justify-center md:w-44">
+              {nextImage ? (
+                <div className="flex h-full w-full flex-col items-center justify-center gap-3">
+                  <MediaStatusImage
+                    item={nextImage}
+                    preview={false}
+                    onClick={() => onChangeIndex(currentIndex + 1)}
+                    ariaLabel={`查看下一张：${nextImage.name}`}
+                    rootClassName="h-[60%] w-full opacity-80"
+                    imageClassName="object-contain"
+                  />
+                  <Button
+                    type="text"
+                    icon={<RightOutlined />}
+                    iconPosition="end"
+                    onClick={() => onChangeIndex(currentIndex + 1)}
+                  >
+                    下一张
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           </div>
         </Card>
 
         <Card
           className="border-slate-200 shadow-sm"
-          classNames={{ body: 'flex h-full flex-col gap-4 p-4!' }}
+          classNames={{
+            body: 'flex items-center justify-between h-full gap-4 p-4!',
+          }}
         >
           <div>
-            <Typography.Title level={5} className="mb-2!">
-              {currentImage.name}
-            </Typography.Title>
-            <div className="space-y-2 text-sm text-slate-500">
+            <div className="space-y-2 text-base text-slate-500">
               <div>相对路径：{currentImage.relativePath}</div>
               <div>文件大小：{formatFileSize(currentImage.size)}</div>
               <div>
@@ -166,7 +182,25 @@ export function OriginalImageScreeningView({
             </div>
           </div>
 
-          <div className="mt-auto space-y-3">
+          <div className="flex w-60 flex-col justify-between gap-3">
+            <div className="flex items-center justify-between">
+              <Button
+                size="large"
+                disabled={currentIndex <= 0}
+                onClick={() => onChangeIndex(Math.max(currentIndex - 1, 0))}
+              >
+                ← 上一张
+              </Button>
+              <Button
+                size="large"
+                disabled={currentIndex >= images.length - 1}
+                onClick={() =>
+                  onChangeIndex(Math.min(currentIndex + 1, images.length - 1))
+                }
+              >
+                下一张 →
+              </Button>
+            </div>
             <Button
               type="primary"
               size="large"
@@ -191,19 +225,6 @@ export function OriginalImageScreeningView({
             >
               删除（D）
             </Button>
-            {currentImage.status !== 'pending' && (
-              <Button
-                size="large"
-                className="w-full"
-                icon={<ReloadOutlined />}
-                loading={actionKey === `${currentImage.relativePath}:pending`}
-                onClick={() =>
-                  void onMark(currentImage.relativePath, 'pending', false)
-                }
-              >
-                重置为待筛选
-              </Button>
-            )}
           </div>
         </Card>
       </div>

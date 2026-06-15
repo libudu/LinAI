@@ -36,7 +36,7 @@ function App() {
         <Header />
 
         {/* Main Content */}
-        <main className="mx-auto max-w-6xl px-6">
+        <main className="mx-auto max-w-6xl space-y-4 p-3 sm:p-6">
           <Routes>
             {appRoutes.map((route) => (
               <Route
