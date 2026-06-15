@@ -1,7 +1,7 @@
 import { ArrowDownOutlined, ArrowUpOutlined } from '@ant-design/icons'
 import { Button, Card, Empty, Spin } from 'antd'
 import dayjs from 'dayjs'
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import type { MediaDecisionStatus, MediaImageItem } from '../../types'
 import { AnimatedScreeningImageStrip } from './AnimatedScreeningImageStrip'
 
@@ -34,57 +34,78 @@ export function OriginalImageScreeningView({
   onMark,
   actionKey,
 }: OriginalImageScreeningViewProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null)
   const currentImage = images[currentIndex]
 
   useEffect(() => {
-    if (!active || !currentImage) {
+    if (!active) {
       return
     }
 
-    containerRef.current?.focus({ preventScroll: true })
-  }, [active, currentImage])
+    const handleWindowKeyDown = (event: KeyboardEvent) => {
+      if (
+        !currentImage ||
+        actionKey ||
+        event.repeat ||
+        event.defaultPrevented
+      ) {
+        return
+      }
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (!currentImage || actionKey || event.repeat) {
-      return
+      if (event.altKey || event.ctrlKey || event.metaKey) {
+        return
+      }
+
+      const target = event.target as HTMLElement | null
+      const tagName = target?.tagName?.toLowerCase()
+      if (
+        target?.isContentEditable ||
+        tagName === 'input' ||
+        tagName === 'textarea' ||
+        tagName === 'select'
+      ) {
+        return
+      }
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        void onMark(currentImage.relativePath, 'keep')
+        onChangeIndex(Math.min(currentIndex + 1, images.length - 1))
+        return
+      }
+
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        void onMark(currentImage.relativePath, 'delete')
+        onChangeIndex(Math.min(currentIndex + 1, images.length - 1))
+        return
+      }
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        onChangeIndex(Math.max(currentIndex - 1, 0))
+        return
+      }
+
+      if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        onChangeIndex(Math.min(currentIndex + 1, images.length - 1))
+      }
     }
 
-    const target = event.target as HTMLElement | null
-    const tagName = target?.tagName?.toLowerCase()
-    if (
-      target?.isContentEditable ||
-      tagName === 'input' ||
-      tagName === 'textarea'
-    ) {
-      return
-    }
+    window.addEventListener('keydown', handleWindowKeyDown)
 
-    if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      void onMark(currentImage.relativePath, 'keep')
-      onChangeIndex(Math.min(currentIndex + 1, images.length - 1))
-      return
+    return () => {
+      window.removeEventListener('keydown', handleWindowKeyDown)
     }
-
-    if (event.key === 'ArrowDown') {
-      event.preventDefault()
-      void onMark(currentImage.relativePath, 'delete')
-      onChangeIndex(Math.min(currentIndex + 1, images.length - 1))
-      return
-    }
-
-    if (event.key === 'ArrowLeft') {
-      event.preventDefault()
-      onChangeIndex(Math.max(currentIndex - 1, 0))
-      return
-    }
-
-    if (event.key === 'ArrowRight') {
-      event.preventDefault()
-      onChangeIndex(Math.min(currentIndex + 1, images.length - 1))
-    }
-  }
+  }, [
+    actionKey,
+    active,
+    currentImage,
+    currentIndex,
+    images.length,
+    onChangeIndex,
+    onMark,
+  ])
 
   if (loading) {
     return (
@@ -99,12 +120,7 @@ export function OriginalImageScreeningView({
   }
 
   return (
-    <div
-      ref={containerRef}
-      tabIndex={0}
-      className="space-y-4 outline-none"
-      onKeyDown={handleKeyDown}
-    >
+    <div className="space-y-4">
       <div className="flex flex-col gap-4">
         <Card
           className="border-slate-200 shadow-sm"

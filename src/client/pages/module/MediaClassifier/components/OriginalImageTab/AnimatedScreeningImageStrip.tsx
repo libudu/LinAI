@@ -24,20 +24,7 @@ interface TransitionState {
   targetIndex: number
 }
 
-const PRELOAD_RANGE = 4
-
-const preloadImage = (src: string) =>
-  new Promise<void>((resolve, reject) => {
-    const image = new window.Image()
-    image.decoding = 'async'
-    image.onload = () => resolve()
-    image.onerror = () => reject(new Error(`图片预加载失败: ${src}`))
-    image.src = src
-
-    if (image.complete) {
-      resolve()
-    }
-  })
+// const PRELOAD_RANGE = 4
 
 const SLOT_STYLES: Record<
   SlotName,
@@ -293,8 +280,6 @@ export function AnimatedScreeningImageStrip({
   const [previewVisible, setPreviewVisible] = useState(false)
   const animationRef = useRef<JSAnimation | null>(null)
   const cardRefs = useRef(new Map<string, HTMLDivElement>())
-  const preloadedUrlsRef = useRef(new Set<string>())
-  const preloadingUrlsRef = useRef(new Set<string>())
 
   const clampedCurrentIndex = useMemo(
     () => clampIndex(currentIndex, images.length),
@@ -305,41 +290,6 @@ export function AnimatedScreeningImageStrip({
   useEffect(() => {
     setPreviewVisible(false)
   }, [clampedCurrentIndex])
-
-  useEffect(() => {
-    if (images.length === 0) {
-      return
-    }
-
-    const startIndex = Math.max(clampedCurrentIndex - PRELOAD_RANGE, 0)
-    const endIndex = Math.min(
-      clampedCurrentIndex + PRELOAD_RANGE,
-      images.length - 1,
-    )
-
-    for (let index = startIndex; index <= endIndex; index += 1) {
-      const previewUrl = images[index]?.previewUrl
-      if (
-        !previewUrl ||
-        preloadedUrlsRef.current.has(previewUrl) ||
-        preloadingUrlsRef.current.has(previewUrl)
-      ) {
-        continue
-      }
-
-      preloadingUrlsRef.current.add(previewUrl)
-      void preloadImage(previewUrl)
-        .then(() => {
-          preloadedUrlsRef.current.add(previewUrl)
-        })
-        .catch(() => {
-          preloadedUrlsRef.current.delete(previewUrl)
-        })
-        .finally(() => {
-          preloadingUrlsRef.current.delete(previewUrl)
-        })
-    }
-  }, [clampedCurrentIndex, images])
 
   useEffect(() => {
     if (images.length === 0) {
