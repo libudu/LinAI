@@ -1,8 +1,8 @@
-import crypto from 'crypto'
 import { constants } from 'fs'
 import fs from 'fs-extra'
 import path from 'path'
 import sharp from 'sharp'
+import { buildThumbnailCacheKey, createMediaImageHasher } from './hash'
 
 const MEDIA_CLASSIFIER_DATA_DIR = path.join(
   process.cwd(),
@@ -12,10 +12,6 @@ const MEDIA_CLASSIFIER_DATA_DIR = path.join(
 const MEDIA_CLASSIFIER_STATE_FILE = path.join(
   MEDIA_CLASSIFIER_DATA_DIR,
   'state.json',
-)
-const MEDIA_CLASSIFIER_HASH_CACHE_FILE = path.join(
-  MEDIA_CLASSIFIER_DATA_DIR,
-  'hash-cache.json',
 )
 const MEDIA_CLASSIFIER_THUMB_DIR = path.join(
   MEDIA_CLASSIFIER_DATA_DIR,
@@ -41,10 +37,6 @@ type MediaWorkspaceKind = 'source' | 'result'
 interface MediaClassifierState {
   sourceDir: string
   resultDir: string
-}
-
-interface MediaHashCache {
-  fileHashes: Record<string, string>
 }
 
 interface ScannedImageRecord {
@@ -103,10 +95,6 @@ fs.ensureDirSync(MEDIA_CLASSIFIER_THUMB_DIR)
 const createDefaultState = (): MediaClassifierState => ({
   sourceDir: '',
   resultDir: '',
-})
-
-const createDefaultHashCache = (): MediaHashCache => ({
-  fileHashes: {},
 })
 
 const normalizeAbsolutePath = (inputPath: string) =>
@@ -202,50 +190,6 @@ const writeState = async (state: MediaClassifierState) => {
   await fs.outputJson(MEDIA_CLASSIFIER_STATE_FILE, state, { spaces: 2 })
 }
 
-const readHashCache = async (): Promise<MediaHashCache> => {
-  if (!(await fs.pathExists(MEDIA_CLASSIFIER_HASH_CACHE_FILE))) {
-    return createDefaultHashCache()
-  }
-
-  const rawHashCache = await fs.readJson(MEDIA_CLASSIFIER_HASH_CACHE_FILE)
-  return {
-    fileHashes:
-      rawHashCache?.fileHashes && typeof rawHashCache.fileHashes === 'object'
-        ? rawHashCache.fileHashes
-        : {},
-  }
-}
-
-const writeHashCache = async (hashCache: MediaHashCache) => {
-  await fs.outputJson(MEDIA_CLASSIFIER_HASH_CACHE_FILE, hashCache, {
-    spaces: 2,
-  })
-}
-
-const buildImageInfoHash = (
-  absolutePath: string,
-  mtimeMs: number,
-  size: number,
-) =>
-  crypto
-    .createHash('md5')
-    .update(`${path.resolve(absolutePath)}:${mtimeMs}:${size}`)
-    .digest('hex')
-
-const buildImageFileHash = async (absolutePath: string) =>
-  await new Promise<string>((resolve, reject) => {
-    const hash = crypto.createHash('sha256')
-    const stream = fs.createReadStream(absolutePath)
-
-    stream.on('data', (chunk) => {
-      hash.update(chunk)
-    })
-    stream.on('error', reject)
-    stream.on('end', () => {
-      resolve(hash.digest('hex'))
-    })
-  })
-
 const hasDirectoryAccess = async (
   directoryPath: string,
   includeWrite: boolean,
@@ -306,8 +250,7 @@ const scanImageFiles = async (
   sourceDir: string,
 ): Promise<ScannedImageRecord[]> => {
   const records: ScannedImageRecord[] = []
-  const hashCache = await readHashCache()
-  let hashCacheChanged = false
+  const imageHasher = await createMediaImageHasher()
 
   const walk = async (currentDir: string) => {
     const entries = await fs.readdir(currentDir, { withFileTypes: true })
@@ -324,14 +267,11 @@ const scanImageFiles = async (
       }
 
       const stat = await fs.stat(absolutePath)
-      const infoHash = buildImageInfoHash(absolutePath, stat.mtimeMs, stat.size)
-      let fileHash = hashCache.fileHashes[infoHash]
-
-      if (!fileHash) {
-        fileHash = await buildImageFileHash(absolutePath)
-        hashCache.fileHashes[infoHash] = fileHash
-        hashCacheChanged = true
-      }
+      const { infoHash, fileHash } = await imageHasher.hashFile(
+        absolutePath,
+        stat.mtimeMs,
+        stat.size,
+      )
 
       records.push({
         relativePath: path
@@ -348,10 +288,7 @@ const scanImageFiles = async (
   }
 
   await walk(sourceDir)
-
-  if (hashCacheChanged) {
-    await writeHashCache(hashCache)
-  }
+  await imageHasher.persist()
 
   return records.sort((left, right) => {
     if (right.mtimeMs !== left.mtimeMs) {
@@ -436,11 +373,10 @@ const ensureThumbnail = async (
   mtimeMs: number,
   size: number,
 ) => {
-  const hash = crypto
-    .createHash('md5')
-    .update(`${sourcePath}:${mtimeMs}:${size}`)
-    .digest('hex')
-  const thumbPath = path.join(MEDIA_CLASSIFIER_THUMB_DIR, `${hash}.webp`)
+  const thumbPath = path.join(
+    MEDIA_CLASSIFIER_THUMB_DIR,
+    `${buildThumbnailCacheKey(sourcePath, mtimeMs, size)}.webp`,
+  )
 
   if (!(await fs.pathExists(thumbPath))) {
     const thumbBuffer = await sharp(sourcePath)
