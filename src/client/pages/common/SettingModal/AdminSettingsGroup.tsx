@@ -1,4 +1,4 @@
-import { Button, Checkbox, Collapse, Divider, Input, message, Radio, Tag } from 'antd'
+import { AutoComplete, Button, Checkbox, Collapse, Divider, Input, message, Radio, Tag } from 'antd'
 import { useState } from 'react'
 
 interface TokenData {
@@ -45,6 +45,7 @@ export function AdminSettingsGroup({ yunwuSystemToken, yunwuUserId, selectedToke
   const [groups, setGroups] = useState<string[]>([])
   const [newGroupName, setNewGroupName] = useState('')
   const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [availableGroups, setAvailableGroups] = useState<{ name: string; description: string; ratio: number }[]>([])
 
   const handleFetch = async () => {
     if (!selectedTokenId || !yunwuSystemToken || !yunwuUserId) {
@@ -66,6 +67,7 @@ export function AdminSettingsGroup({ yunwuSystemToken, yunwuUserId, selectedToke
         setRoutingPriority(data.routing_priority || '')
         setGroups(data.group ? data.group.split(',').filter(Boolean) : [])
         setManualMode(false)
+        handleFetchGroups()
       } else {
         message.error((result.error as string) || '获取令牌信息失败')
       }
@@ -76,13 +78,39 @@ export function AdminSettingsGroup({ yunwuSystemToken, yunwuUserId, selectedToke
     }
   }
 
+  const handleFetchGroups = async () => {
+    if (!yunwuSystemToken || !yunwuUserId) return
+    try {
+      const res = await fetch('/api/gptImage/user-groups', {
+        headers: {
+          'x-system-token': yunwuSystemToken,
+          'x-user-id': yunwuUserId,
+        },
+      })
+      const result: Record<string, unknown> = await res.json()
+      if (result.success) {
+        const data = result.data as Record<string, unknown>
+        const groupsMap = data.data as Record<string, string> || {}
+        const ratiosMap = data.ratios as Record<string, number> || {}
+        const list = Object.entries(groupsMap).map(([name, description]) => ({
+          name,
+          description,
+          ratio: ratiosMap[name] ?? 0,
+        }))
+        setAvailableGroups(list)
+      }
+    } catch {
+      // 静默失败，下拉框不出现即可
+    }
+  }
+
   const handleSave = async () => {
     if (!tokenData || !yunwuSystemToken || !yunwuUserId) return
     setSaving(true)
     try {
       const payload = {
         ...tokenData,
-        routing_priority: routingPriority,
+        routing_priority: manualMode ? '' : routingPriority,
         group: manualMode ? groups.join(',') : '',
         id: tokenData.id,
       }
@@ -164,29 +192,33 @@ export function AdminSettingsGroup({ yunwuSystemToken, yunwuUserId, selectedToke
 
               <Divider className="my-3!" />
 
-              <div className="mb-2 text-sm font-medium text-gray-700">
-                智能路由
-              </div>
-              <Radio.Group
-                value={routingPriority}
-                onChange={(e) => setRoutingPriority(e.target.value)}
-              >
-                <div className="space-y-2">
-                  {ROUTING_OPTIONS.map((opt) => (
-                    <div
-                      key={opt.value}
-                      className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-gray-50"
-                      onClick={() => setRoutingPriority(opt.value)}
-                    >
-                      <Radio value={opt.value} />
-                      <div>
-                        <div className="text-sm">{opt.label}</div>
-                        <div className="text-xs text-gray-400">{opt.desc}</div>
-                      </div>
+              {!manualMode && (
+                <>
+                  <div className="mb-2 text-sm font-medium text-gray-700">
+                    智能路由
+                  </div>
+                  <Radio.Group
+                    value={routingPriority}
+                    onChange={(e) => setRoutingPriority(e.target.value)}
+                  >
+                    <div className="space-y-2">
+                      {ROUTING_OPTIONS.map((opt) => (
+                        <div
+                          key={opt.value}
+                          className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-gray-50"
+                          onClick={() => setRoutingPriority(opt.value)}
+                        >
+                          <Radio value={opt.value} />
+                          <div>
+                            <div className="text-sm">{opt.label}</div>
+                            <div className="text-xs text-gray-400">{opt.desc}</div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </Radio.Group>
+                  </Radio.Group>
+                </>
+              )}
 
               <Checkbox
                 checked={manualMode}
@@ -226,19 +258,52 @@ export function AdminSettingsGroup({ yunwuSystemToken, yunwuUserId, selectedToke
                       暂无分组，请添加
                     </div>
                   )}
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="输入新分组名称"
-                      value={newGroupName}
-                      onChange={(e) => setNewGroupName(e.target.value)}
-                      onPressEnter={handleAddGroup}
-                      className="flex-1"
+                  <AutoComplete
+                    value={newGroupName}
+                    onChange={setNewGroupName}
+                    className="w-full!"
+                    popupClassName="!min-w-[360px]"
+                    options={availableGroups
+                      .filter((g) => g.name.toLowerCase().includes(newGroupName.toLowerCase()))
+                      .map((g) => ({
+                        value: g.name,
+                        label: (
+                          <div className="flex flex-col gap-0.5 py-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium">{g.name}</span>
+                              <span
+                                className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${
+                                  g.ratio <= 1
+                                    ? 'border-green-200 bg-green-50 text-green-600'
+                                    : g.ratio <= 4
+                                      ? 'border-blue-200 bg-blue-50 text-blue-600'
+                                      : g.ratio <= 8
+                                        ? 'border-orange-200 bg-orange-50 text-orange-600'
+                                        : 'border-red-200 bg-red-50 text-red-600'
+                                }`}
+                              >
+                                {g.ratio}x
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-400">{g.description}</div>
+                          </div>
+                        ),
+                      }))}
+                    filterOption={false}
+                    onSelect={(value: string) => {
+                      if (!groups.includes(value)) {
+                        setGroups((prev) => [...prev, value])
+                      }
+                      setNewGroupName('')
+                    }}
+                  >
+                    <Input.Search
+                      placeholder="输入或选择分组名称"
+                      onSearch={handleAddGroup}
+                      enterButton="添加"
                       size="small"
                     />
-                    <Button size="small" onClick={handleAddGroup}>
-                      添加
-                    </Button>
-                  </div>
+                  </AutoComplete>
                 </div>
               )}
 

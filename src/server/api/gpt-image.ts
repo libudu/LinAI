@@ -299,4 +299,38 @@ const gptImageApi = new Hono()
     }
   })
 
+  .get('/user-groups', async (c) => {
+    const systemToken = c.req.header('x-system-token')
+    const userId = c.req.header('x-user-id')
+
+    if (!systemToken || !userId) {
+      return c.json(
+        { success: false as const, error: 'System token and User ID are required' },
+        400,
+      )
+    }
+
+    try {
+      const response = await fetch('https://yunwu.ai/api/user/self/groups', {
+        headers: {
+          Authorization: systemToken,
+          'new-api-user': userId,
+        },
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        return c.json(
+          { success: false as const, error: data.message || '获取分组列表失败' },
+          response.status as any,
+        )
+      }
+      return c.json({ success: true as const, data: data.data })
+    } catch (error: any) {
+      return c.json(
+        { success: false as const, error: error.message || '获取分组列表失败' },
+        500,
+      )
+    }
+  })
+
 export default gptImageApi
