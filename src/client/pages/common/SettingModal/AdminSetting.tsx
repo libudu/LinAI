@@ -1,4 +1,4 @@
-import { Button, Checkbox, Divider, Form, Input, message, Tag } from 'antd'
+import { Button, Checkbox, Divider, Form, Input, message, Radio, Tag } from 'antd'
 import { hc } from 'hono/client'
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 import type { AppType } from '../../../../server'
@@ -21,6 +21,7 @@ export const AdminSetting = forwardRef<AdminSettingRef>((_props, ref) => {
   const [rawApiKey, setRawApiKey] = useState('')
   const [encryptedApiKey, setEncryptedApiKey] = useState('')
   const [encrypting, setEncrypting] = useState(false)
+  const [searchMode, setSearchMode] = useState<'keyword' | 'token'>('keyword')
   const [searchKeyword, setSearchKeyword] = useState('')
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [searching, setSearching] = useState(false)
@@ -75,6 +76,17 @@ export const AdminSetting = forwardRef<AdminSettingRef>((_props, ref) => {
     }
   }
 
+  const handleSaveUserSettings = async () => {
+    try {
+      const values = await form.validateFields(['yunwuSystemToken', 'yunwuUserId'])
+      setYunwuSystemToken(values.yunwuSystemToken)
+      setYunwuUserId(values.yunwuUserId)
+      message.success('云雾用户设置已保存')
+    } catch {
+      // 表单验证失败，antd 会自动显示提示
+    }
+  }
+
   const handleEncrypt = async () => {
     if (!rawApiKey) {
       message.warning('请输入 API Key')
@@ -92,8 +104,8 @@ export const AdminSetting = forwardRef<AdminSettingRef>((_props, ref) => {
     }
   }
 
-  const handleSearch = async (keyword?: string) => {
-    const kw = keyword ?? searchKeyword
+  const handleSearch = async (value?: string) => {
+    const kw = value ?? searchKeyword
     if (!kw.trim()) return
     if (!yunwuSystemToken || !yunwuUserId) {
       message.warning('请先配置系统令牌和用户 ID')
@@ -101,8 +113,9 @@ export const AdminSetting = forwardRef<AdminSettingRef>((_props, ref) => {
     }
     setSearching(true)
     try {
-      const res = await client.api.gptImage['search-api-keys'].$get({
-        query: { keyword: kw.trim() },
+      const query: Record<string, string> = {}
+      query[searchMode] = kw.trim()
+      const res = await fetch(`/api/gptImage/search-api-keys?${new URLSearchParams(query)}`, {
         headers: {
           'x-system-token': yunwuSystemToken,
           'x-user-id': yunwuUserId,
@@ -156,7 +169,12 @@ export const AdminSetting = forwardRef<AdminSettingRef>((_props, ref) => {
           label="用户 ID"
           rules={[{ required: true, message: '请输入云雾用户 ID' }]}
         >
-          <Input placeholder="请输入云雾用户 ID" />
+          <div className="flex gap-2">
+            <Input placeholder="请输入云雾用户 ID" className="flex-1" />
+            <Button type="primary" onClick={handleSaveUserSettings}>
+              保存
+            </Button>
+          </div>
         </Form.Item>
       </Form>
 
@@ -166,17 +184,33 @@ export const AdminSetting = forwardRef<AdminSettingRef>((_props, ref) => {
       <div className="mb-4 text-sm font-medium text-gray-800">
         API Key 搜索
       </div>
-      <Input.Search
-        placeholder="搜索 API Key 名称"
-        value={searchKeyword}
-        onChange={(e) => {
-          setSearchKeyword(e.target.value)
-          if (e.target.value) handleSearch(e.target.value)
-        }}
-        onSearch={handleSearch}
-        loading={searching}
-        enterButton
-      />
+      <div className="flex gap-2">
+        <Radio.Group
+          value={searchMode}
+          onChange={(e) => {
+            setSearchMode(e.target.value)
+            setSearchKeyword('')
+            setSearchResults([])
+          }}
+          optionType="button"
+          buttonStyle="solid"
+        >
+          <Radio.Button value="keyword">名称</Radio.Button>
+          <Radio.Button value="token">Key</Radio.Button>
+        </Radio.Group>
+        <Input.Search
+          className="flex-1"
+          placeholder={searchMode === 'keyword' ? '搜索 API Key 名称' : '搜索 API Key 密钥 (sk-xxx)'}
+          value={searchKeyword}
+          onChange={(e) => {
+            setSearchKeyword(e.target.value)
+            if (e.target.value) handleSearch(e.target.value)
+          }}
+          onSearch={handleSearch}
+          loading={searching}
+          enterButton
+        />
+      </div>
       {searchResults.length > 0 && (
         <div className="mt-2 max-h-80 space-y-1 overflow-y-auto">
           {searchResults.map((item: any) => (
