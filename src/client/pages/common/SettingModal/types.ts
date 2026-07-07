@@ -21,12 +21,6 @@ export interface ApiKeySearchResult {
   total: number
 }
 
-export interface ApiKeySearchResponse {
-  success?: boolean
-  data?: ApiKeySearchResult[]
-  error?: string
-}
-
 export interface GenerateApiKeyResponse {
   success?: boolean
   data?: string

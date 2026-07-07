@@ -1,27 +1,8 @@
 import { AutoComplete, Button, Checkbox, Collapse, Divider, Input, message, Radio, Tag } from 'antd'
 import { useState } from 'react'
+import type { ApiKeySearchResult } from './types'
 
-interface TokenData {
-  id: number
-  name: string
-  group: string
-  routing_priority: string
-  key: string
-  remain_quota: number
-  expired_time: number
-  unlimited_quota: boolean
-  model_limits_enabled: boolean
-  model_limits: string
-  allow_ips: string
-  used_quota: number
-  mj_image_mode: string
-  mj_custom_proxy: string
-  selected_groups: string[]
-  status: number
-  created_time: number
-  accessed_time: number
-  [key: string]: unknown
-}
+type TokenData = ApiKeySearchResult & Record<string, unknown>
 
 interface Props {
   yunwuSystemToken?: string
