@@ -41,7 +41,6 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
         aspectRatio: fillTemplateData.aspectRatio,
         n: fillTemplateData.n,
         prompt: fillTemplateData.prompt,
-        usageType: fillTemplateData.usageType || 'image',
       })
       if (fillTemplateData.images) {
         setImageUrls(fillTemplateData.images)
@@ -112,7 +111,6 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
     try {
       const payload = {
         ...values,
-        usageType: 'image' as const,
         images: imageUrls,
       }
 
@@ -144,7 +142,6 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
         layout="vertical"
         onFinish={handleFinish}
         initialValues={{
-          usageType: 'image',
           aspectRatio: '1:1',
           n: 1,
         }}

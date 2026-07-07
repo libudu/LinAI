@@ -11,7 +11,7 @@ import {
   Tag,
 } from 'antd'
 import { hc } from 'hono/client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { AppType } from '../../../../server/index'
 import { useTemplates } from '../../../hooks/useTemplates'
 
@@ -30,9 +30,7 @@ export function GeminiModal({ open, onClose }: GeminiModalProps) {
     refresh: fetchTemplates,
   } = useTemplates()
 
-  const templates = useMemo(() => {
-    return allTemplates.filter((t) => t.usageType === 'image')
-  }, [allTemplates])
+  const templates = allTemplates
 
   const [generatingId, setGeneratingId] = useState<string | null>(null)
   const [generatedImages, setGeneratedImages] = useState<

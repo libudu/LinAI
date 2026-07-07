@@ -73,7 +73,6 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
           prompt: values.prompt,
           aspectRatio: values.aspectRatio,
           folder: values.folder,
-          usageType: template.usageType,
           images: imageUrls,
         },
       })

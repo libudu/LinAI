@@ -121,7 +121,6 @@ const gptImageApi = new Hono()
         createdAt: Date.now(),
         prompt,
         aspectRatio,
-        usageType: 'image',
         images: images || [],
         title: TRIAL_TEMPLATE_TITLE,
         n,

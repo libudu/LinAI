@@ -8,7 +8,6 @@ export interface TaskTemplate {
   images: string[]
   prompt: string
   createdAt: number
-  usageType: 'image'
   aspectRatio?: string
   folder?: string
   n?: number
@@ -38,8 +37,6 @@ class TemplateManager {
         title: '模板示例1',
         images: [],
         prompt: '生成一张2030年福瑞（furry）科目的中考试卷',
-        usageType: 'image',
-        aspectRatio: '16:9',
       })
     }
   }

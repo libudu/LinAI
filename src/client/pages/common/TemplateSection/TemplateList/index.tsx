@@ -16,9 +16,7 @@ export const TemplateList = forwardRef<TemplateListRef, unknown>((_, ref) => {
     refresh,
   }))
 
-  const imageTemplates = templates
-    .filter((t) => t.usageType === 'image')
-    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+  const imageTemplates = templates.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
 
   return (
     <>

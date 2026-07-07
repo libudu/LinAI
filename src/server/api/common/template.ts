@@ -22,7 +22,6 @@ const templateApi = new Hono()
         title: z.string().optional(),
         images: z.array(z.string()),
         prompt: z.string(),
-        usageType: z.literal('image'),
         aspectRatio: z.string().optional(),
         folder: z.string().optional(),
         n: z.number().min(1).max(GPT_IMAGE_OUTPUT_MAX_N).optional(),
