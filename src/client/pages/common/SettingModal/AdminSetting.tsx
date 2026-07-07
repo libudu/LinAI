@@ -11,6 +11,30 @@ export interface AdminSettingRef {
 
 const client = hc<AppType>('/')
 
+function UserIdInput({
+  value,
+  onChange,
+  onSave,
+}: {
+  value?: string
+  onChange?: (v: string) => void
+  onSave: () => void
+}) {
+  return (
+    <div className="flex gap-2">
+      <Input
+        value={value}
+        onChange={(e) => onChange?.(e.target.value)}
+        placeholder="请输入云雾用户 ID"
+        className="flex-1"
+      />
+      <Button type="primary" onClick={onSave}>
+        保存
+      </Button>
+    </div>
+  )
+}
+
 export const AdminSetting = forwardRef<AdminSettingRef>((_props, ref) => {
   const [form] = Form.useForm()
   const { yunwuSystemToken, setYunwuSystemToken, yunwuUserId, setYunwuUserId } =
@@ -28,15 +52,13 @@ export const AdminSetting = forwardRef<AdminSettingRef>((_props, ref) => {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [expandedId, setExpandedId] = useState<number | null>(null)
 
-
   useEffect(() => {
     form.setFieldsValue({
       yunwuSystemToken: yunwuSystemToken || '',
-      yunwuUserId: yunwuUserId || '',
       name: '',
       quota: 10,
     })
-  }, [yunwuSystemToken, yunwuUserId, form])
+  }, [yunwuSystemToken, form])
 
   useImperativeHandle(ref, () => ({
     save: async () => {
@@ -156,7 +178,15 @@ export const AdminSetting = forwardRef<AdminSettingRef>((_props, ref) => {
       <div className="mb-4 text-sm font-medium text-gray-800">
         云雾用户设置
       </div>
-      <Form form={form} layout="vertical">
+      <Form
+        key={yunwuUserId ?? 'empty'}
+        form={form}
+        layout="vertical"
+        initialValues={{
+          yunwuSystemToken: yunwuSystemToken || '',
+          yunwuUserId: yunwuUserId || '',
+        }}
+      >
         <Form.Item
           name="yunwuSystemToken"
           label="系统令牌"
@@ -169,14 +199,8 @@ export const AdminSetting = forwardRef<AdminSettingRef>((_props, ref) => {
           label="用户 ID"
           rules={[{ required: true, message: '请输入云雾用户 ID' }]}
         >
-          <div className="flex gap-2">
-            <Input placeholder="请输入云雾用户 ID" className="flex-1" />
-            <Button type="primary" onClick={handleSaveUserSettings}>
-              保存
-            </Button>
-          </div>
+          <UserIdInput onSave={handleSaveUserSettings} />
         </Form.Item>
-      </Form>
 
       <Divider />
 
@@ -266,22 +290,20 @@ export const AdminSetting = forwardRef<AdminSettingRef>((_props, ref) => {
       <div className="mb-4 text-sm font-medium text-gray-800">
         API Key 生成
       </div>
-      <Form form={form} layout="vertical">
-        <Form.Item name="name" label="API Key 标题">
-          <Input placeholder="请输入 API Key 标题" />
-        </Form.Item>
-        <Form.Item label="限额 (RMB)">
-          <div className="flex gap-2">
-            <Form.Item name="quota" className="mb-0 flex-1" noStyle>
-              <Input type="number" placeholder="请输入限额" />
-            </Form.Item>
-            <Button type="primary" onClick={handleGenerate} loading={loading}>
-              生成 API Key
-            </Button>
-          </div>
-        </Form.Item>
+      <Form.Item name="name" label="API Key 标题">
+        <Input placeholder="请输入 API Key 标题" />
+      </Form.Item>
+      <Form.Item label="限额 (RMB)">
+        <div className="flex gap-2">
+          <Form.Item name="quota" className="mb-0 flex-1" noStyle>
+            <Input type="number" placeholder="请输入限额" />
+          </Form.Item>
+          <Button type="primary" onClick={handleGenerate} loading={loading}>
+            生成 API Key
+          </Button>
+        </div>
+      </Form.Item>
       </Form>
-
       {generatedApiKey && (
         <div className="mt-4 rounded-md border border-green-200 bg-green-50 p-4">
           <div className="mb-2 text-sm font-medium text-green-800">
