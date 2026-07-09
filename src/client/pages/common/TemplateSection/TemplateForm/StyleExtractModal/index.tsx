@@ -2,12 +2,10 @@ import {
   CopyOutlined,
   ExperimentOutlined,
   InboxOutlined,
-  PictureOutlined,
-  ThunderboltOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons'
 import {
   Button,
-  Card,
   Checkbox,
   Input,
   Modal,
@@ -18,11 +16,13 @@ import {
 } from 'antd'
 import type { UploadProps } from 'antd'
 import { hc } from 'hono/client'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AppType } from '../../../../../../server'
 import type { StyleAnalysis } from '../../../../../../server/api/style-analyze'
 
 const client = hc<AppType>('/')
+
+// ── Dimension definitions ──────────────────────────────────────
 
 interface DimensionDef {
   key: keyof StyleAnalysis
@@ -60,19 +60,23 @@ const EMPTY_ANALYSIS: StyleAnalysis = {
   art_reference: '',
 }
 
+// ── Props ──────────────────────────────────────────────────────
+
 interface StyleExtractModalProps {
   open: boolean
   onClose: () => void
   onApply: (prompt: string) => void
 }
 
+// ── Helpers ────────────────────────────────────────────────────
+
 function readFileAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = () => reject(new Error('图片读取失败'))
-    reader.readAsDataURL(file)
-  })
+  const { promise, resolve, reject } = Promise.withResolvers<string>()
+  const reader = new FileReader()
+  reader.onload = () => resolve(reader.result as string)
+  reader.onerror = () => reject(new Error('图片读取失败'))
+  reader.readAsDataURL(file)
+  return promise
 }
 
 function composePrompt(
@@ -92,6 +96,18 @@ function composePrompt(
 function isUploadedImageUrl(url: string): boolean {
   return url.startsWith('/api/static/images/input/')
 }
+// ── Step number badge ────────────────────────────────────────────
+
+function StepBadge({ n }: { n: number }) {
+  return (
+    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-600">
+      {n}
+    </span>
+  )
+}
+
+
+// ── Component ──────────────────────────────────────────────────
 
 export function StyleExtractModal({
   open,
@@ -104,21 +120,34 @@ export function StyleExtractModal({
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null)
   const [uploadedPreview, setUploadedPreview] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+
   // Analysis state
   const [analyzing, setAnalyzing] = useState(false)
   const [analysisError, setAnalysisError] = useState<string | null>(null)
+  const [analyzedOnce, setAnalyzedOnce] = useState(false)
 
   // Editing state
   const [selections, setSelections] = useState<Set<keyof StyleAnalysis>>(
     () => new Set(STYLE_DIMENSIONS.map((d) => d.key)),
   )
   const [editedValues, setEditedValues] = useState<StyleAnalysis>(EMPTY_ANALYSIS)
-
-  // Compose state
   const [composedPrompt, setComposedPrompt] = useState('')
-  const [analyzedOnce, setAnalyzedOnce] = useState(false)
 
-  // Reset on open
+  // Auto-compose when analysis is done or selections/values change
+  const autoComposed = useMemo(
+    () => composePrompt(editedValues, selections),
+    [editedValues, selections],
+  )
+
+  // Sync auto-composed result into the textarea unless user has manually edited
+  const [manualEdit, setManualEdit] = useState(false)
+  useEffect(() => {
+    if (!manualEdit && autoComposed) {
+      setComposedPrompt(autoComposed)
+    }
+  }, [autoComposed, manualEdit])
+
+  // Reset on close
   const handleClose = useCallback(() => {
     if (analyzing) return
     setUploadedUrl(null)
@@ -130,6 +159,7 @@ export function StyleExtractModal({
     setEditedValues(EMPTY_ANALYSIS)
     setComposedPrompt('')
     setAnalyzedOnce(false)
+    setManualEdit(false)
     onClose()
   }, [analyzing, onClose])
 
@@ -159,12 +189,13 @@ export function StyleExtractModal({
       const url = (data as { url: string }).url
       setUploadedUrl(url)
       messageApi.success('图片上传成功')
+      options.onSuccess?.({})
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : '上传失败'
       messageApi.error(msg)
+      options.onError?.(error instanceof Error ? error : new Error(msg))
     } finally {
       setUploading(false)
-      options.onSuccess?.({})
     }
   }
 
@@ -192,7 +223,7 @@ export function StyleExtractModal({
       const result = 'data' in data ? (data.data as StyleAnalysis) : EMPTY_ANALYSIS
       setEditedValues(result)
       setSelections(new Set(STYLE_DIMENSIONS.map((d) => d.key)))
-      setComposedPrompt('')
+      setManualEdit(false)
       setAnalyzedOnce(true)
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : '解析请求失败'
@@ -202,15 +233,12 @@ export function StyleExtractModal({
     }
   }
 
-  // Toggle dimension selection
+  // Toggle dimension
   const handleToggleDimension = (key: keyof StyleAnalysis, checked: boolean) => {
     setSelections((prev) => {
       const next = new Set(prev)
-      if (checked) {
-        next.add(key)
-      } else {
-        next.delete(key)
-      }
+      if (checked) next.add(key)
+      else next.delete(key)
       return next
     })
   }
@@ -220,13 +248,14 @@ export function StyleExtractModal({
     setEditedValues((prev) => ({ ...prev, [key]: value }))
   }
 
-  // Compose
-  const handleCompose = () => {
+  // Regenerate from current selections
+  const handleRegenerate = () => {
     const combined = composePrompt(editedValues, selections)
     if (!combined) {
-      messageApi.warning('请至少勾选一项维度，且确保内容非空')
+      messageApi.warning('请至少勾选一项有内容的维度')
       return
     }
+    setManualEdit(false)
     setComposedPrompt(combined)
   }
 
@@ -245,6 +274,8 @@ export function StyleExtractModal({
     onApply(composedPrompt)
   }
 
+  const hasAnalysis = analyzedOnce && !analysisError
+
   return (
     <>
       {contextHolder}
@@ -253,94 +284,126 @@ export function StyleExtractModal({
         open={open}
         onCancel={handleClose}
         destroyOnHidden
-        width={800}
+        width={760}
         footer={
-          <div className="flex justify-end gap-3">
-            <Button onClick={handleClose} disabled={analyzing}>
-              取消
-            </Button>
-            <Button
-              type="primary"
-              icon={<CopyOutlined />}
-              onClick={handleCopy}
-              disabled={!composedPrompt}
-            >
-              复制提示词
-            </Button>
-            <Button
-              type="primary"
-              onClick={handleApply}
-              disabled={!composedPrompt}
-            >
-              直接覆盖原提示词
-            </Button>
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-gray-400">
+              {hasAnalysis
+                ? `已勾选 ${selections.size}/${STYLE_DIMENSIONS.length} 个维度`
+                : '分析图片画风，生成可直接用于生图的提示词'}
+            </div>
+            <div className="flex items-center gap-3">
+              <Button onClick={handleClose} disabled={analyzing}>
+                取消
+              </Button>
+              <Button
+                onClick={handleCopy}
+                disabled={!composedPrompt}
+                icon={<CopyOutlined />}
+              >
+                复制
+              </Button>
+              <Button
+                type="primary"
+                onClick={handleApply}
+                disabled={!composedPrompt}
+              >
+                应用
+              </Button>
+            </div>
           </div>
         }
       >
-        <div className="flex flex-col gap-5">
-          {/* Upload area */}
-          <Card
-            size="small"
-            title={
-              <span className="text-sm font-medium text-slate-700">
-                <PictureOutlined className="mr-2" />
-                上传图片
-              </span>
-            }
-            className="border-slate-200 shadow-sm"
-          >
+        <div className="space-y-6">
+          {/* ═══ Step 1: Upload ═══ */}
+          <section>
+            <div className="mb-3 flex items-center gap-2">
+              <StepBadge n={1} />
+              <span className="text-sm font-medium text-gray-700">上传图片</span>
+            </div>
+
             <div className="flex items-start gap-4">
               <Upload.Dragger
                 customRequest={handleUpload}
                 showUploadList={false}
                 accept="image/jpeg,image/png,image/webp"
                 disabled={analyzing}
-                className="shrink-0"
-                style={{ width: 200, height: 140 }}
+                className="!shrink-0 [&_.ant-upload]:!p-0"
               >
-                {uploadedPreview ? (
-                  <img
-                    src={uploadedPreview}
-                    alt="preview"
-                    className="h-full w-full object-contain p-1"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center gap-2 py-2">
-                    {uploading ? (
-                      <Spin />
-                    ) : (
-                      <InboxOutlined className="text-2xl text-slate-300" />
-                    )}
-                    <p className="text-xs text-slate-400">
-                      {uploading ? '上传中...' : '点击或拖拽上传图片'}
-                    </p>
-                  </div>
-                )}
+                <div
+                  className="flex items-center justify-center"
+                  style={{ width: 220, height: 160 }}
+                >
+                  {uploadedPreview ? (
+                    <img
+                      src={uploadedPreview}
+                      alt="preview"
+                      className="h-full w-full object-contain p-2"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      {uploading ? (
+                        <Spin />
+                      ) : (
+                        <InboxOutlined className="text-3xl text-gray-300" />
+                      )}
+                      <p className="text-xs text-gray-400">
+                        {uploading ? '上传中...' : '点击或拖拽上传'}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </Upload.Dragger>
 
-              <div className="flex flex-1 flex-col justify-center gap-2">
-                <p className="text-xs text-slate-500">
-                  支持 JPG / PNG / WebP 格式，上传后点击「开始解析」自动分析画风构成
-                </p>
+              <div className="flex flex-1 flex-col justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="text-xs leading-relaxed text-gray-500">
+                    支持 JPG / PNG / WebP 格式，上传后点击「开始解析」分析画风构成。
+                  </p>
+                  <p className="text-xs leading-relaxed text-gray-400">
+                    分析使用 {STYLE_DIMENSIONS.length} 个维度对图片进行解构，结果可直接编辑和筛选。
+                  </p>
+                </div>
                 <Button
                   type="primary"
                   icon={<ExperimentOutlined />}
                   onClick={handleAnalyze}
                   loading={analyzing}
                   disabled={!uploadedUrl}
+                  className="self-start"
                 >
                   {analyzing ? '解析中...' : '开始解析'}
                 </Button>
               </div>
             </div>
-          </Card>
+          </section>
 
-          {/* Dimension cards */}
-          <div>
-            <h4 className="mb-3 text-sm font-medium text-slate-700">
-              <ThunderboltOutlined className="mr-2" />
-              画风维度 ({STYLE_DIMENSIONS.length})
-            </h4>
+          <div className="border-t border-gray-100" />
+
+          {/* ═══ Step 2: Dimensions ═══ */}
+          <section>
+            <div className="mb-3 flex items-center gap-2">
+              <StepBadge n={2} />
+              <span className="text-sm font-medium text-gray-700">画风维度</span>
+              {hasAnalysis && (
+                <span className="ml-1 font-normal text-gray-400">
+                  ({STYLE_DIMENSIONS.length})
+                </span>
+              )}
+              {analysisError && (
+                <Button
+                  size="small"
+                  type="link"
+                  className="ml-auto !text-xs"
+                  onClick={() => {
+                    setAnalysisError(null)
+                    handleAnalyze()
+                  }}
+                >
+                  重试
+                </Button>
+              )}
+            </div>
 
             {analyzing ? (
               <div className="space-y-3">
@@ -362,76 +425,104 @@ export function StyleExtractModal({
                 </Button>
               </div>
             ) : !analyzedOnce ? (
-              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 py-10 text-center text-sm text-slate-400">
-                上传图片并点击"开始解析"后，结果将展示在此处
+              <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 py-10 text-center text-sm text-gray-400">
+                上传图片并点击「开始解析」后，{STYLE_DIMENSIONS.length} 个维度的分析结果将展示在此处
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                 {STYLE_DIMENSIONS.map((dim) => {
                   const value = editedValues[dim.key] ?? ''
                   const checked = selections.has(dim.key)
 
                   return (
-                    <Card
+                    <div
                       key={dim.key}
-                      size="small"
-                      className="border-slate-200 shadow-sm"
-                      styles={{ body: { padding: '10px 12px' } }}
+                      className={`rounded-md border px-3 py-2.5 transition-colors ${
+                        checked
+                          ? 'border-blue-200 bg-blue-50/40'
+                          : 'border-gray-200 bg-white'
+                      }`}
                     >
-                      <div className="flex items-start gap-2">
+                      <div className="mb-1.5 flex items-center gap-2">
                         <Checkbox
                           checked={checked}
                           onChange={(e) =>
                             handleToggleDimension(dim.key, e.target.checked)
                           }
-                          className="pt-0.5"
                         />
-                        <div className="min-w-0 flex-1">
-                          <div className="mb-1 text-xs font-medium text-slate-600">
-                            {dim.label}
-                          </div>
-                          <Input.TextArea
-                            value={value}
-                            onChange={(e) =>
-                              handleEditDimension(dim.key, e.target.value)
-                            }
-                            placeholder="（空）"
-                            autoSize={{ minRows: 1, maxRows: 3 }}
-                            className="text-xs"
-                            style={{ resize: 'none', fontSize: 12 }}
-                          />
-                        </div>
+                        <span className="text-xs font-medium text-gray-700">
+                          {dim.label}
+                        </span>
+                        <span className="text-[10px] leading-none text-gray-400">
+                          {dim.hint}
+                        </span>
                       </div>
-                    </Card>
+                      <Input.TextArea
+                        value={value}
+                        onChange={(e) =>
+                          handleEditDimension(dim.key, e.target.value)
+                        }
+                        placeholder="（空）"
+                        autoSize={{ minRows: 1, maxRows: 2 }}
+                        className="text-xs"
+                        style={{ resize: 'none', fontSize: 12 }}
+                        variant="borderless"
+                      />
+                    </div>
                   )
                 })}
               </div>
             )}
-          </div>
+          </section>
 
-          {/* Compose + preview area */}
-          {analyzedOnce && (
-            <div>
-              <div className="mb-3 flex items-center justify-between">
-                <h4 className="text-sm font-medium text-slate-700">生成提示词</h4>
+          <div className="border-t border-gray-100" />
+
+          {/* ═══ Step 3: Preview ═══ */}
+          <section>
+            <div className="mb-3 flex items-center gap-2">
+              <StepBadge n={3} />
+              <span className="text-sm font-medium text-gray-700">提示词预览</span>
+              <div className="ml-auto flex items-center gap-2">
+                {hasAnalysis && (
+                  <Button
+                    size="small"
+                    type="text"
+                    icon={<ReloadOutlined />}
+                    onClick={handleRegenerate}
+                    className="!text-xs text-gray-500"
+                    disabled={!composedPrompt}
+                  >
+                    重新拼接
+                  </Button>
+                )}
                 <Button
-                  type="primary"
                   size="small"
-                  icon={<ThunderboltOutlined />}
-                  onClick={handleCompose}
+                  icon={<CopyOutlined />}
+                  onClick={handleCopy}
+                  disabled={!composedPrompt}
                 >
-                  拼接
+                  复制
                 </Button>
               </div>
+            </div>
+
+            {!analyzedOnce ? (
+              <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 py-10 text-center text-sm text-gray-400">
+                完成分析后，自动拼接的提示词将显示在此处
+              </div>
+            ) : (
               <Input.TextArea
                 value={composedPrompt}
-                onChange={(e) => setComposedPrompt(e.target.value)}
+                onChange={(e) => {
+                  setComposedPrompt(e.target.value)
+                  setManualEdit(true)
+                }}
                 autoSize={{ minRows: 4, maxRows: 8 }}
-                placeholder="点击「拼接」按钮生成提示词，也可直接在下方编辑"
+                placeholder="点击「重新拼接」从已选维度拼接提示词，也可直接编辑"
                 style={{ resize: 'vertical' }}
               />
-            </div>
-          )}
+            )}
+          </section>
         </div>
       </Modal>
     </>

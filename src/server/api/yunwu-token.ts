@@ -30,14 +30,14 @@ async function proxy(c: any, url: string, options?: RequestInit) {
     const data = await response.json()
     if (!response.ok) {
       return c.json(
-        { success: false as const, error: data.message || '请求失败' },
+        { success: false as const, message: data.message || '请求失败' },
         response.status as any,
       )
     }
     return c.json({ success: true as const, data: data.data || data })
   } catch (error: any) {
     return c.json(
-      { success: false as const, error: error.message || '请求失败' },
+      { success: false as const, message: error.message || '请求失败' },
       500,
     )
   }
