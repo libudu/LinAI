@@ -1,10 +1,11 @@
-import { BulbOutlined } from '@ant-design/icons'
+import { BulbOutlined, ExperimentOutlined } from '@ant-design/icons'
 import { Button, Form, Input, InputNumber, Select } from 'antd'
 import classnames from 'classnames'
 import React, { useState } from 'react'
 import { useLocalSetting } from '../../../../hooks/useLocalSetting'
 import { FolderFormItem } from './FolderSelectInput'
 import { ImageUpload } from './ImageUpload'
+import { StyleExtractModal } from './StyleExtractModal'
 import { PromptOptimizeModal } from './PromptOptimizeModal'
 
 function TitleFormItem({ className }: { className?: string }) {
@@ -63,6 +64,7 @@ function PromptFormItem({
   form: any
   imageUrls: string[]
 }) {
+  const [openStyleExtractModal, setOpenStyleExtractModal] = useState(false)
   const [openPromptOptimizeModal, setOpenPromptOptimizeModal] = useState(false)
   const { promptOptimizeEnabled } = useLocalSetting()
   const prompt = Form.useWatch('prompt', form) || ''
@@ -75,15 +77,26 @@ function PromptFormItem({
           <div className="flex w-full items-center justify-between gap-4">
             <span>{label}</span>
             {promptOptimizeEnabled && (
-              <Button
-                type="link"
-                size="small"
-                icon={<BulbOutlined />}
-                className="px-0!"
-                onClick={() => setOpenPromptOptimizeModal(true)}
-              >
-                提示词优化
-              </Button>
+              <span className="flex items-center gap-2">
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<ExperimentOutlined />}
+                  className="px-0!"
+                  onClick={() => setOpenStyleExtractModal(true)}
+                >
+                  图片风格提取
+                </Button>
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<BulbOutlined />}
+                  className="px-0!"
+                  onClick={() => setOpenPromptOptimizeModal(true)}
+                >
+                  提示词优化
+                </Button>
+              </span>
             )}
           </div>
         }
@@ -111,6 +124,14 @@ function PromptFormItem({
         onApply={(optimizedPrompt) => {
           form.setFieldsValue({ prompt: optimizedPrompt })
           setOpenPromptOptimizeModal(false)
+        }}
+      />
+      <StyleExtractModal
+        open={openStyleExtractModal}
+        onClose={() => setOpenStyleExtractModal(false)}
+        onApply={(composedPrompt) => {
+          form.setFieldsValue({ prompt: composedPrompt })
+          setOpenStyleExtractModal(false)
         }}
       />
     </>
