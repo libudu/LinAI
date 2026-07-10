@@ -172,7 +172,7 @@ export async function handleImageGeneration(options: {
     if (!task) {
       return {
         status: 500,
-        data: { success: false as const, error: 'Failed to create task' },
+        data: { success: false as const, error: '[服务] Failed to create task' },
       }
     }
 
@@ -189,7 +189,7 @@ export async function handleImageGeneration(options: {
         if (await fs.pathExists(imagePath)) {
           imagePaths.push(imagePath)
         } else {
-          throw new Error(`Template image not found on Input Dir: ${imagePath}`)
+          throw new Error(`[服务] Template image not found on Input Dir: ${imagePath}`)
         }
       }
     }
@@ -209,11 +209,11 @@ export async function handleImageGeneration(options: {
       filenames = res.filenames
       usage = res.usage
     } catch (error: any) {
-      logger.error(`Failed to generate GPT image`, error.message)
+      logger.error(`Failed to generate GPT image via api.wlai.vip`, error.message)
       await taskManager.updateTaskStatus(task.id, 'failed', error.message)
       return {
         status: 500,
-        data: { success: false as const, error: error.message },
+        data: { success: false as const, error: `[api.wlai.vip] ${error.message}` },
       }
     }
 
@@ -235,7 +235,7 @@ export async function handleImageGeneration(options: {
     logger.error(`Failed to generate GPT image`, error.message)
     return {
       status: 500,
-      data: { success: false as const, error: error.message },
+      data: { success: false as const, error: `[服务] ${error.message}` },
     }
   }
 }

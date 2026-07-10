@@ -36,7 +36,8 @@ export function TemplateItemList({
         message.error(json.error || '移动失败')
       }
     } catch (error) {
-      message.error('请求失败')
+      const msg = error instanceof Error ? `[网络] ${error.message}` : '请求失败'
+      message.error(msg)
     }
   }
 

@@ -70,17 +70,17 @@ function getLocalImageFilename(rawUrl: string): string | null {
       }
       pathname = parsedUrl.pathname
     } catch {
-      throw new Error('Image URL is invalid')
+      throw new Error('[服务] Image URL is invalid')
     }
   }
 
   if (!pathname.startsWith('/') || !pathname.startsWith(INPUT_IMAGES_API_PATH)) {
-    throw new Error('Only uploaded local images are supported')
+    throw new Error('[服务] Only uploaded local images are supported')
   }
 
   const filename = pathname.slice(INPUT_IMAGES_API_PATH.length + 1)
   if (!filename || filename !== path.basename(filename)) {
-    throw new Error('Image path is invalid')
+    throw new Error('[服务] Image path is invalid')
   }
 
   return filename
@@ -94,11 +94,11 @@ async function resolveImageUrl(rawUrl: string): Promise<string> {
 
   const filePath = path.join(INPUT_IMAGES_DIR, localFilename)
   if (!filePath.startsWith(INPUT_IMAGES_DIR)) {
-    throw new Error('Image path is invalid')
+    throw new Error('[服务] Image path is invalid')
   }
 
   if (!(await fs.pathExists(filePath))) {
-    throw new Error('Image does not exist')
+    throw new Error('[服务] Image does not exist')
   }
 
   const buffer = await fs.readFile(filePath)
@@ -124,21 +124,18 @@ function extractJsonFromResponse(content: unknown): unknown {
 
   const trimmed = content.trim()
 
-  // Try direct parse first
   try { return JSON.parse(trimmed) } catch { /* continue */ }
 
-  // Try extracting from code fence
   const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/)
   if (fenceMatch) {
     try { return JSON.parse(fenceMatch[1].trim()) } catch { /* continue */ }
   }
 
-  // Try finding JSON object boundaries
   const braceMatch = trimmed.match(/\{[\s\S]*\}/)
   if (braceMatch) {
     const cleaned = braceMatch[0]
-      .replace(/'/g, '"') // fix single quotes
-      .replace(/,\s*}/g, '}') // fix trailing commas
+      .replace(/'/g, '"')
+      .replace(/,\s*}/g, '}')
     try { return JSON.parse(cleaned) } catch { /* continue */ }
   }
 
@@ -152,7 +149,7 @@ const styleAnalyzeApi = new Hono().post(
     const apiKey = getYunwuApiKey()
     if (!apiKey) {
       return c.json(
-        { success: false as const, error: 'API Key is not configured' },
+        { success: false as const, error: '[配置] API Key is not configured' },
         400,
       )
     }
@@ -163,7 +160,7 @@ const styleAnalyzeApi = new Hono().post(
     try {
       resolvedUrl = await resolveImageUrl(imageUrl)
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Invalid image URL'
+      const message = error instanceof Error ? error.message : '[服务] Invalid image URL'
       return c.json({ success: false as const, error: message }, 400)
     }
 
@@ -193,7 +190,7 @@ const styleAnalyzeApi = new Hono().post(
       const errorData = result.data as Record<string, unknown> | undefined
       const error = typeof errorData?.error === 'string'
         ? errorData.error
-        : 'Style analysis failed'
+        : '[yunwu.ai] Style analysis failed'
       return c.json({ success: false as const, error }, 500)
     }
 
@@ -211,14 +208,14 @@ const styleAnalyzeApi = new Hono().post(
 
     if (!parsed) {
       return c.json(
-        { success: false as const, error: 'Failed to parse style analysis result' },
+        { success: false as const, error: '[服务] Failed to parse style analysis result' },
         500,
       )
     }
 
     if (!isStyleAnalysis(parsed)) {
       return c.json(
-        { success: false as const, error: 'Style analysis result has invalid format' },
+        { success: false as const, error: '[服务] Style analysis result has invalid format' },
         500,
       )
     }

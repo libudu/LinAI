@@ -21,17 +21,23 @@ export const TemplateItemGenerateButtons: React.FC<{
   const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
 
   const doGenerate = async (templateId: string, size: GptImageSize) => {
-    message.success('任务提交成功')
     try {
-      await client.api.gptImage.generate.$post({
+      const res = await client.api.gptImage.generate.$post({
         json: {
           templateId,
           size,
           quality: gptImageSettings.quality,
         },
       })
+      const data = await res.json()
+      if (!data.success) {
+        message.error(data.error || '生图失败')
+        return
+      }
+      message.success('任务提交成功')
     } catch (error) {
-      message.error('请求失败')
+      const msg = error instanceof Error ? error.message : '请求失败'
+      message.error(`[网络] ${msg}`)
     }
   }
 

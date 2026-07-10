@@ -52,7 +52,7 @@ export function TemplateFolder({
       }
     } catch (error) {
       if (error instanceof Error) {
-        message.error(error.message || '重命名失败')
+        message.error(`[网络] ${error.message || '重命名失败'}`)
       }
     } finally {
       setSubmitting(false)

@@ -67,21 +67,21 @@ function getLocalInputImageFilename(rawUrl: string) {
       }
       pathname = parsedUrl.pathname
     } catch (error) {
-      throw new Error('Image URL is invalid')
+      throw new Error('[服务] Image URL is invalid')
     }
   }
 
   if (!pathname.startsWith('/')) {
-    throw new Error('Only uploaded local images are supported')
+    throw new Error('[服务] Only uploaded local images are supported')
   }
 
   if (!pathname.startsWith(INPUT_IMAGES_API_PATH)) {
-    throw new Error('Only uploaded local images are supported')
+    throw new Error('[服务] Only uploaded local images are supported')
   }
 
   const filename = pathname.slice(INPUT_IMAGES_API_PATH.length + 1)
   if (!filename || filename !== path.basename(filename)) {
-    throw new Error('Image path is invalid')
+    throw new Error('[服务] Image path is invalid')
   }
 
   return filename
@@ -95,11 +95,11 @@ async function resolveImageUrl(rawUrl: string) {
 
   const filePath = path.join(INPUT_IMAGES_DIR, localFilename)
   if (!filePath.startsWith(INPUT_IMAGES_DIR)) {
-    throw new Error('Image path is invalid')
+    throw new Error('[服务] Image path is invalid')
   }
 
   if (!(await fs.pathExists(filePath))) {
-    throw new Error('Image does not exist')
+    throw new Error('[服务] Image does not exist')
   }
 
   const buffer = await fs.readFile(filePath)
@@ -140,7 +140,7 @@ const chatApi = new Hono().post(
     const apiKey = getYunwuApiKey()
     if (!apiKey) {
       return c.json(
-        { success: false as const, error: 'API Key is not configured' },
+        { success: false as const, error: '[配置] API Key is not configured' },
         400,
       )
     }
