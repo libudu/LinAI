@@ -19,7 +19,6 @@ import { TaskItemDeleteButton } from './components/TaskItemDeleteButton'
 import { TaskItemDownloadButton } from './components/TaskItemDownloadButton'
 import { TaskItemTags } from './components/TaskItemTags'
 import { TaskListHeader } from './TaskListHeader'
-
 import { useState } from 'react'
 const client = hc<AppType>('/')
 
@@ -29,6 +28,7 @@ export function TaskList() {
     'downloadedTaskIds',
     { defaultValue: [] },
   )
+
 
   const handleRetry = async (task: Task) => {
     await client.api.gptImage.generate.$post({
@@ -137,7 +137,7 @@ export function TaskList() {
 
                     <div className="flex items-center justify-end">
                       <div className="flex items-center gap-1">
-                        {task.rawTemplate && (
+                        {task.rawTemplate && task.taskType !== 'edit' && (
                           <Tooltip title="重新填入">
                             <Button type="text" icon={<VerticalAlignTopOutlined />} onClick={() => { useGlobalStore.getState().setFillTemplateData(task.rawTemplate); message.success('已重新填入表单') }} />
                           </Tooltip>
@@ -145,7 +145,7 @@ export function TaskList() {
                         {task.outputUrls && task.outputUrls.length > 0 && (
                           <TaskItemDownloadButton outputUrls={task.outputUrls} fileName={task.rawTemplate?.title || task.rawTemplate?.prompt || `task_${task.id}`} onDownloaded={() => { if (!downloadedIds?.includes(task.id)) { setDownloadedIds([...(downloadedIds || []), task.id]) } }} />
                         )}
-                        {task.rawTemplate?.title !== TRIAL_TEMPLATE_TITLE && (
+                        {task.taskType !== 'edit' && task.rawTemplate?.title !== TRIAL_TEMPLATE_TITLE && (
                           <Tooltip title="重试">
                             <Button type="text" icon={<RedoOutlined />} onClick={() => handleRetry(task)} />
                           </Tooltip>

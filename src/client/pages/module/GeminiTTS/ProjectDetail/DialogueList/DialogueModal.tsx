@@ -63,7 +63,7 @@ export const DialogueModal = forwardRef<DialogueModalRef, DialogueModalProps>(
         open={isModalOpen}
         onCancel={handleCloseModal}
         onOk={handleSave}
-        destroyOnClose
+        destroyOnHidden
         width={600}
       >
         <Form form={form} layout="vertical">

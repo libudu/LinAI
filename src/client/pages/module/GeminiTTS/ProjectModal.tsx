@@ -67,7 +67,7 @@ export const ProjectModal = ({
       open={open}
       onCancel={onClose}
       onOk={() => form.submit()}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form
         form={form}
