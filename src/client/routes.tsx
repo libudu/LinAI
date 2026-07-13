@@ -1,6 +1,7 @@
 import { Home } from './pages/common/Home'
-import { TTS } from './pages/module/GeminiTTS'
+import { ImageEdit } from './pages/module/ImageEdit'
 import { MediaClassifier } from './pages/module/MediaClassifier'
+import { TTS } from './pages/module/GeminiTTS'
 
 export const appRoutes = [
   {
@@ -8,6 +9,12 @@ export const appRoutes = [
     label: '首页',
     element: <Home />,
     key: 'home',
+  },
+  {
+    path: '/image-edit',
+    label: '图片编辑',
+    element: <ImageEdit />,
+    key: 'image-edit',
   },
   {
     path: '/tts',

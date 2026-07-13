@@ -35,6 +35,7 @@ function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
   const [images, setImages] = useState<ImageItem[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedUrls, setSelectedUrls] = useState<string[]>([])
+
   const { recentImages } = useRecentImages()
   const { data: templates = [], loading: templatesLoading } = useTemplates()
   const { data: tasks = [], loading: tasksLoading } = useTasks()
@@ -219,7 +220,7 @@ function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
             return (
               <div
                 key={`${url}-${i}`}
-                className={`relative aspect-square cursor-pointer overflow-hidden rounded-lg border-2 bg-slate-100 transition-all ${
+                className={`group relative aspect-square cursor-pointer overflow-hidden rounded-lg border-2 bg-slate-100 transition-all ${
                   selected
                     ? 'border-blue-500 shadow-[0_0_0_2px_rgba(59,130,246,0.15)]'
                     : 'border-transparent hover:border-blue-500'
@@ -234,11 +235,13 @@ function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
                 />
                 {referencesReady &&
                   imageByUrl.get(url)?.isReferenced === false && (
-                    <div className="absolute top-1 left-1 z-10 rounded bg-red-500 px-2 py-0.5 text-xs text-white shadow-sm">
+                    <div className="absolute left-1 top-1 z-10 rounded bg-red-500 px-2 py-0.5 text-xs text-white shadow-sm">
                       无引用
                     </div>
                   )}
+                {/* Edit button — appears on hover */}
                 <div
+
                   className={`absolute inset-0 flex items-center justify-center transition-colors ${
                     selected ? 'bg-blue-500/45' : 'bg-black/0 hover:bg-black/5'
                   }`}
@@ -275,7 +278,7 @@ function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
         ) : null
       }
       width={800}
-      destroyOnClose
+      destroyOnHidden
     >
       <Tabs
         activeKey={activeKey}

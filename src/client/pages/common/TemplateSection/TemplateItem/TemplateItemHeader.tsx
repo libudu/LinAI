@@ -20,6 +20,7 @@ export const TemplateItemGenerateButtons: React.FC<{
   const { gptImageSettings } = useLocalSetting()
   const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
 
+
   const doGenerate = async (templateId: string, size: GptImageSize) => {
     try {
       const res = await client.api.gptImage.generate.$post({
@@ -78,6 +79,7 @@ export const TemplateItemGenerateButtons: React.FC<{
             </Tooltip>
           ),
       )}
+
     </>
   )
 }
