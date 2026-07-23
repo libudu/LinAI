@@ -134,14 +134,25 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
 
   if (res.data && res.data.length > 0) {
     for (const item of res.data) {
+      let imageBuffer: Buffer | undefined
+
       if (item.b64_json) {
-        const imageBuffer = Buffer.from(item.b64_json, 'base64')
-        const hash = crypto.createHash('md5').update(imageBuffer).digest('hex')
-        const filename = `${hash}.png`
-        const filepath = path.join(GENERATED_IMAGES_DIR, filename)
-        await writeFile(filepath, imageBuffer)
-        filenames.push(filename)
+        imageBuffer = Buffer.from(item.b64_json, 'base64')
+      } else if (item.url) {
+        const imageResponse = await fetch(item.url)
+        if (!imageResponse.ok) {
+          throw new Error(`Failed to download generated image: ${imageResponse.status} ${imageResponse.statusText}`)
+        }
+        imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
       }
+
+      if (!imageBuffer) continue
+
+      const hash = crypto.createHash('md5').update(imageBuffer).digest('hex')
+      const filename = `${hash}.png`
+      const filepath = path.join(GENERATED_IMAGES_DIR, filename)
+      await writeFile(filepath, imageBuffer)
+      filenames.push(filename)
     }
   }
 
