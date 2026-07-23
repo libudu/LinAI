@@ -11,7 +11,7 @@ import { GENERATED_IMAGES_API_PATH } from '../../common/static/enum'
 import { taskManager } from '../../common/task-manager'
 import { TaskTemplate } from '../../common/template-manager'
 import { logger } from '../utils/logger'
-import { GPT_IMAGE_SOURCE_MODEL, GptImageQuality, GptImageSize } from './enum'
+import { GPT_IMAGE_SOURCE_MODEL, GptImageQuality, GptImageSize, YUNWU_IMAGE_MODEL } from './enum'
 
 interface GPTImageResponse {
   created: number
@@ -112,7 +112,7 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
   let res: OpenAI.Images.ImagesResponse
   if (imagesToUpload) {
     res = await client.images.edit({
-      model: GPT_IMAGE_SOURCE_MODEL,
+      model: YUNWU_IMAGE_MODEL,
       image: imagesToUpload || [],
       prompt: prompt,
       n,
@@ -121,7 +121,7 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
     })
   } else {
     res = await client.images.generate({
-      model: GPT_IMAGE_SOURCE_MODEL,
+      model: YUNWU_IMAGE_MODEL,
       prompt,
       n,
       size: size as any,
