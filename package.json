@@ -63,7 +63,7 @@
     "fs-extra": "^11.3.4",
     "hono": "^4.12.14",
     "jszip": "^3.10.1",
-    "openai": "^6.34.0",
+    "openai": "^6.48.0",
     "playwright": "^1.59.1",
     "react-h5-audio-player": "^3.10.2",
     "react-router-dom": "^7.15.0",
