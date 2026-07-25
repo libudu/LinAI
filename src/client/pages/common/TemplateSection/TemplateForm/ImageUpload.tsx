@@ -15,6 +15,9 @@ import {
 
 const client = hc<AppType>('/')
 
+/** gpt 图像接口最多支持 5 张参考图 */
+const MAX_IMAGES = 5
+
 interface ImageUploadProps {
   value?: string[]
   onChange?: (urls: string[]) => void
@@ -100,6 +103,16 @@ export function ImageUpload({
   }
 
   const handleUpload = (file: File) => {
+    // 超出上限时直接忽略该文件（含正在上传中的数量，避免多选/连拖时超限）
+    if (
+      latestValueRef.current.length + uploadingCountRef.current >=
+      MAX_IMAGES
+    ) {
+      message.warning(`最多支持 ${MAX_IMAGES} 张图片`)
+      return Upload.LIST_IGNORE
+    }
+
+    handleUploadCountChange(1)
     const reader = new FileReader()
     reader.onload = async (e) => {
       const base64 = e.target?.result as string
@@ -113,10 +126,9 @@ export function ImageUpload({
         img.src = base64
       }
 
-      handleUploadCountChange(1)
       try {
         const url = await uploadImageBase64(base64)
-        const newUrls = [...latestValueRef.current, url]
+        const newUrls = [...latestValueRef.current, url].slice(0, MAX_IMAGES)
         latestValueRef.current = newUrls
         onChange?.(newUrls)
         addRecentImages(url)
@@ -128,6 +140,10 @@ export function ImageUpload({
       } finally {
         handleUploadCountChange(-1)
       }
+    }
+    reader.onerror = () => {
+      message.error('图片读取失败')
+      handleUploadCountChange(-1)
     }
     reader.readAsDataURL(file)
     return false
@@ -200,23 +216,40 @@ export function ImageUpload({
                   return
                 }
 
+                // 超出上限时只取剩余可添加的数量
+                const remaining =
+                  MAX_IMAGES - latestValueRef.current.length
+                if (remaining <= 0) {
+                  message.warning(`最多支持 ${MAX_IMAGES} 张图片`)
+                  return
+                }
+                const selected = images.slice(0, remaining)
+                if (selected.length < images.length) {
+                  message.warning(
+                    `最多支持 ${MAX_IMAGES} 张图片，已自动截取前 ${selected.length} 张`,
+                  )
+                }
+
                 if (latestValueRef.current.length === 0 && onFirstImageRatio) {
                   const img = new Image()
                   img.onload = () => {
                     const ratio = getClosestAspectRatio(img.width, img.height)
                     onFirstImageRatio(ratio)
                   }
-                  img.src = images[0].url
+                  img.src = selected[0].url
                 }
 
-                handleUploadCountChange(images.length)
+                handleUploadCountChange(selected.length)
                 try {
                   const processedUrls = await Promise.all(
-                    images.map(({ url, type }) =>
+                    selected.map(({ url, type }) =>
                       type === 'generated' ? uploadImageFromUrl(url) : url,
                     ),
                   )
-                  const newUrls = [...latestValueRef.current, ...processedUrls]
+                  const newUrls = [
+                    ...latestValueRef.current,
+                    ...processedUrls,
+                  ].slice(0, MAX_IMAGES)
                   latestValueRef.current = newUrls
                   onChange?.(newUrls)
                   addRecentImages(processedUrls)
@@ -225,7 +258,7 @@ export function ImageUpload({
                     error instanceof Error ? error.message : '图库图片处理失败',
                   )
                 } finally {
-                  handleUploadCountChange(-images.length)
+                  handleUploadCountChange(-selected.length)
                 }
               },
             })

@@ -5,7 +5,7 @@ import {
   ExperimentOutlined,
   QuestionCircleOutlined,
 } from '@ant-design/icons'
-import { Button, Form, Input, InputNumber, Select, Tooltip } from 'antd'
+import { Button, Form, Input, InputNumber, message, Select, Tooltip } from 'antd'
 import classnames from 'classnames'
 import React, { useState } from 'react'
 import { useLocalSetting } from '../../../../hooks/useLocalSetting'
@@ -172,13 +172,16 @@ export function TemplateFormFields({
   imageUrls,
   setImageUrls,
   setUploadingCount,
+  isEdit,
 }: {
   form: any
   imageUrls: string[]
   setImageUrls: (urls: string[]) => void
   setUploadingCount: (count: number) => void
+  /** 编辑已有模板时不触发首图自动填充比例（已有模板的比例通常已确定） */
+  isEdit?: boolean
 }) {
-  const { gptImageSettings } = useLocalSetting()
+  const { gptImageSettings, autoFillAspectRatio } = useLocalSetting()
 
   return (
     <>
@@ -196,9 +199,14 @@ export function TemplateFormFields({
             onUploadingChange={(isUploading) =>
               setUploadingCount(isUploading ? 1 : 0)
             }
-            onFirstImageRatio={(ratio) => {
-              form.setFieldsValue({ aspectRatio: ratio })
-            }}
+            onFirstImageRatio={
+              !isEdit && autoFillAspectRatio
+                ? (ratio) => {
+                    form.setFieldsValue({ aspectRatio: ratio })
+                    message.info(`已根据首图自动设置比例为 ${ratio}`)
+                  }
+                : undefined
+            }
           />
         </Form.Item>
         {gptImageSettings.enableMultiple && <CountFormItem className="w-1/5" />}

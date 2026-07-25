@@ -151,6 +151,7 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
             imageUrls={imageUrls}
             setImageUrls={setImageUrls}
             setUploadingCount={setUploadingCount}
+            isEdit
           />
         </Form>
       </Modal>
