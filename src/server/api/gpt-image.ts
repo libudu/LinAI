@@ -20,6 +20,19 @@ export interface GPTImageQuotaResponse {
   }
 }
 
+// 比例拼接：在提示词末尾追加一行“图片比例X：Y”，
+// 用于 default 等不支持分辨率/比例参数的便宜分组
+function withAspectRatioLine(
+  template: TaskTemplate,
+  appendAspectRatio?: boolean,
+): TaskTemplate {
+  if (!appendAspectRatio || !template.aspectRatio) return template
+  return {
+    ...template,
+    prompt: `${template.prompt}\n图片比例${template.aspectRatio.replace(':', '：')}`,
+  }
+}
+
 const gptImageApi = new Hono()
   .get('/quota', async (c) => {
     const apiKey = getYunwuApiKey()
@@ -65,10 +78,12 @@ const gptImageApi = new Hono()
         templateId: z.string().min(1, 'Template ID is required'),
         size: z.enum(['1k', '2k', '4k']),
         quality: z.enum(['medium', 'high']),
+        appendAspectRatio: z.boolean().optional(),
       }),
     ),
     async (c) => {
-      const { templateId, size, quality } = c.req.valid('json')
+      const { templateId, size, quality, appendAspectRatio } =
+        c.req.valid('json')
       const apiKey = getYunwuApiKey()
       if (!apiKey) {
         return c.json(
@@ -86,7 +101,7 @@ const gptImageApi = new Hono()
       }
       const result = await handleImageGeneration({
         apiKey,
-        template,
+        template: withAspectRatioLine(template, appendAspectRatio),
         size,
         quality,
       })
@@ -104,10 +119,11 @@ const gptImageApi = new Hono()
         size: z.enum(['1k', '2k', '4k']).optional().default('1k'),
         quality: z.enum(['medium', 'high']).optional().default('medium'),
         n: z.number().min(1).max(GPT_IMAGE_OUTPUT_MAX_N).optional().default(1),
+        appendAspectRatio: z.boolean().optional(),
       }),
     ),
     async (c) => {
-      const { prompt, aspectRatio, images, size, quality, n } =
+      const { prompt, aspectRatio, images, size, quality, n, appendAspectRatio } =
         c.req.valid('json')
       const apiKey = getYunwuApiKey()
       if (!apiKey) {
@@ -127,7 +143,7 @@ const gptImageApi = new Hono()
       }
       const result = await handleImageGeneration({
         apiKey,
-        template,
+        template: withAspectRatioLine(template, appendAspectRatio),
         size,
         quality,
       })

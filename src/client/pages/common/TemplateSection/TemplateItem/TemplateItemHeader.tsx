@@ -17,7 +17,7 @@ const client = hc<AppType>('/')
 export const TemplateItemGenerateButtons: React.FC<{
   template: TaskTemplate
 }> = ({ template }) => {
-  const { gptImageSettings } = useLocalSetting()
+  const { gptImageSettings, appendAspectRatio } = useLocalSetting()
   const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
 
   const doGenerate = async (templateId: string, size: GptImageSize) => {
@@ -27,6 +27,7 @@ export const TemplateItemGenerateButtons: React.FC<{
           templateId,
           size,
           quality: gptImageSettings.quality,
+          appendAspectRatio,
         },
       })
       const data = await res.json()

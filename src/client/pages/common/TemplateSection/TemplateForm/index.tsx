@@ -30,7 +30,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
         setFillTemplateData: state.setFillTemplateData,
       })),
     )
-  const { gptImageSettings } = useLocalSetting()
+  const { gptImageSettings, appendAspectRatio } = useLocalSetting()
 
   // 触发填入模板数据
   useEffect(() => {
@@ -72,6 +72,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
           size,
           quality: gptImageSettings.quality,
           n,
+          appendAspectRatio,
         },
       })
 
