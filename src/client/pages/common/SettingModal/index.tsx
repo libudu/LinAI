@@ -2,6 +2,7 @@ import { Modal, Tabs } from 'antd'
 import { useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AdminSetting, AdminSettingRef } from './AdminSetting'
+import { EndpointSetting, EndpointSettingRef } from './EndpointSetting'
 import { GPTImageSetting, GPTImageSettingRef } from './GPTImageSetting'
 import { SideSetting } from './SideSetting'
 import { TTSSetting, TTSSettingRef } from './TTSSetting'
@@ -30,16 +31,19 @@ export function openSettingModal(options?: {
 
   function ModalComponent() {
     const [activeTab, setActiveTab] = useState(
-      options?.initialTab || 'gpt-image',
+      options?.initialTab || 'endpoint',
     )
     const gptImageRef = useRef<GPTImageSettingRef>(null)
+    const endpointRef = useRef<EndpointSettingRef>(null)
     const ttsRef = useRef<TTSSettingRef>(null)
     const adminRef = useRef<AdminSettingRef>(null)
 
     const handleSave = async () => {
       try {
         if (activeTab === 'gpt-image') {
-          const apiKey = await gptImageRef.current?.save()
+          await gptImageRef.current?.save()
+        } else if (activeTab === 'endpoint') {
+          const apiKey = await endpointRef.current?.save()
           if (apiKey) {
             options?.onSuccess?.(apiKey)
           }
@@ -56,8 +60,13 @@ export function openSettingModal(options?: {
 
     const items = [
       {
+        key: 'endpoint',
+        label: '接入点配置',
+        children: <EndpointSetting ref={endpointRef} />,
+      },
+      {
         key: 'gpt-image',
-        label: 'GPTImage 配置',
+        label: 'GPTImage2 配置',
         children: <GPTImageSetting ref={gptImageRef} />,
       },
       {

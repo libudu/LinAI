@@ -1,17 +1,15 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
-import { Form, Input, Radio, Switch, message } from 'antd'
+import { Form, Radio, Switch, message } from 'antd'
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
 import { useGPTImageQuota } from '../../../hooks/useGPTImageQuota'
 import { useLocalSetting } from '../../../hooks/useLocalSetting'
-import { useGlobalStore } from '../../../store/global'
 
 export interface GPTImageSettingRef {
-  save: () => Promise<string | undefined>
+  save: () => Promise<void>
 }
 
 export const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
   const [form] = Form.useForm()
-  const { gptImageApiKey, setGptImageApiKey } = useGlobalStore()
   const { gptImageSettings, setGptImageSettings } = useLocalSetting()
   const { isPublic, quota, error } = useGPTImageQuota()
 
@@ -19,7 +17,6 @@ export const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
 
   useEffect(() => {
     form.setFieldsValue({
-      apiKey: gptImageApiKey || '',
       enable1K: gptImageSettings.enable1K,
       enable2K: gptImageSettings.enable2K,
       enable4K: gptImageSettings.enable4K,
@@ -27,7 +24,6 @@ export const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
       enableMultiple: isPublic ? false : gptImageSettings.enableMultiple,
     })
   }, [
-    gptImageApiKey,
     gptImageSettings.enable1K,
     gptImageSettings.enable2K,
     gptImageSettings.enable4K,
@@ -40,11 +36,6 @@ export const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
   useImperativeHandle(ref, () => ({
     save: async () => {
       const values = await form.validateFields()
-      if (!values.apiKey) {
-        message.warning('请输入 API Key')
-        throw new Error('No API Key')
-      }
-      await setGptImageApiKey(values.apiKey)
       setGptImageSettings({
         enable1K: values.enable1K ?? gptImageSettings.enable1K,
         enable2K: values.enable2K ?? gptImageSettings.enable2K,
@@ -55,21 +46,13 @@ export const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
           : (values.enableMultiple ?? gptImageSettings.enableMultiple),
       })
       message.success('配置保存成功')
-      return values.apiKey
     },
   }))
 
   return (
     <div className="px-4 py-2">
       <Form form={form} layout="vertical">
-        <Form.Item
-          name="apiKey"
-          label="API Key"
-          rules={[{ required: true, message: '请输入 API Key' }]}
-        >
-          <Input.Password placeholder="输入云雾 API Key" />
-        </Form.Item>
-        {isValidApiKey && (
+        {isValidApiKey ? (
           <>
             <Form.Item>
               <div className="mb-2 text-sm text-gray-500">生成尺寸</div>
@@ -162,6 +145,10 @@ export const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
               </div>
             </Form.Item>
           </>
+        ) : (
+          <div className="text-sm text-gray-500">
+            请先在「接入点配置」中填写 API Key
+          </div>
         )}
       </Form>
     </div>

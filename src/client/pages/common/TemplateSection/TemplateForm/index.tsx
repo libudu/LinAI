@@ -99,7 +99,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
     const apiKey = gptImageApiKey
     if (!apiKey) {
       openSettingModal({
-        initialTab: 'gpt-image',
+        initialTab: 'endpoint',
         onSuccess: () => {
           doTrial(size)
         },

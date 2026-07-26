@@ -46,7 +46,7 @@ export const TemplateItemGenerateButtons: React.FC<{
     const apiKey = gptImageApiKey
     if (!apiKey) {
       openSettingModal({
-        initialTab: 'gpt-image',
+        initialTab: 'endpoint',
         onSuccess: () => {
           doGenerate(templateId, size)
         },
