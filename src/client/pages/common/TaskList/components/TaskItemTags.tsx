@@ -65,7 +65,7 @@ export function TaskItemTags({ task, downloadedIds }: TaskItemTagsProps) {
       )}
       {task.quality && (
         <Tag color={task.quality === 'high' ? 'red' : 'volcano'}>
-          {task.quality === 'high' ? 'High' : 'Medium'}
+          {task.quality === 'high' ? 'High' : 'Med'}
         </Tag>
       )}
       {downloadedIds?.includes(task.id) ? (
