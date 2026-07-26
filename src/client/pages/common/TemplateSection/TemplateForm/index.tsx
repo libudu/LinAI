@@ -1,4 +1,4 @@
-import { PlusOutlined } from '@ant-design/icons'
+import { ExperimentOutlined, PlusOutlined } from '@ant-design/icons'
 import { Button, Form, message } from 'antd'
 import { hc } from 'hono/client'
 import { useEffect, useRef, useState } from 'react'
@@ -8,6 +8,7 @@ import type { GptImageSize } from '../../../../../server/module/gpt-image/enum'
 import { useLocalSetting } from '../../../../hooks/useLocalSetting'
 import { useGlobalStore } from '../../../../store/global'
 import { openSettingModal } from '../../SettingModal'
+import { StyleExtractModal } from './StyleExtractModal'
 import { TemplateFormFields } from './TemplateFormItems'
 
 const client = hc<AppType>('/')
@@ -30,7 +31,9 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
         setFillTemplateData: state.setFillTemplateData,
       })),
     )
-  const { gptImageSettings, appendAspectRatio } = useLocalSetting()
+  const { gptImageSettings, appendAspectRatio, styleExtractEnabled } =
+    useLocalSetting()
+  const [openStyleExtractModal, setOpenStyleExtractModal] = useState(false)
 
   // 触发填入模板数据
   useEffect(() => {
@@ -137,6 +140,17 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
     <>
       <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-800">
         <PlusOutlined className="text-emerald-500" /> 新增模板
+        {styleExtractEnabled && (
+          <Button
+            type="link"
+            size="small"
+            icon={<ExperimentOutlined />}
+            className="ml-auto"
+            onClick={() => setOpenStyleExtractModal(true)}
+          >
+            图片风格提取
+          </Button>
+        )}
       </h3>
       <Form
         form={form}
@@ -199,6 +213,14 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
           </div>
         </Form.Item>
       </Form>
+      <StyleExtractModal
+        open={openStyleExtractModal}
+        onClose={() => setOpenStyleExtractModal(false)}
+        onApply={(composedPrompt) => {
+          form.setFieldsValue({ prompt: composedPrompt })
+          setOpenStyleExtractModal(false)
+        }}
+      />
     </>
   )
 }

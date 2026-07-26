@@ -6,6 +6,10 @@ export function SideSetting() {
   const {
     promptOptimizeEnabled,
     setPromptOptimizeEnabled,
+    styleExtractEnabled,
+    setStyleExtractEnabled,
+    appendAspectRatioEnabled,
+    setAppendAspectRatioEnabled,
     autoFillAspectRatio,
     setAutoFillAspectRatio,
   } = useLocalSetting()
@@ -21,12 +25,43 @@ export function SideSetting() {
           />
         </div>
         <div className="mt-2 text-xs leading-5 text-gray-400">
-          <div>启用后将在提示词输入框旁显示优化按钮</div>
+          <div>启用后将在提示词输入框旁显示“提示词优化”按钮</div>
           <div>
             使用 {PROMPT_OPTIMIZE_MODEL} 模型，
             <span className="text-red-500">需要至少包含一个 gemini 分组</span>
           </div>
           <div>以带单张图估算，200次约消耗1分钱，开销可忽略</div>
+        </div>
+      </div>
+      <div className="mt-4">
+        <div className="flex items-center gap-2">
+          <div className="text-sm text-gray-600">图片风格提取</div>
+          <Switch
+            checked={styleExtractEnabled}
+            onChange={setStyleExtractEnabled}
+          />
+        </div>
+        <div className="mt-2 text-xs leading-5 text-gray-400">
+          <div>启用后将在提示词输入框旁显示“图片风格提取”按钮</div>
+          <div>
+            使用 {PROMPT_OPTIMIZE_MODEL} 模型，
+            <span className="text-red-500">需要至少包含一个 gemini 分组</span>
+          </div>
+        </div>
+      </div>
+      <div className="mt-4">
+        <div className="flex items-center gap-2">
+          <div className="text-sm text-gray-600">比例拼接</div>
+          <Switch
+            checked={appendAspectRatioEnabled}
+            onChange={setAppendAspectRatioEnabled}
+          />
+        </div>
+        <div className="mt-2 text-xs leading-5 text-gray-400">
+          <div>启用后将在提示词输入框旁显示“比例拼接”开关</div>
+          <div>
+            勾选后提交时会额外追加一行“图片比例X：Y”，用于不支持分辨率和比例选项的分组
+          </div>
         </div>
       </div>
       <div className="mt-4">
@@ -38,7 +73,9 @@ export function SideSetting() {
           />
         </div>
         <div className="mt-2 text-xs leading-5 text-gray-400">
-          <div>新增模板时，上传第一张图片后自动将比例设置为最接近的图片比例</div>
+          <div>
+            新增模板时，上传第一张图片后自动将比例设置为最接近的图片比例
+          </div>
         </div>
       </div>
     </div>

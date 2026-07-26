@@ -2,17 +2,22 @@ import {
   BorderOutlined,
   BulbOutlined,
   CheckSquareOutlined,
-  ExperimentOutlined,
-  QuestionCircleOutlined,
 } from '@ant-design/icons'
-import { Button, Form, Input, InputNumber, message, Select, Tooltip } from 'antd'
+import {
+  Button,
+  Form,
+  Input,
+  InputNumber,
+  message,
+  Select,
+  Tooltip,
+} from 'antd'
 import classnames from 'classnames'
 import React, { useState } from 'react'
 import { useLocalSetting } from '../../../../hooks/useLocalSetting'
 import { FolderFormItem } from './FolderSelectInput'
 import { ImageUpload } from './ImageUpload'
 import { PromptOptimizeModal } from './PromptOptimizeModal'
-import { StyleExtractModal } from './StyleExtractModal'
 
 function TitleFormItem({ className }: { className?: string }) {
   return (
@@ -70,10 +75,13 @@ function PromptFormItem({
   form: any
   imageUrls: string[]
 }) {
-  const [openStyleExtractModal, setOpenStyleExtractModal] = useState(false)
   const [openPromptOptimizeModal, setOpenPromptOptimizeModal] = useState(false)
-  const { promptOptimizeEnabled, appendAspectRatio, setAppendAspectRatio } =
-    useLocalSetting()
+  const {
+    promptOptimizeEnabled,
+    appendAspectRatioEnabled,
+    appendAspectRatio,
+    setAppendAspectRatio,
+  } = useLocalSetting()
   const prompt = Form.useWatch('prompt', form) || ''
 
   return (
@@ -84,47 +92,37 @@ function PromptFormItem({
           <div className="flex w-full items-center justify-between gap-4">
             <span>{label}</span>
             <span className="flex items-center gap-3">
-              <div>
-                <Tooltip title="对于default等较便宜的分组可能不支持分辨率和比例选项，勾选此选项后提交时会额外追加一行“图片比例X：Y”用于指定比例">
-                  <Button
-                    type="link"
-                    size="small"
-                    icon={
-                      appendAspectRatio ? (
-                        <CheckSquareOutlined />
-                      ) : (
-                        <BorderOutlined />
-                      )
-                    }
-                    className="gap-1! px-0!"
-                    onClick={() => setAppendAspectRatio(!appendAspectRatio)}
-                  >
-                    比例拼接
-                    <QuestionCircleOutlined className="cursor-help text-slate-400" />
-                  </Button>
-                </Tooltip>
-              </div>
+              {appendAspectRatioEnabled && (
+                <div>
+                  <Tooltip title="对于default等较便宜的分组可能不支持分辨率和比例选项，勾选此选项后提交时会额外追加一行“图片比例X：Y”用于指定比例">
+                    <Button
+                      type="link"
+                      size="small"
+                      icon={
+                        appendAspectRatio ? (
+                          <CheckSquareOutlined />
+                        ) : (
+                          <BorderOutlined />
+                        )
+                      }
+                      className="gap-1! px-0!"
+                      onClick={() => setAppendAspectRatio(!appendAspectRatio)}
+                    >
+                      比例拼接
+                    </Button>
+                  </Tooltip>
+                </div>
+              )}
               {promptOptimizeEnabled && (
-                <>
-                  <Button
-                    type="link"
-                    size="small"
-                    icon={<ExperimentOutlined />}
-                    className="gap-1! px-0!"
-                    onClick={() => setOpenStyleExtractModal(true)}
-                  >
-                    图片风格提取
-                  </Button>
-                  <Button
-                    type="link"
-                    size="small"
-                    icon={<BulbOutlined />}
-                    className="gap-1! px-0!"
-                    onClick={() => setOpenPromptOptimizeModal(true)}
-                  >
-                    提示词优化
-                  </Button>
-                </>
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<BulbOutlined />}
+                  className="gap-1! px-0!"
+                  onClick={() => setOpenPromptOptimizeModal(true)}
+                >
+                  提示词优化
+                </Button>
               )}
             </span>
           </div>
@@ -153,14 +151,6 @@ function PromptFormItem({
         onApply={(optimizedPrompt) => {
           form.setFieldsValue({ prompt: optimizedPrompt })
           setOpenPromptOptimizeModal(false)
-        }}
-      />
-      <StyleExtractModal
-        open={openStyleExtractModal}
-        onClose={() => setOpenStyleExtractModal(false)}
-        onApply={(composedPrompt) => {
-          form.setFieldsValue({ prompt: composedPrompt })
-          setOpenStyleExtractModal(false)
         }}
       />
     </>

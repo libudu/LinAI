@@ -24,6 +24,10 @@ export const defaultGPTImageSettings: GPTImageSettings = {
 export interface LocalSettingState {
   gptImageSettings: GPTImageSettings
   promptOptimizeEnabled: boolean
+  /** 图片风格提取开关：启用后在提示词输入框旁显示“图片风格提取”按钮 */
+  styleExtractEnabled: boolean
+  /** 比例拼接开关：启用后在提示词输入框旁显示“比例拼接”切换按钮 */
+  appendAspectRatioEnabled: boolean
   /** 比例拼接：提交时在提示词末尾追加“图片比例X：Y”一行 */
   appendAspectRatio: boolean
   /** 首图自动填充比例：上传第一张图片时自动将比例设置为最接近的图片比例 */
@@ -34,6 +38,8 @@ export interface LocalSettingState {
     settings: GPTImageSettings | ((prev: GPTImageSettings) => GPTImageSettings),
   ) => void
   setPromptOptimizeEnabled: (enabled: boolean) => void
+  setStyleExtractEnabled: (enabled: boolean) => void
+  setAppendAspectRatioEnabled: (enabled: boolean) => void
   setAppendAspectRatio: (enabled: boolean) => void
   setAutoFillAspectRatio: (enabled: boolean) => void
   setYunwuSystemToken: (token: string) => void
@@ -45,6 +51,8 @@ const useLocalSettingStore = create<LocalSettingState>()(
     (set) => ({
       gptImageSettings: defaultGPTImageSettings,
       promptOptimizeEnabled: true,
+      styleExtractEnabled: true,
+      appendAspectRatioEnabled: true,
       appendAspectRatio: false,
       autoFillAspectRatio: true,
       yunwuSystemToken: undefined,
@@ -58,6 +66,10 @@ const useLocalSettingStore = create<LocalSettingState>()(
         })),
       setPromptOptimizeEnabled: (enabled) =>
         set({ promptOptimizeEnabled: enabled }),
+      setStyleExtractEnabled: (enabled) =>
+        set({ styleExtractEnabled: enabled }),
+      setAppendAspectRatioEnabled: (enabled) =>
+        set({ appendAspectRatioEnabled: enabled }),
       setAppendAspectRatio: (enabled) => set({ appendAspectRatio: enabled }),
       setAutoFillAspectRatio: (enabled) =>
         set({ autoFillAspectRatio: enabled }),
@@ -71,56 +83,14 @@ const useLocalSettingStore = create<LocalSettingState>()(
 )
 
 export function useLocalSetting() {
-  const gptImageSettings = useLocalSettingStore(
-    (state) => state.gptImageSettings,
-  )
-  const yunwuSystemToken = useLocalSettingStore(
-    (state) => state.yunwuSystemToken,
-  )
-  const yunwuUserId = useLocalSettingStore((state) => state.yunwuUserId)
-  const promptOptimizeEnabled = useLocalSettingStore(
-    (state) => state.promptOptimizeEnabled,
-  )
-  const appendAspectRatio = useLocalSettingStore(
-    (state) => state.appendAspectRatio,
-  )
-  const autoFillAspectRatio = useLocalSettingStore(
-    (state) => state.autoFillAspectRatio,
-  )
-  const setGptImageSettings = useLocalSettingStore(
-    (state) => state.setGptImageSettings,
-  )
-  const setPromptOptimizeEnabled = useLocalSettingStore(
-    (state) => state.setPromptOptimizeEnabled,
-  )
-  const setAppendAspectRatio = useLocalSettingStore(
-    (state) => state.setAppendAspectRatio,
-  )
-  const setAutoFillAspectRatio = useLocalSettingStore(
-    (state) => state.setAutoFillAspectRatio,
-  )
-  const setYunwuSystemToken = useLocalSettingStore(
-    (state) => state.setYunwuSystemToken,
-  )
-  const setYunwuUserId = useLocalSettingStore((state) => state.setYunwuUserId)
+  // 整 store 订阅：调用方本就需要访问多个字段，逐字段 selector 只是样板代码
+  const state = useLocalSettingStore()
 
+  // 合并默认值，兼容旧版本持久化数据缺少新增字段的情况
   const mergedSettings = useMemo(
-    () => ({ ...defaultGPTImageSettings, ...gptImageSettings }),
-    [gptImageSettings],
+    () => ({ ...defaultGPTImageSettings, ...state.gptImageSettings }),
+    [state.gptImageSettings],
   )
 
-  return {
-    gptImageSettings: mergedSettings,
-    promptOptimizeEnabled,
-    appendAspectRatio,
-    autoFillAspectRatio,
-    yunwuSystemToken,
-    yunwuUserId,
-    setGptImageSettings,
-    setPromptOptimizeEnabled,
-    setAppendAspectRatio,
-    setAutoFillAspectRatio,
-    setYunwuSystemToken,
-    setYunwuUserId,
-  }
+  return { ...state, gptImageSettings: mergedSettings }
 }
