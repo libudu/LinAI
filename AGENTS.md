@@ -1,6 +1,6 @@
 # LinAI
 
-个人 AI 工具箱桌面 Web 应用：React 前端 + Hono 后端的全栈 TypeScript 项目，最终打包成内置 Node.js 运行时的 Windows 免安装压缩包分发。主要功能模块：Gemini 图像生成、GPT 图像生成（经云雾 yunwu.ai 中转）、语音合成（Inworld / Gemini TTS，含 Ren'Py 台词同步）、图片整理（media-classifier）、聊天代理。
+个人 AI 工具箱桌面 Web 应用：React 前端 + Hono 后端的全栈 TypeScript 项目，最终打包成内置 Node.js 运行时的 Windows 免安装压缩包分发。主要功能模块：GPT 图像生成（经云雾 yunwu.ai 中转）、语音合成（Inworld / Gemini TTS，含 Ren'Py 台词同步）、图片整理（media-classifier）、聊天代理。
 
 ## 开发约定（必须遵守）
 
@@ -27,14 +27,14 @@
 ## 目录结构
 
 - `src/client/`：前端
-  - `pages/module/`：功能页面（GeminiSection、GeminiTTS、MediaClassifier）
+  - `pages/module/`：功能页面（GeminiTTS、MediaClassifier）
   - `pages/common/`：通用页面组件（Header、Home、SettingModal、TaskList、TemplateSection、Notification）
   - `routes.tsx`：路由注册表，新增页面在此登记
   - `store/global.ts`：zustand 全局状态；`hooks/`、`common/`、`utils/`
 - `src/server/`：后端
   - `index.ts`：Hono 入口，所有 API 路由在此挂载（`/api/*`），导出 `AppType` 供前端 RPC 类型推导
-  - `api/`：HTTP 接口层（chat、gemini、gpt-image、tts、tts-inworld、media-classifier、style-analyze、yunwu-token，及 `api/common/` 下的 task/template/log/static/config）
-  - `module/`：业务逻辑层（gemini-manager、gpt-image、tts、media-classifier、chat、utils/logger）
+  - `api/`：HTTP 接口层（chat、gpt-image、tts、tts-inworld、media-classifier、style-analyze、yunwu-token，及 `api/common/` 下的 task/template/log/static/config）
+  - `module/`：业务逻辑层（gpt-image、tts、media-classifier、chat、utils/logger）
   - `common/`：基础设施（config 配置读写、static 静态文件、task-manager 任务管理、template-manager 模板管理）
   - `migrate.ts`：版本迁移脚本，供最终用户拖入新版压缩包升级
 - `data/`：运行时数据（不入库的用户数据），含 `config.json`（API 密钥）、`tasks.json`、`templates.json`、`images/`、`tts/`、`logs/`、`media-classifier/`；服务以 `process.cwd()/data` 定位

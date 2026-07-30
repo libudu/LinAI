@@ -10,7 +10,6 @@ import taskApi from './api/common/task'
 import templateApi from './api/common/template'
 import styleAnalyzeApi from './api/style-analyze'
 import chatApi from './api/chat'
-import geminiApi from './api/gemini'
 import gptImageApi from './api/gpt-image'
 import mediaClassifierApi from './api/media-classifier'
 import ttsApi from './api/tts'
@@ -25,7 +24,6 @@ const routes = app
   // module
   .route('/api/chat', chatApi)
   .route('/api/style-analyze', styleAnalyzeApi)
-  .route('/api/gemini', geminiApi)
   .route('/api/tts', ttsApi)
   .route('/api/tts-inworld', ttsInworldApi)
   .route('/api/gptImage', gptImageApi)
