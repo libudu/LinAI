@@ -11,7 +11,7 @@ import { GENERATED_IMAGES_API_PATH } from '../../common/static/enum'
 import { taskManager } from '../../common/task-manager'
 import { TaskTemplate } from '../../common/template-manager'
 import { logger } from '../utils/logger'
-import { GPT_IMAGE_SOURCE_MODEL, GptImageQuality, GptImageSize, YUNWU_IMAGE_MODEL } from './enum'
+import { GPT_IMAGE_SOURCE_MODEL, GptImageQuality, GptImageSize } from './enum'
 
 interface GPTImageResponse {
   created: number
@@ -32,6 +32,8 @@ interface GPTImageResponse {
 
 interface GenerateGPTImageOptions {
   apiKey: string
+  baseUrl: string
+  modelId: string
   prompt: string
   size: string
   quality: GptImageQuality
@@ -93,10 +95,10 @@ function calculateSize(aspectRatio: string, baseSize: GptImageSize): string {
 }
 
 async function generateGPTImageNew(options: GenerateGPTImageOptions) {
-  const { apiKey, prompt, size, quality, imagePaths: images, n = 1 } = options
+  const { apiKey, baseUrl, modelId, prompt, size, quality, imagePaths: images, n = 1 } = options
   const client = new OpenAI({
     apiKey,
-    baseURL: 'https://api.wlai.vip/v1',
+    baseURL: baseUrl,
   })
   const imagesToUpload = images.length
     ? await Promise.all(
@@ -112,7 +114,7 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
   let res: OpenAI.Images.ImagesResponse
   if (imagesToUpload) {
     res = await client.images.edit({
-      model: YUNWU_IMAGE_MODEL,
+      model: modelId,
       image: imagesToUpload || [],
       prompt: prompt,
       n,
@@ -121,7 +123,7 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
     })
   } else {
     res = await client.images.generate({
-      model: YUNWU_IMAGE_MODEL,
+      model: modelId,
       prompt,
       n,
       size: size as any,
@@ -164,12 +166,22 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
 
 export async function handleImageGeneration(options: {
   apiKey: string
+  baseUrl: string
+  modelId: string
   template: TaskTemplate
   size?: GptImageSize
   quality?: GptImageQuality
 }) {
   try {
-    const { apiKey, template, size = '1k', quality = 'medium' } = options
+    const { apiKey, baseUrl, modelId, template, size = '1k', quality = 'medium' } = options
+
+    // 用于错误提示的接入点域名
+    let endpointHost = baseUrl
+    try {
+      endpointHost = new URL(baseUrl).host
+    } catch {
+      // baseUrl 非法时原样展示
+    }
 
     logger.info(`Generating GPT image`)
 
@@ -210,6 +222,8 @@ export async function handleImageGeneration(options: {
     try {
       const res = await generateGPTImageNew({
         apiKey,
+        baseUrl,
+        modelId,
         prompt: template.prompt,
         size: finalSize,
         quality,
@@ -220,11 +234,11 @@ export async function handleImageGeneration(options: {
       filenames = res.filenames
       usage = res.usage
     } catch (error: any) {
-      logger.error(`Failed to generate GPT image via api.wlai.vip`, error.message)
+      logger.error(`Failed to generate GPT image via ${endpointHost}`, error.message)
       await taskManager.updateTaskStatus(task.id, 'failed', error.message)
       return {
         status: 500,
-        data: { success: false as const, error: `[api.wlai.vip] ${error.message}` },
+        data: { success: false as const, error: `[${endpointHost}] ${error.message}` },
       }
     }
 

@@ -2,7 +2,7 @@ import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
-import { getYunwuApiKey } from '../common/config'
+import { getGptImageEndpoint, getYunwuApiKey } from '../common/config'
 import { TaskTemplate, templateManager } from '../common/template-manager'
 import { TRIAL_TEMPLATE_TITLE } from '../common/template-manager/enum'
 import { handleImageGeneration } from '../module/gpt-image'
@@ -101,6 +101,7 @@ const gptImageApi = new Hono()
       }
       const result = await handleImageGeneration({
         apiKey,
+        ...getGptImageEndpoint(),
         template: withAspectRatioLine(template, appendAspectRatio),
         size,
         quality,
@@ -143,6 +144,7 @@ const gptImageApi = new Hono()
       }
       const result = await handleImageGeneration({
         apiKey,
+        ...getGptImageEndpoint(),
         template: withAspectRatioLine(template, appendAspectRatio),
         size,
         quality,
