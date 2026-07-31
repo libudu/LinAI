@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { ENDPOINT_PRESETS } from '../../../client/pages/common/SettingModal/endpointPresets'
+import { ENDPOINT_PRESETS } from '../../../client/pages/common/SettingModal/Endpoint/endpointPresets'
 import { decryptApiKey } from '../../module/gpt-image/encrypt'
 
 export interface Config {

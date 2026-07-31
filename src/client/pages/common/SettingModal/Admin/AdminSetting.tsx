@@ -2,12 +2,12 @@ import { Button, Form, Input, message } from 'antd'
 import { CopyOutlined, ToolOutlined } from '@ant-design/icons'
 import { hc } from 'hono/client'
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
-import type { AppType } from '../../../../server'
-import { useLocalSetting } from '../../../hooks/useLocalSetting'
+import type { AppType } from '../../../../../server'
+import { useLocalSetting } from '../../../../hooks/useLocalSetting'
 import { AdminSettingsCollapse } from './AdminSettingsCollapse'
 import { AdminSettingsUser } from './AdminSettingsUser'
 import type { GenerateApiKeyResponse } from './types'
-import { encryptApiKey } from '../../../../server/module/gpt-image/encrypt'
+import { encryptApiKey } from '../../../../../server/module/gpt-image/encrypt'
 
 export interface AdminSettingRef {
   save: () => Promise<void>
