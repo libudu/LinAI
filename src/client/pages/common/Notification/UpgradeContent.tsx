@@ -3,6 +3,8 @@ import copy from 'copy-to-clipboard'
 import { MessageList } from './MessageList'
 
 const upgradeHistory = [
+  `LinAI v1.1.6 更新内容 🐱：
+🚀 新增 GitHub Actions 自动发布流程，推送版本标签后自动构建并发布压缩包`,
   `LinAI v1.1.5 更新内容 🐱：
 🖼️ 生成图片自动写入 PNG 元数据，生成参数随图保存
 💴 新增 GPT 图像余额展示与端点安全提醒`,

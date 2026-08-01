@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # 必须 Windows：post-build 会在 dist 内安装 sharp 等平台相关依赖，
+    # 最终 zip 面向 Windows 便携运行时（dist-template/runtime/node.exe）
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      # 提前校验并提取更新日志，没有对应日志直接失败，不浪费构建时间
+      - name: 提取更新日志
+        run: node scripts/extract-release-notes.js "${{ github.ref_name }}"
+
+      - name: 构建 public 压缩包
+        run: pnpm build:publicSkipTag
+
+      - name: 发布 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = "${{ github.ref_name }}"
+          $zip = "LinAI $version-public.zip"
+          if (-not (Test-Path $zip)) {
+            Write-Error "未找到构建产物: $zip"
+            exit 1
+          }
+          gh release create "$version" --title "LinAI $version" --notes-file release-notes.md "$zip"
