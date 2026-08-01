@@ -275,7 +275,7 @@ function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
         ) : null
       }
       width={800}
-      destroyOnClose
+      destroyOnHidden
     >
       <Tabs
         activeKey={activeKey}

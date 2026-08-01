@@ -105,7 +105,7 @@ export const CharacterModal = forwardRef<
       open={isModalOpen}
       onCancel={handleCloseModal}
       footer={null}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical">
         <Form.Item

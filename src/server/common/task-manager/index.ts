@@ -50,7 +50,7 @@ export class TaskManager extends EventEmitter {
         for (const task of tasks) {
           if (task.status === 'pending' || task.status === 'running') {
             task.status = 'failed'
-            task.error = '连接已丢失'
+            task.error = '[服务] 连接已丢失'
             changed = true
           }
         }
