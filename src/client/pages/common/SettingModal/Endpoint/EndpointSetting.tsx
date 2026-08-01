@@ -180,6 +180,17 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
 
   return (
     <div className="px-4 py-2">
+      {/* 中转站风险提示：自定义实现，样式与间距独立控制，不依赖 antd Alert */}
+      <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-amber-800">
+            警惕中转站风险
+          </div>
+          <div className="mt-1 text-xs leading-5 text-amber-700">
+            第三方中转站可能存在跑路或诈骗风险：请勿填写真实密码等敏感信息；充值前请多方核实平台口碑与运营方是否可靠；切勿一次性大额充值，建议小额试用、随用随充。
+          </div>
+        </div>
+      </div>
       <Form form={form} layout="vertical">
         <Form.Item
           name="endpoint"

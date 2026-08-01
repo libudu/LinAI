@@ -44,28 +44,51 @@ const gptImageApi = new Hono()
     }
 
     try {
-      const response = await fetch('https://yunwu.ai/api/usage/token/', {
+      const { baseUrl } = getGptImageEndpoint()
+      const origin = new URL(baseUrl).origin
+      const response = await fetch(`${origin}/api/usage/token/`, {
         headers: {
           Authorization: `Bearer ${apiKey}`,
         },
       })
-      const data: GPTImageQuotaResponse = await response.json()
-      if (!response.ok || data.message) {
+      const json = (await response.json()) as any
+      const quota = json?.data
+      // 不同服务商报错结构不统一，且 HTTP 状态码可能仍是 200，需要逐项判断：
+      // 1. { success: true, data: { message: '...', success: false } }
+      // 2. { success: true, data: { error: { message: '...', type: '...' } } }
+      // 3. 非 200 时 message 可能在顶层
+      const errorMessage: string | undefined =
+        (typeof quota?.error?.message === 'string' && quota.error.message) ||
+        (quota?.success === false && typeof quota?.message === 'string'
+          ? quota.message
+          : undefined) ||
+        (!response.ok && typeof json?.message === 'string'
+          ? json.message
+          : undefined) ||
+        undefined
+      if (errorMessage || !quota || typeof quota.total_available !== 'number') {
+        // Invalid token 一般是密钥填错或接入点与密钥不匹配
+        const isInvalidToken = /invalid token/i.test(errorMessage || '')
+        const prefix = isInvalidToken ? '[密钥]' : '[服务]'
         return c.json(
           {
             success: false as const,
-            error: `[yunwu.ai] ${data?.message || '获取余额失败'}`,
+            error: `${prefix} ${errorMessage || `获取余额失败（HTTP ${response.status}）`}`,
           },
-          500,
+          502,
         )
       }
+      const data: GPTImageQuotaResponse = json
       return c.json({
         success: true as const,
         data: data,
       })
     } catch (error: any) {
       return c.json(
-        { success: false as const, error: `[网络] ${error.message || '获取余额失败'}` },
+        {
+          success: false as const,
+          error: `[网络] ${error.message || '获取余额失败'}`,
+        },
         500,
       )
     }
@@ -87,7 +110,10 @@ const gptImageApi = new Hono()
       const apiKey = getYunwuApiKey()
       if (!apiKey) {
         return c.json(
-          { success: false as const, error: '[配置] API Key is not configured' },
+          {
+            success: false as const,
+            error: '[配置] API Key is not configured',
+          },
           400,
         )
       }
@@ -124,12 +150,22 @@ const gptImageApi = new Hono()
       }),
     ),
     async (c) => {
-      const { prompt, aspectRatio, images, size, quality, n, appendAspectRatio } =
-        c.req.valid('json')
+      const {
+        prompt,
+        aspectRatio,
+        images,
+        size,
+        quality,
+        n,
+        appendAspectRatio,
+      } = c.req.valid('json')
       const apiKey = getYunwuApiKey()
       if (!apiKey) {
         return c.json(
-          { success: false as const, error: '[配置] API Key is not configured' },
+          {
+            success: false as const,
+            error: '[配置] API Key is not configured',
+          },
           400,
         )
       }

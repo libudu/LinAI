@@ -46,7 +46,6 @@ export function Header() {
         </div>
         <div className="flex items-center gap-1 sm:gap-4">
           <EndpointDisplay />
-          {/* <GPTImageQuota /> */}
           <Dropdown menu={{ items: menuItems }} placement="bottomRight">
             <div
               className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-slate-100"

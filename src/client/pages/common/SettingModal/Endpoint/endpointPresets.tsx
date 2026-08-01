@@ -13,6 +13,8 @@ export interface EndpointPreset {
   modelId: string
   /** 补充说明，选中该接入点时展示在界面上 */
   remark?: ReactNode
+  /** 积分比例：平台 1 元对应充值积分的倍数，余额展示时按此比例换算（不填默认 1，自定义接入点固定为 1） */
+  creditRatio?: number
 }
 
 // 用户保存的自定义接入点（持久化在服务端 config.json）
@@ -31,6 +33,7 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
     label: '云雾 gpt-image-2-c',
     baseUrl: 'https://api.oljjio.xyz/v1',
     modelId: 'gpt-image-2-c',
+    creditRatio: 2,
     remark: (
       <div>
         <div>
@@ -48,6 +51,7 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
     label: '云雾 gpt-image-2',
     baseUrl: 'https://api.oljjio.xyz/v1',
     modelId: 'gpt-image-2',
+    creditRatio: 2,
     remark: (
       <div>
         <div>
