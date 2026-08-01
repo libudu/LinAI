@@ -1,12 +1,18 @@
 import fs from 'fs'
 import path from 'path'
-import { ENDPOINT_PRESETS } from '../../../client/pages/common/SettingModal/Endpoint/endpointPresets'
+import {
+  CustomEndpoint,
+  ENDPOINT_PRESETS,
+} from '../../../client/pages/common/SettingModal/Endpoint/endpointPresets'
 import { decryptApiKey } from '../../module/gpt-image/encrypt'
 
 export interface Config {
   gptImageApiKey: string | null
   gptImageBaseUrl?: string | null
   gptImageModelId?: string | null
+  gptImageCustomEndpoints?: CustomEndpoint[]
+  /** 预设接入点各自的 API Key，按预设 modelId 存储 */
+  gptImagePresetApiKeys?: Record<string, string>
   ttsInworldApiKey?: string | null
   localNetworkUrl?: string
 }

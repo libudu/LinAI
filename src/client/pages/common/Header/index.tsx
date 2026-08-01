@@ -11,6 +11,7 @@ import LinpxLogo from '../../../assets/icon/linpx.png'
 import { appRoutes } from '../../../routes'
 import { openSettingModal } from '../../common/SettingModal'
 import { openNotificationModal } from '../Notification'
+import { EndpointDisplay } from './EndpointDisplay'
 import { GPTImageQuota } from './GPTImageQuota'
 
 export function Header() {
@@ -45,6 +46,7 @@ export function Header() {
           </div>
         </div>
         <div className="flex items-center gap-1 sm:gap-4">
+          <EndpointDisplay />
           <GPTImageQuota />
           <Dropdown menu={{ items: menuItems }} placement="bottomRight">
             <div

@@ -1,10 +1,18 @@
+import { CloseOutlined } from '@ant-design/icons'
 import { Form, Input, message, Select } from 'antd'
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
 import { useGlobalStore } from '../../../../store/global'
 import { ENDPOINT_PRESETS } from './endpointPresets'
 
-// 自定义接入点的下拉值
-const CUSTOM_VALUE = 'custom'
+// 「新增自定义接入点」的下拉值
+const NEW_CUSTOM_VALUE = '__new_custom__'
+
+// 下拉值与接入点的互转（两个预设 baseUrl 相同，不能直接拿 baseUrl 做值）
+const presetValue = (modelId: string) => `preset:${modelId}`
+const customValue = (id: string) => `custom:${id}`
+
+const generateId = () =>
+  `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
 
 export interface EndpointSettingRef {
   save: () => Promise<string | undefined>
@@ -16,30 +24,96 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
     gptImageApiKey,
     gptImageBaseUrl,
     gptImageModelId,
+    gptImageCustomEndpoints,
+    gptImagePresetApiKeys,
     setGptImageApiKey,
     setGptImageEndpoint,
+    setGptImageCustomEndpoints,
+    setGptImagePresetApiKeys,
   } = useGlobalStore()
 
   const endpoint = Form.useWatch('endpoint', form)
-  const isCustom = endpoint === CUSTOM_VALUE
+  const isNewCustom = endpoint === NEW_CUSTOM_VALUE
+  const selectedPreset = ENDPOINT_PRESETS.find(
+    (p) => presetValue(p.modelId) === endpoint,
+  )
+  const selectedCustom = gptImageCustomEndpoints.find(
+    (c) => customValue(c.id) === endpoint,
+  )
 
   useEffect(() => {
-    // 根据已保存的 baseUrl/modelId 反推下拉选中项：匹配预设则选预设，否则视为自定义
+    // 根据已保存的 baseUrl/modelId 反推下拉选中项：优先匹配预设，其次已保存的自定义接入点，否则视为新增自定义
     const matchedPreset = ENDPOINT_PRESETS.find(
       (p) => p.baseUrl === gptImageBaseUrl && p.modelId === gptImageModelId,
     )
+    const matchedCustom = gptImageCustomEndpoints.find(
+      (c) => c.baseUrl === gptImageBaseUrl && c.modelId === gptImageModelId,
+    )
     const endpointValue = !gptImageBaseUrl
-      ? ENDPOINT_PRESETS[0].baseUrl
+      ? presetValue(ENDPOINT_PRESETS[0].modelId)
       : matchedPreset
-        ? matchedPreset.baseUrl
-        : CUSTOM_VALUE
+        ? presetValue(matchedPreset.modelId)
+        : matchedCustom
+          ? customValue(matchedCustom.id)
+          : NEW_CUSTOM_VALUE
     form.setFieldsValue({
       apiKey: gptImageApiKey || '',
       endpoint: endpointValue,
+      title: matchedCustom?.title ?? '',
       baseUrl: gptImageBaseUrl || '',
       modelId: gptImageModelId || '',
     })
-  }, [gptImageApiKey, gptImageBaseUrl, gptImageModelId, form])
+  }, [
+    gptImageApiKey,
+    gptImageBaseUrl,
+    gptImageModelId,
+    gptImageCustomEndpoints,
+    form,
+  ])
+
+  // 切换下拉选项时，同步填充/清空接入点信息与对应的 API Key
+  const handleEndpointChange = (value: string) => {
+    if (value === NEW_CUSTOM_VALUE) {
+      form.setFieldsValue({ title: '', baseUrl: '', modelId: '', apiKey: '' })
+      return
+    }
+    const preset = ENDPOINT_PRESETS.find(
+      (p) => presetValue(p.modelId) === value,
+    )
+    if (preset) {
+      form.setFieldsValue({
+        apiKey: gptImagePresetApiKeys[preset.modelId] ?? '',
+      })
+      return
+    }
+    const custom = gptImageCustomEndpoints.find(
+      (c) => customValue(c.id) === value,
+    )
+    if (custom) {
+      form.setFieldsValue({
+        title: custom.title,
+        baseUrl: custom.baseUrl,
+        modelId: custom.modelId,
+        apiKey: custom.apiKey ?? '',
+      })
+    }
+  }
+
+  // 删除自定义接入点；若删的是当前正在使用的接入点，回退到第一个预设
+  const handleDeleteCustom = async (id: string) => {
+    const target = gptImageCustomEndpoints.find((c) => c.id === id)
+    if (!target) return
+    await setGptImageCustomEndpoints(
+      gptImageCustomEndpoints.filter((c) => c.id !== id),
+    )
+    if (target.baseUrl === gptImageBaseUrl && target.modelId === gptImageModelId) {
+      const preset = ENDPOINT_PRESETS[0]
+      await setGptImageEndpoint(preset.baseUrl, preset.modelId)
+      // 回退到预设接入点时同步切换为其保存的 API Key
+      await setGptImageApiKey(gptImagePresetApiKeys[preset.modelId] ?? null)
+    }
+    message.success('已删除自定义接入点')
+  }
 
   useImperativeHandle(ref, () => ({
     save: async () => {
@@ -51,15 +125,49 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
 
       let baseUrl: string
       let modelId: string
-      if (values.endpoint === CUSTOM_VALUE) {
+      const apiKey: string = values.apiKey
+      if (values.endpoint === NEW_CUSTOM_VALUE) {
         baseUrl = values.baseUrl.trim()
         modelId = values.modelId.trim()
+        const title = values.title.trim()
+        // 相同 baseUrl + modelId 的自定义接入点已存在时更新标题与 API Key，否则新增一条
+        const existingIndex = gptImageCustomEndpoints.findIndex(
+          (c) => c.baseUrl === baseUrl && c.modelId === modelId,
+        )
+        const nextCustomEndpoints =
+          existingIndex >= 0
+            ? gptImageCustomEndpoints.map((c, i) =>
+                i === existingIndex ? { ...c, title, apiKey } : c,
+              )
+            : [
+                ...gptImageCustomEndpoints,
+                { id: generateId(), title, baseUrl, modelId, apiKey },
+              ]
+        await setGptImageCustomEndpoints(nextCustomEndpoints)
+      } else if (values.endpoint.startsWith('custom:')) {
+        const custom = gptImageCustomEndpoints.find(
+          (c) => customValue(c.id) === values.endpoint,
+        )!
+        baseUrl = values.baseUrl.trim()
+        modelId = values.modelId.trim()
+        const title = values.title.trim()
+        // 保存时同步更新该自定义接入点的标题、baseUrl、modelId 与 API Key
+        await setGptImageCustomEndpoints(
+          gptImageCustomEndpoints.map((c) =>
+            c.id === custom.id ? { ...c, title, baseUrl, modelId, apiKey } : c,
+          ),
+        )
       } else {
         const preset = ENDPOINT_PRESETS.find(
-          (p) => p.baseUrl === values.endpoint,
+          (p) => presetValue(p.modelId) === values.endpoint,
         )!
         baseUrl = preset.baseUrl
         modelId = preset.modelId
+        // 预设接入点的 API Key 按 modelId 持久化到 config
+        await setGptImagePresetApiKeys({
+          ...gptImagePresetApiKeys,
+          [preset.modelId]: apiKey,
+        })
       }
 
       await setGptImageApiKey(values.apiKey)
@@ -76,19 +184,56 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
           name="endpoint"
           label="接入点"
           rules={[{ required: true, message: '请选择接入点' }]}
+          extra={selectedPreset?.remark}
         >
           <Select
+            onChange={handleEndpointChange}
+            // 选中结果只展示纯文本标题；删除按钮仅通过 optionRender 渲染在下拉选项中
+            optionRender={(option) => {
+              const value = String(option.value)
+              if (!value.startsWith('custom:')) return option.label
+              const id = value.slice('custom:'.length)
+              return (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate">{option.label}</span>
+                  <CloseOutlined
+                    className="rounded p-0.5 text-gray-400 hover:bg-gray-500/20 hover:text-red-500"
+                    title="删除该接入点"
+                    onMouseDown={(e) => {
+                      // 阻止触发选项选中与下拉收起
+                      e.preventDefault()
+                      e.stopPropagation()
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeleteCustom(id)
+                    }}
+                  />
+                </div>
+              )
+            }}
             options={[
               ...ENDPOINT_PRESETS.map((p) => ({
                 label: p.label,
-                value: p.baseUrl,
+                value: presetValue(p.modelId),
               })),
-              { label: '自定义', value: CUSTOM_VALUE },
+              ...gptImageCustomEndpoints.map((c) => ({
+                label: c.title,
+                value: customValue(c.id),
+              })),
+              { label: '新增自定义接入点', value: NEW_CUSTOM_VALUE },
             ]}
           />
         </Form.Item>
-        {isCustom && (
+        {(isNewCustom || selectedCustom) && (
           <>
+            <Form.Item
+              name="title"
+              label="标题"
+              rules={[{ required: true, message: '请输入标题' }]}
+            >
+              <Input placeholder="用于在接入点选项中展示的名称" />
+            </Form.Item>
             <Form.Item
               name="baseUrl"
               label="Base URL"
