@@ -36,7 +36,8 @@ export function TemplateItemList({
         message.error(json.error || '移动失败')
       }
     } catch (error) {
-      const msg = error instanceof Error ? `[网络] ${error.message}` : '请求失败'
+      const msg =
+        error instanceof Error ? `[网络] ${error.message}` : '请求失败'
       message.error(msg)
     }
   }
@@ -66,14 +67,10 @@ export function TemplateItemList({
             {displayFolders.length > 0 && (
               <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                 {displayFolders.map((folder) => {
-                  const count = filteredTemplates.filter(
-                    (t) => t.folder === folder,
-                  ).length
                   return (
                     <TemplateFolder
                       key={folder}
                       folder={folder}
-                      count={count}
                       onClick={() => onSelectFolder(folder)}
                       onDropTemplate={handleDropTemplate}
                       onRenameSuccess={() => {

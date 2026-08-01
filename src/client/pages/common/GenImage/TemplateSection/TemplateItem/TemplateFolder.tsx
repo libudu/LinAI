@@ -1,14 +1,10 @@
 import { EditOutlined, FolderOutlined } from '@ant-design/icons'
-import { Button, Card, Form, Input, Modal, message } from 'antd'
-import { hc } from 'hono/client'
+import { Button, Card } from 'antd'
 import { useState } from 'react'
-import type { AppType } from '../../../../../../server'
-
-const client = hc<AppType>('/')
+import { RenameFolderModal } from './RenameFolderModal'
 
 interface TemplateFolderProps {
   folder: string
-  count: number
   onClick: () => void
   onDropTemplate?: (templateId: string, folder: string) => void
   onRenameSuccess?: () => void
@@ -16,47 +12,16 @@ interface TemplateFolderProps {
 
 export function TemplateFolder({
   folder,
-  count,
   onClick,
   onDropTemplate,
   onRenameSuccess,
 }: TemplateFolderProps) {
   const [isDragOver, setIsDragOver] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [form] = Form.useForm()
-  const [submitting, setSubmitting] = useState(false)
 
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    form.setFieldsValue({ newFolder: folder })
     setIsModalOpen(true)
-  }
-
-  const handleRename = async () => {
-    try {
-      const values = await form.validateFields()
-      setSubmitting(true)
-      const res = await client.api.template.folder.rename.$put({
-        json: {
-          oldFolder: folder,
-          newFolder: values.newFolder,
-        },
-      })
-      const json = await res.json()
-      if (json.success) {
-        message.success('重命名成功')
-        setIsModalOpen(false)
-        onRenameSuccess?.()
-      } else {
-        message.error(json.error || '重命名失败')
-      }
-    } catch (error) {
-      if (error instanceof Error) {
-        message.error(`[网络] ${error.message || '重命名失败'}`)
-      }
-    } finally {
-      setSubmitting(false)
-    }
   }
 
   return (
@@ -66,6 +31,9 @@ export function TemplateFolder({
         className={`group cursor-pointer shadow-sm transition-all hover:border-blue-400 hover:shadow-md ${
           isDragOver ? 'border-blue-500 bg-blue-50' : ''
         }`}
+        classNames={{
+          body: 'py-2!',
+        }}
         onClick={onClick}
         onDragOver={(e) => {
           e.preventDefault()
@@ -90,51 +58,31 @@ export function TemplateFolder({
           }
         }}
       >
-        <div className="flex items-center gap-2">
-          <FolderOutlined className="text-xl text-blue-500" />
+        <div className="flex h-7 items-center gap-2">
+          <div className="relative top-0.5">
+            <FolderOutlined className="text-xl" />
+          </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate font-medium text-slate-700" title={folder}>
-              {folder}
-            </div>
-            <div className="text-xs text-slate-400">{count} 个模板</div>
+            <div className="truncate font-medium text-slate-700">{folder}</div>
           </div>
           <Button
             type="text"
             icon={<EditOutlined />}
-            className="opacity-0 transition-opacity group-hover:opacity-100"
+            className="hidden! h-7! w-7! group-hover:inline-flex!"
             onClick={handleEditClick}
           />
         </div>
       </Card>
 
-      <Modal
-        title="重命名文件夹"
+      <RenameFolderModal
+        folder={folder}
         open={isModalOpen}
-        onOk={handleRename}
         onCancel={() => setIsModalOpen(false)}
-        confirmLoading={submitting}
-        destroyOnHidden
-        width={400}
-      >
-        <Form form={form} layout="vertical" preserve={false}>
-          <Form.Item
-            name="newFolder"
-            label="文件夹名称"
-            rules={[
-              { required: true, message: '请输入文件夹名称' },
-              {
-                validator: async (_, value) => {
-                  if (value === folder) {
-                    throw new Error('新名称不能与原名称相同')
-                  }
-                },
-              },
-            ]}
-          >
-            <Input placeholder="输入新的文件夹名称" />
-          </Form.Item>
-        </Form>
-      </Modal>
+        onSuccess={() => {
+          setIsModalOpen(false)
+          onRenameSuccess?.()
+        }}
+      />
     </>
   )
 }

@@ -1,6 +1,7 @@
-import { Spin } from 'antd'
+import { Button, Spin } from 'antd'
 import { forwardRef, useImperativeHandle, useState } from 'react'
 import { useTemplates } from '../../../../../hooks/useTemplates'
+import { RenameFolderModal } from '../TemplateItem/RenameFolderModal'
 import { TemplateItemList } from './TemplateItemList'
 
 export interface TemplateListRef {
@@ -9,6 +10,7 @@ export interface TemplateListRef {
 
 export const TemplateList = forwardRef<TemplateListRef, unknown>((_, ref) => {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
+  const [isRenameModalOpen, setIsRenameModalOpen] = useState(false)
 
   const { data: templates = [], loading, refresh } = useTemplates()
 
@@ -45,6 +47,11 @@ export const TemplateList = forwardRef<TemplateListRef, unknown>((_, ref) => {
               <span>图片模板 ({imageTemplates.length})</span>
             )}
           </h3>
+          {selectedFolder && (
+            <Button type="link" onClick={() => setIsRenameModalOpen(true)}>
+              重命名文件夹
+            </Button>
+          )}
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
@@ -61,6 +68,19 @@ export const TemplateList = forwardRef<TemplateListRef, unknown>((_, ref) => {
           )}
         </div>
       </div>
+
+      {selectedFolder && (
+        <RenameFolderModal
+          folder={selectedFolder}
+          open={isRenameModalOpen}
+          onCancel={() => setIsRenameModalOpen(false)}
+          onSuccess={(newFolder) => {
+            setIsRenameModalOpen(false)
+            setSelectedFolder(newFolder)
+            refresh()
+          }}
+        />
+      )}
     </>
   )
 })

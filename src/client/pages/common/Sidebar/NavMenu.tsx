@@ -64,7 +64,7 @@ export function NavMenu({
               {/* 模块设置按钮：桌面端仅 hover 导航项时可见，移动端直接显示 */}
               {!collapsed && route.onClickSetting && (
                 <span
-                  className="ml-auto flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-slate-400/30 md:invisible md:group-hover:visible"
+                  className="ml-auto flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-slate-200/30"
                   title="设置"
                   onClick={(e) => {
                     e.stopPropagation()
