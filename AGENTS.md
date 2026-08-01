@@ -27,8 +27,8 @@
 ## 目录结构
 
 - `src/client/`：前端
-  - `pages/module/`：功能页面（GeminiTTS、MediaClassifier）
-  - `pages/common/`：通用页面组件（Sidebar、Home、SettingModal、TaskList、TemplateSection、Notification、YunwuAdmin 云雾用户管理，仅管理员可见）
+  - `pages/module/`：功能页面（GeminiTTS、MediaClassifier、YunwuAdmin 云雾用户管理，仅管理员可见）
+  - `pages/common/`：通用页面组件（Sidebar、GenImage 图片生成首页，含其下的 TaskList、TemplateSection、SettingModal，及 Notification）
   - `routes.tsx`：路由注册表，新增页面在此登记
   - `store/global.ts`：zustand 全局状态；`hooks/`、`common/`、`utils/`
 - `src/server/`：后端

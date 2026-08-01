@@ -2,8 +2,8 @@ import { Tooltip } from 'antd'
 import { useMemo } from 'react'
 import { useGPTImageQuota } from '../../../hooks/useGPTImageQuota'
 import { useGlobalStore } from '../../../store/global'
-import { openGPTImageSettingModal } from '../Home/SettingModal'
-import { ENDPOINT_PRESETS } from '../Home/SettingModal/Endpoint/endpointPresets'
+import { openGPTImageSettingModal } from '../GenImage/SettingModal'
+import { ENDPOINT_PRESETS } from '../GenImage/SettingModal/Endpoint/endpointPresets'
 
 // 当前接入点展示：优先匹配预设，其次自定义接入点标题，否则回退到模型 ID
 export function EndpointDisplay() {

@@ -2,7 +2,7 @@ import { hc } from 'hono/client'
 import { create } from 'zustand'
 import type { AppType } from '../../server'
 import type { TaskTemplate } from '../../server/common/template-manager'
-import type { CustomEndpoint } from '../pages/common/Home/SettingModal/Endpoint/endpointPresets'
+import type { CustomEndpoint } from '../pages/common/GenImage/SettingModal/Endpoint/endpointPresets'
 
 const client = hc<AppType>('/')
 

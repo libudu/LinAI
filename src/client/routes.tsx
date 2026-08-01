@@ -7,9 +7,9 @@ import {
   PictureOutlined,
 } from '@ant-design/icons'
 import type { ReactNode } from 'react'
-import { Home } from './pages/common/Home'
-import { openGPTImageSettingModal } from './pages/common/Home/SettingModal'
-import { YunwuAdmin } from './pages/common/YunwuAdmin'
+import { GenImage } from './pages/common/GenImage'
+import { openGPTImageSettingModal } from './pages/common/GenImage/SettingModal'
+import { YunwuAdmin } from './pages/module/YunwuAdmin'
 import { TTS } from './pages/module/GeminiTTS'
 import { openTTSSettingModal } from './pages/module/GeminiTTS/SettingModal'
 import { MediaClassifier } from './pages/module/MediaClassifier'
@@ -34,7 +34,7 @@ export const appRoutes: AppRoute[] = [
   {
     path: '/',
     label: '图片生成',
-    element: <Home />,
+    element: <GenImage />,
     key: 'home',
     icon: <PictureOutlined />,
     onClickSetting: () => openGPTImageSettingModal(),

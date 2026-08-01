@@ -3,7 +3,7 @@ import path from 'path'
 import {
   CustomEndpoint,
   ENDPOINT_PRESETS,
-} from '../../../client/pages/common/Home/SettingModal/Endpoint/endpointPresets'
+} from '../../../client/pages/common/GenImage/SettingModal/Endpoint/endpointPresets'
 import { decryptApiKey } from '../../module/gpt-image/encrypt'
 
 export interface Config {
