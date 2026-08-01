@@ -3,7 +3,6 @@ import fs from 'fs-extra'
 import { writeFile } from 'fs/promises'
 import OpenAI, { toFile } from 'openai'
 import path from 'path'
-import { GptImageSizeFormat } from '../../../client/pages/common/SettingModal/Endpoint/endpointPresets'
 import { GENERATED_IMAGES_DIR, INPUT_IMAGES_DIR } from '../../common/static'
 import { GENERATED_IMAGES_API_PATH } from '../../common/static/enum'
 import { taskManager } from '../../common/task-manager'
@@ -180,8 +179,6 @@ export async function handleImageGeneration(options: {
   template: TaskTemplate
   size?: GptImageSize
   quality?: GptImageQuality
-  /** size 参数形式：resolution = 具体尺寸（如 1024x1024），level = 档位（1k/2k/4k） */
-  sizeFormat?: GptImageSizeFormat
 }) {
   try {
     const {
@@ -191,7 +188,6 @@ export async function handleImageGeneration(options: {
       template,
       size = '1k',
       quality = 'medium',
-      sizeFormat = 'resolution',
     } = options
 
     // 用于错误提示的接入点域名
@@ -224,11 +220,7 @@ export async function handleImageGeneration(options: {
     await taskManager.updateTaskStatus(task.id, 'running')
     const startTime = Date.now()
 
-    // level 形式的接入点直接透传 1k/2k/4k 档位，否则换算为具体尺寸
-    const finalSize =
-      sizeFormat === 'level'
-        ? size
-        : calculateSize(template.aspectRatio || '1:1', size)
+    const finalSize = calculateSize(template.aspectRatio || '1:1', size)
 
     const imagePaths: string[] = []
     for (const imgUrl of template.images) {

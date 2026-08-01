@@ -3,7 +3,6 @@ import path from 'path'
 import {
   CustomEndpoint,
   ENDPOINT_PRESETS,
-  GptImageSizeFormat,
 } from '../../../client/pages/common/SettingModal/Endpoint/endpointPresets'
 import { decryptApiKey } from '../../module/gpt-image/encrypt'
 
@@ -77,21 +76,13 @@ export const getYunwuApiKey = (): string | null => {
   return decryptApiKey(currentConfig.gptImageApiKey || '')
 }
 
-// 获取 GPT 图像接入点，未配置时回退到默认值；
-// 与预设接入点（按 baseUrl + modelId 匹配）一致时，附带其 sizeFormat 参数
-export const getGptImageEndpoint = (): {
-  baseUrl: string
-  modelId: string
-  sizeFormat?: GptImageSizeFormat
-} => {
+// 获取 GPT 图像接入点，未配置时回退到默认值
+export const getGptImageEndpoint = () => {
   const baseUrl =
     currentConfig.gptImageBaseUrl || DEFAULT_CONFIG.gptImageBaseUrl!
   const modelId =
     currentConfig.gptImageModelId || DEFAULT_CONFIG.gptImageModelId!
-  const preset = ENDPOINT_PRESETS.find(
-    (p) => p.baseUrl === baseUrl && p.modelId === modelId,
-  )
-  return { baseUrl, modelId, sizeFormat: preset?.sizeFormat }
+  return { baseUrl, modelId }
 }
 
 export const getTTSInworldApiKey = (): string | null => {

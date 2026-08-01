@@ -13,8 +13,6 @@ export interface EndpointPreset {
   modelId: string
   /** 补充说明，选中该接入点时展示在界面上 */
   remark?: ReactNode
-  /** size 参数形式，缺省为 resolution（具体尺寸） */
-  sizeFormat?: GptImageSizeFormat
 }
 
 // 用户保存的自定义接入点（持久化在服务端 config.json）
