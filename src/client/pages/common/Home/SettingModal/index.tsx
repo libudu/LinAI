@@ -3,7 +3,16 @@ import { Form, Radio, Switch, message } from 'antd'
 import { createRef, forwardRef, useEffect, useImperativeHandle } from 'react'
 import { useGPTImageQuota } from '../../../../hooks/useGPTImageQuota'
 import { useLocalSetting } from '../../../../hooks/useLocalSetting'
-import { openCommonSettingModal } from '../../components/SettingModal'
+import {
+  openCommonSettingModal,
+  type CommonSettingTab,
+} from '../../components/SettingModal'
+import {
+  EndpointSetting,
+  type EndpointSettingRef,
+} from './Endpoint/EndpointSetting'
+import { SideSetting } from './SideSetting'
+import { UploadImageSetting } from './UploadImageSetting'
 
 interface GPTImageSettingRef {
   save: () => Promise<void>
@@ -142,18 +151,44 @@ const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
   )
 })
 
-// 打开生图设置弹窗（单标签形式，不显示标签页）
-export function openGPTImageSettingModal() {
+// 打开生图设置弹窗（多标签页：接入点 / GPTImage2 / 通用图片 / 辅助功能）
+export function openGPTImageSettingModal(options?: {
+  initialTab?: string
+  onSuccess?: (apiKey: string) => void
+}) {
+  const endpointRef = createRef<EndpointSettingRef>()
   const gptImageRef = createRef<GPTImageSettingRef>()
+
+  const tabs: CommonSettingTab[] = [
+    {
+      key: 'endpoint',
+      label: '接入点配置',
+      children: <EndpointSetting ref={endpointRef} />,
+      onSave: () => endpointRef.current!.save(),
+    },
+    {
+      key: 'gpt-image',
+      label: 'GPTImage2 配置',
+      children: <GPTImageSetting ref={gptImageRef} />,
+      onSave: () => gptImageRef.current!.save(),
+    },
+    {
+      key: 'upload-image',
+      label: '通用图片设置',
+      children: <UploadImageSetting />,
+    },
+    {
+      key: 'side-setting',
+      label: '辅助功能',
+      children: <SideSetting />,
+    },
+  ]
+
   openCommonSettingModal({
     title: '生图设置',
-    tabs: [
-      {
-        key: 'gpt-image',
-        label: 'GPTImage2 配置',
-        children: <GPTImageSetting ref={gptImageRef} />,
-        onSave: () => gptImageRef.current!.save(),
-      },
-    ],
+    tabs,
+    initialTab: options?.initialTab,
+    okText: options?.onSuccess ? '保存并继续' : '保存',
+    onSuccess: (result) => options?.onSuccess?.(result as string),
   })
 }

@@ -5,7 +5,7 @@ import {
   MenuUnfoldOutlined,
   SettingOutlined,
 } from '@ant-design/icons'
-import { openSettingModal } from '../../common/SettingModal'
+import { isAdmin, openSettingModal } from '../../common/SettingModal'
 import { openNotificationModal } from '../Notification'
 
 // 侧边栏底部功能区：通知、设置、GitHub、收起/展开侧栏
@@ -37,13 +37,15 @@ export function SidebarFooter({
           >
             <BellOutlined className="text-lg" />
           </div>
-          <div
-            className="flex h-10 flex-1 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-slate-100"
-            onClick={() => openSettingModal()}
-            title="设置"
-          >
-            <SettingOutlined className="text-lg" />
-          </div>
+          {isAdmin() && (
+            <div
+              className="flex h-10 flex-1 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-slate-100"
+              onClick={() => openSettingModal()}
+              title="管理员设置"
+            >
+              <SettingOutlined className="text-lg" />
+            </div>
+          )}
           <a
             className="flex h-10 flex-1 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-slate-100"
             href="https://github.com/libudu/LinAI"

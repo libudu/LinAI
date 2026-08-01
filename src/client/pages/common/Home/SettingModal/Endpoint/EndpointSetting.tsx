@@ -1,7 +1,7 @@
 import { CloseOutlined } from '@ant-design/icons'
 import { Form, Input, message, Select } from 'antd'
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
-import { useGlobalStore } from '../../../../store/global'
+import { useGlobalStore } from '../../../../../store/global'
 import { ENDPOINT_PRESETS } from './endpointPresets'
 
 // 「新增自定义接入点」的下拉值

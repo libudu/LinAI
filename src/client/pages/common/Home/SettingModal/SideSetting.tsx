@@ -1,6 +1,6 @@
 import { Switch } from 'antd'
-import { useLocalSetting } from '../../../hooks/useLocalSetting'
-import { PROMPT_OPTIMIZE_MODEL } from '../TemplateSection/TemplateForm/PromptOptimizeModal'
+import { useLocalSetting } from '../../../../hooks/useLocalSetting'
+import { PROMPT_OPTIMIZE_MODEL } from '../../TemplateSection/TemplateForm/PromptOptimizeModal'
 
 function SettingItem({
   title,

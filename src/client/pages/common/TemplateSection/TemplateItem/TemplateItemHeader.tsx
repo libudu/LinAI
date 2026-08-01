@@ -9,7 +9,7 @@ import openaiIcon from '../../../../assets/icon/openai.svg'
 import { useLocalSetting } from '../../../../hooks/useLocalSetting'
 import { useTemplates } from '../../../../hooks/useTemplates'
 import { useGlobalStore } from '../../../../store/global'
-import { openSettingModal } from '../../SettingModal'
+import { openGPTImageSettingModal } from '../../Home/SettingModal'
 import { TemplateEditButton } from './TemplateItemEditButton'
 
 const client = hc<AppType>('/')
@@ -45,7 +45,7 @@ export const TemplateItemGenerateButtons: React.FC<{
   const handleGenerate = (templateId: string, size: GptImageSize) => {
     const apiKey = gptImageApiKey
     if (!apiKey) {
-      openSettingModal({
+      openGPTImageSettingModal({
         initialTab: 'endpoint',
         onSuccess: () => {
           doGenerate(templateId, size)

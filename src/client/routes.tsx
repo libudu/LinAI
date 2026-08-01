@@ -4,7 +4,6 @@ import {
   FolderOpenOutlined,
   HighlightOutlined,
   PictureOutlined,
-  SettingOutlined,
 } from '@ant-design/icons'
 import type { ReactNode } from 'react'
 import { Home } from './pages/common/Home'
@@ -19,8 +18,8 @@ export interface AppRoute {
   key: string
   icon: ReactNode
   element?: ReactNode
-  /** 模块设置入口元素，存在时导航项右侧显示设置按钮（桌面端 hover 可见，移动端常显） */
-  settingElement?: ReactNode
+  /** 模块设置入口，存在时导航项右侧显示设置按钮（桌面端 hover 可见，移动端常显） */
+  onClickSetting?: () => void
   /** 隐藏导航入口但保留路由 */
   hidden?: boolean
   /** 置灰展示（开发中），不注册路由 */
@@ -34,9 +33,7 @@ export const appRoutes: AppRoute[] = [
     element: <Home />,
     key: 'home',
     icon: <PictureOutlined />,
-    settingElement: (
-      <SettingOutlined onClick={() => openGPTImageSettingModal()} />
-    ),
+    onClickSetting: () => openGPTImageSettingModal(),
   },
   {
     path: '/image-canvas',
@@ -51,7 +48,7 @@ export const appRoutes: AppRoute[] = [
     element: <TTS />,
     key: 'tts',
     icon: <AudioOutlined />,
-    settingElement: <SettingOutlined onClick={() => openTTSSettingModal()} />,
+    onClickSetting: () => openTTSSettingModal(),
     hidden: true,
   },
   {

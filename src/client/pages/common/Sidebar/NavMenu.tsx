@@ -1,3 +1,4 @@
+import { SettingOutlined } from '@ant-design/icons'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { appRoutes } from '../../../routes'
 
@@ -60,16 +61,17 @@ export function NavMenu({
               <span className="text-base">{route.icon}</span>
               {!collapsed && route.label}
               {/* 模块设置按钮：桌面端仅 hover 导航项时可见，移动端直接显示 */}
-              {!collapsed && route.settingElement && (
+              {!collapsed && route.onClickSetting && (
                 <span
-                  className="ml-auto opacity-60 transition-opacity hover:opacity-100 md:invisible md:group-hover:visible"
+                  className="ml-auto flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-slate-400/30 md:invisible md:group-hover:visible"
                   title="设置"
                   onClick={(e) => {
                     e.stopPropagation()
+                    route.onClickSetting?.()
                     onNavigate?.()
                   }}
                 >
-                  {route.settingElement}
+                  <SettingOutlined className="text-base" />
                 </span>
               )}
             </div>

@@ -7,7 +7,7 @@ import type { AppType } from '../../../../../server'
 import type { GptImageSize } from '../../../../../server/module/gpt-image/enum'
 import { useLocalSetting } from '../../../../hooks/useLocalSetting'
 import { useGlobalStore } from '../../../../store/global'
-import { openSettingModal } from '../../SettingModal'
+import { openGPTImageSettingModal } from '../../Home/SettingModal'
 import { StyleExtractModal } from './StyleExtractModal'
 import { TemplateFormFields } from './TemplateFormItems'
 
@@ -98,7 +98,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
 
     const apiKey = gptImageApiKey
     if (!apiKey) {
-      openSettingModal({
+      openGPTImageSettingModal({
         initialTab: 'endpoint',
         onSuccess: () => {
           doTrial(size)
