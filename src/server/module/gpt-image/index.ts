@@ -3,10 +3,8 @@ import fs from 'fs-extra'
 import { writeFile } from 'fs/promises'
 import OpenAI, { toFile } from 'openai'
 import path from 'path'
-import {
-  GENERATED_IMAGES_DIR,
-  INPUT_IMAGES_DIR,
-} from '../../common/static'
+import { GptImageSizeFormat } from '../../../client/pages/common/SettingModal/Endpoint/endpointPresets'
+import { GENERATED_IMAGES_DIR, INPUT_IMAGES_DIR } from '../../common/static'
 import { GENERATED_IMAGES_API_PATH } from '../../common/static/enum'
 import { taskManager } from '../../common/task-manager'
 import { TaskTemplate } from '../../common/template-manager'
@@ -95,7 +93,16 @@ function calculateSize(aspectRatio: string, baseSize: GptImageSize): string {
 }
 
 async function generateGPTImageNew(options: GenerateGPTImageOptions) {
-  const { apiKey, baseUrl, modelId, prompt, size, quality, imagePaths: images, n = 1 } = options
+  const {
+    apiKey,
+    baseUrl,
+    modelId,
+    prompt,
+    size,
+    quality,
+    imagePaths: images,
+    n = 1,
+  } = options
   const client = new OpenAI({
     apiKey,
     baseURL: baseUrl,
@@ -143,7 +150,9 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
       } else if (item.url) {
         const imageResponse = await fetch(item.url)
         if (!imageResponse.ok) {
-          throw new Error(`Failed to download generated image: ${imageResponse.status} ${imageResponse.statusText}`)
+          throw new Error(
+            `Failed to download generated image: ${imageResponse.status} ${imageResponse.statusText}`,
+          )
         }
         imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
       }
@@ -171,9 +180,19 @@ export async function handleImageGeneration(options: {
   template: TaskTemplate
   size?: GptImageSize
   quality?: GptImageQuality
+  /** size 参数形式：resolution = 具体尺寸（如 1024x1024），level = 档位（1k/2k/4k） */
+  sizeFormat?: GptImageSizeFormat
 }) {
   try {
-    const { apiKey, baseUrl, modelId, template, size = '1k', quality = 'medium' } = options
+    const {
+      apiKey,
+      baseUrl,
+      modelId,
+      template,
+      size = '1k',
+      quality = 'medium',
+      sizeFormat = 'resolution',
+    } = options
 
     // 用于错误提示的接入点域名
     let endpointHost = baseUrl
@@ -195,14 +214,21 @@ export async function handleImageGeneration(options: {
     if (!task) {
       return {
         status: 500,
-        data: { success: false as const, error: '[服务] Failed to create task' },
+        data: {
+          success: false as const,
+          error: '[服务] Failed to create task',
+        },
       }
     }
 
     await taskManager.updateTaskStatus(task.id, 'running')
     const startTime = Date.now()
 
-    const finalSize = calculateSize(template.aspectRatio || '1:1', size)
+    // level 形式的接入点直接透传 1k/2k/4k 档位，否则换算为具体尺寸
+    const finalSize =
+      sizeFormat === 'level'
+        ? size
+        : calculateSize(template.aspectRatio || '1:1', size)
 
     const imagePaths: string[] = []
     for (const imgUrl of template.images) {
@@ -212,7 +238,9 @@ export async function handleImageGeneration(options: {
         if (await fs.pathExists(imagePath)) {
           imagePaths.push(imagePath)
         } else {
-          throw new Error(`[服务] Template image not found on Input Dir: ${imagePath}`)
+          throw new Error(
+            `[服务] Template image not found on Input Dir: ${imagePath}`,
+          )
         }
       }
     }
@@ -234,11 +262,17 @@ export async function handleImageGeneration(options: {
       filenames = res.filenames
       usage = res.usage
     } catch (error: any) {
-      logger.error(`Failed to generate GPT image via ${endpointHost}`, error.message)
+      logger.error(
+        `Failed to generate GPT image via ${endpointHost}`,
+        error.message,
+      )
       await taskManager.updateTaskStatus(task.id, 'failed', error.message)
       return {
         status: 500,
-        data: { success: false as const, error: `[${endpointHost}] ${error.message}` },
+        data: {
+          success: false as const,
+          error: `[${endpointHost}] ${error.message}`,
+        },
       }
     }
 

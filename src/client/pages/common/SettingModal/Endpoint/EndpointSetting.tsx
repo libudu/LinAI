@@ -7,8 +7,8 @@ import { ENDPOINT_PRESETS } from './endpointPresets'
 // 「新增自定义接入点」的下拉值
 const NEW_CUSTOM_VALUE = '__new_custom__'
 
-// 下拉值与接入点的互转（两个预设 baseUrl 相同，不能直接拿 baseUrl 做值）
-const presetValue = (modelId: string) => `preset:${modelId}`
+// 下拉值与接入点的互转（不同预设可能共用 baseUrl/modelId，必须用 label 做值）
+const presetValue = (label: string) => `preset:${label}`
 const customValue = (id: string) => `custom:${id}`
 
 const generateId = () =>
@@ -35,7 +35,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
   const endpoint = Form.useWatch('endpoint', form)
   const isNewCustom = endpoint === NEW_CUSTOM_VALUE
   const selectedPreset = ENDPOINT_PRESETS.find(
-    (p) => presetValue(p.modelId) === endpoint,
+    (p) => presetValue(p.label) === endpoint,
   )
   const selectedCustom = gptImageCustomEndpoints.find(
     (c) => customValue(c.id) === endpoint,
@@ -50,9 +50,9 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
       (c) => c.baseUrl === gptImageBaseUrl && c.modelId === gptImageModelId,
     )
     const endpointValue = !gptImageBaseUrl
-      ? presetValue(ENDPOINT_PRESETS[0].modelId)
+      ? presetValue(ENDPOINT_PRESETS[0].label)
       : matchedPreset
-        ? presetValue(matchedPreset.modelId)
+        ? presetValue(matchedPreset.label)
         : matchedCustom
           ? customValue(matchedCustom.id)
           : NEW_CUSTOM_VALUE
@@ -77,12 +77,10 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
       form.setFieldsValue({ title: '', baseUrl: '', modelId: '', apiKey: '' })
       return
     }
-    const preset = ENDPOINT_PRESETS.find(
-      (p) => presetValue(p.modelId) === value,
-    )
+    const preset = ENDPOINT_PRESETS.find((p) => presetValue(p.label) === value)
     if (preset) {
       form.setFieldsValue({
-        apiKey: gptImagePresetApiKeys[preset.modelId] ?? '',
+        apiKey: gptImagePresetApiKeys[preset.label] ?? '',
       })
       return
     }
@@ -110,7 +108,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
       const preset = ENDPOINT_PRESETS[0]
       await setGptImageEndpoint(preset.baseUrl, preset.modelId)
       // 回退到预设接入点时同步切换为其保存的 API Key
-      await setGptImageApiKey(gptImagePresetApiKeys[preset.modelId] ?? null)
+      await setGptImageApiKey(gptImagePresetApiKeys[preset.label] ?? null)
     }
     message.success('已删除自定义接入点')
   }
@@ -159,14 +157,14 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
         )
       } else {
         const preset = ENDPOINT_PRESETS.find(
-          (p) => presetValue(p.modelId) === values.endpoint,
+          (p) => presetValue(p.label) === values.endpoint,
         )!
         baseUrl = preset.baseUrl
         modelId = preset.modelId
-        // 预设接入点的 API Key 按 modelId 持久化到 config
+        // 预设接入点的 API Key 按预设 label 持久化到 config
         await setGptImagePresetApiKeys({
           ...gptImagePresetApiKeys,
-          [preset.modelId]: apiKey,
+          [preset.label]: apiKey,
         })
       }
 
@@ -215,7 +213,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
             options={[
               ...ENDPOINT_PRESETS.map((p) => ({
                 label: p.label,
-                value: presetValue(p.modelId),
+                value: presetValue(p.label),
               })),
               ...gptImageCustomEndpoints.map((c) => ({
                 label: c.title,

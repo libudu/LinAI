@@ -3,6 +3,7 @@ import path from 'path'
 import {
   CustomEndpoint,
   ENDPOINT_PRESETS,
+  GptImageSizeFormat,
 } from '../../../client/pages/common/SettingModal/Endpoint/endpointPresets'
 import { decryptApiKey } from '../../module/gpt-image/encrypt'
 
@@ -11,7 +12,7 @@ export interface Config {
   gptImageBaseUrl?: string | null
   gptImageModelId?: string | null
   gptImageCustomEndpoints?: CustomEndpoint[]
-  /** 预设接入点各自的 API Key，按预设 modelId 存储 */
+  /** 预设接入点各自的 API Key，按预设 label 存储 */
   gptImagePresetApiKeys?: Record<string, string>
   ttsInworldApiKey?: string | null
   localNetworkUrl?: string
@@ -76,12 +77,21 @@ export const getYunwuApiKey = (): string | null => {
   return decryptApiKey(currentConfig.gptImageApiKey || '')
 }
 
-// 获取 GPT 图像接入点，未配置时回退到默认值
-export const getGptImageEndpoint = (): { baseUrl: string; modelId: string } => {
-  return {
-    baseUrl: currentConfig.gptImageBaseUrl || DEFAULT_CONFIG.gptImageBaseUrl!,
-    modelId: currentConfig.gptImageModelId || DEFAULT_CONFIG.gptImageModelId!,
-  }
+// 获取 GPT 图像接入点，未配置时回退到默认值；
+// 与预设接入点（按 baseUrl + modelId 匹配）一致时，附带其 sizeFormat 参数
+export const getGptImageEndpoint = (): {
+  baseUrl: string
+  modelId: string
+  sizeFormat?: GptImageSizeFormat
+} => {
+  const baseUrl =
+    currentConfig.gptImageBaseUrl || DEFAULT_CONFIG.gptImageBaseUrl!
+  const modelId =
+    currentConfig.gptImageModelId || DEFAULT_CONFIG.gptImageModelId!
+  const preset = ENDPOINT_PRESETS.find(
+    (p) => p.baseUrl === baseUrl && p.modelId === modelId,
+  )
+  return { baseUrl, modelId, sizeFormat: preset?.sizeFormat }
 }
 
 export const getTTSInworldApiKey = (): string | null => {
