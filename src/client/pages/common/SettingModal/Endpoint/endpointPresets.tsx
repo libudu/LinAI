@@ -28,23 +28,53 @@ export interface CustomEndpoint {
 
 export const ENDPOINT_PRESETS: EndpointPreset[] = [
   {
-    label: 'DragonAPI',
-    baseUrl: 'https://newapi.dragon3api.com/v1',
-    modelId: 'gpt-image-2',
+    label: '云雾 gpt-image-2-c',
+    baseUrl: 'https://api.oljjio.xyz/v1',
+    modelId: 'gpt-image-2-c',
     remark: (
       <div>
         <div>
           官网：
-          <a href="https://www.dragon3api.com/">https://www.dragon3api.com/</a>
+          <a href="https://api.oljjio.xyz" target="_blank">
+            https://api.oljjio.xyz/
+          </a>
         </div>
-        <div>无论1k、2k、4k，均固定计费 0.0231r 一张，不支持高画质</div>
+        <div>无论1k、2k、4k，均固定计费 0.075r 一张</div>
+        <div>需要 GPT绘图 分组</div>
       </div>
     ),
   },
   {
     label: '云雾 gpt-image-2',
-    baseUrl: 'https://yunwu.ai/v1',
+    baseUrl: 'https://api.oljjio.xyz/v1',
     modelId: 'gpt-image-2',
-    remark: '截止 26-08-01 以前，除了8倍优质官转分组外其他均不可用',
+    remark: (
+      <div>
+        <div>
+          官网：
+          <a href="https://api.oljjio.xyz" target="_blank">
+            https://api.oljjio.xyz/
+          </a>
+        </div>
+        <div>截止 26-08-01 以前，除了8倍优质官转分组外其他均不可用</div>
+      </div>
+    ),
+  },
+  {
+    label: 'DragonAPI',
+    baseUrl: 'https://dragon3api.com/v1',
+    modelId: 'gpt-image-2',
+    remark: (
+      <div>
+        <div>
+          官网：
+          <a href="https://dragon3api.com" target="_blank">
+            https://dragon3api.com/
+          </a>
+        </div>
+        <div>无论1k、2k、4k，均固定计费 0.0231r 一张</div>
+        <div>有时候出图的分辨率不太稳定</div>
+      </div>
+    ),
   },
 ]
