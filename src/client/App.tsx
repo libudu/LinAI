@@ -1,6 +1,6 @@
 import { ConfigProvider } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import pkg from '../../package.json'
 import { openNotificationModal } from './pages/common/Notification'
@@ -9,6 +9,9 @@ import { appRoutes } from './routes'
 import { useGlobalStore } from './store/global'
 
 function App() {
+  // 桌面端侧栏收起状态，收起后主内容留出更窄的间距
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
   useEffect(() => {
     useGlobalStore.getState().fetchConfig()
 
@@ -36,10 +39,17 @@ function App() {
       }}
     >
       <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
-        <Sidebar />
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
+        />
 
         {/* Main Content：桌面端为左侧导航栏留出宽度 */}
-        <div className="md:pl-56">
+        <div
+          className={`transition-[padding] ${
+            sidebarCollapsed ? 'md:pl-16' : 'md:pl-56'
+          }`}
+        >
           <main className="mx-auto max-w-6xl space-y-4 p-3 sm:p-6">
             <Routes>
               {appRoutes.map((route) => (
