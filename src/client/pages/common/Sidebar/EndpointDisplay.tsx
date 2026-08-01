@@ -1,4 +1,3 @@
-import { ApiOutlined } from '@ant-design/icons'
 import { Tooltip } from 'antd'
 import { useMemo } from 'react'
 import { useGPTImageQuota } from '../../../hooks/useGPTImageQuota'
@@ -7,7 +6,6 @@ import { openSettingModal } from '../SettingModal'
 import { ENDPOINT_PRESETS } from '../SettingModal/Endpoint/endpointPresets'
 
 // 当前接入点展示：优先匹配预设，其次自定义接入点标题，否则回退到模型 ID
-// 已填 apikey 时在后面用灰色竖线分隔展示余额
 export function EndpointDisplay() {
   const {
     gptImageBaseUrl,
@@ -40,27 +38,24 @@ export function EndpointDisplay() {
   return (
     <Tooltip title={error || '点击切换接入点'} placement="bottom">
       <div
-        className="hidden cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-1 text-sm text-gray-500 transition-colors hover:border-slate-300 hover:bg-slate-100 sm:flex"
+        className="flex w-full cursor-pointer flex-col gap-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-gray-500 transition-colors hover:border-slate-300 hover:bg-slate-100"
         onClick={() => openSettingModal({ initialTab: 'endpoint' })}
       >
-        <ApiOutlined className="shrink-0 text-xs" />
-        <span className="truncate font-medium text-gray-700">
-          {currentEndpointName}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="truncate font-medium text-gray-700">
+            {currentEndpointName}
+          </span>
+        </div>
         {gptImageApiKey && (loading || error || quota) && (
-          <>
-            <span className="mx-1 h-3.5 w-px shrink-0 bg-gray-300" />
+          <div className="truncate">
             {loading ? (
-              <span className="shrink-0">
-                余额：
-                <span className="shrink-0 text-gray-400">查询中...</span>
+              <span>
+                余额：<span className="text-gray-400">查询中...</span>
               </span>
             ) : error ? (
-              <span className="line-clamp-1 max-w-30 shrink-0 text-red-500">
-                余额: {error}
-              </span>
+              <span className="text-red-500">余额: {error}</span>
             ) : quota ? (
-              <span className="shrink-0">
+              <span>
                 余额：
                 <span className="font-semibold text-gray-700">
                   {quota.unlimited_quota
@@ -73,7 +68,7 @@ export function EndpointDisplay() {
                 </span>
               </span>
             ) : null}
-          </>
+          </div>
         )}
       </div>
     </Tooltip>

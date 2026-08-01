@@ -3,8 +3,8 @@ import zhCN from 'antd/locale/zh_CN'
 import { useEffect } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import pkg from '../../package.json'
-import { Header } from './pages/common/Header'
 import { openNotificationModal } from './pages/common/Notification'
+import { Sidebar } from './pages/common/Sidebar'
 import { appRoutes } from './routes'
 import { useGlobalStore } from './store/global'
 
@@ -25,6 +25,9 @@ function App() {
     <ConfigProvider
       locale={zhCN}
       theme={{
+        token: {
+          colorPrimary: '#EC883A',
+        },
         components: {
           Tooltip: {
             maxWidth: 500,
@@ -33,20 +36,22 @@ function App() {
       }}
     >
       <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
-        <Header />
+        <Sidebar />
 
-        {/* Main Content */}
-        <main className="mx-auto max-w-6xl space-y-4 p-3 sm:p-6">
-          <Routes>
-            {appRoutes.map((route) => (
-              <Route
-                key={route.key}
-                path={route.path}
-                element={route.element}
-              />
-            ))}
-          </Routes>
-        </main>
+        {/* Main Content：桌面端为左侧导航栏留出宽度 */}
+        <div className="md:pl-56">
+          <main className="mx-auto max-w-6xl space-y-4 p-3 sm:p-6">
+            <Routes>
+              {appRoutes.map((route) => (
+                <Route
+                  key={route.key}
+                  path={route.path}
+                  element={route.element}
+                />
+              ))}
+            </Routes>
+          </main>
+        </div>
       </div>
     </ConfigProvider>
   )
