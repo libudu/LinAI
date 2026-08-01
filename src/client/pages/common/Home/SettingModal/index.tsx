@@ -1,14 +1,15 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { Form, Radio, Switch, message } from 'antd'
-import { forwardRef, useEffect, useImperativeHandle } from 'react'
-import { useGPTImageQuota } from '../../../hooks/useGPTImageQuota'
-import { useLocalSetting } from '../../../hooks/useLocalSetting'
+import { createRef, forwardRef, useEffect, useImperativeHandle } from 'react'
+import { useGPTImageQuota } from '../../../../hooks/useGPTImageQuota'
+import { useLocalSetting } from '../../../../hooks/useLocalSetting'
+import { openCommonSettingModal } from '../../components/SettingModal'
 
-export interface GPTImageSettingRef {
+interface GPTImageSettingRef {
   save: () => Promise<void>
 }
 
-export const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
+const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
   const [form] = Form.useForm()
   const { gptImageSettings, setGptImageSettings } = useLocalSetting()
   const { isPublic } = useGPTImageQuota()
@@ -140,3 +141,19 @@ export const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
     </div>
   )
 })
+
+// 打开生图设置弹窗（单标签形式，不显示标签页）
+export function openGPTImageSettingModal() {
+  const gptImageRef = createRef<GPTImageSettingRef>()
+  openCommonSettingModal({
+    title: '生图设置',
+    tabs: [
+      {
+        key: 'gpt-image',
+        label: 'GPTImage2 配置',
+        children: <GPTImageSetting ref={gptImageRef} />,
+        onSave: () => gptImageRef.current!.save(),
+      },
+    ],
+  })
+}

@@ -1,12 +1,13 @@
 import { Form, Input, message } from 'antd'
-import { forwardRef, useEffect, useImperativeHandle } from 'react'
-import { useGlobalStore } from '../../../store/global'
+import { createRef, forwardRef, useEffect, useImperativeHandle } from 'react'
+import { useGlobalStore } from '../../../../store/global'
+import { openCommonSettingModal } from '../../../common/components/SettingModal'
 
-export interface TTSSettingRef {
+interface TTSSettingRef {
   save: () => Promise<string | undefined>
 }
 
-export const TTSSetting = forwardRef<TTSSettingRef>((_props, ref) => {
+const TTSSetting = forwardRef<TTSSettingRef>((_props, ref) => {
   const [form] = Form.useForm()
   const { ttsInworldApiKey, setTTSInworldApiKey } = useGlobalStore()
 
@@ -43,3 +44,19 @@ export const TTSSetting = forwardRef<TTSSettingRef>((_props, ref) => {
     </div>
   )
 })
+
+// 打开语音合成设置弹窗（单标签形式，不显示标签页）
+export function openTTSSettingModal() {
+  const ttsRef = createRef<TTSSettingRef>()
+  openCommonSettingModal({
+    title: '语音合成设置',
+    tabs: [
+      {
+        key: 'tts',
+        label: 'TTS 配置',
+        children: <TTSSetting ref={ttsRef} />,
+        onSave: () => ttsRef.current!.save(),
+      },
+    ],
+  })
+}

@@ -8,7 +8,7 @@ import { Button, Empty, Input, Spin, Tag, Tooltip, message } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { TTSCharacter } from '../../../../../../server/module/tts'
 import { useGlobalStore } from '../../../../../store/global'
-import { openSettingModal } from '../../../../common/SettingModal'
+import { openTTSSettingModal } from '../../SettingModal'
 import { useTTSStore } from '../../store'
 import { previewVoice } from '../generate'
 
@@ -79,10 +79,7 @@ export const VoiceList = ({ characters = [] }: VoiceListProps) => {
           description="请先配置 Inworld API Key"
           image={Empty.PRESENTED_IMAGE_SIMPLE}
         >
-          <Button
-            type="primary"
-            onClick={() => openSettingModal({ initialTab: 'tts' })}
-          >
+          <Button type="primary" onClick={() => openTTSSettingModal()}>
             去配置
           </Button>
         </Empty>

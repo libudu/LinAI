@@ -47,7 +47,7 @@ export function NavMenu({
           return (
             <div
               key={route.key}
-              className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+              className={`group flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
                 collapsed ? 'justify-center' : ''
               } ${
                 active
@@ -59,6 +59,19 @@ export function NavMenu({
             >
               <span className="text-base">{route.icon}</span>
               {!collapsed && route.label}
+              {/* 模块设置按钮：桌面端仅 hover 导航项时可见，移动端直接显示 */}
+              {!collapsed && route.settingElement && (
+                <span
+                  className="ml-auto opacity-60 transition-opacity hover:opacity-100 md:invisible md:group-hover:visible"
+                  title="设置"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onNavigate?.()
+                  }}
+                >
+                  {route.settingElement}
+                </span>
+              )}
             </div>
           )
         })}
