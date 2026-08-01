@@ -1,6 +1,8 @@
 // 预设接入点
 // 注意：此文件同时被服务端引用（src/server/common/config），不要引入前端依赖
 
+import { ReactNode } from 'react'
+
 /** size 参数形式：resolution = 具体尺寸（如 1024x1024），level = 档位（1k/2k/4k） */
 export type GptImageSizeFormat = 'resolution' | 'level'
 
@@ -10,7 +12,7 @@ export interface EndpointPreset {
   baseUrl: string
   modelId: string
   /** 补充说明，选中该接入点时展示在界面上 */
-  remark?: string
+  remark?: ReactNode
   /** size 参数形式，缺省为 resolution（具体尺寸） */
   sizeFormat?: GptImageSizeFormat
 }
@@ -31,8 +33,15 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
     label: 'DragonAPI',
     baseUrl: 'https://newapi.dragon3api.com/v1',
     modelId: 'gpt-image-2',
-    sizeFormat: 'level',
-    remark: '无论1k、2k、4k，均固定计费 0.0231r 一张，不支持高画质',
+    remark: (
+      <div>
+        <div>
+          官网：
+          <a href="https://www.dragon3api.com/">https://www.dragon3api.com/</a>
+        </div>
+        <div>无论1k、2k、4k，均固定计费 0.0231r 一张，不支持高画质</div>
+      </div>
+    ),
   },
   {
     label: '云雾 gpt-image-2',

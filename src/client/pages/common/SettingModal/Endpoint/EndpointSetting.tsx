@@ -104,7 +104,10 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
     await setGptImageCustomEndpoints(
       gptImageCustomEndpoints.filter((c) => c.id !== id),
     )
-    if (target.baseUrl === gptImageBaseUrl && target.modelId === gptImageModelId) {
+    if (
+      target.baseUrl === gptImageBaseUrl &&
+      target.modelId === gptImageModelId
+    ) {
       const preset = ENDPOINT_PRESETS[0]
       await setGptImageEndpoint(preset.baseUrl, preset.modelId)
       // 回退到预设接入点时同步切换为其保存的 API Key
@@ -256,7 +259,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
           label="API Key"
           rules={[{ required: true, message: '请输入 API Key' }]}
         >
-          <Input.Password placeholder="输入云雾 API Key" />
+          <Input.Password placeholder="输入 API Key" />
         </Form.Item>
       </Form>
     </div>

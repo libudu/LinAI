@@ -17,12 +17,12 @@ export function GPTImageQuota() {
       ) : error ? (
         <Tooltip title={error}>
           <span className="line-clamp-1 max-w-50 text-red-500">
-            GPT 余额: {error}
+            云雾余额: {error}
           </span>
         </Tooltip>
       ) : quota ? (
         <span>
-          GPT 余额：
+          云雾余额：
           <span className="font-semibold text-slate-800">
             {quota.unlimited_quota
               ? '不限'
