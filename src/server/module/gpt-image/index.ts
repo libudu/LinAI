@@ -9,6 +9,7 @@ import { taskManager } from '../../common/task-manager'
 import { TaskTemplate } from '../../common/template-manager'
 import { logger } from '../utils/logger'
 import { GPT_IMAGE_SOURCE_MODEL, GptImageQuality, GptImageSize } from './enum'
+import { writePngGenerationInfo } from './png-meta'
 
 interface GPTImageResponse {
   created: number
@@ -140,6 +141,16 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
 
   const filenames: string[] = []
 
+  // 写入 PNG 元数据的生成参数（写入失败不影响图片保存）
+  const generationInfo = {
+    baseUrl,
+    model: modelId,
+    prompt,
+    size,
+    quality,
+    generatedAt: new Date().toISOString(),
+  }
+
   if (res.data && res.data.length > 0) {
     for (const item of res.data) {
       let imageBuffer: Buffer | undefined
@@ -157,6 +168,8 @@ async function generateGPTImageNew(options: GenerateGPTImageOptions) {
       }
 
       if (!imageBuffer) continue
+
+      imageBuffer = writePngGenerationInfo(imageBuffer, generationInfo)
 
       const hash = crypto.createHash('md5').update(imageBuffer).digest('hex')
       const filename = `${hash}.png`

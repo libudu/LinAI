@@ -65,7 +65,7 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
     ),
   },
   {
-    label: 'DragonAPI',
+    label: 'DragonAPI gpt-image-2',
     baseUrl: 'https://dragon3api.com/v1',
     modelId: 'gpt-image-2',
     remark: (

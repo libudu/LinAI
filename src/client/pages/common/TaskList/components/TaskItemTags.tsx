@@ -73,7 +73,7 @@ export function TaskItemTags({ task, downloadedIds }: TaskItemTagsProps) {
       ) : (
         <Tag color="geekblue">未下载</Tag>
       )}
-      {isDesktop && renderCost(task)}
+      {/* {isDesktop && renderCost(task)} */}
       {isDesktop && task.duration && (
         <Tag color="lime">
           <ClockCircleOutlined className="mr-1" />
