@@ -52,13 +52,15 @@ function App() {
         >
           <main className="mx-auto max-w-6xl space-y-4 p-3 sm:p-6">
             <Routes>
-              {appRoutes.map((route) => (
-                <Route
-                  key={route.key}
-                  path={route.path}
-                  element={route.element}
-                />
-              ))}
+              {appRoutes
+                .filter((route) => !route.disabled)
+                .map((route) => (
+                  <Route
+                    key={route.key}
+                    path={route.path}
+                    element={route.element}
+                  />
+                ))}
             </Routes>
           </main>
         </div>

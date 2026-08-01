@@ -19,26 +19,49 @@ export function NavMenu({
 
   return (
     <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
-      {appRoutes.map((route) => {
-        const active = location.pathname === route.path
-        return (
-          <div
-            key={route.key}
-            className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
-              collapsed ? 'justify-center' : ''
-            } ${
-              active
-                ? 'bg-[#EC883A] font-medium text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-            }`}
-            onClick={() => go(route.path)}
-            title={collapsed ? route.label : undefined}
-          >
-            <span className="text-base">{route.icon}</span>
-            {!collapsed && route.label}
-          </div>
-        )
-      })}
+      {appRoutes
+        .filter((route) => !route.hidden)
+        .map((route) => {
+          const active = location.pathname === route.path
+          if (route.disabled) {
+            return (
+              <div
+                key={route.key}
+                className={`flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-400 ${
+                  collapsed ? 'justify-center' : ''
+                }`}
+                title={collapsed ? `${route.label}（开发中）` : undefined}
+              >
+                <span className="text-base">{route.icon}</span>
+                {!collapsed && (
+                  <>
+                    {route.label}
+                    <span className="ml-auto rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-400">
+                      开发中
+                    </span>
+                  </>
+                )}
+              </div>
+            )
+          }
+          return (
+            <div
+              key={route.key}
+              className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                collapsed ? 'justify-center' : ''
+              } ${
+                active
+                  ? 'bg-[#EC883A] font-medium text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+              onClick={() => go(route.path)}
+              title={collapsed ? route.label : undefined}
+            >
+              <span className="text-base">{route.icon}</span>
+              {!collapsed && route.label}
+            </div>
+          )
+        })}
     </nav>
   )
 }
