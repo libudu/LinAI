@@ -7,6 +7,7 @@ import { openNotificationModal } from './pages/common/Notification'
 import { Sidebar } from './pages/common/Sidebar'
 import { appRoutes } from './routes'
 import { useGlobalStore } from './store/global'
+import { isAdmin } from './utils/admin'
 
 function App() {
   // 桌面端侧栏收起状态，收起后主内容留出更窄的间距
@@ -53,7 +54,10 @@ function App() {
           <main className="mx-auto max-w-6xl space-y-4 p-3 sm:p-6">
             <Routes>
               {appRoutes
-                .filter((route) => !route.disabled)
+                .filter(
+                  (route) =>
+                    !route.disabled && (!route.adminOnly || isAdmin()),
+                )
                 .map((route) => (
                   <Route
                     key={route.key}

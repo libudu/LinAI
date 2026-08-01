@@ -28,7 +28,7 @@
 
 - `src/client/`：前端
   - `pages/module/`：功能页面（GeminiTTS、MediaClassifier）
-  - `pages/common/`：通用页面组件（Sidebar、Home、SettingModal、TaskList、TemplateSection、Notification）
+  - `pages/common/`：通用页面组件（Sidebar、Home、SettingModal、TaskList、TemplateSection、Notification、YunwuAdmin 云雾用户管理，仅管理员可见）
   - `routes.tsx`：路由注册表，新增页面在此登记
   - `store/global.ts`：zustand 全局状态；`hooks/`、`common/`、`utils/`
 - `src/server/`：后端

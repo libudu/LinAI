@@ -1,6 +1,7 @@
 import {
   AudioOutlined,
   BookOutlined,
+  CloudOutlined,
   FolderOpenOutlined,
   HighlightOutlined,
   PictureOutlined,
@@ -8,6 +9,7 @@ import {
 import type { ReactNode } from 'react'
 import { Home } from './pages/common/Home'
 import { openGPTImageSettingModal } from './pages/common/Home/SettingModal'
+import { YunwuAdmin } from './pages/common/YunwuAdmin'
 import { TTS } from './pages/module/GeminiTTS'
 import { openTTSSettingModal } from './pages/module/GeminiTTS/SettingModal'
 import { MediaClassifier } from './pages/module/MediaClassifier'
@@ -22,6 +24,8 @@ export interface AppRoute {
   onClickSetting?: () => void
   /** 隐藏导航入口但保留路由 */
   hidden?: boolean
+  /** 仅管理员可见（导航入口与路由均不注册） */
+  adminOnly?: boolean
   /** 置灰展示（开发中），不注册路由 */
   disabled?: boolean
 }
@@ -29,7 +33,7 @@ export interface AppRoute {
 export const appRoutes: AppRoute[] = [
   {
     path: '/',
-    label: '生成图片',
+    label: '图片生成',
     element: <Home />,
     key: 'home',
     icon: <PictureOutlined />,
@@ -53,7 +57,7 @@ export const appRoutes: AppRoute[] = [
   },
   {
     path: '/novel',
-    label: '生成小说',
+    label: '小说生成',
     key: 'novel',
     icon: <BookOutlined />,
     disabled: true,
@@ -65,5 +69,13 @@ export const appRoutes: AppRoute[] = [
     key: 'media-classifier',
     icon: <FolderOpenOutlined />,
     hidden: true,
+  },
+  {
+    path: '/yunwu-admin',
+    label: '云雾用户管理',
+    element: <YunwuAdmin />,
+    key: 'yunwu-admin',
+    icon: <CloudOutlined />,
+    adminOnly: true,
   },
 ]

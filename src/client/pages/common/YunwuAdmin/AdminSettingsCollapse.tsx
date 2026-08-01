@@ -1,8 +1,8 @@
-import { Button, Collapse, Input, message, Radio, Tag } from 'antd'
 import { KeyOutlined, LockOutlined } from '@ant-design/icons'
+import { Button, Collapse, Input, message, Radio, Tag } from 'antd'
 import { useState } from 'react'
-import type { ApiKeySearchResult } from './types'
 import { AdminSettingsGroup } from './AdminSettingsGroup'
+import type { ApiKeySearchResult } from './types'
 
 interface Props {
   yunwuSystemToken?: string
@@ -102,7 +102,9 @@ export function AdminSettingsCollapse({
           <Radio.Button value="token">Token</Radio.Button>
         </Radio.Group>
         <Input.Search
-          placeholder={searchMode === 'keyword' ? '输入关键词搜索' : '输入 Token 搜索'}
+          placeholder={
+            searchMode === 'keyword' ? '输入关键词搜索' : '输入 Token 搜索'
+          }
           allowClear
           enterButton="搜索"
           onSearch={handleSearch}
@@ -153,7 +155,8 @@ export function AdminSettingsCollapse({
                     ID: <span className="text-gray-700">{item.id}</span>
                   </div>
                   <div>
-                    分组: <span className="text-gray-700">{item.group || '-'}</span>
+                    分组:{' '}
+                    <span className="text-gray-700">{item.group || '-'}</span>
                   </div>
                   <div>
                     已用配额:{' '}
@@ -262,7 +265,9 @@ export function AdminSettingsCollapse({
         {/* Card header */}
         <div className="flex items-center gap-2 border-b border-gray-100 px-5 py-3">
           <KeyOutlined className="text-base text-gray-400" />
-          <span className="text-sm font-medium text-gray-700">API Key 管理</span>
+          <span className="text-sm font-medium text-gray-700">
+            API Key 管理
+          </span>
         </div>
 
         {/* Collapse panels */}
@@ -273,7 +278,7 @@ export function AdminSettingsCollapse({
             activeKey={collapseKeys}
             onChange={(keys) => setCollapseKeys(keys as string[])}
             items={items}
-            className="[&_.ant-collapse-header]:!px-3 [&_.ant-collapse-content-box]:!px-3"
+            className="[&_.ant-collapse-content-box]:!px-3 [&_.ant-collapse-header]:!px-3"
           />
         </div>
       </div>

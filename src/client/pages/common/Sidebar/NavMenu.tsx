@@ -1,6 +1,7 @@
 import { SettingOutlined } from '@ant-design/icons'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { appRoutes } from '../../../routes'
+import { isAdmin } from '../../../utils/admin'
 
 // 侧边栏导航菜单，当前路由以主题橘色高亮；收起状态下仅显示图标
 export function NavMenu({
@@ -21,7 +22,7 @@ export function NavMenu({
   return (
     <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
       {appRoutes
-        .filter((route) => !route.hidden)
+        .filter((route) => !route.hidden && (!route.adminOnly || isAdmin()))
         .map((route) => {
           const active = location.pathname === route.path
           if (route.disabled) {

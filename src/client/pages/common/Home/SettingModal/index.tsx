@@ -185,7 +185,7 @@ export function openGPTImageSettingModal(options?: {
   ]
 
   openCommonSettingModal({
-    title: '生图设置',
+    title: '图片生成设置',
     tabs,
     initialTab: options?.initialTab,
     okText: options?.onSuccess ? '保存并继续' : '保存',
