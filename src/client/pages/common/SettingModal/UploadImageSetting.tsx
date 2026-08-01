@@ -62,6 +62,21 @@ export const UploadImageSetting = forwardRef((_props, _ref) => {
             <span>删除任务时不删除图片</span>
           </div>
         </div>
+        <div>
+          <div className="mb-3 text-sm text-gray-500">任务列表</div>
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={gptImageSettings.showImageSizeInTaskList}
+              onChange={(checked) =>
+                setGptImageSettings((prev) => ({
+                  ...prev,
+                  showImageSizeInTaskList: checked,
+                }))
+              }
+            />
+            <span>显示图片尺寸</span>
+          </div>
+        </div>
       </div>
     </div>
   )

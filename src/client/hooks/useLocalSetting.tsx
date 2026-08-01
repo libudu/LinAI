@@ -10,6 +10,8 @@ export interface GPTImageSettings {
   quality: GptImageQuality
   enableMultiple?: boolean
   keepImageWhenDeleteTask?: boolean
+  /** 任务列表图片左上角显示真实尺寸 */
+  showImageSizeInTaskList?: boolean
 }
 
 export const defaultGPTImageSettings: GPTImageSettings = {
@@ -19,6 +21,7 @@ export const defaultGPTImageSettings: GPTImageSettings = {
   quality: 'medium',
   enableMultiple: false,
   keepImageWhenDeleteTask: false,
+  showImageSizeInTaskList: true,
 }
 
 export interface LocalSettingState {
