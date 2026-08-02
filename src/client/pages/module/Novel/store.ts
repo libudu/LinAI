@@ -2,21 +2,15 @@ import { message } from 'antd'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import * as api from './api'
-import { clearRefContentCache } from './service/context'
 import { REF_MAX_CHARS, REF_TOTAL_MAX_CHARS } from './service/constants'
 import { runGeneration, type GenerateRequest } from './service/generate'
-import type {
-  Novel,
-  NovelChapter,
-  NovelIndexItem,
-  StreamingState,
-} from './types'
-import { kindToTarget } from './types'
+import type { Novel, NovelIndexItem, StreamingState } from './types'
+import { kindToTarget, textsByType } from './types'
 
 // 当前生成任务的中断控制器（单页单任务，由 streaming 状态保证互斥）
 let generationController: AbortController | null = null
 
-// 上下文选择抽屉的打开意图（正文入口的默认勾选从 outlineContext 快照还原，由抽屉组件计算）
+// 上下文选择抽屉的打开意图（正文入口的默认勾选从大纲文本的 sourceIds 还原，由抽屉组件计算）
 export interface DrawerRequest {
   kind: 'setting' | 'outline' | 'content'
   chapterId?: string
@@ -30,11 +24,11 @@ interface NovelStore {
   loadingNovels: boolean
   loadingNovel: boolean
 
-  // 卡片折叠态（key：outline:<cid> / content:<cid> / setting:<sid>），跨会话持久化
+  // 卡片折叠态（key：outline:<cid> / content:<cid> / setting:<textId>），跨会话持久化
   collapsed: Record<string, boolean>
   toggleCollapsed: (key: string) => void
 
-  // 流式生成状态（见 implementation-plan.md 7.4）
+  // 流式生成状态
   streaming: StreamingState | null
   /** 上下文抽屉 */
   drawer: DrawerRequest | null
@@ -52,29 +46,19 @@ interface NovelStore {
     patch: { title?: string; recentFullChapters?: number },
   ) => Promise<boolean>
 
-  // 参考文
+  // 统一文本操作（参考文/设定/大纲/正文/摘要）
   uploadRef: (title: string, content: string) => Promise<boolean>
-  removeRef: (refId: string) => Promise<boolean>
-  fetchRefContent: (refId: string) => Promise<string | null>
-
-  // 核心设定
-  createSetting: (title: string, content: string) => Promise<boolean>
-  editSetting: (
-    sid: string,
+  createText: (
+    payload: Parameters<typeof api.createText>[1],
+  ) => Promise<string | null>
+  updateText: (
+    textId: string,
     patch: { title?: string; content?: string },
   ) => Promise<boolean>
-  removeSetting: (sid: string) => Promise<boolean>
+  deleteText: (textId: string) => Promise<boolean>
 
   // 章节
-  editChapter: (
-    cid: string,
-    patch: {
-      title?: string
-      outline?: NovelChapter['outline']
-      content?: string
-      summary?: string
-    },
-  ) => Promise<boolean>
+  editChapterTitle: (cid: string, title: string) => Promise<boolean>
   removeChapter: (cid: string) => Promise<boolean>
 
   // 生成闭环：置 streaming → delta 逐段 append → done/断线清 streaming 并重新拉取书籍
@@ -176,6 +160,7 @@ export const useNovelStore = create<NovelStore>()(
         }
       },
 
+      // 上传参考文：前端截取超限部分并校验全书总量，落盘为 type='ref' 的 NovelText
       uploadRef: async (title, content) => {
         const novel = get().currentNovel
         if (!novel) return false
@@ -184,8 +169,8 @@ export const useNovelStore = create<NovelStore>()(
           content.length > REF_MAX_CHARS
             ? content.slice(-REF_MAX_CHARS)
             : content
-        const currentTotal = novel.refs.reduce(
-          (sum, r) => sum + r.storedLength,
+        const currentTotal = textsByType(novel, 'ref').reduce(
+          (sum, r) => sum + r.content.length,
           0,
         )
         if (currentTotal + stored.length > REF_TOTAL_MAX_CHARS) {
@@ -194,79 +179,44 @@ export const useNovelStore = create<NovelStore>()(
           )
           return false
         }
-        try {
-          const ref = await api.addRef(novel.id, title, stored, content.length)
-          clearRefContentCache()
-          set({ currentNovel: { ...novel, refs: [...novel.refs, ref] } })
+        const textId = await get().createText({
+          type: 'ref',
+          title,
+          content: stored,
+          originalLength: content.length,
+        })
+        if (textId) {
           message.success(
-            ref.truncated
-              ? `已上传（超长已截断：原 ${ref.originalLength.toLocaleString()} 字 → 取末尾 ${ref.storedLength.toLocaleString()} 字）`
+            stored.length < content.length
+              ? `已上传（超长已截断：原 ${content.length.toLocaleString()} 字 → 取末尾 ${stored.length.toLocaleString()} 字）`
               : '已上传',
           )
-          return true
-        } catch (error: any) {
-          message.error(error.message || '上传失败')
-          return false
         }
+        return !!textId
       },
 
-      removeRef: async (refId) => {
-        const novel = get().currentNovel
-        if (!novel) return false
-        try {
-          await api.deleteRef(novel.id, refId)
-          clearRefContentCache()
-          set({
-            currentNovel: {
-              ...novel,
-              refs: novel.refs.filter((r) => r.id !== refId),
-            },
-          })
-          message.success('已删除')
-          return true
-        } catch (error: any) {
-          message.error(error.message || '删除失败')
-          return false
-        }
-      },
-
-      fetchRefContent: async (refId) => {
+      createText: async (payload) => {
         const novel = get().currentNovel
         if (!novel) return null
         try {
-          const { content } = await api.getRefContent(novel.id, refId)
-          return content
+          const text = await api.createText(novel.id, payload)
+          set({ currentNovel: { ...novel, texts: [...novel.texts, text] } })
+          return text.id
         } catch (error: any) {
-          message.error(error.message || '获取参考文内容失败')
+          message.error(error.message || '保存失败')
           return null
         }
       },
 
-      createSetting: async (title, content) => {
+      updateText: async (textId, patch) => {
         const novel = get().currentNovel
         if (!novel) return false
         try {
-          const setting = await api.addSetting(novel.id, title, content)
-          set({
-            currentNovel: { ...novel, settings: [...novel.settings, setting] },
-          })
-          message.success('已新增')
-          return true
-        } catch (error: any) {
-          message.error(error.message || '新增失败')
-          return false
-        }
-      },
-
-      editSetting: async (sid, patch) => {
-        const novel = get().currentNovel
-        if (!novel) return false
-        try {
-          const setting = await api.updateSetting(novel.id, sid, patch)
+          const text = await api.updateText(novel.id, textId, patch)
           set({
             currentNovel: {
               ...novel,
-              settings: novel.settings.map((s) => (s.id === sid ? setting : s)),
+              texts: novel.texts.map((t) => (t.id === textId ? text : t)),
             },
           })
           return true
@@ -276,15 +226,15 @@ export const useNovelStore = create<NovelStore>()(
         }
       },
 
-      removeSetting: async (sid) => {
+      deleteText: async (textId) => {
         const novel = get().currentNovel
         if (!novel) return false
         try {
-          await api.deleteSetting(novel.id, sid)
+          await api.deleteText(novel.id, textId)
           set({
             currentNovel: {
               ...novel,
-              settings: novel.settings.filter((s) => s.id !== sid),
+              texts: novel.texts.filter((t) => t.id !== textId),
             },
           })
           message.success('已删除')
@@ -295,11 +245,11 @@ export const useNovelStore = create<NovelStore>()(
         }
       },
 
-      editChapter: async (cid, patch) => {
+      editChapterTitle: async (cid, title) => {
         const novel = get().currentNovel
         if (!novel) return false
         try {
-          const chapter = await api.updateChapter(novel.id, cid, patch)
+          const chapter = await api.updateChapter(novel.id, cid, title)
           set({
             currentNovel: {
               ...novel,

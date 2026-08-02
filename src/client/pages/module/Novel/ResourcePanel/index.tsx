@@ -13,7 +13,6 @@ import {
   Popconfirm,
   Progress,
   Select,
-  Spin,
   Tooltip,
   Upload,
   message,
@@ -21,7 +20,8 @@ import {
 import { useEffect, useState } from 'react'
 import { REF_MAX_CHARS, REF_TOTAL_MAX_CHARS } from '../service/constants'
 import { useNovelStore } from '../store'
-import type { NovelRef, NovelSetting } from '../types'
+import type { NovelText } from '../types'
+import { textsByType } from '../types'
 
 // 新建书籍弹窗
 const CreateNovelModal = ({
@@ -155,57 +155,37 @@ const RefUploadModal = ({
   )
 }
 
-// 参考文查看弹窗（参考文不支持编辑，仅查看/删除）
+// 参考文查看弹窗（参考文不支持编辑，仅查看/删除；内容已内联在文本里）
 const RefViewModal = ({
   refItem,
   onClose,
 }: {
-  refItem: NovelRef | null
+  refItem: NovelText | null
   onClose: () => void
-}) => {
-  const fetchRefContent = useNovelStore((s) => s.fetchRefContent)
-  const [content, setContent] = useState<string | null>(null)
-
-  useEffect(() => {
-    setContent(null)
-    if (refItem) {
-      fetchRefContent(refItem.id).then((c) =>
-        setContent(c ?? '（内容加载失败）'),
-      )
-    }
-  }, [refItem, fetchRefContent])
-
-  return (
-    <Modal
-      title={refItem?.title}
-      open={!!refItem}
-      onCancel={onClose}
-      footer={null}
-      width={720}
-    >
-      {content === null ? (
-        <div className="py-8 text-center">
-          <Spin />
-        </div>
-      ) : (
-        <div className="max-h-[60vh] overflow-y-auto text-sm break-words whitespace-pre-wrap">
-          {content}
-        </div>
-      )}
-    </Modal>
-  )
-}
+}) => (
+  <Modal
+    title={refItem?.title}
+    open={!!refItem}
+    onCancel={onClose}
+    footer={null}
+    width={720}
+  >
+    <div className="max-h-[60vh] overflow-y-auto text-sm break-words whitespace-pre-wrap">
+      {refItem?.content}
+    </div>
+  </Modal>
+)
 
 // 核心设定 新增/编辑弹窗
 const SettingEditModal = ({
   editing,
   onClose,
 }: {
-  editing: NovelSetting | 'new' | null
+  editing: NovelText | 'new' | null
   onClose: () => void
 }) => {
-  const createSetting = useNovelStore((s) => s.createSetting)
-  const editSetting = useNovelStore((s) => s.editSetting)
+  const createText = useNovelStore((s) => s.createText)
+  const updateText = useNovelStore((s) => s.updateText)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
@@ -228,9 +208,13 @@ const SettingEditModal = ({
     setSaving(true)
     const ok =
       editing === 'new'
-        ? await createSetting(title.trim(), content)
+        ? !!(await createText({
+            type: 'setting',
+            title: title.trim(),
+            content,
+          }))
         : editing
-          ? await editSetting(editing.id, { title: title.trim(), content })
+          ? await updateText(editing.id, { title: title.trim(), content })
           : false
     setSaving(false)
     if (ok) onClose()
@@ -286,8 +270,7 @@ export const ResourcePanel = () => {
     loadingNovels,
     selectNovel,
     removeNovel,
-    removeRef,
-    removeSetting,
+    deleteText,
     openDrawer,
     streaming,
     abortGeneration,
@@ -295,14 +278,14 @@ export const ResourcePanel = () => {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [refUploadOpen, setRefUploadOpen] = useState(false)
-  const [viewRef, setViewRef] = useState<NovelRef | null>(null)
-  const [editingSetting, setEditingSetting] = useState<
-    NovelSetting | 'new' | null
-  >(null)
+  const [viewRef, setViewRef] = useState<NovelText | null>(null)
+  const [editingSetting, setEditingSetting] = useState<NovelText | 'new' | null>(
+    null,
+  )
 
-  const refs = currentNovel?.refs ?? []
-  const settings = currentNovel?.settings ?? []
-  const totalRefChars = refs.reduce((sum, r) => sum + r.storedLength, 0)
+  const refs = currentNovel ? textsByType(currentNovel, 'ref') : []
+  const settings = currentNovel ? textsByType(currentNovel, 'setting') : []
+  const totalRefChars = refs.reduce((sum, r) => sum + r.content.length, 0)
 
   return (
     <div className="space-y-4">
@@ -396,7 +379,7 @@ export const ResourcePanel = () => {
                       </Tooltip>
                       <Popconfirm
                         title="删除该参考文？"
-                        onConfirm={() => removeRef(ref.id)}
+                        onConfirm={() => deleteText(ref.id)}
                       >
                         <Button
                           size="small"
@@ -408,13 +391,14 @@ export const ResourcePanel = () => {
                     </div>
                   </div>
                   <div className="mt-0.5 text-xs text-slate-400">
-                    {ref.storedLength.toLocaleString()} 字
-                    {ref.truncated && (
-                      <span className="ml-1 text-amber-500">
-                        已截断：原 {ref.originalLength.toLocaleString()} 字 →
-                        取末尾 {ref.storedLength.toLocaleString()} 字
-                      </span>
-                    )}
+                    {ref.content.length.toLocaleString()} 字
+                    {ref.originalLength !== undefined &&
+                      ref.originalLength > ref.content.length && (
+                        <span className="ml-1 text-amber-500">
+                          已截断：原 {ref.originalLength.toLocaleString()} 字 →
+                          取末尾 {ref.content.length.toLocaleString()} 字
+                        </span>
+                      )}
                   </div>
                 </div>
               ))}
@@ -485,7 +469,7 @@ export const ResourcePanel = () => {
                     </span>
                     <Popconfirm
                       title="删除该设定？"
-                      onConfirm={() => removeSetting(setting.id)}
+                      onConfirm={() => deleteText(setting.id)}
                     >
                       <Button
                         size="small"

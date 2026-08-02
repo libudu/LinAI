@@ -5,12 +5,12 @@ import type {
   Novel,
   NovelChapter,
   NovelIndexItem,
-  NovelRef,
-  NovelSetting,
+  NovelText,
+  NovelTextType,
 } from './types'
 
-// data/novels/ 布局：index.json + <novelId>/novel.json + <novelId>/refs/<refId>.txt
-// 写入策略与 template-manager 一致：变更即整体写回 novel.json；参考文内容单独存 .txt
+// data/novels/ 布局：index.json + <novelId>/novel.json（全部文本内联，单文件）
+// 写入策略与 template-manager 一致：变更即整体写回 novel.json
 class NovelStore {
   private novelsDir = path.join(process.cwd(), 'data', 'novels')
   private indexFile = path.join(this.novelsDir, 'index.json')
@@ -30,10 +30,6 @@ class NovelStore {
 
   private novelFile(id: string) {
     return path.join(this.novelDir(id), 'novel.json')
-  }
-
-  private refsDir(id: string) {
-    return path.join(this.novelDir(id), 'refs')
   }
 
   private async readIndex(): Promise<NovelIndexItem[]> {
@@ -87,14 +83,13 @@ class NovelStore {
     const novel: Novel = {
       id: uuidv4(),
       title,
-      refs: [],
-      settings: [],
       chapters: [],
+      texts: [],
       recentFullChapters,
       createdAt: now,
       updatedAt: now,
     }
-    await fs.ensureDir(this.refsDir(novel.id))
+    await fs.ensureDir(this.novelDir(novel.id))
     await this.writeNovel(novel)
     return novel
   }
@@ -137,102 +132,71 @@ class NovelStore {
     return true
   }
 
-  // 上传参考文：截断与总量校验已前移到前端，服务端只按收到的内容落盘并记录元数据
-  async addRef(
+  // ---------- 统一文本 CRUD ----------
+
+  async createText(
     id: string,
-    title: string,
-    content: string,
-    originalLength?: number,
-  ): Promise<NovelRef | null> {
+    input: {
+      type: NovelTextType
+      chapterId?: string
+      title?: string
+      content: string
+      sourceIds?: string[]
+      estimatedTokens?: number
+      originalLength?: number
+    },
+  ): Promise<NovelText | null> {
     const novel = await this.getNovel(id)
     if (!novel) return null
-    const ref: NovelRef = {
+    const now = Date.now()
+    const text: NovelText = {
       id: uuidv4(),
-      title,
-      fileName: '',
-      originalLength: originalLength ?? content.length,
-      storedLength: content.length,
-      truncated: (originalLength ?? content.length) > content.length,
-      createdAt: Date.now(),
+      type: input.type,
+      title: input.title ?? '',
+      content: input.content,
+      sourceIds: input.sourceIds ?? [],
+      createdAt: now,
+      updatedAt: now,
     }
-    ref.fileName = `${ref.id}.txt`
-    await fs.ensureDir(this.refsDir(id))
-    await fs.writeFile(
-      path.join(this.refsDir(id), ref.fileName),
-      content,
-      'utf-8',
-    )
-    novel.refs.push(ref)
+    if (input.chapterId) text.chapterId = input.chapterId
+    if (input.estimatedTokens !== undefined) {
+      text.estimatedTokens = input.estimatedTokens
+    }
+    if (input.originalLength !== undefined) {
+      text.originalLength = input.originalLength
+    }
+    novel.texts.push(text)
     await this.writeNovel(novel)
-    return ref
+    return text
   }
 
-  async deleteRef(id: string, refId: string): Promise<boolean> {
+  async updateText(
+    id: string,
+    textId: string,
+    updates: { title?: string; content?: string; sourceIds?: string[] },
+  ): Promise<NovelText | null> {
+    const novel = await this.getNovel(id)
+    if (!novel) return null
+    const text = novel.texts.find((t) => t.id === textId)
+    if (!text) return null
+    if (updates.title !== undefined) text.title = updates.title
+    if (updates.content !== undefined) text.content = updates.content
+    if (updates.sourceIds !== undefined) text.sourceIds = updates.sourceIds
+    text.updatedAt = Date.now()
+    await this.writeNovel(novel)
+    return text
+  }
+
+  async deleteText(id: string, textId: string): Promise<boolean> {
     const novel = await this.getNovel(id)
     if (!novel) return false
-    const ref = novel.refs.find((r) => r.id === refId)
-    if (!ref) return false
-    novel.refs = novel.refs.filter((r) => r.id !== refId)
-    await fs.remove(path.join(this.refsDir(id), ref.fileName))
+    if (!novel.texts.some((t) => t.id === textId)) return false
+    novel.texts = novel.texts.filter((t) => t.id !== textId)
     await this.writeNovel(novel)
     return true
   }
 
-  async getRefContent(id: string, refId: string): Promise<string | null> {
-    const novel = await this.getNovel(id)
-    const ref = novel?.refs.find((r) => r.id === refId)
-    if (!ref) return null
-    try {
-      return await fs.readFile(
-        path.join(this.refsDir(id), ref.fileName),
-        'utf-8',
-      )
-    } catch {
-      return null
-    }
-  }
-
-  async addSetting(
-    id: string,
-    title: string,
-    content: string,
-  ): Promise<NovelSetting | null> {
-    const novel = await this.getNovel(id)
-    if (!novel) return null
-    const setting: NovelSetting = {
-      id: uuidv4(),
-      title,
-      content,
-      createdAt: Date.now(),
-    }
-    novel.settings.push(setting)
-    await this.writeNovel(novel)
-    return setting
-  }
-
-  async updateSetting(
-    id: string,
-    sid: string,
-    updates: { title?: string; content?: string },
-  ): Promise<NovelSetting | null> {
-    const novel = await this.getNovel(id)
-    if (!novel) return null
-    const setting = novel.settings.find((s) => s.id === sid)
-    if (!setting) return null
-    if (updates.title !== undefined) setting.title = updates.title
-    if (updates.content !== undefined) setting.content = updates.content
-    await this.writeNovel(novel)
-    return setting
-  }
-
-  async deleteSetting(id: string, sid: string): Promise<boolean> {
-    const novel = await this.getNovel(id)
-    if (!novel) return false
-    if (!novel.settings.some((s) => s.id === sid)) return false
-    novel.settings = novel.settings.filter((s) => s.id !== sid)
-    await this.writeNovel(novel)
-    return true
-  }
+  // ---------- 章节（轻量分组容器） ----------
 
   // 新增空白章节（生成下一章大纲前创建）
   async addChapter(id: string): Promise<NovelChapter | null> {
@@ -241,16 +205,7 @@ class NovelStore {
     const now = Date.now()
     const chapter: NovelChapter = {
       id: uuidv4(),
-      index: novel.chapters.length
-        ? Math.max(...novel.chapters.map((c) => c.index)) + 1
-        : 1,
       title: '',
-      outline: null,
-      outlineContext: null,
-      content: '',
-      contentContext: null,
-      summary: '',
-      status: 'outlining',
       createdAt: now,
       updatedAt: now,
     }
@@ -262,40 +217,25 @@ class NovelStore {
   async updateChapter(
     id: string,
     cid: string,
-    updates: Partial<
-      Pick<
-        NovelChapter,
-        | 'title'
-        | 'outline'
-        | 'outlineContext'
-        | 'content'
-        | 'contentContext'
-        | 'summary'
-        | 'status'
-      >
-    >,
+    updates: { title?: string },
   ): Promise<NovelChapter | null> {
     const novel = await this.getNovel(id)
     if (!novel) return null
     const chapter = novel.chapters.find((c) => c.id === cid)
     if (!chapter) return null
-    Object.assign(chapter, updates)
+    if (updates.title !== undefined) chapter.title = updates.title
     chapter.updatedAt = Date.now()
     await this.writeNovel(novel)
     return chapter
   }
 
-  // 仅允许删除最后一章，避免序号空洞
+  // 删章节并级联删除其归属文本（「仅可删最后一章」的规则由前端控制）
   async deleteChapter(id: string, cid: string): Promise<boolean> {
     const novel = await this.getNovel(id)
     if (!novel) return false
-    const chapter = novel.chapters.find((c) => c.id === cid)
-    if (!chapter) return false
-    const maxIndex = Math.max(...novel.chapters.map((c) => c.index))
-    if (chapter.index !== maxIndex) {
-      throw new Error('[小说] 仅支持删除最后一章')
-    }
+    if (!novel.chapters.some((c) => c.id === cid)) return false
     novel.chapters = novel.chapters.filter((c) => c.id !== cid)
+    novel.texts = novel.texts.filter((t) => t.chapterId !== cid)
     await this.writeNovel(novel)
     return true
   }

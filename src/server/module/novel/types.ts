@@ -1,61 +1,31 @@
-// 小说生成模块数据类型（见 docs/novel/implementation-plan.md 2.2）
+// 小说生成模块数据类型
 // 前端从本文件导入复用（src/client/pages/module/Novel/types.ts re-export）
+//
+// 核心抽象：参考文 / 核心设定 / 章节大纲 / 正文 / 章节摘要 统一为 NovelText，
+// 仅靠 type 区分；后端只提供统一的文本 CRUD，业务编排全部在前端 service/ 完成
 
-// 参考文元数据（内容存 refs/<id>.txt）
-export interface NovelRef {
-  id: string
-  title: string
-  fileName: string // refs/ 下的文件名
-  originalLength: number // 上传时的原始字符数
-  storedLength: number // 截断后实际存储的字符数
-  truncated: boolean // originalLength > storedLength，UI 据此显示截断提示
-  createdAt: number
-}
+export type NovelTextType = 'ref' | 'setting' | 'outline' | 'content' | 'summary'
 
-// 核心设定卡片
-export interface NovelSetting {
+// 一段有效文本（内容统一内联存储在 novel.json）
+export interface NovelText {
   id: string
-  title: string // 如「世界观」「角色：xx」，用户可改
+  type: NovelTextType
+  chapterId?: string // outline/content/summary 归属的章节；ref/setting 无
+  title: string // ref/setting 的标题；outline/content/summary 一般为空
   content: string
+  // 生成该文本时引用的 NovelText id 列表（生成溯源快照；手动创建为 []）。
+  // 引用的文本被删除后 id 仍保留，前端查不到即展示删除线（已删除）
+  sourceIds: string[]
+  estimatedTokens?: number // 生成时的上下文估算值，仅记录
+  originalLength?: number // 仅 ref：截断前原始字符数（> content.length 即已截断）
   createdAt: number
+  updatedAt: number
 }
 
-// 章节大纲（结构化但字段都可为空）
-export interface NovelOutline {
-  beats: string[] // 有序节拍列表，每条一句话，用户可增删改调序
-  tone?: string // 本章目标/基调
-  taboos?: string // 禁止事项（负面约束）
-}
-
-// 生成某章时实际使用的上下文快照（用于「继承勾选」和溯源展示）
-export interface ContextSnapshot {
-  refIds: string[]
-  settingIds: string[]
-  fullChapterIds: string[] // 以全文形式携带的章节
-  summaryChapterIds: string[] // 以摘要形式携带的章节
-  estimatedTokens: number // 生成时的估算值，仅记录
-}
-
-// 上下文勾选（快照去掉估算值），生成请求与估算接口的入参
-export type ContextSelection = Omit<ContextSnapshot, 'estimatedTokens'>
-
-export type NovelChapterStatus =
-  | 'outlining'
-  | 'outlined'
-  | 'writing'
-  | 'written'
-  | 'summarized'
-
+// 轻量章节容器：仅作大纲/正文/摘要的分组，无序号，按 createdAt 排序即先后关系
 export interface NovelChapter {
   id: string
-  index: number // 第几章，从 1 开始
   title: string // 可空，用户可命名
-  outline: NovelOutline | null
-  outlineContext: ContextSnapshot | null // 生成大纲时的勾选快照
-  content: string // 正文，空串表示未生成
-  contentContext: ContextSnapshot | null
-  summary: string // 章节摘要，正文确认后自动生成，用户可改
-  status: NovelChapterStatus
   createdAt: number
   updatedAt: number
 }
@@ -63,12 +33,18 @@ export interface NovelChapter {
 export interface Novel {
   id: string
   title: string
-  refs: NovelRef[]
-  settings: NovelSetting[]
-  chapters: NovelChapter[]
+  chapters: NovelChapter[] // 按 createdAt 排序即章节顺序
+  texts: NovelText[]
   recentFullChapters: number // N：默认携带最近几章全文，默认 3
   createdAt: number
   updatedAt: number
+}
+
+// 上下文勾选：生成请求与估算接口的入参，与生成的文本落盘的 sourceIds 同构。
+// 全文/摘要的携带方式由 id 天然编码：勾选「全文」即引用该章 content 文本 id，
+// 勾选「摘要」即引用该章 summary 文本 id
+export interface ContextSelection {
+  textIds: string[]
 }
 
 // data/novels/index.json 中的书籍索引项
@@ -80,7 +56,7 @@ export interface NovelIndexItem {
   chapterCount: number
 }
 
-// 生成任务类型（见 docs/novel/implementation-plan.md 3.3）
+// 生成任务类型
 export const GENERATE_KINDS = [
   'setting',
   'outline',

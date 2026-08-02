@@ -1,18 +1,12 @@
-// 小说生成编排：kind 前置校验 → 上下文组装 → 流式生成 → 大纲解析/修复 → 结果落盘 → 自动摘要
-// （原服务端 api/novel.ts /generate 的逻辑整体前移至此，后端只保留 CRUD 与 /llm 代理）
+// 小说生成编排：kind 前置校验 → 上下文组装 → 流式生成 → 结果落盘（统一文本接口）→ 自动摘要
+// 后端只提供统一文本 CRUD 与 /llm 代理，业务编排全部在此
 import * as api from '../api'
-import type {
-  ChatMessage,
-  ContextSelection,
-  ContextSnapshot,
-  Novel,
-  NovelChapter,
-  NovelOutline,
-} from '../types'
+import type { ContextSelection, Novel, NovelChapter } from '../types'
+import { findChapterText, textsByType } from '../types'
 import { TEMPERATURES } from './constants'
 import { buildMessages } from './context'
 import { GenerationError, chatOnce, chatStream } from './llm'
-import { buildOutlineRepairMessages, parseOutline } from './prompts'
+import { buildSummaryMessages } from './prompts'
 
 // 生成请求体（kind 决定必填字段）
 export type GenerateRequest =
@@ -69,8 +63,6 @@ export interface GenerateDoneData {
   chapterId?: string
   usage?: unknown
   aborted: boolean
-  settingId?: string
-  summary?: string
   summaryError?: string
 }
 
@@ -84,18 +76,15 @@ interface PersistParams {
   novel: Novel
   chapter?: NovelChapter
   text: string
-  snapshot: ContextSnapshot
-  /** false 表示中途出错或被 abort：仅保存可保留的部分，不推进章节状态 */
+  /** 生成时实际使用的勾选（落盘为新文本的 sourceIds） */
+  selection: ContextSelection
+  estimatedTokens: number
+  /** false 表示中途出错或被 abort：仅保存可保留的部分 */
   final: boolean
-  /** outline 类 kind 已解析好的大纲（仅 final 时才解析） */
-  outline?: NovelOutline
   range?: { start: number; end: number }
 }
 
 interface PersistResult {
-  chapterId?: string
-  settingId?: string
-  summary?: string
   summaryError?: string
 }
 
@@ -114,44 +103,56 @@ const deriveSettingTitle = (text: string, count: number): string => {
   return cleaned || `设定 ${count + 1}`
 }
 
-// 生成结果落盘：按 kind 写入设定卡 / 章节大纲 / 章节正文 / 摘要
+// 生成结果落盘：按 kind 写入设定 / 大纲 / 正文 / 摘要文本（统一 texts 接口）
 const persistGeneration = async (
   params: PersistParams,
 ): Promise<PersistResult> => {
-  const { kind, novel, chapter, text, snapshot, final } = params
-  const result: PersistResult = { chapterId: chapter?.id }
+  const { kind, novel, chapter, text, selection, final } = params
+  const result: PersistResult = {}
   if (!text.trim()) return result
 
   if (kind === 'setting') {
-    const setting = await api.addSetting(
-      novel.id,
-      deriveSettingTitle(text, novel.settings.length),
-      text,
-    )
-    result.settingId = setting?.id
+    await api.createText(novel.id, {
+      type: 'setting',
+      title: deriveSettingTitle(text, textsByType(novel, 'setting').length),
+      content: text,
+      sourceIds: selection.textIds,
+      estimatedTokens: params.estimatedTokens,
+    })
     return result
   }
   if (!chapter) return result
 
   if (kind === 'outline' || kind === 'revise-outline') {
-    // revise-outline 的部分结果不覆盖原大纲；outline 兜底把原文存入 beats 供手动修改
+    // revise-outline 的部分结果不覆盖原大纲；outline 中断保留部分结果
     if (!final && kind === 'revise-outline') return result
-    const outline = params.outline ?? { beats: [text] }
-    await api.updateChapter(novel.id, chapter.id, {
-      outline,
-      ...(kind === 'outline' ? { outlineContext: snapshot } : {}),
-      status: final ? 'outlined' : 'outlining',
-    })
+    const existing = findChapterText(novel, chapter.id, 'outline')
+    if (existing) {
+      await api.updateText(novel.id, existing.id, { content: text })
+    } else {
+      await api.createText(novel.id, {
+        type: 'outline',
+        chapterId: chapter.id,
+        content: text,
+        sourceIds: selection.textIds,
+        estimatedTokens: params.estimatedTokens,
+      })
+    }
     return result
   }
 
   if (kind === 'summary') {
     if (final) {
-      await api.updateChapter(novel.id, chapter.id, {
-        summary: text.trim(),
-        status: 'summarized',
-      })
-      result.summary = text.trim()
+      const existing = findChapterText(novel, chapter.id, 'summary')
+      if (existing) {
+        await api.updateText(novel.id, existing.id, { content: text.trim() })
+      } else {
+        await api.createText(novel.id, {
+          type: 'summary',
+          chapterId: chapter.id,
+          content: text.trim(),
+        })
+      }
     }
     return result
   }
@@ -161,39 +162,61 @@ const persistGeneration = async (
     return result
   }
 
+  const existing = findChapterText(novel, chapter.id, 'content')
   let content = text
   if (kind === 'continue-content') {
-    content = (chapter.content || '') + text
+    content = (existing?.content || '') + text
   } else if (kind === 'rewrite-selection' && params.range) {
     content =
-      chapter.content.slice(0, params.range.start) +
+      (existing?.content || '').slice(0, params.range.start) +
       text +
-      chapter.content.slice(params.range.end)
+      (existing?.content || '').slice(params.range.end)
   }
-  await api.updateChapter(novel.id, chapter.id, {
-    content,
-    ...(kind === 'content' ? { contentContext: snapshot } : {}),
-    status: final ? 'written' : 'writing',
-  })
 
-  // 正文正常完成后自动生成章节摘要；失败不阻塞流程，章节停在 written，前端可重试
+  // 正文溯源快照 = 本章大纲文本 + 实际勾选
+  const outlineId = findChapterText(novel, chapter.id, 'outline')?.id
+  const sourceIds = [...(outlineId ? [outlineId] : []), ...selection.textIds]
+
+  let contentTextId: string
+  if (existing) {
+    // 仅「生成正文」覆盖溯源快照；续写/微调/重写保留原快照
+    const updated = await api.updateText(novel.id, existing.id, {
+      content,
+      ...(kind === 'content' ? { sourceIds } : {}),
+    })
+    contentTextId = updated.id
+  } else {
+    const created = await api.createText(novel.id, {
+      type: 'content',
+      chapterId: chapter.id,
+      content,
+      sourceIds,
+      estimatedTokens: params.estimatedTokens,
+    })
+    contentTextId = created.id
+  }
+
+  // 正文正常完成后自动生成章节摘要；失败不阻塞流程，前端可手动重试
   if (final) {
     try {
-      const { messages } = await buildMessages({
-        novel,
-        kind: 'summary',
-        chapter: { ...chapter, content },
-      })
       const summary = await chatOnce({
-        messages,
+        messages: buildSummaryMessages(content),
         temperature: TEMPERATURES.summary,
       })
       if (summary.trim()) {
-        await api.updateChapter(novel.id, chapter.id, {
-          summary: summary.trim(),
-          status: 'summarized',
-        })
-        result.summary = summary.trim()
+        const existingSummary = findChapterText(novel, chapter.id, 'summary')
+        if (existingSummary) {
+          await api.updateText(novel.id, existingSummary.id, {
+            content: summary.trim(),
+          })
+        } else {
+          await api.createText(novel.id, {
+            type: 'summary',
+            chapterId: chapter.id,
+            content: summary.trim(),
+            sourceIds: [contentTextId],
+          })
+        }
       }
     } catch (error: any) {
       console.error('[小说] 自动生成摘要失败:', error)
@@ -201,27 +224,6 @@ const persistGeneration = async (
     }
   }
   return result
-}
-
-// 大纲 JSON 解析：失败自动修复重试一次，再失败把原文存入 beats 供用户手动修
-const resolveOutline = async (
-  messages: ChatMessage[],
-  text: string,
-): Promise<NovelOutline | undefined> => {
-  if (!text.trim()) return undefined
-  try {
-    return parseOutline(text)
-  } catch {
-    try {
-      const fixed = await chatOnce({
-        messages: buildOutlineRepairMessages(messages, text),
-        temperature: TEMPERATURES.outline,
-      })
-      return parseOutline(fixed)
-    } catch {
-      return { beats: [text] }
-    }
-  }
 }
 
 /**
@@ -251,21 +253,28 @@ export const runGeneration = async (
     if (!chapter) throw new Error('[小说] 章节不存在')
   }
 
-  if ((kind === 'revise-outline' || kind === 'content') && !chapter?.outline) {
+  const outlineText = chapter
+    ? findChapterText(novel, chapter.id, 'outline')
+    : undefined
+  const contentText = chapter
+    ? findChapterText(novel, chapter.id, 'content')
+    : undefined
+
+  if ((kind === 'revise-outline' || kind === 'content') && !outlineText) {
     throw new Error('[小说] 该章节还没有大纲，请先生成大纲')
   }
   if (
     (kind === 'continue-content' ||
       kind === 'revise-content' ||
       kind === 'summary') &&
-    !chapter?.content
+    !contentText
   ) {
     throw new Error('[小说] 该章节还没有正文')
   }
   if (kind === 'rewrite-selection') {
-    const length = chapter?.content?.length ?? 0
+    const length = contentText?.content?.length ?? 0
     if (
-      !chapter?.content ||
+      !contentText ||
       req.range.start >= req.range.end ||
       req.range.end > length
     ) {
@@ -273,7 +282,7 @@ export const runGeneration = async (
     }
   }
 
-  const { messages, snapshot } = await buildMessages({
+  const { messages, selection, estimatedTokens } = buildMessages({
     novel,
     kind,
     chapter,
@@ -284,15 +293,6 @@ export const runGeneration = async (
   })
   const temperature = TEMPERATURES[kind]
 
-  // 推进章节状态（中止/出错时停留在此状态作为标记）
-  if (chapter) {
-    if (kind === 'outline' || kind === 'revise-outline') {
-      await api.updateChapter(novel.id, chapter.id, { status: 'outlining' })
-    } else if (kind !== 'summary') {
-      await api.updateChapter(novel.id, chapter.id, { status: 'writing' })
-    }
-  }
-
   // 摘要走非流式，全文作为单个 delta 发出
   if (kind === 'summary') {
     const text = await chatOnce({ messages, temperature })
@@ -302,7 +302,8 @@ export const runGeneration = async (
       novel,
       chapter,
       text,
-      snapshot,
+      selection,
+      estimatedTokens,
       final: true,
     })
     handlers.onDone?.({ chapterId: chapter?.id, aborted: false, ...extra })
@@ -323,7 +324,7 @@ export const runGeneration = async (
     usage = res.usage
     aborted = res.aborted
   } catch (error: any) {
-    // 上游报错：已生成的部分照常落盘（章节状态停留为标记）
+    // 上游报错：已生成的部分照常落盘
     const partial = error instanceof GenerationError ? error.partial : ''
     try {
       await persistGeneration({
@@ -331,7 +332,8 @@ export const runGeneration = async (
         novel,
         chapter,
         text: partial,
-        snapshot,
+        selection,
+        estimatedTokens,
         final: false,
         range: kind === 'rewrite-selection' ? req.range : undefined,
       })
@@ -341,20 +343,14 @@ export const runGeneration = async (
     throw error
   }
 
-  // 大纲类先解析 JSON（失败自动修复重试一次）
-  const outline =
-    !aborted && (kind === 'outline' || kind === 'revise-outline')
-      ? await resolveOutline(messages, text)
-      : undefined
-
   const extra = await persistGeneration({
     kind,
     novel,
     chapter,
     text,
-    snapshot,
+    selection,
+    estimatedTokens,
     final: !aborted,
-    outline,
     range: kind === 'rewrite-selection' ? req.range : undefined,
   })
   handlers.onDone?.({

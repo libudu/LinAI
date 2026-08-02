@@ -34,7 +34,7 @@
 - `src/server/`：后端
   - `index.ts`：Hono 入口，所有 API 路由在此挂载（`/api/*`），导出 `AppType` 供前端 RPC 类型推导
   - `api/`：HTTP 接口层（chat、gpt-image、tts、tts-inworld、media-classifier、novel、style-analyze、yunwu-token，及 `api/common/` 下的 task/template/log/static/config）
-  - `module/`：业务逻辑层（gpt-image、tts、media-classifier、chat、novel、utils/logger；novel 保留落盘 store、共享类型与独立配置 `novel/config.ts`，生成编排在前端 `Novel/service/`）
+  - `module/`：业务逻辑层（gpt-image、tts、media-classifier、chat、novel、utils/logger；novel 保留落盘 store、共享类型与独立配置 `novel/config.ts`，参考文/设定/大纲/正文/摘要统一为 NovelText 单一模型（仅靠 type 区分，生成溯源记录 sourceIds），后端只提供统一文本 CRUD，生成编排与业务规则在前端 `Novel/service/`）
   - `common/`：基础设施（config 配置读写，含通用 `config/config-json.ts` 的 `ConfigJson` 类——新模块的 config.json 用它创建；static 静态文件、task-manager 任务管理、template-manager 模板管理）
   - `migrate.ts`：版本迁移脚本，供最终用户拖入新版压缩包升级
 - `data/`：运行时数据（不入库的用户数据），含 `config.json`（API 密钥）、`tasks.json`、`templates.json`、`images/`、`tts/`、`logs/`、`media-classifier/`、`novels/`（小说数据：index.json + 每书目录 + 模块独立配置 config.json）；服务以 `process.cwd()/data` 定位

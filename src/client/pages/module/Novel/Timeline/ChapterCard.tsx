@@ -6,19 +6,21 @@ import type { Novel, NovelChapter } from '../types'
 import { ContentCard } from './ContentCard'
 import { OutlineCard } from './OutlineCard'
 
-// 章节容器：章号 + 可命名标题 + 删除（仅最后一章），内含大纲卡与正文卡
+// 章节容器：章号（创建时间位次）+ 可命名标题 + 删除（仅最后一章），内含大纲卡与正文卡
 export const ChapterCard = ({
   chapter,
   novel,
+  index,
   isLast,
   isCurrent,
 }: {
   chapter: NovelChapter
   novel: Novel
+  index: number
   isLast: boolean
   isCurrent: boolean
 }) => {
-  const editChapter = useNovelStore((s) => s.editChapter)
+  const editChapterTitle = useNovelStore((s) => s.editChapterTitle)
   const removeChapter = useNovelStore((s) => s.removeChapter)
   const [titleEditing, setTitleEditing] = useState(false)
 
@@ -26,7 +28,7 @@ export const ChapterCard = ({
     setTitleEditing(false)
     const title = value.trim()
     if (title && title !== chapter.title) {
-      editChapter(chapter.id, { title })
+      editChapterTitle(chapter.id, title)
     }
   }
 
@@ -37,9 +39,7 @@ export const ChapterCard = ({
       }`}
     >
       <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2">
-        <span className="shrink-0 text-sm font-semibold">
-          第 {chapter.index} 章
-        </span>
+        <span className="shrink-0 text-sm font-semibold">第 {index} 章</span>
         {titleEditing ? (
           <Input
             size="small"
@@ -77,7 +77,7 @@ export const ChapterCard = ({
         {isLast && (
           <Popconfirm
             title="删除本章？"
-            description="仅可删除最后一章"
+            description="仅可删除最后一章，将同时删除其大纲、正文与摘要"
             onConfirm={() => removeChapter(chapter.id)}
           >
             <Button size="small" type="text" danger icon={<DeleteOutlined />} />

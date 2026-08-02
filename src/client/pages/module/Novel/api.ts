@@ -1,17 +1,15 @@
 // 小说模块 CRUD 接口封装（生成相关的 LLM 调用与编排在 service/ 下，不在此文件）
+// 参考文/设定/大纲/正文/摘要统一为 NovelText，共用一套 texts 接口
 import { hc } from 'hono/client'
 import type { AppType } from '../../../../server'
 import type { NovelConfig } from '../../../../server/module/novel/config'
 import { DEFAULT_RECENT_FULL_CHAPTERS } from './service/constants'
 import type {
-  ContextSnapshot,
   Novel,
   NovelChapter,
-  NovelChapterStatus,
   NovelIndexItem,
-  NovelOutline,
-  NovelRef,
-  NovelSetting,
+  NovelText,
+  NovelTextType,
 } from './types'
 
 const client = hc<AppType>('/')
@@ -65,62 +63,43 @@ export const deleteNovel = (id: string) =>
     }),
   )
 
-// ---------- 参考文 ----------
+// ---------- 统一文本 CRUD ----------
 
-// content 为前端截断后的内容，originalLength 为截断前字符数（用于 truncated 标记）
-export const addRef = (
+export const createText = (
   novelId: string,
-  title: string,
-  content: string,
-  originalLength?: number,
+  payload: {
+    type: NovelTextType
+    chapterId?: string
+    title?: string
+    content: string
+    sourceIds?: string[]
+    estimatedTokens?: number
+    originalLength?: number
+  },
 ) =>
-  unwrap<NovelRef>(
-    client.api.novel.novels[':id'].refs.$post({
+  unwrap<NovelText>(
+    client.api.novel.novels[':id'].texts.$post({
       param: { id: novelId },
-      json: { title, content, originalLength },
+      json: payload,
     }),
   )
 
-export const deleteRef = (novelId: string, refId: string) =>
-  unwrapOk(
-    client.api.novel.novels[':id'].refs[':refId'].$delete({
-      param: { id: novelId, refId },
-    }),
-  )
-
-export const getRefContent = (novelId: string, refId: string) =>
-  unwrap<{ content: string }>(
-    client.api.novel.novels[':id'].refs[':refId'].content.$get({
-      param: { id: novelId, refId },
-    }),
-  )
-
-// ---------- 核心设定 ----------
-
-export const addSetting = (novelId: string, title: string, content: string) =>
-  unwrap<NovelSetting>(
-    client.api.novel.novels[':id'].settings.$post({
-      param: { id: novelId },
-      json: { title, content },
-    }),
-  )
-
-export const updateSetting = (
+export const updateText = (
   novelId: string,
-  sid: string,
-  patch: { title?: string; content?: string },
+  textId: string,
+  patch: { title?: string; content?: string; sourceIds?: string[] },
 ) =>
-  unwrap<NovelSetting>(
-    client.api.novel.novels[':id'].settings[':sid'].$patch({
-      param: { id: novelId, sid },
+  unwrap<NovelText>(
+    client.api.novel.novels[':id'].texts[':textId'].$patch({
+      param: { id: novelId, textId },
       json: patch,
     }),
   )
 
-export const deleteSetting = (novelId: string, sid: string) =>
+export const deleteText = (novelId: string, textId: string) =>
   unwrapOk(
-    client.api.novel.novels[':id'].settings[':sid'].$delete({
-      param: { id: novelId, sid },
+    client.api.novel.novels[':id'].texts[':textId'].$delete({
+      param: { id: novelId, textId },
     }),
   )
 
@@ -133,23 +112,11 @@ export const createChapter = (novelId: string) =>
     }),
   )
 
-export const updateChapter = (
-  novelId: string,
-  cid: string,
-  patch: {
-    title?: string
-    outline?: NovelOutline | null
-    outlineContext?: ContextSnapshot | null
-    content?: string
-    contentContext?: ContextSnapshot | null
-    summary?: string
-    status?: NovelChapterStatus
-  },
-) =>
+export const updateChapter = (novelId: string, cid: string, title: string) =>
   unwrap<NovelChapter>(
     client.api.novel.novels[':id'].chapters[':cid'].$patch({
       param: { id: novelId, cid },
-      json: patch,
+      json: { title },
     }),
   )
 

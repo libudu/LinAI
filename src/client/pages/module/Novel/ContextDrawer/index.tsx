@@ -9,71 +9,51 @@ import {
   Segmented,
   message,
 } from 'antd'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNovelConfig } from '../hooks/useNovelConfig'
 import { DEFAULT_TARGET_LENGTH } from '../service/constants'
-import { buildMessages } from '../service/context'
+import { buildMessages, getDefaultSelection } from '../service/context'
 import { CONTEXT_WARN_RATIO, getContextWindow } from '../shared/tokenEstimate'
 import type { DrawerRequest } from '../store'
 import { useNovelStore } from '../store'
-import type { ContextSelection, Novel } from '../types'
-import { formatTokens } from '../types'
+import type { Novel } from '../types'
+import {
+  chapterIndex,
+  findChapterText,
+  formatTokens,
+  sortedChapters,
+  textsByType,
+} from '../types'
 
 type ChapterMode = 'full' | 'summary' | 'none'
 
-interface SelectionState {
-  refIds: string[]
-  settingIds: string[]
-  chapterModes: Record<string, ChapterMode>
+// 章节当前的携带方式由勾选的文本 id 反推：勾了 content 文本 = 全文，勾了 summary 文本 = 摘要
+const chapterModeOf = (
+  novel: Novel,
+  chapterId: string,
+  textIds: string[],
+): ChapterMode => {
+  const content = findChapterText(novel, chapterId, 'content')
+  if (content && textIds.includes(content.id)) return 'full'
+  const summary = findChapterText(novel, chapterId, 'summary')
+  if (summary && textIds.includes(summary.id)) return 'summary'
+  return 'none'
 }
 
-// 默认勾选规则（implementation-plan.md 4.1 / 7.2）：
-// - 参考文默认不勾、核心设定默认全勾
-// - 历史章节默认最近 N 章全文 + 其余摘要（无摘要的降级为全文）；生成目标章自身排除
-// - 正文生成入口从该章 outlineContext 快照还原
-// - 设定生成的素材是参考文，历史章节默认不带
-const computeDefaultSelection = (
+// 切换某章的携带方式（全文/摘要互斥，先移除该章两条文本再按需加入）
+const withChapterMode = (
   novel: Novel,
-  req: DrawerRequest,
-): SelectionState => {
-  if (req.kind === 'content' && req.chapterId) {
-    const chapter = novel.chapters.find((c) => c.id === req.chapterId)
-    const snapshot = chapter?.outlineContext
-    if (snapshot) {
-      const chapterModes: Record<string, ChapterMode> = {}
-      snapshot.fullChapterIds.forEach((id) => {
-        chapterModes[id] = 'full'
-      })
-      snapshot.summaryChapterIds.forEach((id) => {
-        chapterModes[id] = 'summary'
-      })
-      return {
-        refIds: [...snapshot.refIds],
-        settingIds: [...snapshot.settingIds],
-        chapterModes,
-      }
-    }
-  }
-
-  const chapterModes: Record<string, ChapterMode> = {}
-  if (req.kind !== 'setting') {
-    const history = novel.chapters
-      .filter((c) => c.id !== req.chapterId)
-      .sort((a, b) => a.index - b.index)
-    history.forEach((c, i) => {
-      const fromEnd = history.length - i // 倒数第几章（1 起）
-      if (fromEnd <= novel.recentFullChapters || !c.summary) {
-        chapterModes[c.id] = 'full'
-      } else {
-        chapterModes[c.id] = 'summary'
-      }
-    })
-  }
-  return {
-    refIds: [],
-    settingIds: novel.settings.map((s) => s.id),
-    chapterModes,
-  }
+  chapterId: string,
+  textIds: string[],
+  mode: ChapterMode,
+): string[] => {
+  const content = findChapterText(novel, chapterId, 'content')
+  const summary = findChapterText(novel, chapterId, 'summary')
+  const own = [content?.id, summary?.id].filter(Boolean) as string[]
+  const rest = textIds.filter((id) => !own.includes(id))
+  if (mode === 'full' && content) return [...rest, content.id]
+  if (mode === 'summary' && summary) return [...rest, summary.id]
+  return rest
 }
 
 const DRAWER_TITLES: Record<DrawerRequest['kind'], string> = {
@@ -94,8 +74,13 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
   const closeDrawer = useNovelStore((s) => s.closeDrawer)
   const streaming = useNovelStore((s) => s.streaming)
 
-  const [selection, setSelection] = useState<SelectionState>(() =>
-    computeDefaultSelection(novel, req),
+  const chapter = req.chapterId
+    ? novel.chapters.find((c) => c.id === req.chapterId)
+    : undefined
+
+  // 默认勾选：正文入口继承本章大纲文本的 sourceIds，其余按默认规则（service/context）
+  const [textIds, setTextIds] = useState<string[]>(
+    () => getDefaultSelection(novel, req.kind, chapter).textIds,
   )
   const [instruction, setInstruction] = useState('')
   const [targetLength, setTargetLength] = useState<number | null>(
@@ -106,37 +91,20 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
     contextWindow: number
   } | null>(null)
 
-  const apiSelection = useMemo<ContextSelection>(
-    () => ({
-      refIds: selection.refIds,
-      settingIds: selection.settingIds,
-      fullChapterIds: Object.keys(selection.chapterModes).filter(
-        (id) => selection.chapterModes[id] === 'full',
-      ),
-      summaryChapterIds: Object.keys(selection.chapterModes).filter(
-        (id) => selection.chapterModes[id] === 'summary',
-      ),
-    }),
-    [selection],
-  )
-
   // 实时 token 估算（防抖 300ms），本地组装上下文估算，失败静默
   const novelModelId = useNovelConfig((s) => s.novelModelId)
   const { run: runEstimate } = useDebounceFn(
-    async (sel: ContextSelection, instr: string) => {
+    (ids: string[], instr: string) => {
       try {
-        const chapter = req.chapterId
-          ? novel.chapters.find((c) => c.id === req.chapterId)
-          : undefined
-        const { snapshot } = await buildMessages({
+        const { estimatedTokens } = buildMessages({
           novel,
           kind: req.kind,
           chapter,
-          selection: sel,
+          selection: { textIds: ids },
           instruction: instr || undefined,
         })
         setEstimate({
-          estimatedTokens: snapshot.estimatedTokens,
+          estimatedTokens,
           contextWindow: getContextWindow(novelModelId),
         })
       } catch {
@@ -146,30 +114,22 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
     { wait: 300 },
   )
   useEffect(() => {
-    runEstimate(apiSelection, instruction)
-  }, [apiSelection, instruction, runEstimate])
+    runEstimate(textIds, instruction)
+  }, [textIds, instruction, runEstimate])
 
-  const setChapterMode = (id: string, mode: ChapterMode) =>
-    setSelection((prev) => ({
-      ...prev,
-      chapterModes: { ...prev.chapterModes, [id]: mode },
-    }))
+  const toggleText = (id: string, checked: boolean) =>
+    setTextIds((prev) =>
+      checked ? [...prev, id] : prev.filter((x) => x !== id),
+    )
 
-  const toggleRef = (id: string, checked: boolean) =>
-    setSelection((prev) => ({
-      ...prev,
-      refIds: checked
-        ? [...prev.refIds, id]
-        : prev.refIds.filter((x) => x !== id),
-    }))
-
-  const toggleSetting = (id: string, checked: boolean) =>
-    setSelection((prev) => ({
-      ...prev,
-      settingIds: checked
-        ? [...prev.settingIds, id]
-        : prev.settingIds.filter((x) => x !== id),
-    }))
+  const refs = textsByType(novel, 'ref')
+  const settings = textsByType(novel, 'setting')
+  const refIds = refs.map((r) => r.id)
+  const settingIds = settings.map((s) => s.id)
+  const checkedRefCount = refIds.filter((id) => textIds.includes(id)).length
+  const checkedSettingCount = settingIds.filter((id) =>
+    textIds.includes(id),
+  ).length
 
   const percent = estimate
     ? (estimate.estimatedTokens / estimate.contextWindow) * 100
@@ -184,12 +144,13 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
       return
     }
     closeDrawer()
+    const selection = { textIds }
     if (req.kind === 'setting') {
       await startGeneration({
         kind: 'setting',
         novelId: novel.id,
         instruction: instr,
-        selection: apiSelection,
+        selection,
       })
     } else if (req.kind === 'outline') {
       await startGeneration({
@@ -197,7 +158,7 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
         novelId: novel.id,
         chapterId: req.chapterId,
         instruction: instr || undefined,
-        selection: apiSelection,
+        selection,
       })
     } else {
       await startGeneration({
@@ -205,56 +166,52 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
         novelId: novel.id,
         chapterId: req.chapterId!,
         instruction: instr || undefined,
-        selection: apiSelection,
+        selection,
         targetLength: targetLength ?? undefined,
       })
     }
   }
 
-  const historyChapters = novel.chapters
-    .filter((c) => c.id !== req.chapterId)
-    .sort((a, b) => a.index - b.index)
+  const historyChapters = sortedChapters(novel).filter(
+    (c) => c.id !== req.chapterId,
+  )
 
   return (
     <div className="flex h-full flex-col">
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-4">
-        {/* 参考文（默认不勾） */}
+        {/* 参考文（生成设定时默认全勾，其余默认不勾） */}
         <div>
           <div className="mb-1 flex items-center justify-between">
             <span className="text-sm font-medium text-slate-600">参考文</span>
-            {novel.refs.length > 0 && (
+            {refs.length > 0 && (
               <Button
                 type="link"
                 size="small"
                 onClick={() =>
-                  setSelection((prev) => ({
-                    ...prev,
-                    refIds:
-                      prev.refIds.length === novel.refs.length
-                        ? []
-                        : novel.refs.map((r) => r.id),
-                  }))
+                  setTextIds((prev) =>
+                    checkedRefCount === refIds.length
+                      ? prev.filter((id) => !refIds.includes(id))
+                      : [...prev.filter((id) => !refIds.includes(id)), ...refIds],
+                  )
                 }
               >
-                {selection.refIds.length === novel.refs.length
-                  ? '清空'
-                  : '全选'}
+                {checkedRefCount === refIds.length ? '清空' : '全选'}
               </Button>
             )}
           </div>
-          {novel.refs.length === 0 ? (
+          {refs.length === 0 ? (
             <div className="text-xs text-slate-400">无参考文</div>
           ) : (
             <div className="space-y-1">
-              {novel.refs.map((ref) => (
+              {refs.map((ref) => (
                 <div key={ref.id}>
                   <Checkbox
-                    checked={selection.refIds.includes(ref.id)}
-                    onChange={(e) => toggleRef(ref.id, e.target.checked)}
+                    checked={textIds.includes(ref.id)}
+                    onChange={(e) => toggleText(ref.id, e.target.checked)}
                   >
                     <span className="text-sm">{ref.title}</span>
                     <span className="ml-1 text-xs text-slate-400">
-                      {ref.storedLength.toLocaleString()} 字
+                      {ref.content.length.toLocaleString()} 字
                     </span>
                   </Checkbox>
                 </div>
@@ -267,37 +224,34 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
         <div>
           <div className="mb-1 flex items-center justify-between">
             <span className="text-sm font-medium text-slate-600">核心设定</span>
-            {novel.settings.length > 0 && (
+            {settings.length > 0 && (
               <Button
                 type="link"
                 size="small"
                 onClick={() =>
-                  setSelection((prev) => ({
-                    ...prev,
-                    settingIds:
-                      prev.settingIds.length === novel.settings.length
-                        ? []
-                        : novel.settings.map((s) => s.id),
-                  }))
+                  setTextIds((prev) =>
+                    checkedSettingCount === settingIds.length
+                      ? prev.filter((id) => !settingIds.includes(id))
+                      : [
+                          ...prev.filter((id) => !settingIds.includes(id)),
+                          ...settingIds,
+                        ],
+                  )
                 }
               >
-                {selection.settingIds.length === novel.settings.length
-                  ? '清空'
-                  : '全选'}
+                {checkedSettingCount === settingIds.length ? '清空' : '全选'}
               </Button>
             )}
           </div>
-          {novel.settings.length === 0 ? (
+          {settings.length === 0 ? (
             <div className="text-xs text-slate-400">无核心设定</div>
           ) : (
             <div className="space-y-1">
-              {novel.settings.map((setting) => (
+              {settings.map((setting) => (
                 <div key={setting.id}>
                   <Checkbox
-                    checked={selection.settingIds.includes(setting.id)}
-                    onChange={(e) =>
-                      toggleSetting(setting.id, e.target.checked)
-                    }
+                    checked={textIds.includes(setting.id)}
+                    onChange={(e) => toggleText(setting.id, e.target.checked)}
                   >
                     <span className="text-sm">{setting.title}</span>
                   </Checkbox>
@@ -319,35 +273,48 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
             <div className="text-xs text-slate-400">无历史章节</div>
           ) : (
             <div className="space-y-1.5">
-              {historyChapters.map((ch) => (
-                <div
-                  key={ch.id}
-                  className="flex items-center justify-between gap-2"
-                >
-                  <span className="min-w-0 flex-1 truncate text-sm">
-                    第 {ch.index} 章
-                    {ch.title && (
-                      <span className="ml-1 text-xs text-slate-400">
-                        {ch.title}
-                      </span>
-                    )}
-                  </span>
-                  <Segmented
-                    size="small"
-                    value={selection.chapterModes[ch.id] ?? 'none'}
-                    onChange={(v) => setChapterMode(ch.id, v as ChapterMode)}
-                    options={[
-                      { label: '全文', value: 'full' },
-                      {
-                        label: '摘要',
-                        value: 'summary',
-                        disabled: !ch.summary,
-                      },
-                      { label: '不带', value: 'none' },
-                    ]}
-                  />
-                </div>
-              ))}
+              {historyChapters.map((ch) => {
+                const hasContent = !!findChapterText(novel, ch.id, 'content')
+                const hasSummary = !!findChapterText(novel, ch.id, 'summary')
+                return (
+                  <div
+                    key={ch.id}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-sm">
+                      第 {chapterIndex(novel, ch.id)} 章
+                      {ch.title && (
+                        <span className="ml-1 text-xs text-slate-400">
+                          {ch.title}
+                        </span>
+                      )}
+                    </span>
+                    <Segmented
+                      size="small"
+                      value={chapterModeOf(novel, ch.id, textIds)}
+                      onChange={(v) =>
+                        setTextIds((prev) =>
+                          withChapterMode(
+                            novel,
+                            ch.id,
+                            prev,
+                            v as ChapterMode,
+                          ),
+                        )
+                      }
+                      options={[
+                        { label: '全文', value: 'full', disabled: !hasContent },
+                        {
+                          label: '摘要',
+                          value: 'summary',
+                          disabled: !hasSummary,
+                        },
+                        { label: '不带', value: 'none' },
+                      ]}
+                    />
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
@@ -426,7 +393,7 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
   )
 }
 
-// 上下文选择抽屉：点生成时从右侧弹出（implementation-plan.md 7.2）
+// 上下文选择抽屉：点生成时从右侧弹出
 export const ContextDrawer = () => {
   const drawer = useNovelStore((s) => s.drawer)
   const closeDrawer = useNovelStore((s) => s.closeDrawer)

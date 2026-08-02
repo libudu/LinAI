@@ -1,6 +1,7 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { Button, Empty, Spin, Tag } from 'antd'
 import { useNovelStore } from '../store'
+import { sortedChapters } from '../types'
 import { ChapterCard } from './ChapterCard'
 
 // 新章节的大纲生成幽灵卡：章节由 service 在生成开始时创建，done 后才随刷新出现
@@ -33,7 +34,7 @@ const GhostChapterCard = ({ index }: { index: number }) => {
   )
 }
 
-// 章节时间线（主栏）：每章一组卡片，底部「生成下一章大纲」置底
+// 章节时间线（主栏）：每章一组卡片（顺序 = 章节创建时间），底部「生成下一章大纲」置底
 export const Timeline = () => {
   const currentNovelId = useNovelStore((s) => s.currentNovelId)
   const currentNovel = useNovelStore((s) => s.currentNovel)
@@ -56,7 +57,7 @@ export const Timeline = () => {
     )
   }
 
-  const chapters = [...currentNovel.chapters].sort((a, b) => a.index - b.index)
+  const chapters = sortedChapters(currentNovel)
   // 生成新章节大纲时目标章节还没出现在本地数据中，用幽灵卡展示流式内容
   const showGhost =
     streaming?.target === 'outline' &&
@@ -69,6 +70,7 @@ export const Timeline = () => {
           key={chapter.id}
           chapter={chapter}
           novel={currentNovel}
+          index={i + 1}
           isLast={i === chapters.length - 1}
           isCurrent={i === chapters.length - 1}
         />

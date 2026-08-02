@@ -1,12 +1,7 @@
 // 小说生成模块全部 prompt 模板（设计见 docs/novel/prompts.md）
 // 原则：结构化但字段少、允许留空；约束走向，放开笔法
-// （自服务端 module/novel/prompts 前移，生成编排整体在前端 service/ 完成）
-import type {
-  ChatMessage,
-  NovelChapter,
-  NovelOutline,
-  NovelSetting,
-} from '../types'
+// 生成编排整体在前端 service/ 完成；参考文/设定/大纲/正文/摘要统一为 NovelText
+import type { ChatMessage, NovelText } from '../types'
 
 // 通用系统提示（prompts.md 第 1 节），所有生成任务共用
 export const BASE_SYSTEM_PROMPT = `你是一名中文网络小说作家，擅长成人向言情小说，文笔直白流畅，重视感官细节与人物情绪的刻画。
@@ -15,29 +10,31 @@ export const BASE_SYSTEM_PROMPT = `你是一名中文网络小说作家，擅长
 - 不要输出任何与小说无关的内容（不要解释、不要总结、不要加章节外的备注）
 - 不要复述或引用本提示词中的任何说明文字`
 
-export const formatSettings = (settings: NovelSetting[]): string =>
+export const formatSettings = (settings: NovelText[]): string =>
   `【核心设定】\n${settings.map((s) => `《${s.title}》\n${s.content}`).join('\n\n')}`
 
 export const formatRefMaterials = (
-  refs: { title: string; content: string }[],
+  refs: NovelText[],
   header = '【参考材料】',
 ): string =>
   `${header}\n${refs.map((r) => `===\n《${r.title}》\n${r.content}\n===`).join('\n\n')}`
 
-export const formatSummaries = (chapters: NovelChapter[]): string =>
-  `【前情摘要】\n${chapters.map((c) => `第${c.index}章：${c.summary}`).join('\n')}`
+// 前情摘要（index 为章节序号，由调用方按章节创建时间排序算出）
+export const formatSummaries = (
+  entries: { index: number; content: string }[],
+): string =>
+  `【前情摘要】\n${entries.map((e) => `第${e.index}章：${e.content}`).join('\n')}`
 
-export const formatFullChapters = (chapters: NovelChapter[]): string =>
-  `【最近章节全文】\n${chapters
-    .map(
-      (c) => `第${c.index}章${c.title ? `《${c.title}》` : ''}\n${c.content}`,
-    )
+export const formatFullChapters = (
+  entries: { index: number; title: string; content: string }[],
+): string =>
+  `【最近章节全文】\n${entries
+    .map((e) => `第${e.index}章${e.title ? `《${e.title}》` : ''}\n${e.content}`)
     .join('\n\n')}`
 
-export const formatOutline = (outline: NovelOutline): string => {
-  const beats = outline.beats.map((b, i) => `${i + 1}. ${b}`).join('\n')
-  return `【本章大纲】\n基调：${outline.tone || '无'}\n节拍：\n${beats}\n禁区：${outline.taboos || '无'}`
-}
+// 大纲为纯文本（模型按约定格式输出，落盘后可由用户自由编辑）
+export const formatOutline = (outline: string): string =>
+  `【本章大纲】\n${outline}`
 
 // 生成核心设定（kind: setting）
 export const buildSettingTask = (
@@ -54,36 +51,38 @@ ${instruction}
 - 若要求涉及角色，用条目列出：姓名 / 外貌 / 性格 / 与其他角色的关系
 - 若要求涉及世界观或故事基调，分小节陈述`
 
-// 生成章节大纲（kind: outline），JSON 输出供前端解析成可编辑节拍
+// 生成章节大纲（kind: outline），纯文本输出，落盘后用户可直接编辑
 export const buildOutlineTask = (
   nextIndex: number,
   instruction?: string,
 ): string =>
   `【任务】
-为第 ${nextIndex} 章设计大纲。输出 JSON（不要输出其他内容）：
-{
-  "beats": ["节拍1", "节拍2", "..."],
-  "tone": "本章基调与目标，一句话",
-  "taboos": "本章不要发生的事，一句话，可为空字符串"
-}
+为第 ${nextIndex} 章设计大纲，严格按以下格式输出纯文本：
+基调：本章基调与目标，一句话
+节拍：
+1. 节拍1
+2. 节拍2
+……
+禁区：本章不要发生的事，一句话，没有则写「无」
 
 要求：
 - 节拍 4-8 条，每条一句话，按顺序描述关键情节点
 - 节拍只写「发生什么」，不写「怎么写」；把描写空间留给正文
-- 与前文的角色关系、状态保持连续${instruction ? `\n- ${instruction}` : ''}`
+- 与前文的角色关系、状态保持连续${instruction ? `\n- ${instruction}` : ''}
+- 不要输出格式之外的任何说明`
 
 // 按指令微调大纲（kind: revise-outline）
 export const buildReviseOutlineTask = (
-  outline: NovelOutline | null | undefined,
+  outline: string,
   instruction: string,
 ): string =>
   `【现有大纲】
-${JSON.stringify(outline ?? { beats: [] }, null, 2)}
+${outline}
 
 【修改指令】
 ${instruction}
 
-只按修改指令调整，其余节拍保持不变，仍输出完整 JSON（不要输出其他内容）。`
+只按修改指令调整，其余节拍保持不变，仍按原格式输出完整大纲（不要输出其他内容）。`
 
 // 生成章节正文（kind: content）
 export const buildContentTask = (
@@ -159,51 +158,8 @@ ${content}
 - 结尾时各角色的位置、情绪与未解决的悬念
 只输出摘要文本。`
 
-// 剥离 markdown 代码块包装（```json ... ```），模型常把 JSON 包在代码块里
-export const stripCodeFence = (text: string): string => {
-  const trimmed = text.trim()
-  const match = trimmed.match(/^```(?:json)?\s*([\s\S]*?)```\s*$/i)
-  return match ? match[1].trim() : trimmed
-}
-
-// 解析大纲 JSON，失败抛错（调用方负责重试/兜底）
-export const parseOutline = (text: string): NovelOutline => {
-  const cleaned = stripCodeFence(text)
-  // 模型可能在 JSON 前后夹带说明文字，截取第一个 { 到最后一个 }
-  let candidate = cleaned
-  const start = candidate.indexOf('{')
-  const end = candidate.lastIndexOf('}')
-  if (start !== -1 && end > start) {
-    candidate = candidate.slice(start, end + 1)
-  }
-  const parsed = JSON.parse(candidate)
-  if (
-    !parsed ||
-    !Array.isArray(parsed.beats) ||
-    !parsed.beats.every((b: unknown) => typeof b === 'string')
-  ) {
-    throw new Error('大纲 JSON 缺少 beats 字符串数组')
-  }
-  const outline: NovelOutline = { beats: parsed.beats }
-  if (typeof parsed.tone === 'string' && parsed.tone) {
-    outline.tone = parsed.tone
-  }
-  if (typeof parsed.taboos === 'string' && parsed.taboos) {
-    outline.taboos = parsed.taboos
-  }
-  return outline
-}
-
-// 大纲 JSON 解析失败后的修复重试消息（在原对话基础上要求模型仅重新输出 JSON）
-export const buildOutlineRepairMessages = (
-  original: ChatMessage[],
-  broken: string,
-): ChatMessage[] => [
-  ...original,
-  { role: 'assistant', content: broken },
-  {
-    role: 'user',
-    content:
-      '你的输出无法解析为合法 JSON。请只重新输出符合要求的大纲 JSON，不要输出任何其他内容。',
-  },
+// 摘要任务的消息组装（正文完成后自动生成摘要用，不走完整上下文）
+export const buildSummaryMessages = (content: string): ChatMessage[] => [
+  { role: 'system', content: BASE_SYSTEM_PROMPT },
+  { role: 'user', content: buildSummaryTask(content) },
 ]
