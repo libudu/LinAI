@@ -12,7 +12,6 @@ import {
   Modal,
   Popconfirm,
   Progress,
-  Select,
   Tooltip,
   Upload,
   message,
@@ -22,53 +21,6 @@ import { REF_MAX_CHARS, REF_TOTAL_MAX_CHARS } from '../service/constants'
 import { useNovelStore } from '../store'
 import type { NovelText } from '../types'
 import { textsByType } from '../types'
-
-// 新建书籍弹窗
-const CreateNovelModal = ({
-  open,
-  onClose,
-}: {
-  open: boolean
-  onClose: () => void
-}) => {
-  const createNovel = useNovelStore((s) => s.createNovel)
-  const [title, setTitle] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  const handleOk = async () => {
-    if (!title.trim()) {
-      message.warning('请输入书名')
-      return
-    }
-    setSaving(true)
-    const ok = await createNovel(title.trim())
-    setSaving(false)
-    if (ok) {
-      setTitle('')
-      onClose()
-    }
-  }
-
-  return (
-    <Modal
-      title="新建书籍"
-      open={open}
-      onCancel={onClose}
-      onOk={handleOk}
-      confirmLoading={saving}
-      okText="创建"
-      destroyOnHidden
-    >
-      <Input
-        placeholder="书名"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onPressEnter={handleOk}
-        maxLength={50}
-      />
-    </Modal>
-  )
-}
 
 // 上传参考文弹窗（粘贴文本或导入 txt/md 文件，前端截取末尾后上传）
 const RefUploadModal = ({
@@ -264,19 +216,13 @@ const SectionHeader = ({
 
 export const ResourcePanel = () => {
   const {
-    novels,
-    currentNovelId,
     currentNovel,
-    loadingNovels,
-    selectNovel,
-    removeNovel,
     deleteText,
     openDrawer,
     streaming,
     abortGeneration,
   } = useNovelStore()
 
-  const [createOpen, setCreateOpen] = useState(false)
   const [refUploadOpen, setRefUploadOpen] = useState(false)
   const [viewRef, setViewRef] = useState<NovelText | null>(null)
   const [editingSetting, setEditingSetting] = useState<NovelText | 'new' | null>(
@@ -289,39 +235,10 @@ export const ResourcePanel = () => {
 
   return (
     <div className="space-y-4">
-      {/* 书籍切换 */}
-      <div className="flex items-center gap-1.5">
-        <Select
-          className="min-w-0 flex-1"
-          placeholder="选择书籍"
-          value={currentNovelId}
-          loading={loadingNovels}
-          onChange={(v: string) => selectNovel(v)}
-          options={novels.map((n) => ({
-            value: n.id,
-            label: `${n.title}（${n.chapterCount} 章）`,
-          }))}
-        />
-        <Tooltip title="新建书籍">
-          <Button icon={<PlusOutlined />} onClick={() => setCreateOpen(true)} />
-        </Tooltip>
-        {currentNovelId && (
-          <Popconfirm
-            title="删除整本书？"
-            description="包含全部章节、设定与参考文，不可恢复"
-            onConfirm={() => removeNovel(currentNovelId)}
-          >
-            <Tooltip title="删除书籍">
-              <Button danger icon={<DeleteOutlined />} />
-            </Tooltip>
-          </Popconfirm>
-        )}
-      </div>
-
       {!currentNovel ? (
         <Empty
           className="py-8"
-          description="请新建或选择一本书"
+          description="正在加载书籍…"
           image={Empty.PRESENTED_IMAGE_SIMPLE}
         />
       ) : (
@@ -497,10 +414,6 @@ export const ResourcePanel = () => {
         </>
       )}
 
-      <CreateNovelModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-      />
       <RefUploadModal
         open={refUploadOpen}
         onClose={() => setRefUploadOpen(false)}

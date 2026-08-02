@@ -91,12 +91,10 @@ export const useNovelStore = create<NovelStore>()(
         try {
           const novels = await api.listNovels()
           set({ novels })
-          // 持久化的当前书已被删除时回退到列表第一本
+          // 持久化的当前书已被删除时回到未选中状态（展示欢迎页），不自动选中其他书
           const { currentNovelId } = get()
           if (currentNovelId && !novels.some((n) => n.id === currentNovelId)) {
-            set({ currentNovelId: novels[0]?.id ?? null, currentNovel: null })
-          } else if (!currentNovelId && novels.length > 0) {
-            set({ currentNovelId: novels[0].id })
+            set({ currentNovelId: null, currentNovel: null })
           }
         } catch (error: any) {
           message.error(error.message || '获取书籍列表失败')

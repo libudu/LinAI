@@ -1,6 +1,6 @@
 import { ConfigProvider } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import pkg from '../../package.json'
 import { openNotificationModal } from './pages/common/Notification'
@@ -45,11 +45,16 @@ function App() {
           onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
         />
 
-        {/* Main Content：桌面端为左侧导航栏留出宽度 */}
+        {/* Main Content：桌面端为左侧导航栏留出宽度；--sidebar-w 供页面内子导航（如小说导航栏）贴住全局导航栏定位 */}
         <div
           className={`transition-[padding] ${
             sidebarCollapsed ? 'md:pl-16' : 'md:pl-56'
           }`}
+          style={
+            {
+              '--sidebar-w': sidebarCollapsed ? '4rem' : '14rem',
+            } as CSSProperties
+          }
         >
           <main className="mx-auto max-w-6xl space-y-4 p-3 sm:p-6">
             <Routes>
