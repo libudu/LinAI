@@ -4,27 +4,8 @@ import { useNovelConfig } from '../hooks/useNovelConfig'
 import { classifyFirstIntent } from '../service/intent'
 import { useNovelStore } from '../store'
 import { findChapterText } from '../types'
+import { QuickPrompts } from './QuickPrompts'
 import { RefUpload, type PendingRef } from './RefUpload'
-
-// 快捷按钮的预制提示词：点击填入下方「用户要求」输入框
-const PRESET_PROMPTS: { label: string; text: string }[] = [
-  {
-    label: '都市言情',
-    text: '写一部现代都市言情小说：男女主在职场中从互相试探到双向奔赴，重视暧昧期的拉扯感与日常细节，节奏轻快。',
-  },
-  {
-    label: '古风仙侠',
-    text: '写一部古风仙侠小说：架空修真世界，主角身负隐秘血脉卷入宗门纷争，世界观层次分明，打斗与情感并重。',
-  },
-  {
-    label: '悬疑推理',
-    text: '写一部悬疑推理小说：小城连环事件，主角为刑警，伏笔密集、反转合理，氛围压抑冷峻。',
-  },
-  {
-    label: '科幻末世',
-    text: '写一部科幻末世小说：灾变后的废土世界，主角带领小队求生，设定硬核，重视生存细节与人性抉择。',
-  },
-]
 
 // 书名取用户要求的首行，截断 20 字
 const deriveTitle = (instruction: string): string => {
@@ -105,16 +86,7 @@ export const Welcome = () => {
       <RefUpload refs={refs} onChange={setRefs} />
 
       {/* 2. 快捷按钮：一键填入预制提示词 */}
-      <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <div className="mb-2 text-sm font-medium text-slate-600">快捷按钮</div>
-        <div className="flex flex-wrap gap-2">
-          {PRESET_PROMPTS.map((p) => (
-            <Button key={p.label} onClick={() => setRequirement(p.text)}>
-              {p.label}
-            </Button>
-          ))}
-        </div>
-      </section>
+      <QuickPrompts onSelect={setRequirement} />
 
       {/* 3. 用户要求输入框 */}
       <section className="rounded-lg border border-slate-200 bg-white p-4">
