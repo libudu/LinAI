@@ -2,10 +2,10 @@ import { message } from 'antd'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import * as api from './api'
-import { REF_MAX_CHARS, REF_TOTAL_MAX_CHARS } from './service/constants'
+import { REF_MAX_CHARS } from './service/constants'
 import { runGeneration, type GenerateRequest } from './service/generate'
 import type { Novel, NovelIndexItem, StreamingState } from './types'
-import { kindToTarget, textsByType } from './types'
+import { kindToTarget } from './types'
 
 // 当前生成任务的中断控制器（单页单任务，由 streaming 状态保证互斥）
 let generationController: AbortController | null = null
@@ -158,25 +158,15 @@ export const useNovelStore = create<NovelStore>()(
         }
       },
 
-      // 上传参考文：前端截取超限部分并校验全书总量，落盘为 type='ref' 的 NovelText
+      // 上传参考文：前端截取超限部分，落盘为 type='ref' 的 NovelText
       uploadRef: async (title, content) => {
         const novel = get().currentNovel
         if (!novel) return false
-        // 前端截取：超过单篇上限只保留末尾；全书总量超限直接拒绝
+        // 前端截取：超过单篇上限只保留末尾
         const stored =
           content.length > REF_MAX_CHARS
             ? content.slice(-REF_MAX_CHARS)
             : content
-        const currentTotal = textsByType(novel, 'ref').reduce(
-          (sum, r) => sum + r.content.length,
-          0,
-        )
-        if (currentTotal + stored.length > REF_TOTAL_MAX_CHARS) {
-          message.error(
-            `[小说] 参考文总量超限：已累计 ${currentTotal.toLocaleString()} 字，本次 ${stored.length.toLocaleString()} 字，上限 ${REF_TOTAL_MAX_CHARS.toLocaleString()} 字`,
-          )
-          return false
-        }
         const textId = await get().createText({
           type: 'ref',
           title,

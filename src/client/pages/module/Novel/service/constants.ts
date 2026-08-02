@@ -2,7 +2,6 @@
 import type { GenerateKind } from '../types'
 
 export const REF_MAX_CHARS = 50_000 // 每篇参考文最多保留末尾 50k 字符（前端截取后上传）
-export const REF_TOTAL_MAX_CHARS = 500_000 // 单本书参考文总字符上限（前端校验）
 
 export const DEFAULT_RECENT_FULL_CHAPTERS = 3 // 默认携带最近几章全文（创建书时随书保存）
 export const DEFAULT_TARGET_LENGTH = 3_000 // 正文默认目标篇幅（字）

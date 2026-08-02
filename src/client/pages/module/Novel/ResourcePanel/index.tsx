@@ -11,13 +11,12 @@ import {
   Input,
   Modal,
   Popconfirm,
-  Progress,
   Tooltip,
   Upload,
   message,
 } from 'antd'
 import { useEffect, useState } from 'react'
-import { REF_MAX_CHARS, REF_TOTAL_MAX_CHARS } from '../service/constants'
+import { REF_MAX_CHARS } from '../service/constants'
 import { useNovelStore } from '../store'
 import type { NovelText } from '../types'
 import { textsByType } from '../types'
@@ -231,7 +230,6 @@ export const ResourcePanel = () => {
 
   const refs = currentNovel ? textsByType(currentNovel, 'ref') : []
   const settings = currentNovel ? textsByType(currentNovel, 'setting') : []
-  const totalRefChars = refs.reduce((sum, r) => sum + r.content.length, 0)
 
   return (
     <div className="space-y-4">
@@ -258,20 +256,6 @@ export const ResourcePanel = () => {
                 </Tooltip>
               }
             />
-            <div className="mb-2">
-              <Progress
-                percent={Math.min(
-                  100,
-                  (totalRefChars / REF_TOTAL_MAX_CHARS) * 100,
-                )}
-                size="small"
-                showInfo={false}
-              />
-              <div className="mt-0.5 text-xs text-slate-400">
-                累计 {totalRefChars.toLocaleString()} /{' '}
-                {REF_TOTAL_MAX_CHARS.toLocaleString()} 字
-              </div>
-            </div>
             <div className="space-y-1.5">
               {refs.map((ref) => (
                 <div

@@ -1,15 +1,10 @@
-import {
-  DeleteOutlined,
-  FileTextOutlined,
-  UploadOutlined,
-} from '@ant-design/icons'
-import { Button, Input, Modal, Upload, message } from 'antd'
+import { Button, Input, message } from 'antd'
 import { useState } from 'react'
 import { useNovelConfig } from '../hooks/useNovelConfig'
-import { REF_MAX_CHARS, REF_TOTAL_MAX_CHARS } from '../service/constants'
 import { classifyFirstIntent } from '../service/intent'
 import { useNovelStore } from '../store'
 import { findChapterText } from '../types'
+import { RefUpload, type PendingRef } from './RefUpload'
 
 // 快捷按钮的预制提示词：点击填入下方「用户要求」输入框
 const PRESET_PROMPTS: { label: string; text: string }[] = [
@@ -31,12 +26,6 @@ const PRESET_PROMPTS: { label: string; text: string }[] = [
   },
 ]
 
-// 待上传的参考文（小说创建前先暂存在本地）
-interface PendingRef {
-  title: string
-  content: string
-}
-
 // 书名取用户要求的首行，截断 20 字
 const deriveTitle = (instruction: string): string => {
   const firstLine =
@@ -45,65 +34,6 @@ const deriveTitle = (instruction: string): string => {
       .map((l) => l.trim())
       .find((l) => l.length > 0) || ''
   return firstLine.slice(0, 20) || '未命名小说'
-}
-
-// 粘贴参考文弹窗（写入本地暂存列表，提交时随小说一起落盘）
-const PasteRefModal = ({
-  open,
-  onAdd,
-  onClose,
-}: {
-  open: boolean
-  onAdd: (ref: PendingRef) => void
-  onClose: () => void
-}) => {
-  const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
-
-  const handleOk = () => {
-    if (!title.trim()) {
-      message.warning('请输入标题')
-      return
-    }
-    if (!content.trim()) {
-      message.warning('内容不能为空')
-      return
-    }
-    onAdd({ title: title.trim(), content })
-    setTitle('')
-    setContent('')
-    onClose()
-  }
-
-  return (
-    <Modal
-      title="粘贴参考文"
-      open={open}
-      onCancel={onClose}
-      onOk={handleOk}
-      okText="添加"
-      width={640}
-      destroyOnHidden
-    >
-      <div className="space-y-3">
-        <Input
-          placeholder="标题"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          maxLength={50}
-        />
-        <Input.TextArea
-          rows={10}
-          placeholder="粘贴参考文内容（完结/连载中的参考作品、资料文档等）…"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-        />
-        <div className="text-xs text-slate-400">
-          共 {content.length.toLocaleString()} 字
-        </div>
-      </div>
-    </Modal>
-  )
 }
 
 // 欢迎页：未选中任何小说时展示。参考上传 + 快捷按钮 + 用户要求输入框，
@@ -116,20 +46,7 @@ export const Welcome = () => {
 
   const [refs, setRefs] = useState<PendingRef[]>([])
   const [requirement, setRequirement] = useState('')
-  const [pasteOpen, setPasteOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-
-  const totalRefChars = refs.reduce((sum, r) => sum + r.content.length, 0)
-
-  // 导入 txt/md 文件，直接加入暂存列表（标题取文件名）
-  const handleFile = async (file: File) => {
-    const content = await file.text()
-    setRefs((prev) => [
-      ...prev,
-      { title: file.name.replace(/\.[^.]+$/, ''), content },
-    ])
-    return false // 阻止 antd 自动上传
-  }
 
   const handleSubmit = async () => {
     const instruction = requirement.trim()
@@ -185,74 +102,7 @@ export const Welcome = () => {
       </div>
 
       {/* 1. 参考上传（可选，随小说一起创建） */}
-      <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-sm font-medium text-slate-600">
-            参考上传（可选）
-          </span>
-          <div className="flex gap-2">
-            <Upload
-              accept=".txt,.md"
-              showUploadList={false}
-              beforeUpload={handleFile}
-              multiple
-            >
-              <Button size="small" icon={<UploadOutlined />}>
-                导入文件
-              </Button>
-            </Upload>
-            <Button
-              size="small"
-              icon={<FileTextOutlined />}
-              onClick={() => setPasteOpen(true)}
-            >
-              粘贴文本
-            </Button>
-          </div>
-        </div>
-        {refs.length === 0 ? (
-          <div className="py-2 text-xs text-slate-400">
-            暂无参考文，可在生成时作为参考材料（完结/连载中的参考作品、资料文档等）
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            {refs.map((ref, i) => (
-              <div
-                key={`${ref.title}-${i}`}
-                className="flex items-center justify-between gap-2 rounded-md border border-slate-200 px-2.5 py-2"
-              >
-                <span
-                  className="min-w-0 flex-1 truncate text-sm"
-                  title={ref.title}
-                >
-                  {ref.title}
-                </span>
-                <span className="shrink-0 text-xs text-slate-400">
-                  {ref.content.length.toLocaleString()} 字
-                  {ref.content.length > REF_MAX_CHARS && (
-                    <span className="ml-1 text-amber-500">
-                      上传时将截取末尾 {REF_MAX_CHARS.toLocaleString()} 字
-                    </span>
-                  )}
-                </span>
-                <Button
-                  size="small"
-                  type="text"
-                  danger
-                  icon={<DeleteOutlined />}
-                  onClick={() =>
-                    setRefs((prev) => prev.filter((_, j) => j !== i))
-                  }
-                />
-              </div>
-            ))}
-            <div className="text-xs text-slate-400">
-              累计 {totalRefChars.toLocaleString()} /{' '}
-              {REF_TOTAL_MAX_CHARS.toLocaleString()} 字
-            </div>
-          </div>
-        )}
-      </section>
+      <RefUpload refs={refs} onChange={setRefs} />
 
       {/* 2. 快捷按钮：一键填入预制提示词 */}
       <section className="rounded-lg border border-slate-200 bg-white p-4">
@@ -286,12 +136,6 @@ export const Welcome = () => {
           创建小说
         </Button>
       </section>
-
-      <PasteRefModal
-        open={pasteOpen}
-        onAdd={(ref) => setRefs((prev) => [...prev, ref])}
-        onClose={() => setPasteOpen(false)}
-      />
     </div>
   )
 }
