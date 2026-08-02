@@ -10,7 +10,7 @@ import {
   message,
 } from 'antd'
 import { useEffect, useState } from 'react'
-import { useNovelConfig } from '../hooks/useNovelConfig'
+import { useNovelConfig } from '../SettingModal/useNovelConfig'
 import { DEFAULT_TARGET_LENGTH } from '../service/constants'
 import { buildMessages, getDefaultSelection } from '../service/context'
 import { CONTEXT_WARN_RATIO, getContextWindow } from '../shared/tokenEstimate'
@@ -191,7 +191,10 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
                   setTextIds((prev) =>
                     checkedRefCount === refIds.length
                       ? prev.filter((id) => !refIds.includes(id))
-                      : [...prev.filter((id) => !refIds.includes(id)), ...refIds],
+                      : [
+                          ...prev.filter((id) => !refIds.includes(id)),
+                          ...refIds,
+                        ],
                   )
                 }
               >
@@ -294,12 +297,7 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
                       value={chapterModeOf(novel, ch.id, textIds)}
                       onChange={(v) =>
                         setTextIds((prev) =>
-                          withChapterMode(
-                            novel,
-                            ch.id,
-                            prev,
-                            v as ChapterMode,
-                          ),
+                          withChapterMode(novel, ch.id, prev, v as ChapterMode),
                         )
                       }
                       options={[

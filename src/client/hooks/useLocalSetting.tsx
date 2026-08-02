@@ -35,8 +35,6 @@ export interface LocalSettingState {
   appendAspectRatio: boolean
   /** 首图自动填充比例：上传第一张图片时自动将比例设置为最接近的图片比例 */
   autoFillAspectRatio: boolean
-  yunwuSystemToken?: string
-  yunwuUserId?: string
   setGptImageSettings: (
     settings: GPTImageSettings | ((prev: GPTImageSettings) => GPTImageSettings),
   ) => void
@@ -45,8 +43,6 @@ export interface LocalSettingState {
   setAppendAspectRatioEnabled: (enabled: boolean) => void
   setAppendAspectRatio: (enabled: boolean) => void
   setAutoFillAspectRatio: (enabled: boolean) => void
-  setYunwuSystemToken: (token: string) => void
-  setYunwuUserId: (userId: string) => void
 }
 
 const useLocalSettingStore = create<LocalSettingState>()(
@@ -58,8 +54,6 @@ const useLocalSettingStore = create<LocalSettingState>()(
       appendAspectRatioEnabled: true,
       appendAspectRatio: false,
       autoFillAspectRatio: true,
-      yunwuSystemToken: undefined,
-      yunwuUserId: undefined,
       setGptImageSettings: (settings) =>
         set((state) => ({
           gptImageSettings:
@@ -76,8 +70,6 @@ const useLocalSettingStore = create<LocalSettingState>()(
       setAppendAspectRatio: (enabled) => set({ appendAspectRatio: enabled }),
       setAutoFillAspectRatio: (enabled) =>
         set({ autoFillAspectRatio: enabled }),
-      setYunwuSystemToken: (token) => set({ yunwuSystemToken: token }),
-      setYunwuUserId: (userId) => set({ yunwuUserId: userId }),
     }),
     {
       name: 'gpt-image-settings',

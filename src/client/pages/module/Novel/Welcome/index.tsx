@@ -1,6 +1,6 @@
 import { Button, Input, message } from 'antd'
 import { useState } from 'react'
-import { useNovelConfig } from '../hooks/useNovelConfig'
+import { useNovelConfig } from '../SettingModal/useNovelConfig'
 import { classifyFirstIntent } from '../service/intent'
 import { useNovelStore } from '../store'
 import { findChapterText } from '../types'

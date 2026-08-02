@@ -1,9 +1,9 @@
 import { Form, Input, InputNumber, message } from 'antd'
 import { createRef, forwardRef, useEffect, useImperativeHandle } from 'react'
 import { openCommonSettingModal } from '../../../common/components/SettingModal'
-import { useNovelConfig } from '../hooks/useNovelConfig'
 import { DEFAULT_RECENT_FULL_CHAPTERS } from '../service/constants'
 import { useNovelStore } from '../store'
+import { useNovelConfig } from './useNovelConfig'
 
 interface NovelSettingRef {
   save: () => Promise<string | undefined>

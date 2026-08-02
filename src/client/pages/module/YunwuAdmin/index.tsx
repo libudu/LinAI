@@ -4,10 +4,10 @@ import { hc } from 'hono/client'
 import { useEffect, useState } from 'react'
 import type { AppType } from '../../../../server'
 import { encryptApiKey } from '../../../../server/module/gpt-image/encrypt'
-import { useLocalSetting } from '../../../hooks/useLocalSetting'
 import { AdminSettingsCollapse } from './AdminSettingsCollapse'
 import { AdminSettingsUser } from './AdminSettingsUser'
 import type { GenerateApiKeyResponse } from './types'
+import { useYunwuConfig } from './useYunwuConfig'
 
 const client = hc<AppType>('/')
 
@@ -15,7 +15,7 @@ const client = hc<AppType>('/')
 export function YunwuAdmin() {
   const [form] = Form.useForm()
   const { yunwuSystemToken, setYunwuSystemToken, yunwuUserId, setYunwuUserId } =
-    useLocalSetting()
+    useYunwuConfig()
   const [generatedApiKey, setGeneratedApiKey] = useState<string>('')
   const [loading, setLoading] = useState(false)
 
