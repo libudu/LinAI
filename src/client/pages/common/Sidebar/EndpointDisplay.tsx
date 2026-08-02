@@ -1,7 +1,7 @@
 import { Tooltip } from 'antd'
 import { useMemo } from 'react'
-import { useGPTImageQuota } from '../../../hooks/useGPTImageQuota'
 import { useGlobalStore } from '../../../store/global'
+import { useGPTImageQuota } from '../GenImage/hooks/useGPTImageQuota'
 import { openGPTImageSettingModal } from '../GenImage/SettingModal'
 import { ENDPOINT_PRESETS } from '../GenImage/SettingModal/Endpoint/endpointPresets'
 

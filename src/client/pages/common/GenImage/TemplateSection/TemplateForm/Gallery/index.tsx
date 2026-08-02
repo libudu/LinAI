@@ -7,9 +7,9 @@ import {
   GENERATED_IMAGES_API_PATH,
   INPUT_IMAGES_API_PATH,
 } from '../../../../../../../server/common/static/enum'
-import { useRecentImages } from '../../../../../../hooks/useRecentImages'
-import { useTasks } from '../../../../../../hooks/useTasks'
-import { useTemplates } from '../../../../../../hooks/useTemplates'
+import { useRecentImages } from '../../../hooks/useRecentImages'
+import { useTasks } from '../../../hooks/useTasks'
+import { useTemplates } from '../../../hooks/useTemplates'
 import type { GalleryDeleteSuccessPayload } from './Footer'
 import { GalleryFooter } from './Footer'
 

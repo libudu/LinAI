@@ -1,10 +1,10 @@
 import { hc } from 'hono/client'
 import { useEffect, useMemo, useRef } from 'react'
 import { create } from 'zustand'
-import type { AppType } from '../../server'
-import type { GPTImageQuotaResponse } from '../../server/api/gpt-image'
-import { isAdmin } from '../utils/admin'
-import { useGlobalStore } from '../store/global'
+import type { AppType } from '../../../../../server'
+import type { GPTImageQuotaResponse } from '../../../../../server/api/gpt-image'
+import { useGlobalStore } from '../../../../store/global'
+import { isAdmin } from '../../../../utils/admin'
 import { useTasks } from './useTasks'
 
 // 人民币和积分的汇率

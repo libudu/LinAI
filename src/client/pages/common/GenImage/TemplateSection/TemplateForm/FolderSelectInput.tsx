@@ -1,6 +1,6 @@
 import { AutoComplete, Form } from 'antd'
 import { useMemo } from 'react'
-import { useTemplates } from '../../../../../hooks/useTemplates'
+import { useTemplates } from '../../hooks/useTemplates'
 
 export function FolderFormItem({ className }: { className?: string }) {
   const { data: templates = [] } = useTemplates()

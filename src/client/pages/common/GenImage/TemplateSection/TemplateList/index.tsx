@@ -1,6 +1,6 @@
 import { Button, Spin } from 'antd'
 import { forwardRef, useImperativeHandle, useState } from 'react'
-import { useTemplates } from '../../../../../hooks/useTemplates'
+import { useTemplates } from '../../hooks/useTemplates'
 import { RenameFolderModal } from '../TemplateItem/RenameFolderModal'
 import { TemplateItemList } from './TemplateItemList'
 
@@ -18,7 +18,9 @@ export const TemplateList = forwardRef<TemplateListRef, unknown>((_, ref) => {
     refresh,
   }))
 
-  const imageTemplates = templates.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+  const imageTemplates = templates.sort(
+    (a, b) => (b.createdAt || 0) - (a.createdAt || 0),
+  )
 
   return (
     <>

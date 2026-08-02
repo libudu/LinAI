@@ -7,7 +7,7 @@ import { Image as AntImage, Button, message, Upload } from 'antd'
 import { hc } from 'hono/client'
 import { useEffect, useRef } from 'react'
 import type { AppType } from '../../../../../../server'
-import { useRecentImages } from '../../../../../hooks/useRecentImages'
+import { useRecentImages } from '../../hooks/useRecentImages'
 import {
   openGallery,
   type GalleryImageSelection,

@@ -3,7 +3,7 @@ import { message } from 'antd'
 import { hc } from 'hono/client'
 import type { AppType } from '../../../../../../server'
 import { TaskTemplate } from '../../../../../../server/common/template-manager'
-import { useTemplates } from '../../../../../hooks/useTemplates'
+import { useTemplates } from '../../hooks/useTemplates'
 import { TemplateFolder } from '../TemplateItem/TemplateFolder'
 import { TemplateItem } from '../TemplateItem/TemplateItem'
 

@@ -4,7 +4,7 @@ import { hc } from 'hono/client'
 import { useState } from 'react'
 import type { AppType } from '../../../../../../server'
 import { TaskTemplate } from '../../../../../../server/common/template-manager'
-import { useTemplates } from '../../../../../hooks/useTemplates'
+import { useTemplates } from '../../hooks/useTemplates'
 import { TemplateFormFields } from '../TemplateForm/TemplateFormItems'
 
 const client = hc<AppType>('/')
