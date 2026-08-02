@@ -9,10 +9,12 @@ import {
 import type { ReactNode } from 'react'
 import { GenImage } from './pages/common/GenImage'
 import { openGPTImageSettingModal } from './pages/common/GenImage/SettingModal'
-import { YunwuAdmin } from './pages/module/YunwuAdmin'
 import { TTS } from './pages/module/GeminiTTS'
 import { openTTSSettingModal } from './pages/module/GeminiTTS/SettingModal'
 import { MediaClassifier } from './pages/module/MediaClassifier'
+import { Novel } from './pages/module/Novel'
+import { openNovelSettingModal } from './pages/module/Novel/SettingModal'
+import { YunwuAdmin } from './pages/module/YunwuAdmin'
 
 export interface AppRoute {
   path: string
@@ -58,9 +60,10 @@ export const appRoutes: AppRoute[] = [
   {
     path: '/novel',
     label: '小说生成',
+    element: <Novel />,
     key: 'novel',
     icon: <BookOutlined />,
-    disabled: true,
+    onClickSetting: () => openNovelSettingModal(),
   },
   {
     path: '/media-classifier',

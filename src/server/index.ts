@@ -3,15 +3,16 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import dotenv from 'dotenv'
 import { Hono } from 'hono'
 import * as path from 'path'
+import chatApi from './api/chat'
 import configApi from './api/common/config'
 import logApi from './api/common/log'
 import staticApi from './api/common/static'
 import taskApi from './api/common/task'
 import templateApi from './api/common/template'
-import styleAnalyzeApi from './api/style-analyze'
-import chatApi from './api/chat'
 import gptImageApi from './api/gpt-image'
 import mediaClassifierApi from './api/media-classifier'
+import novelApi from './api/novel'
+import styleAnalyzeApi from './api/style-analyze'
 import ttsApi from './api/tts'
 import ttsInworldApi from './api/tts-inworld'
 import yunwuTokenApi from './api/yunwu-token'
@@ -29,6 +30,7 @@ const routes = app
   .route('/api/gptImage', gptImageApi)
   .route('/api/gptImage', yunwuTokenApi)
   .route('/api/media-classifier', mediaClassifierApi)
+  .route('/api/novel', novelApi)
   // common
   .route('/api/task', taskApi)
   .route('/api/template', templateApi)

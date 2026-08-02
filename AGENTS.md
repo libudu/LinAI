@@ -1,6 +1,6 @@
 # LinAI
 
-个人 AI 工具箱桌面 Web 应用：React 前端 + Hono 后端的全栈 TypeScript 项目，最终打包成内置 Node.js 运行时的 Windows 免安装压缩包分发。主要功能模块：GPT 图像生成（经云雾 yunwu.ai 中转）、语音合成（Inworld / Gemini TTS，含 Ren'Py 台词同步）、图片整理（media-classifier）、聊天代理。
+个人 AI 工具箱桌面 Web 应用：React 前端 + Hono 后端的全栈 TypeScript 项目，最终打包成内置 Node.js 运行时的 Windows 免安装压缩包分发。主要功能模块：GPT 图像生成（经云雾 yunwu.ai 中转）、语音合成（Inworld / Gemini TTS，含 Ren'Py 台词同步）、图片整理（media-classifier）、小说生成（DeepSeek 兼容接口，流式）、聊天代理。
 
 ## 开发约定（必须遵守）
 
@@ -27,17 +27,17 @@
 ## 目录结构
 
 - `src/client/`：前端
-  - `pages/module/`：功能页面（GeminiTTS、MediaClassifier、YunwuAdmin 云雾用户管理，仅管理员可见）
+  - `pages/module/`：功能页面（GeminiTTS、MediaClassifier、Novel 小说生成、YunwuAdmin 云雾用户管理，仅管理员可见）；Novel 下的 `service/` 承载小说生成编排（prompt 组装、上下文勾选、`/api/novel/llm` 代理调用、结果落盘），`hooks/useNovelConfig.ts` 承载小说模块配置状态
   - `pages/common/`：通用页面组件（Sidebar、GenImage 图片生成首页，含其下的 TaskList、TemplateSection、SettingModal，及 Notification）
   - `routes.tsx`：路由注册表，新增页面在此登记
   - `store/global.ts`：zustand 全局状态；`hooks/`、`common/`、`utils/`
 - `src/server/`：后端
   - `index.ts`：Hono 入口，所有 API 路由在此挂载（`/api/*`），导出 `AppType` 供前端 RPC 类型推导
-  - `api/`：HTTP 接口层（chat、gpt-image、tts、tts-inworld、media-classifier、style-analyze、yunwu-token，及 `api/common/` 下的 task/template/log/static/config）
-  - `module/`：业务逻辑层（gpt-image、tts、media-classifier、chat、utils/logger）
-  - `common/`：基础设施（config 配置读写、static 静态文件、task-manager 任务管理、template-manager 模板管理）
+  - `api/`：HTTP 接口层（chat、gpt-image、tts、tts-inworld、media-classifier、novel、style-analyze、yunwu-token，及 `api/common/` 下的 task/template/log/static/config）
+  - `module/`：业务逻辑层（gpt-image、tts、media-classifier、chat、novel、utils/logger；novel 保留落盘 store、共享类型与独立配置 `novel/config.ts`，生成编排在前端 `Novel/service/`）
+  - `common/`：基础设施（config 配置读写，含通用 `config/config-json.ts` 的 `ConfigJson` 类——新模块的 config.json 用它创建；static 静态文件、task-manager 任务管理、template-manager 模板管理）
   - `migrate.ts`：版本迁移脚本，供最终用户拖入新版压缩包升级
-- `data/`：运行时数据（不入库的用户数据），含 `config.json`（API 密钥）、`tasks.json`、`templates.json`、`images/`、`tts/`、`logs/`、`media-classifier/`；服务以 `process.cwd()/data` 定位
+- `data/`：运行时数据（不入库的用户数据），含 `config.json`（API 密钥）、`tasks.json`、`templates.json`、`images/`、`tts/`、`logs/`、`media-classifier/`、`novels/`（小说数据：index.json + 每书目录 + 模块独立配置 config.json）；服务以 `process.cwd()/data` 定位
 - `data-template/`：发布时打包进 `dist/data` 的初始数据
 - `dist-template/`：发布模板，含便携 Node 运行时（`runtime/node.exe`）和 `双击运行.bat`、`版本迁移….bat`
 - `scripts/post-build.ts`：构建后处理（git tag 检查、复制模板、dist 内安装生产依赖、打 zip）；`scripts/renpy_dialogue/` 为 Ren'Py 台词提取的辅助脚本
