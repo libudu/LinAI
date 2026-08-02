@@ -2,10 +2,10 @@ import { EventEmitter } from 'events'
 import fs from 'fs-extra'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
-import { GENERATED_IMAGES_DIR } from '../static'
-import { GENERATED_IMAGES_API_PATH } from '../static/enum'
 import { GptImageQuality, GptImageSize } from '../../module/gpt-image/enum'
 import { Logger } from '../../module/utils/logger'
+import { GENERATED_IMAGES_DIR } from '../static'
+import { GENERATED_IMAGES_API_PATH } from '../static/enum'
 import { TaskTemplate } from '../template-manager'
 
 export interface Task {
@@ -85,7 +85,6 @@ export class TaskManager extends EventEmitter {
       return []
     }
   }
-
 
   public async createTaskFromTemplate(options: {
     template: TaskTemplate

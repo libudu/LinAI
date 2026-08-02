@@ -188,7 +188,9 @@ export function TrashImageTab({
           ? updateMediaLocalMark(item, 'pending')
           : item,
       )
-      const nextTrashImages = nextImages.filter((item) => item.status === 'delete')
+      const nextTrashImages = nextImages.filter(
+        (item) => item.status === 'delete',
+      )
 
       onImagesChange(nextImages)
       setTrashItems(nextTrashImages.slice(0, trashPage * TRASH_PAGE_SIZE))

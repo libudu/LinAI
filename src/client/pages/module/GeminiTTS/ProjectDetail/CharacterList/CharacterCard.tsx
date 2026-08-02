@@ -1,3 +1,4 @@
+import { TTSCharacter } from '@/server/module/tts'
 import {
   AudioOutlined,
   DeleteOutlined,
@@ -6,7 +7,6 @@ import {
 } from '@ant-design/icons'
 import { Button, Tooltip } from 'antd'
 import classNames from 'classnames'
-import { TTSCharacter } from '../../../../../../server/module/tts'
 import { useTTSStore } from '../../store'
 
 interface CharacterCardProps {

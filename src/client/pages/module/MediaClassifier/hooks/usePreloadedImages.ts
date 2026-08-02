@@ -22,21 +22,24 @@ export function usePreloadedImages(
     [urls],
   )
 
-  const touchCache = useCallback((url: string, data: string) => {
-    const cache = cacheRef.current
-    if (cache.has(url)) {
-      cache.delete(url)
-    }
-    cache.set(url, data)
-
-    while (cache.size > maxCacheSize) {
-      const oldestKey = cache.keys().next().value
-      if (!oldestKey) {
-        break
+  const touchCache = useCallback(
+    (url: string, data: string) => {
+      const cache = cacheRef.current
+      if (cache.has(url)) {
+        cache.delete(url)
       }
-      cache.delete(oldestKey)
-    }
-  }, [maxCacheSize])
+      cache.set(url, data)
+
+      while (cache.size > maxCacheSize) {
+        const oldestKey = cache.keys().next().value
+        if (!oldestKey) {
+          break
+        }
+        cache.delete(oldestKey)
+      }
+    },
+    [maxCacheSize],
+  )
 
   const getImageData = useCallback(
     async (url: string) => {

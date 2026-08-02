@@ -1,7 +1,7 @@
+import type { GptImageQuality } from '@/server/module/gpt-image/enum'
 import { useMemo } from 'react'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { GptImageQuality } from '../../server/module/gpt-image/enum'
 
 export interface GPTImageSettings {
   enable1K: boolean

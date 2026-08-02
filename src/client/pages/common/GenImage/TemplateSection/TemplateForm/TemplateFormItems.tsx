@@ -1,3 +1,4 @@
+import { useLocalSetting } from '@/client/hooks/useLocalSetting'
 import {
   BorderOutlined,
   BulbOutlined,
@@ -14,7 +15,6 @@ import {
 } from 'antd'
 import classnames from 'classnames'
 import React, { useState } from 'react'
-import { useLocalSetting } from '../../../../../hooks/useLocalSetting'
 import { FolderFormItem } from './FolderSelectInput'
 import { ImageUpload } from './ImageUpload'
 import { PromptOptimizeModal } from './PromptOptimizeModal'

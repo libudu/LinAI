@@ -1,8 +1,8 @@
 import { animate, type JSAnimation } from 'animejs'
 import { Image } from 'antd'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { MediaImageItem } from '../../types'
 import { usePreloadedImages } from '../../hooks/usePreloadedImages'
+import type { MediaImageItem } from '../../types'
 import { MediaStatusImage } from './MediaStatusImage'
 
 type SlotName = 'offLeft' | 'prev' | 'current' | 'next' | 'offRight'

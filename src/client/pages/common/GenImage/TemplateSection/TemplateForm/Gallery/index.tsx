@@ -1,12 +1,12 @@
+import type { AppType } from '@/server'
+import {
+  GENERATED_IMAGES_API_PATH,
+  INPUT_IMAGES_API_PATH,
+} from '@/server/common/static/enum'
 import { Modal, Spin, Tabs } from 'antd'
 import { hc } from 'hono/client'
 import { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import type { AppType } from '../../../../../../../server'
-import {
-  GENERATED_IMAGES_API_PATH,
-  INPUT_IMAGES_API_PATH,
-} from '../../../../../../../server/common/static/enum'
 import { useRecentImages } from '../../../hooks/useRecentImages'
 import { useTasks } from '../../../hooks/useTasks'
 import { useTemplates } from '../../../hooks/useTemplates'

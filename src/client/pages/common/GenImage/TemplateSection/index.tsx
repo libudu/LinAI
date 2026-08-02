@@ -1,6 +1,6 @@
+import { usePlatform } from '@/client/hooks/usePlatform'
 import { Radio } from 'antd'
 import { useRef, useState } from 'react'
-import { usePlatform } from '../../../../hooks/usePlatform'
 import { TemplateForm } from './TemplateForm'
 import { TemplateList, TemplateListRef } from './TemplateList'
 

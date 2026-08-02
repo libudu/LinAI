@@ -1,8 +1,8 @@
+import type { AppType } from '@/server'
+import { InworldVoiceItem } from '@/server/module/tts'
 import { hc } from 'hono/client'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { AppType } from '../../../../server'
-import { InworldVoiceItem } from '../../../../server/module/tts'
 
 const client = hc<AppType>('/')
 

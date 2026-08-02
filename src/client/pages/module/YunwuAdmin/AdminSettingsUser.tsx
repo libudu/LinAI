@@ -1,5 +1,11 @@
+import {
+  CheckCircleOutlined,
+  KeyOutlined,
+  LockOutlined,
+  UserOutlined,
+  WarningOutlined,
+} from '@ant-design/icons'
 import { Button, Form, Input, Tag, message } from 'antd'
-import { CheckCircleOutlined, KeyOutlined, LockOutlined, UserOutlined, WarningOutlined } from '@ant-design/icons'
 import type { FormInstance } from 'antd/es/form'
 
 interface Props {
@@ -17,10 +23,12 @@ export function AdminSettingsUser({ form, onSave, token, userId }: Props) {
   const formUserId = Form.useWatch('yunwuUserId', form)
   const dirty = formToken !== (token ?? '') || formUserId !== (userId ?? '')
 
-
   const handleSave = async () => {
     try {
-      const values = await form.validateFields(['yunwuSystemToken', 'yunwuUserId'])
+      const values = await form.validateFields([
+        'yunwuSystemToken',
+        'yunwuUserId',
+      ])
       onSave(values.yunwuSystemToken, values.yunwuUserId)
       message.success('云雾用户设置已保存')
     } catch {
@@ -37,14 +45,24 @@ export function AdminSettingsUser({ form, onSave, token, userId }: Props) {
             ☁️
           </span>
           <div>
-            <div className="text-sm font-medium text-gray-800">云雾用户设置</div>
+            <div className="text-sm font-medium text-gray-800">
+              云雾用户设置
+            </div>
             <div className="text-xs leading-tight text-gray-400">
               所有 API Key 管理功能的前置条件
             </div>
           </div>
         </div>
         <Tag
-          icon={dirty ? <WarningOutlined /> : configured ? <CheckCircleOutlined /> : <LockOutlined />}
+          icon={
+            dirty ? (
+              <WarningOutlined />
+            ) : configured ? (
+              <CheckCircleOutlined />
+            ) : (
+              <LockOutlined />
+            )
+          }
           color={dirty ? 'warning' : configured ? 'success' : 'warning'}
           className="!m-0 !inline-flex !items-center !gap-1 !rounded-full !px-3 !text-xs"
         >
@@ -91,7 +109,7 @@ export function AdminSettingsUser({ form, onSave, token, userId }: Props) {
       </div>
 
       {/* Helper hint */}
-      <p className="mb-0 mt-2 text-xs text-gray-400">
+      <p className="mt-2 mb-0 text-xs text-gray-400">
         {configured
           ? '已配置用户凭据，下方 API Key 管理功能已可用'
           : '请填写系统令牌和用户 ID 后点击保存，以启用 API Key 管理功能'}

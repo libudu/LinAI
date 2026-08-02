@@ -1,7 +1,7 @@
+import type { AppType } from '@/server'
 import { Form, Input, Modal, message } from 'antd'
 import { hc } from 'hono/client'
 import { useState } from 'react'
-import type { AppType } from '../../../../../../server'
 
 const client = hc<AppType>('/')
 
@@ -12,7 +12,12 @@ interface RenameFolderModalProps {
   onSuccess: (newFolder: string) => void
 }
 
-export function RenameFolderModal({ folder, open, onCancel, onSuccess }: RenameFolderModalProps) {
+export function RenameFolderModal({
+  folder,
+  open,
+  onCancel,
+  onSuccess,
+}: RenameFolderModalProps) {
   const [form] = Form.useForm()
   const [submitting, setSubmitting] = useState(false)
 

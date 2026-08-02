@@ -1,15 +1,11 @@
+import type { AppType } from '@/server'
+import type { StyleAnalysis } from '@/server/api/style-analyze'
 import { CopyOutlined } from '@ant-design/icons'
-import { Button, Modal, message } from 'antd'
 import type { UploadProps } from 'antd'
+import { Button, Modal, message } from 'antd'
 import { hc } from 'hono/client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { AppType } from '../../../../../../../server'
-import type { StyleAnalysis } from '../../../../../../../server/api/style-analyze'
-import {
-  EMPTY_ANALYSIS,
-  STYLE_DIMENSIONS,
-  composePrompt,
-} from './dimensions'
+import { EMPTY_ANALYSIS, STYLE_DIMENSIONS, composePrompt } from './dimensions'
 import { DimensionSection } from './DimensionSection'
 import { PreviewSection } from './PreviewSection'
 import { UploadSection } from './UploadSection'
@@ -44,7 +40,8 @@ export function StyleExtractModal({
   const [selections, setSelections] = useState<Set<keyof StyleAnalysis>>(
     () => new Set(STYLE_DIMENSIONS.map((d) => d.key)),
   )
-  const [editedValues, setEditedValues] = useState<StyleAnalysis>(EMPTY_ANALYSIS)
+  const [editedValues, setEditedValues] =
+    useState<StyleAnalysis>(EMPTY_ANALYSIS)
   const [composedPrompt, setComposedPrompt] = useState('')
   const [manualEdit, setManualEdit] = useState(false)
 
@@ -130,7 +127,8 @@ export function StyleExtractModal({
         throw new Error(errorMsg)
       }
 
-      const result = 'data' in data ? (data.data as StyleAnalysis) : EMPTY_ANALYSIS
+      const result =
+        'data' in data ? (data.data as StyleAnalysis) : EMPTY_ANALYSIS
       setEditedValues(result)
       setSelections(new Set(STYLE_DIMENSIONS.map((d) => d.key)))
       setManualEdit(false)

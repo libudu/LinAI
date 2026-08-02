@@ -69,14 +69,16 @@ export async function createChatCompletion(options: {
     const data = await parseChatResponse(response)
 
     if (!response.ok) {
-      const upstreamError = isPlainObject(data) && typeof data.error === 'string'
-        ? data.error
-        : ''
+      const upstreamError =
+        isPlainObject(data) && typeof data.error === 'string' ? data.error : ''
       const prefix = '[yunwu.ai] '
       return {
         status: response.status,
         data: isPlainObject(data)
-          ? { ...data, error: `${prefix}${upstreamError || 'Chat completion request failed'}` }
+          ? {
+              ...data,
+              error: `${prefix}${upstreamError || 'Chat completion request failed'}`,
+            }
           : {
               success: false as const,
               error: `${prefix}Chat completion request failed`,

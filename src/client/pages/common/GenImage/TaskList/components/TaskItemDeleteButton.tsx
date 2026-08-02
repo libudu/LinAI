@@ -1,9 +1,9 @@
+import { useLocalSetting } from '@/client/hooks/useLocalSetting'
+import type { AppType } from '@/server'
 import { DeleteOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { Button, Checkbox, message, Modal, Tooltip } from 'antd'
 import { hc } from 'hono/client'
-import type { AppType } from '../../../../../../server'
-import { useLocalSetting } from '../../../../../hooks/useLocalSetting'
 
 const client = hc<AppType>('/')
 
@@ -30,7 +30,11 @@ export function TaskItemDeleteButton({
     try {
       const res = await client.api.task[':id'].$delete({
         param: { id },
-        query: { keepImage: gptImageSettings.keepImageWhenDeleteTask ? 'true' : 'false' },
+        query: {
+          keepImage: gptImageSettings.keepImageWhenDeleteTask
+            ? 'true'
+            : 'false',
+        },
       })
       const json = await res.json()
       if (json.success) {

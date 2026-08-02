@@ -1,8 +1,8 @@
 // 小说模块 CRUD 接口封装（生成相关的 LLM 调用与编排在 service/ 下，不在此文件）
 // 参考文/设定/大纲/正文/摘要统一为 NovelText，共用一套 texts 接口
+import type { AppType } from '@/server'
+import type { NovelConfig } from '@/server/module/novel/config'
 import { hc } from 'hono/client'
-import type { AppType } from '../../../../server'
-import type { NovelConfig } from '../../../../server/module/novel/config'
 import { DEFAULT_RECENT_FULL_CHAPTERS } from './service/constants'
 import type {
   Novel,

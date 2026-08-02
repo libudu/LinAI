@@ -1,12 +1,12 @@
-import { DownloadOutlined } from '@ant-design/icons'
-import { Button, message } from 'antd'
-import { useState } from 'react'
-import type { Task } from '../../../../../../server/common/task-manager'
 import {
   DOWNLOAD_ZIP_MAX_FILES,
   downloadFile,
   downloadFilesZip,
-} from '../../../../../utils/download'
+} from '@/client/utils/download'
+import type { Task } from '@/server/common/task-manager'
+import { DownloadOutlined } from '@ant-design/icons'
+import { Button, message } from 'antd'
+import { useState } from 'react'
 
 interface TaskListDownloadButtonProps {
   tasks: Task[]

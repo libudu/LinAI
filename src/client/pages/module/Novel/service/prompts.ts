@@ -29,7 +29,9 @@ export const formatFullChapters = (
   entries: { index: number; title: string; content: string }[],
 ): string =>
   `【最近章节全文】\n${entries
-    .map((e) => `第${e.index}章${e.title ? `《${e.title}》` : ''}\n${e.content}`)
+    .map(
+      (e) => `第${e.index}章${e.title ? `《${e.title}》` : ''}\n${e.content}`,
+    )
     .join('\n\n')}`
 
 // 大纲为纯文本（模型按约定格式输出，落盘后可由用户自由编辑）

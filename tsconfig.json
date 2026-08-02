@@ -16,6 +16,9 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "incremental": true,
+    "paths": {
+      "@/*": ["./src/*"]
+    },
     "types": ["node", "react", "react-dom"]
   },
   "include": ["src"],

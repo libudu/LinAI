@@ -4,13 +4,13 @@ import {
   ScheduleOutlined,
 } from '@ant-design/icons'
 
+import { useLocalSetting } from '@/client/hooks/useLocalSetting'
+import type { AppType } from '@/server'
+import type { Task } from '@/server/common/task-manager'
 import type { MenuProps } from 'antd'
 import { Button, Dropdown, Modal, Space, message } from 'antd'
 import { hc } from 'hono/client'
 import { useState } from 'react'
-import type { AppType } from '../../../../../server'
-import type { Task } from '../../../../../server/common/task-manager'
-import { useLocalSetting } from '../../../../hooks/useLocalSetting'
 import { TaskListDownloadButton } from './components/TaskListDownloadButton'
 import { TaskListFinishedAlertButton } from './components/TaskListFinishedAlertButton'
 
@@ -46,7 +46,11 @@ export function TaskListHeader({
         try {
           const res = await client.api.task[':id'].$delete({
             param: { id: task.id },
-            query: { keepImage: gptImageSettings.keepImageWhenDeleteTask ? 'true' : 'false' },
+            query: {
+              keepImage: gptImageSettings.keepImageWhenDeleteTask
+                ? 'true'
+                : 'false',
+            },
           })
           const json = await res.json()
           if (json.success) successCount++
@@ -92,7 +96,11 @@ export function TaskListHeader({
             try {
               const res = await client.api.task[':id'].$delete({
                 param: { id: task.id },
-                query: { keepImage: gptImageSettings.keepImageWhenDeleteTask ? 'true' : 'false' },
+                query: {
+                  keepImage: gptImageSettings.keepImageWhenDeleteTask
+                    ? 'true'
+                    : 'false',
+                },
               })
               const json = await res.json()
               if (json.success) successCount++

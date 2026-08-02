@@ -60,8 +60,7 @@ function App() {
             <Routes>
               {appRoutes
                 .filter(
-                  (route) =>
-                    !route.disabled && (!route.adminOnly || isAdmin()),
+                  (route) => !route.disabled && (!route.adminOnly || isAdmin()),
                 )
                 .map((route) => (
                   <Route

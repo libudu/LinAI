@@ -1,8 +1,8 @@
+import { useLocalSetting } from '@/client/hooks/useLocalSetting'
+import type { AppType } from '@/server'
 import { Button, message, Switch } from 'antd'
 import { hc } from 'hono/client'
 import { forwardRef } from 'react'
-import type { AppType } from '../../../../../server'
-import { useLocalSetting } from '../../../../hooks/useLocalSetting'
 
 const client = hc<AppType>('/')
 

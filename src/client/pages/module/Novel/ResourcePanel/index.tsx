@@ -214,19 +214,14 @@ const SectionHeader = ({
 )
 
 export const ResourcePanel = () => {
-  const {
-    currentNovel,
-    deleteText,
-    openDrawer,
-    streaming,
-    abortGeneration,
-  } = useNovelStore()
+  const { currentNovel, deleteText, openDrawer, streaming, abortGeneration } =
+    useNovelStore()
 
   const [refUploadOpen, setRefUploadOpen] = useState(false)
   const [viewRef, setViewRef] = useState<NovelText | null>(null)
-  const [editingSetting, setEditingSetting] = useState<NovelText | 'new' | null>(
-    null,
-  )
+  const [editingSetting, setEditingSetting] = useState<
+    NovelText | 'new' | null
+  >(null)
 
   const refs = currentNovel ? textsByType(currentNovel, 'ref') : []
   const settings = currentNovel ? textsByType(currentNovel, 'setting') : []

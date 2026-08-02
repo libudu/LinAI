@@ -1,6 +1,6 @@
+import type { Task } from '@/server/common/task-manager'
 import { useEffect } from 'react'
 import { create } from 'zustand'
-import type { Task } from '../../../../../server/common/task-manager'
 
 interface TasksState {
   data: Task[]

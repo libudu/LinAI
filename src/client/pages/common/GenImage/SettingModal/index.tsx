@@ -1,12 +1,12 @@
+import { useLocalSetting } from '@/client/hooks/useLocalSetting'
 import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { Form, Radio, Switch, message } from 'antd'
 import { createRef, forwardRef, useEffect, useImperativeHandle } from 'react'
-import { useLocalSetting } from '../../../../hooks/useLocalSetting'
-import { useGPTImageQuota } from '../hooks/useGPTImageQuota'
 import {
   openCommonSettingModal,
   type CommonSettingTab,
 } from '../../components/SettingModal'
+import { useGPTImageQuota } from '../hooks/useGPTImageQuota'
 import {
   EndpointSetting,
   type EndpointSettingRef,

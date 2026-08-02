@@ -1,3 +1,9 @@
+import { useLocalSetting } from '@/client/hooks/useLocalSetting'
+import { useGlobalStore } from '@/client/store/global'
+import type { AppType } from '@/server'
+import type { Task } from '@/server/common/task-manager'
+import { TRIAL_TEMPLATE_TITLE } from '@/server/common/template-manager/enum'
+import { GPT_IMAGE_SOURCE_MODEL } from '@/server/module/gpt-image/enum'
 import {
   RedoOutlined,
   SyncOutlined,
@@ -17,12 +23,6 @@ import {
 import copy from 'copy-to-clipboard'
 import dayjs from 'dayjs'
 import { hc } from 'hono/client'
-import type { AppType } from '../../../../../server'
-import type { Task } from '../../../../../server/common/task-manager'
-import { TRIAL_TEMPLATE_TITLE } from '../../../../../server/common/template-manager/enum'
-import { GPT_IMAGE_SOURCE_MODEL } from '../../../../../server/module/gpt-image/enum'
-import { useLocalSetting } from '../../../../hooks/useLocalSetting'
-import { useGlobalStore } from '../../../../store/global'
 import { ImageGroup } from '../../components/ImageGroup'
 import { useTasks } from '../hooks/useTasks'
 import { TaskItemDeleteButton } from './components/TaskItemDeleteButton'

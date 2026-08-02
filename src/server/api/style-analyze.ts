@@ -74,7 +74,10 @@ function getLocalImageFilename(rawUrl: string): string | null {
     }
   }
 
-  if (!pathname.startsWith('/') || !pathname.startsWith(INPUT_IMAGES_API_PATH)) {
+  if (
+    !pathname.startsWith('/') ||
+    !pathname.startsWith(INPUT_IMAGES_API_PATH)
+  ) {
     throw new Error('[服务] Only uploaded local images are supported')
   }
 
@@ -111,9 +114,18 @@ async function resolveImageUrl(rawUrl: string): Promise<string> {
 function isStyleAnalysis(value: unknown): value is StyleAnalysis {
   if (!value || typeof value !== 'object') return false
   const keys: (keyof StyleAnalysis)[] = [
-    'media_style', 'camera_lens', 'composition', 'color_palette',
-    'lighting', 'texture_effects', 'subject_main', 'subject_detail',
-    'environment', 'ui_text', 'atmosphere', 'art_reference',
+    'media_style',
+    'camera_lens',
+    'composition',
+    'color_palette',
+    'lighting',
+    'texture_effects',
+    'subject_main',
+    'subject_detail',
+    'environment',
+    'ui_text',
+    'atmosphere',
+    'art_reference',
   ]
   const obj = value as Record<string, unknown>
   return keys.every((k) => typeof obj[k] === 'string')
@@ -124,19 +136,29 @@ function extractJsonFromResponse(content: unknown): unknown {
 
   const trimmed = content.trim()
 
-  try { return JSON.parse(trimmed) } catch { /* continue */ }
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    /* continue */
+  }
 
   const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/)
   if (fenceMatch) {
-    try { return JSON.parse(fenceMatch[1].trim()) } catch { /* continue */ }
+    try {
+      return JSON.parse(fenceMatch[1].trim())
+    } catch {
+      /* continue */
+    }
   }
 
   const braceMatch = trimmed.match(/\{[\s\S]*\}/)
   if (braceMatch) {
-    const cleaned = braceMatch[0]
-      .replace(/'/g, '"')
-      .replace(/,\s*}/g, '}')
-    try { return JSON.parse(cleaned) } catch { /* continue */ }
+    const cleaned = braceMatch[0].replace(/'/g, '"').replace(/,\s*}/g, '}')
+    try {
+      return JSON.parse(cleaned)
+    } catch {
+      /* continue */
+    }
   }
 
   return null
@@ -160,7 +182,8 @@ const styleAnalyzeApi = new Hono().post(
     try {
       resolvedUrl = await resolveImageUrl(imageUrl)
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : '[服务] Invalid image URL'
+      const message =
+        error instanceof Error ? error.message : '[服务] Invalid image URL'
       return c.json({ success: false as const, error: message }, 400)
     }
 
@@ -188,34 +211,48 @@ const styleAnalyzeApi = new Hono().post(
 
     if (result.status !== 200) {
       const errorData = result.data as Record<string, unknown> | undefined
-      const error = typeof errorData?.error === 'string'
-        ? errorData.error
-        : '[yunwu.ai] Style analysis failed'
+      const error =
+        typeof errorData?.error === 'string'
+          ? errorData.error
+          : '[yunwu.ai] Style analysis failed'
       return c.json({ success: false as const, error }, 500)
     }
 
     const data = result.data as Record<string, unknown> | undefined
-    const content: unknown = data?.choices !== undefined
-      && Array.isArray(data.choices)
-      && data.choices.length > 0
-      ? (data.choices[0] as Record<string, unknown>)?.message !== undefined
-        && typeof (data.choices[0] as Record<string, unknown>).message === 'object'
-        ? ((data.choices[0] as Record<string, unknown>).message as Record<string, unknown>)?.content
+    const content: unknown =
+      data?.choices !== undefined &&
+      Array.isArray(data.choices) &&
+      data.choices.length > 0
+        ? (data.choices[0] as Record<string, unknown>)?.message !== undefined &&
+          typeof (data.choices[0] as Record<string, unknown>).message ===
+            'object'
+          ? (
+              (data.choices[0] as Record<string, unknown>).message as Record<
+                string,
+                unknown
+              >
+            )?.content
+          : undefined
         : undefined
-      : undefined
 
     const parsed = extractJsonFromResponse(content)
 
     if (!parsed) {
       return c.json(
-        { success: false as const, error: '[服务] Failed to parse style analysis result' },
+        {
+          success: false as const,
+          error: '[服务] Failed to parse style analysis result',
+        },
         500,
       )
     }
 
     if (!isStyleAnalysis(parsed)) {
       return c.json(
-        { success: false as const, error: '[服务] Style analysis result has invalid format' },
+        {
+          success: false as const,
+          error: '[服务] Style analysis result has invalid format',
+        },
         500,
       )
     }

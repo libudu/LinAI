@@ -1,7 +1,7 @@
+import { TaskTemplate } from '@/server/common/template-manager'
 import { Card, Tooltip, message } from 'antd'
 import copy from 'copy-to-clipboard'
 import dayjs from 'dayjs'
-import { TaskTemplate } from '../../../../../../server/common/template-manager'
 import { ImageGroup } from '../../../components/ImageGroup'
 import {
   TemplateItemGenerateButtons,

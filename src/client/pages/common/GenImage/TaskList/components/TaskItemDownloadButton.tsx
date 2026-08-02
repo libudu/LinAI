@@ -1,10 +1,10 @@
-import { DownloadOutlined } from '@ant-design/icons'
-import { Button, message, Tooltip } from 'antd'
 import {
   DOWNLOAD_ZIP_MAX_FILES,
   downloadFile,
   downloadFilesZip,
-} from '../../../../../utils/download'
+} from '@/client/utils/download'
+import { DownloadOutlined } from '@ant-design/icons'
+import { Button, message, Tooltip } from 'antd'
 
 export const TaskItemDownloadButton = ({
   outputUrls,

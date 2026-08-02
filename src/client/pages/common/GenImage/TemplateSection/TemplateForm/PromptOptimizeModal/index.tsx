@@ -1,10 +1,10 @@
+import type { AppType } from '@/server'
 import { EditOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { Image as AntImage, Button, Input, Modal, message } from 'antd'
 import classNames from 'classnames'
 import { hc } from 'hono/client'
 import { useEffect, useMemo, useState } from 'react'
-import type { AppType } from '../../../../../../../server'
 import { PromptTemplateEditModal } from './PromptTemplateEditModal'
 
 const client = hc<AppType>('/')

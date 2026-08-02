@@ -1,3 +1,4 @@
+import type { AppType } from '@/server'
 import {
   CloseCircleFilled,
   PictureOutlined,
@@ -6,12 +7,8 @@ import {
 import { Image as AntImage, Button, message, Upload } from 'antd'
 import { hc } from 'hono/client'
 import { useEffect, useRef } from 'react'
-import type { AppType } from '../../../../../../server'
 import { useRecentImages } from '../../hooks/useRecentImages'
-import {
-  openGallery,
-  type GalleryImageSelection,
-} from './Gallery'
+import { openGallery, type GalleryImageSelection } from './Gallery'
 
 const client = hc<AppType>('/')
 
@@ -217,8 +214,7 @@ export function ImageUpload({
                 }
 
                 // 超出上限时只取剩余可添加的数量
-                const remaining =
-                  MAX_IMAGES - latestValueRef.current.length
+                const remaining = MAX_IMAGES - latestValueRef.current.length
                 if (remaining <= 0) {
                   message.warning(`最多支持 ${MAX_IMAGES} 张图片`)
                   return

@@ -1,6 +1,6 @@
+import { useGlobalStore } from '@/client/store/global'
 import { Form, Input, message } from 'antd'
 import { createRef, forwardRef, useEffect, useImperativeHandle } from 'react'
-import { useGlobalStore } from '../../../../store/global'
 import { openCommonSettingModal } from '../../../common/components/SettingModal'
 
 interface TTSSettingRef {

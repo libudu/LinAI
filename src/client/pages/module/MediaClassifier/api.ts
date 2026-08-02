@@ -1,5 +1,5 @@
+import type { AppType } from '@/server'
 import { hc } from 'hono/client'
-import type { AppType } from '../../../../server'
 import type { MediaImageItem, MediaWorkspaceSnapshot } from './types'
 
 const client = hc<AppType>('/')

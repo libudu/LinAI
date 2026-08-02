@@ -84,7 +84,9 @@ const buildMarkedImage = (
 export const mergeMediaImagesWithLocalMarks = (images: MediaImageItem[]) => {
   const storedMarks = readStoredMediaLocalMarks()
   const now = Date.now()
-  const imageByInfoHash = new Map(images.map((image) => [image.infoHash, image]))
+  const imageByInfoHash = new Map(
+    images.map((image) => [image.infoHash, image]),
+  )
   const imagesByFileHash = new Map<string, MediaImageItem[]>()
 
   for (const image of images) {
@@ -143,7 +145,9 @@ export const mergeMediaImagesWithLocalMarks = (images: MediaImageItem[]) => {
     writeStoredMediaLocalMarks(nextMarks)
   }
 
-  return images.map((image) => buildMarkedImage(image, nextMarks[image.infoHash]))
+  return images.map((image) =>
+    buildMarkedImage(image, nextMarks[image.infoHash]),
+  )
 }
 
 export const updateMediaLocalMark = (

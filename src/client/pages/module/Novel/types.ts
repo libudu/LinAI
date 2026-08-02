@@ -1,6 +1,7 @@
 // 前端复用服务端类型
-import type { GenerateKind } from '../../../../server/module/novel/types'
-export { GENERATE_KINDS } from '../../../../server/module/novel/types'
+import type { GenerateKind } from '@/server/module/novel/types'
+import type { Novel, NovelText, NovelTextType } from './types'
+export { GENERATE_KINDS } from '@/server/module/novel/types'
 export type {
   ChatMessage,
   ContextSelection,
@@ -10,8 +11,7 @@ export type {
   NovelIndexItem,
   NovelText,
   NovelTextType,
-} from '../../../../server/module/novel/types'
-import type { Novel, NovelText, NovelTextType } from './types'
+} from '@/server/module/novel/types'
 
 // 流式生成在前端的落点（决定 streaming 文本渲染在哪张卡片上）
 export type StreamingTarget = 'setting' | 'outline' | 'content' | 'summary'
@@ -55,10 +55,7 @@ export const findChapterText = (
   novel.texts.find((t) => t.chapterId === chapterId && t.type === type)
 
 // 取某类型的全部文本，按创建时间排序
-export const textsByType = (
-  novel: Novel,
-  type: NovelTextType,
-): NovelText[] =>
+export const textsByType = (novel: Novel, type: NovelTextType): NovelText[] =>
   novel.texts
     .filter((t) => t.type === type)
     .sort((a, b) => a.createdAt - b.createdAt)

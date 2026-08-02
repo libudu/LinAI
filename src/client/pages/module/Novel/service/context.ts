@@ -100,9 +100,7 @@ export interface BuiltContext {
 }
 
 // 组装消息，并同步算出 estimatedTokens 随生成文本记录
-export const buildMessages = (
-  params: BuildMessagesParams,
-): BuiltContext => {
+export const buildMessages = (params: BuildMessagesParams): BuiltContext => {
   const { novel, kind, chapter } = params
   const selection =
     params.selection ?? getDefaultSelection(novel, kind, chapter)
@@ -118,8 +116,10 @@ export const buildMessages = (
   const settings = byType('setting')
   const refs = byType('ref')
   // 章节类文本按章节顺序排序
-  const byChapterOrder = (a: (typeof selected)[number], b: (typeof selected)[number]) =>
-    chapterIndex(novel, a.chapterId!) - chapterIndex(novel, b.chapterId!)
+  const byChapterOrder = (
+    a: (typeof selected)[number],
+    b: (typeof selected)[number],
+  ) => chapterIndex(novel, a.chapterId!) - chapterIndex(novel, b.chapterId!)
   const summaries = byType('summary').sort(byChapterOrder)
   const fullContents = byType('content').sort(byChapterOrder)
 

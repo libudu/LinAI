@@ -1,8 +1,8 @@
+import type { Task } from '@/server/common/task-manager'
 import { BellOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { Switch } from 'antd'
 import { useEffect, useRef } from 'react'
-import type { Task } from '../../../../../../server/common/task-manager'
 
 interface TaskListFinishedAlertButtonProps {
   tasks: Task[]

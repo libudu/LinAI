@@ -50,6 +50,7 @@
 
 - Prettier：2 空格缩进、无分号、单引号、尾随逗号、LF 换行；插件自动整理 import 顺序和 Tailwind class 排序
 - tsconfig：strict + noUnusedLocals + noUnusedParameters，`moduleResolution: bundler`，允许 `.ts` 扩展名导入
+- 路径别名：`@/*` → `src/*`（tsconfig paths + vite resolve.alias，tsx/tsup 均自动识别）；跨 client/server 或向上超过 3 级的引用用 `@/`，其余用相对引用（`./` / `../`）
 - 项目注释与日志输出主要使用中文，沿用这一习惯
 
 ## 测试

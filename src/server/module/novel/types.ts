@@ -4,7 +4,12 @@
 // 核心抽象：参考文 / 核心设定 / 章节大纲 / 正文 / 章节摘要 统一为 NovelText，
 // 仅靠 type 区分；后端只提供统一的文本 CRUD，业务编排全部在前端 service/ 完成
 
-export type NovelTextType = 'ref' | 'setting' | 'outline' | 'content' | 'summary'
+export type NovelTextType =
+  | 'ref'
+  | 'setting'
+  | 'outline'
+  | 'content'
+  | 'summary'
 
 // 一段有效文本（内容统一内联存储在 novel.json）
 export interface NovelText {

@@ -1,4 +1,14 @@
-import { AutoComplete, Button, Checkbox, Collapse, Divider, Input, message, Radio, Tag } from 'antd'
+import {
+  AutoComplete,
+  Button,
+  Checkbox,
+  Collapse,
+  Divider,
+  Input,
+  message,
+  Radio,
+  Tag,
+} from 'antd'
 import { useState } from 'react'
 import type { ApiKeySearchResult } from './types'
 
@@ -14,9 +24,17 @@ const ROUTING_OPTIONS = [
   { value: 'auto', label: '智能自动', desc: '综合价格、速度、成功率自动选择' },
   { value: 'price', label: '价格优先', desc: '优先选择成本更低的渠道' },
   { value: 'speed', label: '速度优先', desc: '优先选择响应更快的渠道' },
-  { value: 'success_rate', label: '成功率优先', desc: '优先选择近期更稳定的渠道' },
+  {
+    value: 'success_rate',
+    label: '成功率优先',
+    desc: '优先选择近期更稳定的渠道',
+  },
 ]
-export function AdminSettingsGroup({ yunwuSystemToken, yunwuUserId, selectedTokenId }: Props) {
+export function AdminSettingsGroup({
+  yunwuSystemToken,
+  yunwuUserId,
+  selectedTokenId,
+}: Props) {
   const [tokenData, setTokenData] = useState<TokenData | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -25,7 +43,9 @@ export function AdminSettingsGroup({ yunwuSystemToken, yunwuUserId, selectedToke
   const [groups, setGroups] = useState<string[]>([])
   const [newGroupName, setNewGroupName] = useState('')
   const [dragIndex, setDragIndex] = useState<number | null>(null)
-  const [availableGroups, setAvailableGroups] = useState<{ name: string; description: string; ratio: number }[]>([])
+  const [availableGroups, setAvailableGroups] = useState<
+    { name: string; description: string; ratio: number }[]
+  >([])
 
   const handleFetch = async () => {
     if (!selectedTokenId || !yunwuSystemToken || !yunwuUserId) {
@@ -70,8 +90,8 @@ export function AdminSettingsGroup({ yunwuSystemToken, yunwuUserId, selectedToke
       const result: Record<string, unknown> = await res.json()
       if (result.success) {
         const data = result.data as Record<string, unknown>
-        const groupsMap = data.data as Record<string, string> || {}
-        const ratiosMap = data.ratios as Record<string, number> || {}
+        const groupsMap = (data.data as Record<string, string>) || {}
+        const ratiosMap = (data.ratios as Record<string, number>) || {}
         const list = Object.entries(groupsMap).map(([name, description]) => ({
           name,
           description,
@@ -154,14 +174,19 @@ export function AdminSettingsGroup({ yunwuSystemToken, yunwuUserId, selectedToke
       <Tag color={selectedTokenId ? 'blue' : 'default'}>
         {selectedTokenId ? `已选中: #${selectedTokenId}` : '未选中令牌'}
       </Tag>
-      <Button onClick={handleFetch} loading={loading} size="small">获取</Button>
+      <Button onClick={handleFetch} loading={loading} size="small">
+        获取
+      </Button>
     </div>
   )
 
   const routingSection = !manualMode && (
     <>
       <div className="mb-2 text-sm font-medium text-gray-700">智能路由</div>
-      <Radio.Group value={routingPriority} onChange={(e) => setRoutingPriority(e.target.value)}>
+      <Radio.Group
+        value={routingPriority}
+        onChange={(e) => setRoutingPriority(e.target.value)}
+      >
         <div className="space-y-2">
           {ROUTING_OPTIONS.map((opt, i) => (
             <div
@@ -195,45 +220,70 @@ export function AdminSettingsGroup({ yunwuSystemToken, yunwuUserId, selectedToke
           <span className="cursor-grab text-xs text-gray-400">⠿</span>
           <span className="mr-1 text-xs text-gray-400">#{index + 1}</span>
           <span className="flex-1 text-sm">{group}</span>
-          <Button type="text" size="small" danger onClick={() => handleDeleteGroup(index)}>删除</Button>
+          <Button
+            type="text"
+            size="small"
+            danger
+            onClick={() => handleDeleteGroup(index)}
+          >
+            删除
+          </Button>
         </div>
       ))}
-      {groups.length === 0 && <div className="py-2 text-center text-xs text-gray-400">暂无分组，请添加</div>}
-          <div className="w-full">
-            <AutoComplete
-              value={newGroupName}
-              onChange={setNewGroupName}
-              className="w-full"
-              classNames={{ popup: { root: '!min-w-[360px]' } }}
-              options={availableGroups
-                .filter((g) => g.name.toLowerCase().includes(newGroupName.toLowerCase()))
-                .map((g) => ({
-                  value: g.name,
-                  label: (
-                    <div className="flex flex-col gap-0.5 py-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">{g.name}</span>
-                        <span className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${
-                          g.ratio <= 1 ? 'border-green-200 bg-green-50 text-green-600'
-                            : g.ratio <= 4 ? 'border-blue-200 bg-blue-50 text-blue-600'
-                              : g.ratio <= 8 ? 'border-orange-200 bg-orange-50 text-orange-600'
-                                : 'border-red-200 bg-red-50 text-red-600'
-                        }`}>{g.ratio}x</span>
-                      </div>
-                      <div className="text-xs text-gray-400">{g.description}</div>
-                    </div>
-                  ),
-                }))}
-              filterOption={false}
-              onSelect={(value: string) => {
-                if (!groups.includes(value)) setGroups((prev) => [...prev, value])
-                setNewGroupName('')
-              }}
-            >
-              <Input.Search placeholder="输入或选择分组名称" onSearch={handleAddGroup} enterButton="添加" size="small" />
-            </AutoComplete>
-          </div>
+      {groups.length === 0 && (
+        <div className="py-2 text-center text-xs text-gray-400">
+          暂无分组，请添加
         </div>
+      )}
+      <div className="w-full">
+        <AutoComplete
+          value={newGroupName}
+          onChange={setNewGroupName}
+          className="w-full"
+          classNames={{ popup: { root: '!min-w-[360px]' } }}
+          options={availableGroups
+            .filter((g) =>
+              g.name.toLowerCase().includes(newGroupName.toLowerCase()),
+            )
+            .map((g) => ({
+              value: g.name,
+              label: (
+                <div className="flex flex-col gap-0.5 py-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">{g.name}</span>
+                    <span
+                      className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${
+                        g.ratio <= 1
+                          ? 'border-green-200 bg-green-50 text-green-600'
+                          : g.ratio <= 4
+                            ? 'border-blue-200 bg-blue-50 text-blue-600'
+                            : g.ratio <= 8
+                              ? 'border-orange-200 bg-orange-50 text-orange-600'
+                              : 'border-red-200 bg-red-50 text-red-600'
+                      }`}
+                    >
+                      {g.ratio}x
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-400">{g.description}</div>
+                </div>
+              ),
+            }))}
+          filterOption={false}
+          onSelect={(value: string) => {
+            if (!groups.includes(value)) setGroups((prev) => [...prev, value])
+            setNewGroupName('')
+          }}
+        >
+          <Input.Search
+            placeholder="输入或选择分组名称"
+            onSearch={handleAddGroup}
+            enterButton="添加"
+            size="small"
+          />
+        </AutoComplete>
+      </div>
+    </div>
   )
 
   const tokenInfoContent = tokenData && (
@@ -245,15 +295,20 @@ export function AdminSettingsGroup({ yunwuSystemToken, yunwuUserId, selectedToke
       <Collapse
         ghost
         activeKey={manualMode ? [] : ['routing']}
-        items={[{
-          key: 'routing',
-          showArrow: false,
-          label: '',
-          children: routingSection,
-        }]}
-        className="[&_.ant-collapse-header]:!hidden [&_.ant-collapse-body]:!p-0 [&_.ant-collapse-content]:!p-0 [&_.ant-collapse-content-box]:!p-0"
+        items={[
+          {
+            key: 'routing',
+            showArrow: false,
+            label: '',
+            children: routingSection,
+          },
+        ]}
+        className="[&_.ant-collapse-body]:!p-0 [&_.ant-collapse-content]:!p-0 [&_.ant-collapse-content-box]:!p-0 [&_.ant-collapse-header]:!hidden"
       />
-      <Checkbox checked={manualMode} onChange={(e) => setManualMode(e.target.checked)}>
+      <Checkbox
+        checked={manualMode}
+        onChange={(e) => setManualMode(e.target.checked)}
+      >
         关闭智能路由，手动选分组
       </Checkbox>
       {manualGroupSection}
@@ -264,5 +319,10 @@ export function AdminSettingsGroup({ yunwuSystemToken, yunwuUserId, selectedToke
     </>
   )
 
-  return <>{header}{tokenInfoContent}</>
+  return (
+    <>
+      {header}
+      {tokenInfoContent}
+    </>
+  )
 }

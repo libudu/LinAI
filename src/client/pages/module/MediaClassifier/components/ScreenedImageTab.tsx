@@ -1,12 +1,4 @@
-import {
-  Card,
-  Empty,
-  Image,
-  Pagination,
-  Spin,
-  Tag,
-  Typography,
-} from 'antd'
+import { Card, Empty, Image, Pagination, Spin, Tag, Typography } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useMemo, useState } from 'react'
 import type { MediaImageItem, MediaImageListResult } from '../types'

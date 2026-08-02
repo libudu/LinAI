@@ -1,6 +1,6 @@
+import type { AppType } from '@/server'
 import { Button, message, Modal } from 'antd'
 import { hc } from 'hono/client'
-import type { AppType } from '../../../../../../../server'
 
 type GalleryImageType = 'input' | 'generated'
 export type GalleryDeleteSuccessPayload = {

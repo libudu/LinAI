@@ -1,7 +1,7 @@
+import { usePlatform } from '@/client/hooks/usePlatform'
+import type { Task } from '@/server/common/task-manager'
 import { ClockCircleOutlined } from '@ant-design/icons'
 import { Tag, Tooltip } from 'antd'
-import type { Task } from '../../../../../../server/common/task-manager'
-import { usePlatform } from '../../../../../hooks/usePlatform'
 
 interface TaskItemTagsProps {
   task: Task

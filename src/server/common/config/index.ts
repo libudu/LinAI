@@ -1,8 +1,8 @@
-import path from 'path'
 import {
   CustomEndpoint,
   ENDPOINT_PRESETS,
-} from '../../../client/pages/common/GenImage/SettingModal/Endpoint/endpointPresets'
+} from '@/client/pages/common/GenImage/SettingModal/Endpoint/endpointPresets'
+import path from 'path'
 import { decryptApiKey } from '../../module/gpt-image/encrypt'
 import { ConfigJson } from './config-json'
 

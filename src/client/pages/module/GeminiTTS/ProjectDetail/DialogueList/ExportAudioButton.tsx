@@ -1,9 +1,9 @@
+import { TTSDialogue } from '@/server/module/tts'
 import { DownloadOutlined } from '@ant-design/icons'
 import { Button, message, Modal, Progress } from 'antd'
 import { saveAs } from 'file-saver'
 import JSZip from 'jszip'
 import React, { useState } from 'react'
-import { TTSDialogue } from '../../../../../../server/module/tts'
 
 interface ExportAudioButtonProps {
   dialogues: TTSDialogue[]

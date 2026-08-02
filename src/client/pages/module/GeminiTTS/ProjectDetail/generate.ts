@@ -1,6 +1,6 @@
+import type { AppType } from '@/server'
+import { TTS_INWORLD_MODEL_ID } from '@/server/module/tts/client-const'
 import { hc } from 'hono/client'
-import type { AppType } from '../../../../../server'
-import { TTS_INWORLD_MODEL_ID } from '../../../../../server/module/tts/client-const'
 
 const client = hc<AppType>('/')
 

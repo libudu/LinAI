@@ -1,3 +1,4 @@
+import type { AppType } from '@/server'
 import {
   DeleteOutlined,
   EditOutlined,
@@ -5,7 +6,6 @@ import {
 } from '@ant-design/icons'
 import { Card, Modal, Tooltip, message } from 'antd'
 import { hc } from 'hono/client'
-import type { AppType } from '../../../../../server'
 import { useTTSStore } from '../store'
 
 const { confirm } = Modal

@@ -1,6 +1,6 @@
 import { ExperimentOutlined, InboxOutlined } from '@ant-design/icons'
-import { Button, Spin, Upload } from 'antd'
 import type { UploadProps } from 'antd'
+import { Button, Spin, Upload } from 'antd'
 import { STYLE_DIMENSIONS } from './dimensions'
 import { StepBadge } from './StepBadge'
 

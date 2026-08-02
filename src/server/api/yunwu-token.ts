@@ -7,7 +7,10 @@ function checkAuth(c: any) {
   const userId = c.req.header('x-user-id')
   if (!systemToken || !userId) {
     return c.json(
-      { success: false as const, error: 'System token and User ID are required' },
+      {
+        success: false as const,
+        error: 'System token and User ID are required',
+      },
       400,
     )
   }

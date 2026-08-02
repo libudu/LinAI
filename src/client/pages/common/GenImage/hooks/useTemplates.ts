@@ -1,7 +1,7 @@
+import type { AppType } from '@/server'
 import { useRequest } from 'ahooks'
 import { message } from 'antd'
 import { hc } from 'hono/client'
-import type { AppType } from '../../../../../server'
 
 const client = hc<AppType>('/')
 

@@ -1,7 +1,7 @@
+import type { AppType } from '@/server'
 import { Col, Row, message } from 'antd'
 import { hc } from 'hono/client'
 import { useEffect, useState } from 'react'
-import type { AppType } from '../../../../../server'
 import { ProjectCard } from './ProjectCard'
 
 const client = hc<AppType>('/')

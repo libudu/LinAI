@@ -22,8 +22,10 @@ export function useRecentImages() {
     }
 
     setRecentImages((prev = []) =>
-      [...normalizedUrls, ...prev.filter((url) => !normalizedUrls.includes(url))]
-        .slice(0, MAX_RECENT_IMAGES),
+      [
+        ...normalizedUrls,
+        ...prev.filter((url) => !normalizedUrls.includes(url)),
+      ].slice(0, MAX_RECENT_IMAGES),
     )
   }
 

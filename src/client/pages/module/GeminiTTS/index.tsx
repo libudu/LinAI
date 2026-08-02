@@ -1,7 +1,7 @@
+import type { AppType } from '@/server'
 import { Button, message } from 'antd'
 import { hc } from 'hono/client'
 import { useEffect, useState } from 'react'
-import type { AppType } from '../../../../server'
 import { useGlobalStore } from '../../../store/global'
 import { ProjectDetail } from './ProjectDetail'
 import { ProjectList } from './ProjectList'

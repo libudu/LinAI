@@ -1,7 +1,7 @@
+import { TTSCharacter, TTSDialogue } from '@/server/module/tts'
 import { Modal, Table } from 'antd'
 import { forwardRef, useImperativeHandle, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import { TTSCharacter, TTSDialogue } from '../../../../../../server/module/tts'
 
 export interface ImportRenpyModalRef {
   open: (file: File) => void
