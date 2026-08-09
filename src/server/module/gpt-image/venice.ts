@@ -3,10 +3,10 @@ import OpenAI from 'openai'
 import { GptImageQuality, GptImageSize } from './enum'
 
 // Venice 特殊接入点适配（https://docs.venice.ai）：
-// baseUrl 主机为 api.venice.ai 时绕过 OpenAI SDK，直接请求 Venice 原生接口：
+// baseUrl 主机为 api.venice.ai 时（判断见 enum.ts 的 isVeniceEndpoint）
+// 绕过 OpenAI SDK，直接请求 Venice 原生接口：
 // - 无参考图走 /api/v1/image/generate（JSON 响应，images 为 base64 数组）
 // - 有参考图走 /api/v1/image/multi-edit（成功响应直接是图片文件流）
-const VENICE_API_HOST = 'api.venice.ai'
 const GENERATE_PATH = '/api/v1/image/generate'
 const MULTI_EDIT_PATH = '/api/v1/image/multi-edit'
 
@@ -23,14 +23,6 @@ const VENICE_ASPECT_RATIOS = [
   '3:4',
   '4:5',
 ]
-
-export function isVeniceEndpoint(baseUrl: string): boolean {
-  try {
-    return new URL(baseUrl).hostname === VENICE_API_HOST
-  } catch {
-    return false
-  }
-}
 
 // Venice 编辑类模型的命名约定为「生成模型名 + -edit」
 // （qwen-image-3 → qwen-image-3-edit、gpt-image-2 → gpt-image-2-edit），

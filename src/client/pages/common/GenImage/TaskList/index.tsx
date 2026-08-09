@@ -13,7 +13,6 @@ import { useLocalStorageState } from 'ahooks'
 import {
   Button,
   Card,
-  Image,
   Pagination,
   Spin,
   Tooltip,
@@ -25,6 +24,7 @@ import dayjs from 'dayjs'
 import { hc } from 'hono/client'
 import { ImageGroup } from '../../components/ImageGroup'
 import { useTasks } from '../hooks/useTasks'
+import { TaskImage } from './components/TaskImage'
 import { TaskItemDeleteButton } from './components/TaskItemDeleteButton'
 import { TaskItemDownloadButton } from './components/TaskItemDownloadButton'
 import { TaskItemTags } from './components/TaskItemTags'
@@ -32,38 +32,6 @@ import { TaskListHeader } from './TaskListHeader'
 
 import { useState } from 'react'
 const client = hc<AppType>('/')
-
-/** 单张结果图：加载完成后在左上角显示半透明灰色底的真实尺寸 */
-function TaskImage({ src, showSize }: { src: string; showSize: boolean }) {
-  const [size, setSize] = useState<{ width: number; height: number } | null>(
-    null,
-  )
-  return (
-    <>
-      <Image
-        src={src}
-        alt="result"
-        classNames={{
-          root: 'w-full h-full',
-          image: 'w-full! h-full! object-cover',
-        }}
-        onLoad={(e) => {
-          // antd Image 把 onLoad 挂在外层 div 上，真正的 img 在 e.target
-          const img = e.target as HTMLImageElement
-          setSize({
-            width: img.naturalWidth,
-            height: img.naturalHeight,
-          })
-        }}
-      />
-      {showSize && size && (
-        <div className="pointer-events-none absolute top-0 left-0 z-10 rounded-br bg-black/40 px-1 text-[10px] leading-4 text-white">
-          {size.width}×{size.height}
-        </div>
-      )}
-    </>
-  )
-}
 
 export function TaskList() {
   const { data: tasks = [], loading } = useTasks()

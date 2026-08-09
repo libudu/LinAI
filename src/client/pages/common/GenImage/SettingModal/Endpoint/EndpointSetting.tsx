@@ -1,6 +1,7 @@
 import { CloseOutlined } from '@ant-design/icons'
 import { Form, Input, message, Select } from 'antd'
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
+import { isVeniceEndpoint } from '@/server/module/gpt-image/enum'
 import { useGptImageStore } from '../../store'
 import { ENDPOINT_PRESETS } from './endpointPresets'
 
@@ -10,16 +11,6 @@ const NEW_CUSTOM_VALUE = '__new_custom__'
 // 下拉值与接入点的互转（不同预设可能共用 baseUrl/modelId，必须用 label 做值）
 const presetValue = (label: string) => `preset:${label}`
 const customValue = (id: string) => `custom:${id}`
-
-// Venice 特殊适配接入点：后端识别该主机名后自动走 Venice 原生接口（见 server/module/gpt-image/venice.ts）
-const VENICE_API_HOST = 'api.venice.ai'
-const isVeniceBaseUrl = (url?: string) => {
-  try {
-    return !!url && new URL(url).hostname === VENICE_API_HOST
-  } catch {
-    return false
-  }
-}
 
 const generateId = () =>
   `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
@@ -270,7 +261,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
                 { type: 'url', message: '请输入合法的 URL' },
               ]}
               extra={
-                isVeniceBaseUrl(baseUrlValue)
+                isVeniceEndpoint(baseUrlValue)
                   ? '已识别为 Venice 特殊适配接入点：带参考图时将自动使用 image/multi-edit 接口'
                   : undefined
               }

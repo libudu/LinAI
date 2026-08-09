@@ -4,9 +4,14 @@ import { writeFile } from 'fs/promises'
 import OpenAI, { toFile } from 'openai'
 import path from 'path'
 import { GENERATED_IMAGES_DIR } from '../../common/static'
-import { GptImageQuality, GptImageSize } from './enum'
+import {
+  GptImageQuality,
+  GptImageSize,
+  isDragonEndpoint,
+  isVeniceEndpoint,
+} from './enum'
 import { writePngGenerationInfo } from './png-meta'
-import { isVeniceEndpoint, requestVeniceImage } from './venice'
+import { requestVeniceImage } from './venice'
 
 export interface GptImageUsage {
   total_tokens: number
@@ -39,6 +44,19 @@ function normalizeGptImageBaseUrl(baseUrl: string): string {
     .trim()
     .replace(/\/+$/, '')
     .replace(/\/images\/(generations|edits)$/i, '')
+}
+
+// DragonAPI 特殊处理：不同分辨率档位使用不同模型 id
+// 1k → gpt-image-2，2k → gpt-image-2-2k，4k → gpt-image-2-4k
+function resolveDragonModelId(
+  baseUrl: string,
+  modelId: string,
+  resolution?: GptImageSize,
+): string {
+  if (!isDragonEndpoint(baseUrl)) return modelId
+  if (resolution === '2k') return `${modelId}-2k`
+  if (resolution === '4k') return `${modelId}-4k`
+  return modelId
 }
 
 export function calculateSize(
@@ -113,6 +131,8 @@ async function requestOpenAIImage(options: {
   const client = new OpenAI({
     apiKey,
     baseURL: baseUrl,
+    // 关闭 SDK 默认的自动重试（默认 maxRetries: 2），失败直接抛错
+    maxRetries: 0,
   })
   if (imagePaths.length) {
     const imagesToUpload = await Promise.all(
@@ -156,6 +176,8 @@ export async function generateGPTImage(options: GenerateGPTImageOptions) {
     aspectRatio,
   } = options
   const normalizedBaseUrl = normalizeGptImageBaseUrl(baseUrl)
+  // DragonAPI 接入点按分辨率档位切换模型 id
+  const finalModelId = resolveDragonModelId(normalizedBaseUrl, modelId, resolution)
 
   // Venice 接入点走原生接口（见 venice.ts），其余走标准 OpenAI 契约
   const res: OpenAI.Images.ImagesResponse = isVeniceEndpoint(normalizedBaseUrl)
@@ -173,7 +195,7 @@ export async function generateGPTImage(options: GenerateGPTImageOptions) {
     : await requestOpenAIImage({
         apiKey,
         baseUrl: normalizedBaseUrl,
-        modelId,
+        modelId: finalModelId,
         prompt,
         size,
         quality,
@@ -186,7 +208,7 @@ export async function generateGPTImage(options: GenerateGPTImageOptions) {
   // 写入 PNG 元数据的生成参数（写入失败不影响图片保存）
   const generationInfo = {
     baseUrl: normalizedBaseUrl,
-    model: modelId,
+    model: finalModelId,
     prompt,
     size,
     quality,

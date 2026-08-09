@@ -76,8 +76,8 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
             https://dragon3api.com/
           </a>
         </div>
-        <div>无论1k、2k、4k，均固定计费 0.0231r 一张</div>
-        <div>有时候出图的分辨率不太稳定</div>
+        <div>不同分辨率会使用不同模型id</div>
+        <div>1k 0.1r 一张，2k、4k 0.2r 一张</div>
       </div>
     ),
   },
@@ -94,8 +94,9 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
           </a>
         </div>
         <div>
-          Venice 为特殊适配接入点：带参考图时自动走 image/multi-edit 接口；使用
-          qwen-image-3-edit，每张固定消耗 4 积分
+          <div>特殊适配的接入点</div>
+          <div>固定使用 qwen-image-3-edit，每张固定消耗 4 积分</div>
+          <div>仅支持 1k 和 2k，部分比例不支持</div>
         </div>
       </div>
     ),
