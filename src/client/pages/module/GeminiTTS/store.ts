@@ -11,6 +11,10 @@ export interface VoiceItemWithRemark extends InworldVoiceItem {
 }
 
 interface TTSStore {
+  ttsInworldApiKey: string | null
+  fetchTTSConfig: () => Promise<void>
+  setTTSInworldApiKey: (key: string | null) => Promise<void>
+
   voiceList: VoiceItemWithRemark[]
   loadingVoiceList: boolean
   hasFetchedVoiceList: boolean
@@ -24,6 +28,32 @@ interface TTSStore {
 export const useTTSStore = create<TTSStore>()(
   persist(
     (set, get) => ({
+      ttsInworldApiKey: null,
+      // TTS 配置独立存储在后端 data/tts/config.json，走 /api/tts-inworld/config
+      fetchTTSConfig: async () => {
+        try {
+          const res = await client.api['tts-inworld'].config.$get()
+          const json = await res.json()
+          if (json.success) {
+            set({ ttsInworldApiKey: json.data.ttsInworldApiKey ?? null })
+          }
+        } catch (error) {
+          console.error('Failed to fetch tts config', error)
+        }
+      },
+      setTTSInworldApiKey: async (key) => {
+        try {
+          const res = await client.api['tts-inworld'].config.$post({
+            json: { ttsInworldApiKey: key },
+          })
+          const json = await res.json()
+          if (json.success) {
+            set({ ttsInworldApiKey: json.data.ttsInworldApiKey ?? null })
+          }
+        } catch (error) {
+          console.error('Failed to update tts config', error)
+        }
+      },
       voiceList: [],
       loadingVoiceList: false,
       hasFetchedVoiceList: false,

@@ -1,4 +1,3 @@
-import fs from 'fs'
 import path from 'path'
 import { ConfigJson } from '../../common/config/config-json'
 
@@ -16,28 +15,10 @@ const DEFAULT_NOVEL_CONFIG: NovelConfig = {
 }
 
 const NOVELS_DIR = path.join(process.cwd(), 'data', 'novels')
-const CONFIG_FILE = path.join(NOVELS_DIR, 'config.json')
-
-// 旧版本的小说配置存放在全局 data/config.json 中，新文件首次创建时迁移过来
-const readLegacyNovelConfig = (): Partial<NovelConfig> => {
-  try {
-    if (fs.existsSync(CONFIG_FILE)) return {}
-    const legacyFile = path.join(process.cwd(), 'data', 'config.json')
-    if (!fs.existsSync(legacyFile)) return {}
-    const legacy = JSON.parse(fs.readFileSync(legacyFile, 'utf-8'))
-    const picked: Partial<NovelConfig> = {}
-    if (legacy.novelApiKey != null) picked.novelApiKey = legacy.novelApiKey
-    if (legacy.novelBaseUrl != null) picked.novelBaseUrl = legacy.novelBaseUrl
-    if (legacy.novelModelId != null) picked.novelModelId = legacy.novelModelId
-    return picked
-  } catch {
-    return {}
-  }
-}
 
 const novelConfigJson = new ConfigJson<NovelConfig>({
   dir: NOVELS_DIR,
-  defaults: { ...DEFAULT_NOVEL_CONFIG, ...readLegacyNovelConfig() },
+  defaults: DEFAULT_NOVEL_CONFIG,
 })
 
 export const getNovelConfig = novelConfigJson.get

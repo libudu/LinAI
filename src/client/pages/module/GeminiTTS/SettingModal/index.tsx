@@ -1,7 +1,7 @@
-import { useGlobalStore } from '@/client/store/global'
 import { Form, Input, message } from 'antd'
 import { createRef, forwardRef, useEffect, useImperativeHandle } from 'react'
 import { openCommonSettingModal } from '../../../common/components/SettingModal'
+import { useTTSStore } from '../store'
 
 interface TTSSettingRef {
   save: () => Promise<string | undefined>
@@ -9,7 +9,12 @@ interface TTSSettingRef {
 
 const TTSSetting = forwardRef<TTSSettingRef>((_props, ref) => {
   const [form] = Form.useForm()
-  const { ttsInworldApiKey, setTTSInworldApiKey } = useGlobalStore()
+  const { ttsInworldApiKey, fetchTTSConfig, setTTSInworldApiKey } =
+    useTTSStore()
+
+  useEffect(() => {
+    fetchTTSConfig()
+  }, [fetchTTSConfig])
 
   useEffect(() => {
     form.setFieldsValue({

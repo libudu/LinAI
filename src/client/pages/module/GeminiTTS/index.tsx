@@ -2,7 +2,6 @@ import type { AppType } from '@/server'
 import { Button, message } from 'antd'
 import { hc } from 'hono/client'
 import { useEffect, useState } from 'react'
-import { useGlobalStore } from '../../../store/global'
 import { ProjectDetail } from './ProjectDetail'
 import { ProjectList } from './ProjectList'
 import { ProjectModal } from './ProjectModal'
@@ -16,13 +15,18 @@ export const TTS = () => {
   const [editingProject, setEditingProject] = useState<any>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
-  const { ttsInworldApiKey } = useGlobalStore()
   const {
+    ttsInworldApiKey,
+    fetchTTSConfig,
     hasFetchedVoiceList,
     fetchVoiceList,
     selectedProjectId,
     setSelectedProjectId,
   } = useTTSStore()
+
+  useEffect(() => {
+    fetchTTSConfig()
+  }, [fetchTTSConfig])
 
   useEffect(() => {
     if (ttsInworldApiKey && !hasFetchedVoiceList) {

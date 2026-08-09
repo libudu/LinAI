@@ -1,4 +1,3 @@
-import { useGlobalStore } from '@/client/store/global'
 import { TTSCharacter } from '@/server/module/tts'
 import {
   LoadingOutlined,
@@ -22,8 +21,8 @@ export interface VoiceListProps {
 
 export const VoiceList = ({ characters = [] }: VoiceListProps) => {
   const [keyword, setKeyword] = useState('')
-  const { ttsInworldApiKey } = useGlobalStore()
-  const { voiceList, loadingVoiceList, fetchVoiceList } = useTTSStore()
+  const { ttsInworldApiKey, voiceList, loadingVoiceList, fetchVoiceList } =
+    useTTSStore()
 
   const [playingId, setPlayingId] = useState<string | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)

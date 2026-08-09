@@ -12,7 +12,6 @@ interface GlobalState {
   gptImageModelId: string | null
   gptImageCustomEndpoints: CustomEndpoint[]
   gptImagePresetApiKeys: Record<string, string>
-  ttsInworldApiKey: string | null
   localNetworkUrl: string | null
   fillTemplateData: Partial<TaskTemplate> | null
   setFillTemplateData: (data: Partial<TaskTemplate> | null) => void
@@ -23,7 +22,6 @@ interface GlobalState {
   ) => Promise<void>
   setGptImageCustomEndpoints: (endpoints: CustomEndpoint[]) => Promise<void>
   setGptImagePresetApiKeys: (keys: Record<string, string>) => Promise<void>
-  setTTSInworldApiKey: (key: string | null) => Promise<void>
   fetchConfig: () => Promise<void>
 }
 
@@ -33,7 +31,6 @@ export const useGlobalStore = create<GlobalState>()((set) => ({
   gptImageModelId: null,
   gptImageCustomEndpoints: [],
   gptImagePresetApiKeys: {},
-  ttsInworldApiKey: null,
   localNetworkUrl: null,
   fillTemplateData: null,
   setFillTemplateData: (data) => set({ fillTemplateData: data }),
@@ -120,19 +117,6 @@ export const useGlobalStore = create<GlobalState>()((set) => ({
       console.error('Failed to update config', error)
     }
   },
-  setTTSInworldApiKey: async (key) => {
-    try {
-      const res = await client.api['tts-inworld'].config.$post({
-        json: { ttsInworldApiKey: key },
-      })
-      const json = await res.json()
-      if (json.success) {
-        set({ ttsInworldApiKey: json.data.ttsInworldApiKey ?? null })
-      }
-    } catch (error) {
-      console.error('Failed to update tts config', error)
-    }
-  },
   fetchConfig: async () => {
     try {
       const res = await client.api.config.$get()
@@ -146,12 +130,6 @@ export const useGlobalStore = create<GlobalState>()((set) => ({
           gptImagePresetApiKeys: json.data.gptImagePresetApiKeys ?? {},
           localNetworkUrl: json.data.localNetworkUrl,
         })
-      }
-      // TTS 配置独立存储，走 /api/tts-inworld/config
-      const ttsRes = await client.api['tts-inworld'].config.$get()
-      const ttsJson = await ttsRes.json()
-      if (ttsJson.success) {
-        set({ ttsInworldApiKey: ttsJson.data.ttsInworldApiKey ?? null })
       }
     } catch (error) {
       console.error('Failed to fetch config', error)
