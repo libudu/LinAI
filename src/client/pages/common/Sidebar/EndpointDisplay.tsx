@@ -27,12 +27,15 @@ export function EndpointDisplay() {
     return gptImageModelId || gptImageBaseUrl || '未配置'
   }, [gptImageBaseUrl, gptImageModelId, gptImageCustomEndpoints])
 
-  // 当前接入点的积分比例：仅预设可配置，自定义接入点与未匹配时按默认 1 处理
-  const creditRatio = useMemo(() => {
+  // 当前接入点的积分比例与货币单位：仅预设可配置，自定义接入点与未匹配时按默认处理
+  const { creditRatio, currency } = useMemo(() => {
     const preset = ENDPOINT_PRESETS.find(
       (p) => p.baseUrl === gptImageBaseUrl && p.modelId === gptImageModelId,
     )
-    return preset?.creditRatio ?? 1
+    return {
+      creditRatio: preset?.creditRatio ?? 1,
+      currency: preset?.currency ?? '￥',
+    }
   }, [gptImageBaseUrl, gptImageModelId])
 
   return (
@@ -64,7 +67,7 @@ export function EndpointDisplay() {
                         (quota.total_available * 0.000002) /
                         creditRatio
                       ).toFixed(2)}
-                  ￥
+                  {currency}
                 </span>
               </span>
             ) : null}

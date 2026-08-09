@@ -3,6 +3,8 @@ import {
   getGptImageEndpoint,
   getYunwuApiKey,
 } from '../../module/gpt-image/config'
+import { isVeniceEndpoint } from '../../module/gpt-image/enum'
+import { fetchVeniceQuota } from './endpoint-venice'
 
 export interface GPTImageQuotaResponse {
   message: string
@@ -29,6 +31,29 @@ const gptImageEndpointApi = new Hono().get('/quota', async (c) => {
   try {
     const { baseUrl } = getGptImageEndpoint()
     const origin = new URL(baseUrl).origin
+
+    if (isVeniceEndpoint(baseUrl)) {
+      const { data, errorMessage, status } = await fetchVeniceQuota(
+        origin,
+        apiKey,
+      )
+      if (!data) {
+        // 401/403 一般是密钥填错或接入点与密钥不匹配
+        const prefix = status === 401 || status === 403 ? '[密钥]' : '[服务]'
+        return c.json(
+          {
+            success: false as const,
+            error: `${prefix} ${errorMessage || `获取余额失败（HTTP ${status}）`}`,
+          },
+          502,
+        )
+      }
+      return c.json({
+        success: true as const,
+        data: data,
+      })
+    }
+
     const response = await fetch(`${origin}/api/usage/token/`, {
       headers: {
         Authorization: `Bearer ${apiKey}`,

@@ -15,6 +15,8 @@ export interface EndpointPreset {
   remark?: ReactNode
   /** 积分比例：平台 1 元对应充值积分的倍数，余额展示时按此比例换算（不填默认 1，自定义接入点固定为 1） */
   creditRatio?: number
+  /** 余额展示的货币单位（不填默认 ￥，自定义接入点固定为 ￥） */
+  currency?: string
 }
 
 // 用户保存的自定义接入点（持久化在服务端 config.json）
@@ -85,6 +87,7 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
     label: 'Venice qwen-image-3-edit',
     baseUrl: 'https://api.venice.ai',
     modelId: 'qwen-image-3-edit',
+    currency: '$',
     remark: (
       <div>
         <div>
@@ -95,7 +98,7 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
         </div>
         <div>
           <div>特殊适配的接入点</div>
-          <div>固定使用 qwen-image-3-edit，每张固定消耗 4 积分</div>
+          <div>固定使用 qwen-image-3-edit，每张固定消耗 0.04$</div>
           <div>仅支持 1k 和 2k，部分比例不支持</div>
         </div>
       </div>
