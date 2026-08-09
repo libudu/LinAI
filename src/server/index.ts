@@ -14,7 +14,7 @@ import mediaClassifierApi from './api/media-classifier'
 import novelApi from './api/novel'
 import styleAnalyzeApi from './api/style-analyze'
 import ttsApi from './api/tts'
-import ttsInworldApi from './api/tts-inworld'
+import ttsInworldApi from './api/tts/inworld'
 import yunwuTokenApi from './api/yunwu-token'
 
 dotenv.config()

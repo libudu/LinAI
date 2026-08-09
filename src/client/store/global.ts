@@ -50,7 +50,6 @@ export const useGlobalStore = create<GlobalState>()((set) => ({
           gptImageModelId: json.data.gptImageModelId ?? null,
           gptImageCustomEndpoints: json.data.gptImageCustomEndpoints ?? [],
           gptImagePresetApiKeys: json.data.gptImagePresetApiKeys ?? {},
-          ttsInworldApiKey: json.data.ttsInworldApiKey ?? null,
           localNetworkUrl: json.data.localNetworkUrl,
         })
       }
@@ -74,7 +73,6 @@ export const useGlobalStore = create<GlobalState>()((set) => ({
           gptImageModelId: json.data.gptImageModelId ?? null,
           gptImageCustomEndpoints: json.data.gptImageCustomEndpoints ?? [],
           gptImagePresetApiKeys: json.data.gptImagePresetApiKeys ?? {},
-          ttsInworldApiKey: json.data.ttsInworldApiKey ?? null,
           localNetworkUrl: json.data.localNetworkUrl,
         })
       }
@@ -95,7 +93,6 @@ export const useGlobalStore = create<GlobalState>()((set) => ({
           gptImageModelId: json.data.gptImageModelId ?? null,
           gptImageCustomEndpoints: json.data.gptImageCustomEndpoints ?? [],
           gptImagePresetApiKeys: json.data.gptImagePresetApiKeys ?? {},
-          ttsInworldApiKey: json.data.ttsInworldApiKey ?? null,
           localNetworkUrl: json.data.localNetworkUrl,
         })
       }
@@ -116,7 +113,6 @@ export const useGlobalStore = create<GlobalState>()((set) => ({
           gptImageModelId: json.data.gptImageModelId ?? null,
           gptImageCustomEndpoints: json.data.gptImageCustomEndpoints ?? [],
           gptImagePresetApiKeys: json.data.gptImagePresetApiKeys ?? {},
-          ttsInworldApiKey: json.data.ttsInworldApiKey ?? null,
           localNetworkUrl: json.data.localNetworkUrl,
         })
       }
@@ -126,23 +122,15 @@ export const useGlobalStore = create<GlobalState>()((set) => ({
   },
   setTTSInworldApiKey: async (key) => {
     try {
-      const res = await client.api.config.$post({
+      const res = await client.api['tts-inworld'].config.$post({
         json: { ttsInworldApiKey: key },
       })
       const json = await res.json()
       if (json.success) {
-        set({
-          gptImageApiKey: json.data.gptImageApiKey,
-          gptImageBaseUrl: json.data.gptImageBaseUrl ?? null,
-          gptImageModelId: json.data.gptImageModelId ?? null,
-          gptImageCustomEndpoints: json.data.gptImageCustomEndpoints ?? [],
-          gptImagePresetApiKeys: json.data.gptImagePresetApiKeys ?? {},
-          ttsInworldApiKey: json.data.ttsInworldApiKey ?? null,
-          localNetworkUrl: json.data.localNetworkUrl,
-        })
+        set({ ttsInworldApiKey: json.data.ttsInworldApiKey ?? null })
       }
     } catch (error) {
-      console.error('Failed to update config', error)
+      console.error('Failed to update tts config', error)
     }
   },
   fetchConfig: async () => {
@@ -156,9 +144,14 @@ export const useGlobalStore = create<GlobalState>()((set) => ({
           gptImageModelId: json.data.gptImageModelId ?? null,
           gptImageCustomEndpoints: json.data.gptImageCustomEndpoints ?? [],
           gptImagePresetApiKeys: json.data.gptImagePresetApiKeys ?? {},
-          ttsInworldApiKey: json.data.ttsInworldApiKey ?? null,
           localNetworkUrl: json.data.localNetworkUrl,
         })
+      }
+      // TTS 配置独立存储，走 /api/tts-inworld/config
+      const ttsRes = await client.api['tts-inworld'].config.$get()
+      const ttsJson = await ttsRes.json()
+      if (ttsJson.success) {
+        set({ ttsInworldApiKey: ttsJson.data.ttsInworldApiKey ?? null })
       }
     } catch (error) {
       console.error('Failed to fetch config', error)

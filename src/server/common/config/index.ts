@@ -13,7 +13,6 @@ export interface Config {
   gptImageCustomEndpoints?: CustomEndpoint[]
   /** 预设接入点各自的 API Key，按预设 label 存储 */
   gptImagePresetApiKeys?: Record<string, string>
-  ttsInworldApiKey?: string | null
   localNetworkUrl?: string
 }
 
@@ -24,7 +23,6 @@ const DEFAULT_CONFIG: Config = {
   gptImageApiKey: null,
   gptImageBaseUrl: DEFAULT_ENDPOINT.baseUrl,
   gptImageModelId: DEFAULT_ENDPOINT.modelId,
-  ttsInworldApiKey: null,
 }
 
 const configJson = new ConfigJson<Config>({
@@ -48,6 +46,3 @@ export const getGptImageEndpoint = () => {
   return { baseUrl, modelId }
 }
 
-export const getTTSInworldApiKey = (): string | null => {
-  return configJson.get().ttsInworldApiKey || null
-}

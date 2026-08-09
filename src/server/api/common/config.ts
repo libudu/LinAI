@@ -38,7 +38,6 @@ const configApi = new Hono()
           )
           .optional(),
         gptImagePresetApiKeys: z.record(z.string(), z.string()).optional(),
-        ttsInworldApiKey: z.string().nullable().optional(),
       }),
     ),
     (c) => {

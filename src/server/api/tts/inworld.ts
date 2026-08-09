@@ -4,9 +4,29 @@ import { z } from 'zod'
 import {
   generateAndSaveAudioInworld,
   listInworldVoices,
-} from '../module/tts/index'
+} from '../../module/tts/index'
+import { getTTSConfig, updateTTSConfig } from '../../module/tts/config'
 
 const ttsInworldApi = new Hono()
+  // TTS 模块配置（独立存储 data/tts/config.json）
+  .get('/config', (c) => {
+    return c.json({ success: true as const, data: getTTSConfig() })
+  })
+  .post(
+    '/config',
+    zValidator(
+      'json',
+      z.object({
+        ttsInworldApiKey: z.string().nullable().optional(),
+      }),
+    ),
+    (c) => {
+      return c.json({
+        success: true as const,
+        data: updateTTSConfig(c.req.valid('json')),
+      })
+    },
+  )
   .post(
     '/generate',
     zValidator(

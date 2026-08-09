@@ -9,7 +9,7 @@ import {
   getRenpySyncStatus,
   projectManager,
   validateRenpyWorkDir,
-} from '../module/tts/index'
+} from '../../module/tts/index'
 
 const ttsApi = new Hono()
   .get('/output/trial', async (c) => {
