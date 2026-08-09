@@ -71,7 +71,12 @@ export const TemplateItemGenerateButtons: React.FC<{
               <Button
                 className="flex items-center justify-center px-2!"
                 variant="outlined"
-                icon={<img src={openaiIcon} className="h-4 w-4 opacity-70" />}
+                icon={
+                  <img
+                    src={openaiIcon}
+                    className="app-invert-icon h-4 w-4 opacity-70"
+                  />
+                }
                 onClick={() => handleGenerate(template.id, item.value)}
               >
                 {item.size}

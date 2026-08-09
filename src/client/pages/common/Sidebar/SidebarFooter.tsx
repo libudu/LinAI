@@ -1,15 +1,14 @@
 import {
   BellOutlined,
-  BgColorsOutlined,
   GithubOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  SettingOutlined,
 } from '@ant-design/icons'
 import { openInterfaceSettingModal } from '../components/InterfaceSettingModal'
 import { openNotificationModal } from '../Notification'
-import { ThemeToggle } from '../ThemeToggle'
 
-// 侧边栏底部功能区：通知、GitHub、明暗切换、界面设置、收起/展开侧栏
+// 侧边栏底部功能区：通知、GitHub、设置（明暗/主题色）、收起/展开侧栏
 export function SidebarFooter({
   collapsed,
   onToggleCollapse,
@@ -24,16 +23,6 @@ export function SidebarFooter({
     <div className="border-t border-slate-200 p-3">
       {collapsed ? (
         <div className="flex flex-col items-center gap-1">
-          <div className={`${itemClass} w-full`} title="切换明暗主题">
-            <ThemeToggle />
-          </div>
-          <div
-            className={`${itemClass} w-full`}
-            onClick={() => openInterfaceSettingModal()}
-            title="界面设置"
-          >
-            <BgColorsOutlined className="text-lg" />
-          </div>
           <div
             className={`${itemClass} w-full`}
             onClick={onToggleCollapse}
@@ -60,15 +49,12 @@ export function SidebarFooter({
           >
             <GithubOutlined className="text-lg" />
           </a>
-          <div className={itemClass} title="切换明暗主题">
-            <ThemeToggle />
-          </div>
           <div
             className={itemClass}
             onClick={() => openInterfaceSettingModal()}
-            title="界面设置"
+            title="设置"
           >
-            <BgColorsOutlined className="text-lg" />
+            <SettingOutlined className="text-lg" />
           </div>
           {onToggleCollapse && (
             <div

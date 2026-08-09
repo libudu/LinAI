@@ -43,6 +43,16 @@ html[data-theme='dark'] .app-logo-text {
   background-image: linear-gradient(to right, #f1f5f9, #cbd5e1);
 }
 
+/* Logo 图片色相跟随自定义主题色 */
+.app-theme-logo {
+  filter: hue-rotate(var(--app-logo-hue-rotate, 0deg));
+}
+
+/* 暗色下反色黑色图标（如 openai.svg） */
+html[data-theme='dark'] .app-invert-icon {
+  filter: invert(1);
+}
+
 /* ---------- 全局滚动条优化 ---------- */
 @layer base {
   ::-webkit-scrollbar {

@@ -1,11 +1,11 @@
 import { CheckOutlined } from '@ant-design/icons'
-import { Button, ColorPicker, Modal } from 'antd'
-import { createRoot } from 'react-dom/client'
+import { Button, ColorPicker, Segmented } from 'antd'
 import {
-  AppThemeProvider,
   DEFAULT_ACCENT_COLOR,
   useAppTheme,
+  type ThemeMode,
 } from '../../../theme'
+import { openCommonSettingModal } from './SettingModal'
 
 // 预设主题色
 const ACCENT_PRESETS = [
@@ -17,11 +17,27 @@ const ACCENT_PRESETS = [
   { name: '天青', color: '#4AA8C0' },
 ]
 
-function InterfaceSettingContent() {
-  const { accentColor, setAccentColor, resetAccentColor } = useAppTheme()
+// 界面设置面板：明暗模式 + 自定义主题色，改动即时生效
+function InterfaceSettingPanel() {
+  const { mode, toggleTheme, accentColor, setAccentColor, resetAccentColor } =
+    useAppTheme()
 
   return (
-    <div className="space-y-5 pt-2">
+    <div className="space-y-5">
+      <div>
+        <div className="mb-2 text-sm font-medium">明暗模式</div>
+        <Segmented<ThemeMode>
+          value={mode}
+          options={[
+            { label: '亮色', value: 'light' },
+            { label: '暗色', value: 'dark' },
+          ]}
+          onChange={(value) => {
+            if (value !== mode) toggleTheme()
+          }}
+        />
+      </div>
+
       <div>
         <div className="mb-2 text-sm font-medium">预设主题色</div>
         <div className="flex flex-wrap gap-3">
@@ -68,33 +84,18 @@ function InterfaceSettingContent() {
   )
 }
 
-/** 界面设置弹窗：自定义主题色，改动即时生效，无需保存 */
+/** 全局设置弹窗：目前仅"界面设置"一个页签 */
 export function openInterfaceSettingModal() {
-  const container = document.createElement('div')
-  document.body.appendChild(container)
-  const root = createRoot(container)
-
-  function destroy() {
-    root.unmount()
-    if (container.parentNode) {
-      container.parentNode.removeChild(container)
-    }
-  }
-
-  root.render(
-    // 独立 createRoot 树不在 App 的 Provider 下，需要再包一层；
-    // 多个 AppThemeProvider 实例之间通过 app-theme-change 事件同步
-    <AppThemeProvider>
-      <Modal
-        title="界面设置"
-        open={true}
-        onCancel={destroy}
-        footer={null}
-        destroyOnHidden
-        width={480}
-      >
-        <InterfaceSettingContent />
-      </Modal>
-    </AppThemeProvider>,
-  )
+  openCommonSettingModal({
+    title: '设置',
+    tabs: [
+      {
+        key: 'interface',
+        label: '界面设置',
+        children: <InterfaceSettingPanel />,
+        // 改动即时生效，无需保存按钮
+        hideFooter: true,
+      },
+    ],
+  })
 }

@@ -9,7 +9,7 @@ export function SidebarLogo({ collapsed }: { collapsed?: boolean }) {
         <img
           src={LinpxLogo}
           alt="LinAI Logo"
-          className="h-10 w-10 rounded-lg shadow-sm"
+          className="app-theme-logo h-10 w-10 rounded-lg shadow-sm"
         />
       </div>
     )
@@ -20,7 +20,7 @@ export function SidebarLogo({ collapsed }: { collapsed?: boolean }) {
       <img
         src={LinpxLogo}
         alt="LinAI Logo"
-        className="h-16 w-16 rounded-lg shadow-sm"
+        className="app-theme-logo h-16 w-16 rounded-lg shadow-sm"
       />
       <div className="flex flex-col">
         <span className="app-logo-text text-xl leading-6 font-bold">LinAI</span>

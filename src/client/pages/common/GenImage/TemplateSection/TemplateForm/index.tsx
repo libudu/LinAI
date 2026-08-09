@@ -175,7 +175,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
                 onClick={() => handleTrial('1k')}
                 disabled={uploadingCount > 0}
                 size="large"
-                className="grow border-purple-300 text-purple-600 hover:border-purple-400 hover:text-purple-500"
+                className="grow"
               >
                 生成1K图
               </Button>

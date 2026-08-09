@@ -104,6 +104,32 @@ export function resolveAccentColor(
   return ensureAccentContrast(stored, mode)
 }
 
+/** 取色相（0~360），供 Logo 滤镜计算 */
+function getColorHue(hex: string): number {
+  const rgb = hexToRgb(hex)
+  if (!rgb) return 0
+  const r = rgb.r / 255
+  const g = rgb.g / 255
+  const b = rgb.b / 255
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const d = max - min
+  if (d === 0) return 0
+  let h: number
+  if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) * 60
+  else if (max === g) h = ((b - r) / d + 2) * 60
+  else h = ((r - g) / d + 4) * 60
+  return h
+}
+
+/** 自定义色相对默认橘的色相差，归一化到 ±180°，供 Logo hue-rotate 滤镜使用 */
+function getLogoHueRotation(accentColor: string): number {
+  let diff = getColorHue(accentColor) - getColorHue(DEFAULT_ACCENT_COLOR)
+  diff = ((diff % 360) + 360) % 360
+  if (diff > 180) diff -= 360
+  return diff
+}
+
 // ---------- antd 双主题配置 ----------
 
 const sharedComponents: ThemeConfig['components'] = {
@@ -183,6 +209,10 @@ function applyDocumentTheme(mode: ThemeMode, accentColor: string) {
   root.dataset.theme = mode
   root.style.colorScheme = mode
   root.style.setProperty('--app-accent', accentColor)
+  root.style.setProperty(
+    '--app-logo-hue-rotate',
+    `${getLogoHueRotation(accentColor)}deg`,
+  )
 }
 
 /** 让 Modal.confirm 等静态方法弹层跟随当前主题 */
@@ -231,8 +261,12 @@ const AppThemeContext = createContext<AppThemeContextValue>({
 })
 
 export function AppThemeProvider({ children }: { children: ReactNode }) {
-  const [mode, setMode] = useState<ThemeMode>(initialMode)
-  const [accentColor, setAccentColorState] = useState(initialAccent)
+  // 惰性初始化：Provider 可能晚于页面加载挂载（独立 createRoot 弹窗），
+  // 必须读当前存储而不是模块加载时的 initialMode/initialAccent
+  const [mode, setMode] = useState<ThemeMode>(() => readStoredTheme())
+  const [accentColor, setAccentColorState] = useState(() =>
+    resolveAccentColor(readStoredTheme(), readStoredAccent()),
+  )
 
   // 多实例同步：setter 只写 localStorage 并派发事件，所有 Provider 实例统一从存储回读
   useEffect(() => {

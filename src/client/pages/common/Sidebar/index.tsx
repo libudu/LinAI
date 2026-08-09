@@ -68,7 +68,7 @@ export function Sidebar({
           <img
             src={LinpxLogo}
             alt="LinAI Logo"
-            className="h-7 w-7 rounded-md"
+            className="app-theme-logo h-7 w-7 rounded-md"
           />
           <span className="app-logo-text text-lg font-bold">LinAI</span>
         </div>
