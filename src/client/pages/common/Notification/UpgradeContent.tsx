@@ -3,6 +3,11 @@ import copy from 'copy-to-clipboard'
 import { MessageList } from './MessageList'
 
 const upgradeHistory = [
+  `LinAI v2.0.0 更新内容 🐱：
+🧭 导航重构为响应式侧边栏布局，支持折叠收起
+🎨 新增全局明暗主题与自定义主题色，logo 随主题色动态适配
+🔌 生图功能新增 venice 接入点适配
+🔧 设置入口整合优化，生图等模块设置挪入各自模块内管理`,
   `LinAI v1.1.6 更新内容 🐱：
 🚀 新增 GitHub Actions 自动发布流程，推送版本标签后自动构建并发布压缩包`,
   `LinAI v1.1.5 更新内容 🐱：

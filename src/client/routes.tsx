@@ -64,6 +64,7 @@ export const appRoutes: AppRoute[] = [
     key: 'novel',
     icon: <BookOutlined />,
     onClickSetting: () => openNovelSettingModal(),
+    adminOnly: true,
   },
   {
     path: '/media-classifier',
