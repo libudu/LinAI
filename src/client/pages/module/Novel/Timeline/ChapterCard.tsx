@@ -35,7 +35,7 @@ export const ChapterCard = ({
   return (
     <div
       className={`rounded-lg border bg-white ${
-        isCurrent ? 'border-[#EC883A]/70 shadow-sm' : 'border-slate-200'
+        isCurrent ? 'app-accent-outline shadow-sm' : 'border-slate-200'
       }`}
     >
       <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2">

@@ -35,7 +35,7 @@ export const NovelNav = () => {
           key={n.id}
           className={`group flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 md:mb-0.5 md:w-full ${
             n.id === currentNovelId
-              ? 'bg-orange-50 text-[#EC883A]'
+              ? 'app-accent-surface app-accent-text'
               : 'hover:bg-slate-100'
           }`}
           onClick={() => selectNovel(n.id)}

@@ -1,12 +1,15 @@
 import {
   BellOutlined,
+  BgColorsOutlined,
   GithubOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
 } from '@ant-design/icons'
+import { openInterfaceSettingModal } from '../components/InterfaceSettingModal'
 import { openNotificationModal } from '../Notification'
+import { ThemeToggle } from '../ThemeToggle'
 
-// 侧边栏底部功能区：通知、GitHub、收起/展开侧栏
+// 侧边栏底部功能区：通知、GitHub、明暗切换、界面设置、收起/展开侧栏
 export function SidebarFooter({
   collapsed,
   onToggleCollapse,
@@ -14,12 +17,25 @@ export function SidebarFooter({
   collapsed?: boolean
   onToggleCollapse?: () => void
 }) {
+  const itemClass =
+    'flex h-10 flex-1 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-slate-100'
+
   return (
     <div className="border-t border-slate-200 p-3">
       {collapsed ? (
-        <div className="flex items-center">
+        <div className="flex flex-col items-center gap-1">
+          <div className={`${itemClass} w-full`} title="切换明暗主题">
+            <ThemeToggle />
+          </div>
           <div
-            className="flex h-10 flex-1 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-slate-100"
+            className={`${itemClass} w-full`}
+            onClick={() => openInterfaceSettingModal()}
+            title="界面设置"
+          >
+            <BgColorsOutlined className="text-lg" />
+          </div>
+          <div
+            className={`${itemClass} w-full`}
             onClick={onToggleCollapse}
             title="展开侧栏"
           >
@@ -29,14 +45,14 @@ export function SidebarFooter({
       ) : (
         <div className="flex items-center">
           <div
-            className="flex h-10 flex-1 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-slate-100"
+            className={itemClass}
             onClick={() => openNotificationModal()}
             title="通知与说明"
           >
             <BellOutlined className="text-lg" />
           </div>
           <a
-            className="flex h-10 flex-1 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-slate-100"
+            className={itemClass}
             href="https://github.com/libudu/LinAI"
             target="_blank"
             rel="noreferrer"
@@ -44,9 +60,19 @@ export function SidebarFooter({
           >
             <GithubOutlined className="text-lg" />
           </a>
+          <div className={itemClass} title="切换明暗主题">
+            <ThemeToggle />
+          </div>
+          <div
+            className={itemClass}
+            onClick={() => openInterfaceSettingModal()}
+            title="界面设置"
+          >
+            <BgColorsOutlined className="text-lg" />
+          </div>
           {onToggleCollapse && (
             <div
-              className="flex h-10 flex-1 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-slate-100"
+              className={itemClass}
               onClick={onToggleCollapse}
               title="收起侧栏"
             >

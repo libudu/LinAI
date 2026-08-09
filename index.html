@@ -5,6 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="/favicon.ico" />
     <title>LinAI：AI 任务编排集成</title>
+    <script>
+      // 在 JS 加载前应用已保存的明暗主题，防首屏闪烁（FOUC）
+      try {
+        var theme =
+          localStorage.getItem('app_theme') === 'dark' ? 'dark' : 'light'
+        document.documentElement.dataset.theme = theme
+        document.documentElement.style.colorScheme = theme
+        if (theme === 'dark') {
+          document.documentElement.style.background = '#0f1115'
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

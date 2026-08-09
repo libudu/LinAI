@@ -2,6 +2,7 @@ import { Modal, Tabs } from 'antd'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { AppThemeProvider } from '../../../theme'
 
 export interface CommonSettingTab {
   key: string
@@ -92,5 +93,10 @@ export function openCommonSettingModal(options: {
     )
   }
 
-  root.render(<ModalComponent />)
+  // 独立 createRoot 树不在 App 的 Provider 下，需要再包一层 AppThemeProvider 才能跟随主题
+  root.render(
+    <AppThemeProvider>
+      <ModalComponent />
+    </AppThemeProvider>,
+  )
 }

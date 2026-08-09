@@ -28,6 +28,7 @@
   - `pages/common/`：通用页面组件（Sidebar、GenImage 图片生成首页、Notification）
   - `routes.tsx`：路由注册表，新增页面在此登记
   - `store/global.ts`：zustand 全局状态（仅跨模块共享的少量状态）
+  - `theme.tsx`：全局明暗主题 + 自定义强调色（`AppThemeProvider` / `useAppTheme`），localStorage 键 `app_theme` / `app_theme_accent`；暗色样式靠 `index.css` 中 `html[data-theme='dark']` 属性选择器映射 Tailwind 亮色类；独立 createRoot 的弹窗需自行包一层 `AppThemeProvider`
 - `src/server/`：后端
   - `index.ts`：Hono 入口，所有 API 路由在此挂载（`/api/*`），导出 `AppType` 供前端 RPC 类型推导
   - `api/`：HTTP 接口层，每个业务模块一个文件或同名文件夹；`api/common/` 为通用接口（task/template/log/static/config）

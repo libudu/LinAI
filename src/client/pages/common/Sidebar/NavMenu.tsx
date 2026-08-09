@@ -53,7 +53,7 @@ export function NavMenu({
                 collapsed ? 'justify-center' : ''
               } ${
                 active
-                  ? 'bg-[#EC883A] font-medium text-white shadow-sm'
+                  ? 'app-accent-nav-active font-medium shadow-sm'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
               onClick={() => go(route.path)}

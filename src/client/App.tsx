@@ -1,5 +1,3 @@
-import { ConfigProvider } from 'antd'
-import zhCN from 'antd/locale/zh_CN'
 import { useEffect, useState, type CSSProperties } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import pkg from '../../package.json'
@@ -8,6 +6,7 @@ import { openNotificationModal } from './pages/common/Notification'
 import { Sidebar } from './pages/common/Sidebar'
 import { appRoutes } from './routes'
 import { useGlobalStore } from './store/global'
+import { AppThemeProvider } from './theme'
 import { isAdmin } from './utils/admin'
 
 function App() {
@@ -28,19 +27,7 @@ function App() {
   }, [])
 
   return (
-    <ConfigProvider
-      locale={zhCN}
-      theme={{
-        token: {
-          colorPrimary: '#EC883A',
-        },
-        components: {
-          Tooltip: {
-            maxWidth: 500,
-          },
-        },
-      }}
-    >
+    <AppThemeProvider>
       <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
         <Sidebar
           collapsed={sidebarCollapsed}
@@ -75,7 +62,7 @@ function App() {
           </main>
         </div>
       </div>
-    </ConfigProvider>
+    </AppThemeProvider>
   )
 }
 

@@ -110,3 +110,14 @@
     }
   }
 }
+
+/* 暗色主题适配：进度条底与时间文字跟随深色底 */
+html[data-theme='dark'] .custom-audio-player {
+  .rhap_time {
+    color: #939aa8 !important;
+  }
+
+  .rhap_progress-bar {
+    background-color: #2a2e38 !important;
+  }
+}

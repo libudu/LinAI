@@ -23,9 +23,7 @@ export function SidebarLogo({ collapsed }: { collapsed?: boolean }) {
         className="h-16 w-16 rounded-lg shadow-sm"
       />
       <div className="flex flex-col">
-        <span className="bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-xl leading-6 font-bold text-transparent">
-          LinAI
-        </span>
+        <span className="app-logo-text text-xl leading-6 font-bold">LinAI</span>
         <span className="text-sm text-gray-400">AI 任务编排集成</span>
         <span className="text-sm text-gray-400">v{pkg.version}</span>
       </div>

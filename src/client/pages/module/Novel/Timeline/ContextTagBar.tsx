@@ -57,7 +57,7 @@ export const ContextTagBar = ({
   return (
     <Popover content={detail} title="生成时引用的文本" placement="bottomLeft">
       <span
-        className="cursor-pointer text-xs text-slate-400 hover:text-[#EC883A]"
+        className="app-accent-hover cursor-pointer text-xs text-slate-400"
         onClick={(e) => e.stopPropagation()}
       >
         引用×{text.sourceIds.length}

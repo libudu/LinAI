@@ -10,6 +10,7 @@ import {
   message,
 } from 'antd'
 import { useEffect, useState } from 'react'
+import { useAppTheme } from '../../../../theme'
 import { useNovelConfig } from '../SettingModal/useNovelConfig'
 import { DEFAULT_TARGET_LENGTH } from '../service/constants'
 import { buildMessages, getDefaultSelection } from '../service/context'
@@ -73,6 +74,8 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
   const startGeneration = useNovelStore((s) => s.startGeneration)
   const closeDrawer = useNovelStore((s) => s.closeDrawer)
   const streaming = useNovelStore((s) => s.streaming)
+  // 进度条颜色跟随全局强调色
+  const { accentColor } = useAppTheme()
 
   const chapter = req.chapterId
     ? novel.chapters.find((c) => c.id === req.chapterId)
@@ -365,7 +368,7 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
           percent={Math.min(100, percent)}
           showInfo={false}
           size="small"
-          strokeColor={over ? '#ff4d4f' : warn ? '#faad14' : '#EC883A'}
+          strokeColor={over ? '#ff4d4f' : warn ? '#faad14' : accentColor}
         />
         {over && (
           <div className="mt-1 text-xs text-red-500">

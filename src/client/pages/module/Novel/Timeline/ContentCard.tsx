@@ -236,7 +236,7 @@ export const ContentCard = ({
               </div>
               <div className="text-sm leading-7 break-words whitespace-pre-wrap text-slate-700">
                 {contentStream.text || '等待响应…'}
-                <span className="ml-0.5 inline-block h-4 w-2 animate-pulse bg-[#EC883A]/70 align-middle" />
+                <span className="app-accent-bg ml-0.5 inline-block h-4 w-2 animate-pulse align-middle opacity-70" />
               </div>
             </div>
           ) : !content ? (

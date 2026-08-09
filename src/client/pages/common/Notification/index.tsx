@@ -1,5 +1,6 @@
 import { Modal, Tabs } from 'antd'
 import { createRoot } from 'react-dom/client'
+import { AppThemeProvider } from '../../../theme'
 import ErrorContent from './ErrorContent'
 import ImportantContent from './ImportantContent'
 import TipContent from './TipContent'
@@ -69,5 +70,10 @@ export function openNotificationModal() {
     )
   }
 
-  root.render(<ModalComponent />)
+  // 独立 createRoot 树不在 App 的 Provider 下，需要再包一层 AppThemeProvider 才能跟随主题
+  root.render(
+    <AppThemeProvider>
+      <ModalComponent />
+    </AppThemeProvider>,
+  )
 }

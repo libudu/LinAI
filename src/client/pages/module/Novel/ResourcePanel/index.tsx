@@ -333,7 +333,7 @@ export const ResourcePanel = () => {
             />
             <div className="space-y-1.5">
               {streaming?.target === 'setting' && (
-                <div className="rounded-md border border-[#EC883A]/60 bg-orange-50 px-2.5 py-2">
+                <div className="app-accent-outline app-accent-surface rounded-md border px-2.5 py-2">
                   <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
                     <span>设定生成中…</span>
                     <Button
@@ -357,7 +357,7 @@ export const ResourcePanel = () => {
                 >
                   <div className="flex items-center justify-between gap-1">
                     <span
-                      className="min-w-0 flex-1 cursor-pointer truncate text-sm hover:text-[#EC883A]"
+                      className="app-accent-hover min-w-0 flex-1 cursor-pointer truncate text-sm"
                       title="点击编辑"
                       onClick={() => setEditingSetting(setting)}
                     >

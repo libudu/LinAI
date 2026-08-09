@@ -70,9 +70,7 @@ export function Sidebar({
             alt="LinAI Logo"
             className="h-7 w-7 rounded-md"
           />
-          <span className="bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-lg font-bold text-transparent">
-            LinAI
-          </span>
+          <span className="app-logo-text text-lg font-bold">LinAI</span>
         </div>
       </header>
 

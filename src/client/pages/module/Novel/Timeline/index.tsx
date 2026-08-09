@@ -10,7 +10,7 @@ const GhostChapterCard = ({ index }: { index: number }) => {
   const abortGeneration = useNovelStore((s) => s.abortGeneration)
   if (!streaming) return null
   return (
-    <div className="rounded-lg border border-[#EC883A]/70 bg-white shadow-sm">
+    <div className="app-accent-outline rounded-lg border bg-white shadow-sm">
       <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2">
         <span className="text-sm font-semibold">第 {index} 章</span>
         <Tag color="processing" className="mr-0">
