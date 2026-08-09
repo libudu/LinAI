@@ -11,6 +11,16 @@ const NEW_CUSTOM_VALUE = '__new_custom__'
 const presetValue = (label: string) => `preset:${label}`
 const customValue = (id: string) => `custom:${id}`
 
+// Venice 特殊适配接入点：后端识别该主机名后自动走 Venice 原生接口（见 server/module/gpt-image/venice.ts）
+const VENICE_API_HOST = 'api.venice.ai'
+const isVeniceBaseUrl = (url?: string) => {
+  try {
+    return !!url && new URL(url).hostname === VENICE_API_HOST
+  } catch {
+    return false
+  }
+}
+
 const generateId = () =>
   `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
 
@@ -33,6 +43,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
   } = useGlobalStore()
 
   const endpoint = Form.useWatch('endpoint', form)
+  const baseUrlValue = Form.useWatch('baseUrl', form)
   const isNewCustom = endpoint === NEW_CUSTOM_VALUE
   const selectedPreset = ENDPOINT_PRESETS.find(
     (p) => presetValue(p.label) === endpoint,
@@ -74,7 +85,12 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
   // 切换下拉选项时，同步填充/清空接入点信息与对应的 API Key
   const handleEndpointChange = (value: string) => {
     if (value === NEW_CUSTOM_VALUE) {
-      form.setFieldsValue({ title: '', baseUrl: '', modelId: '', apiKey: '' })
+      form.setFieldsValue({
+        title: '',
+        baseUrl: '',
+        modelId: '',
+        apiKey: '',
+      })
       return
     }
     const preset = ENDPOINT_PRESETS.find((p) => presetValue(p.label) === value)
@@ -253,6 +269,11 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
                 { required: true, message: '请输入 Base URL' },
                 { type: 'url', message: '请输入合法的 URL' },
               ]}
+              extra={
+                isVeniceBaseUrl(baseUrlValue)
+                  ? '已识别为 Venice 特殊适配接入点：带参考图时将自动使用 image/multi-edit 接口'
+                  : undefined
+              }
             >
               <Input placeholder="例如 https://api.example.com/v1" />
             </Form.Item>

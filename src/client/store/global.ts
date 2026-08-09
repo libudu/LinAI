@@ -61,7 +61,10 @@ export const useGlobalStore = create<GlobalState>()((set) => ({
   setGptImageEndpoint: async (baseUrl, modelId) => {
     try {
       const res = await client.api.config.$post({
-        json: { gptImageBaseUrl: baseUrl, gptImageModelId: modelId },
+        json: {
+          gptImageBaseUrl: baseUrl,
+          gptImageModelId: modelId,
+        },
       })
       const json = await res.json()
       if (json.success) {

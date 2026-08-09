@@ -1,189 +1,12 @@
-import crypto from 'crypto'
 import fs from 'fs-extra'
-import { writeFile } from 'fs/promises'
-import OpenAI, { toFile } from 'openai'
 import path from 'path'
-import { GENERATED_IMAGES_DIR, INPUT_IMAGES_DIR } from '../../common/static'
+import { INPUT_IMAGES_DIR } from '../../common/static'
 import { GENERATED_IMAGES_API_PATH } from '../../common/static/enum'
 import { taskManager } from '../../common/task-manager'
 import { TaskTemplate } from '../../common/template-manager'
 import { logger } from '../utils/logger'
 import { GPT_IMAGE_SOURCE_MODEL, GptImageQuality, GptImageSize } from './enum'
-import { writePngGenerationInfo } from './png-meta'
-
-interface GPTImageResponse {
-  created: number
-  data: Array<{
-    url?: string
-    b64_json?: string
-  }>
-  usage?: {
-    total_tokens: number
-    input_tokens: number
-    output_tokens: number
-    input_tokens_details?: {
-      text_tokens: number
-      image_tokens: number
-    }
-  }
-}
-
-interface GenerateGPTImageOptions {
-  apiKey: string
-  baseUrl: string
-  modelId: string
-  prompt: string
-  size: string
-  quality: GptImageQuality
-  imagePaths: string[]
-  n?: number
-}
-
-function calculateSize(aspectRatio: string, baseSize: GptImageSize): string {
-  const [wStr, hStr] = aspectRatio.split(':')
-  const wRatio = parseInt(wStr, 10)
-  const hRatio = parseInt(hStr, 10)
-
-  let targetSize: number
-  if (baseSize === '1k') targetSize = 1024
-  else if (baseSize === '2k') targetSize = 2048
-  else if (baseSize === '4k') targetSize = 3840
-  else targetSize = 1024
-
-  let width: number
-  let height: number
-
-  if (isNaN(wRatio) || isNaN(hRatio) || hRatio === 0) {
-    width = targetSize
-    height = targetSize
-  } else {
-    const ratio = wRatio / hRatio
-    if (baseSize === '1k') {
-      // 1k: 保留短边 1024
-      if (ratio >= 1) {
-        height = targetSize
-        width = Math.round((targetSize * ratio) / 16) * 16
-      } else {
-        width = targetSize
-        height = Math.round(targetSize / ratio / 16) * 16
-      }
-    } else {
-      // 2k 和 4k: 保留长边 2048 / 3840
-      if (ratio >= 1) {
-        width = targetSize
-        height = Math.round(targetSize / ratio / 16) * 16
-      } else {
-        height = targetSize
-        width = Math.round((targetSize * ratio) / 16) * 16
-      }
-    }
-  }
-
-  const MAX_PIXELS = 8294400
-  if (width * height > MAX_PIXELS) {
-    const scale = Math.sqrt(MAX_PIXELS / (width * height))
-    width = Math.floor((width * scale) / 16) * 16
-    height = Math.floor((height * scale) / 16) * 16
-
-    if (width === 0) width = 16
-    if (height === 0) height = 16
-  }
-
-  return `${width}x${height}`
-}
-
-async function generateGPTImageNew(options: GenerateGPTImageOptions) {
-  const {
-    apiKey,
-    baseUrl,
-    modelId,
-    prompt,
-    size,
-    quality,
-    imagePaths: images,
-    n = 1,
-  } = options
-  const client = new OpenAI({
-    apiKey,
-    baseURL: baseUrl,
-  })
-  const imagesToUpload = images.length
-    ? await Promise.all(
-        images.map(
-          async (file) =>
-            await toFile(fs.createReadStream(file), null, {
-              type: 'image/png',
-            }),
-        ),
-      )
-    : undefined
-
-  let res: OpenAI.Images.ImagesResponse
-  if (imagesToUpload) {
-    res = await client.images.edit({
-      model: modelId,
-      image: imagesToUpload || [],
-      prompt: prompt,
-      n,
-      size: size as any,
-      quality,
-    })
-  } else {
-    res = await client.images.generate({
-      model: modelId,
-      prompt,
-      n,
-      size: size as any,
-      quality,
-      moderation: 'low',
-    })
-  }
-
-  const filenames: string[] = []
-
-  // 写入 PNG 元数据的生成参数（写入失败不影响图片保存）
-  const generationInfo = {
-    baseUrl,
-    model: modelId,
-    prompt,
-    size,
-    quality,
-    generatedAt: new Date().toISOString(),
-  }
-
-  if (res.data && res.data.length > 0) {
-    for (const item of res.data) {
-      let imageBuffer: Buffer | undefined
-
-      if (item.b64_json) {
-        imageBuffer = Buffer.from(item.b64_json, 'base64')
-      } else if (item.url) {
-        const imageResponse = await fetch(item.url)
-        if (!imageResponse.ok) {
-          throw new Error(
-            `Failed to download generated image: ${imageResponse.status} ${imageResponse.statusText}`,
-          )
-        }
-        imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
-      }
-
-      if (!imageBuffer) continue
-
-      imageBuffer = writePngGenerationInfo(imageBuffer, generationInfo)
-
-      const hash = crypto.createHash('md5').update(imageBuffer).digest('hex')
-      const filename = `${hash}.png`
-      const filepath = path.join(GENERATED_IMAGES_DIR, filename)
-      await writeFile(filepath, imageBuffer)
-      filenames.push(filename)
-    }
-  }
-
-  return {
-    filenames,
-    usage: res.usage,
-  }
-}
+import { calculateSize, generateGPTImage, GptImageUsage } from './generate'
 
 export async function handleImageGeneration(options: {
   apiKey: string
@@ -251,9 +74,9 @@ export async function handleImageGeneration(options: {
     }
 
     let filenames: string[] = []
-    let usage: GPTImageResponse['usage'] | undefined
+    let usage: GptImageUsage | undefined
     try {
-      const res = await generateGPTImageNew({
+      const res = await generateGPTImage({
         apiKey,
         baseUrl,
         modelId,
@@ -262,6 +85,8 @@ export async function handleImageGeneration(options: {
         quality,
         imagePaths,
         n: template.n || 1,
+        resolution: size,
+        aspectRatio: template.aspectRatio || '1:1',
       })
       logger.info('GPT image generated successfully')
       filenames = res.filenames

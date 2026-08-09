@@ -81,4 +81,23 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
       </div>
     ),
   },
+  {
+    label: 'Venice qwen-image-3-edit',
+    baseUrl: 'https://api.venice.ai',
+    modelId: 'qwen-image-3-edit',
+    remark: (
+      <div>
+        <div>
+          官网：
+          <a href="https://venice.ai" target="_blank">
+            https://venice.ai/
+          </a>
+        </div>
+        <div>
+          Venice 为特殊适配接入点：带参考图时自动走 image/multi-edit 接口；使用
+          qwen-image-3-edit，每张固定消耗 4 积分
+        </div>
+      </div>
+    ),
+  },
 ]
