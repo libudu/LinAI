@@ -8,6 +8,7 @@ import { hc } from 'hono/client'
 import { useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/shallow'
 import { openGPTImageSettingModal } from '../../SettingModal'
+import { useGptImageStore } from '../../store'
 import { StyleExtractModal } from './StyleExtractModal'
 import { TemplateFormFields } from './TemplateFormItems'
 
@@ -23,14 +24,13 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
   const [submitting, setSubmitting] = useState(false)
   const [imageUrls, setImageUrls] = useState<string[]>([])
   const [uploadingCount, setUploadingCount] = useState(0)
-  const { gptImageApiKey, fillTemplateData, setFillTemplateData } =
-    useGlobalStore(
-      useShallow((state) => ({
-        gptImageApiKey: state.gptImageApiKey,
-        fillTemplateData: state.fillTemplateData,
-        setFillTemplateData: state.setFillTemplateData,
-      })),
-    )
+  const gptImageApiKey = useGptImageStore((state) => state.gptImageApiKey)
+  const { fillTemplateData, setFillTemplateData } = useGlobalStore(
+    useShallow((state) => ({
+      fillTemplateData: state.fillTemplateData,
+      setFillTemplateData: state.setFillTemplateData,
+    })),
+  )
   const { gptImageSettings, appendAspectRatio, styleExtractEnabled } =
     useLocalSetting()
   const [openStyleExtractModal, setOpenStyleExtractModal] = useState(false)

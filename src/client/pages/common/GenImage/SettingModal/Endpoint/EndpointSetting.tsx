@@ -1,7 +1,7 @@
-import { useGlobalStore } from '@/client/store/global'
 import { CloseOutlined } from '@ant-design/icons'
 import { Form, Input, message, Select } from 'antd'
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
+import { useGptImageStore } from '../../store'
 import { ENDPOINT_PRESETS } from './endpointPresets'
 
 // 「新增自定义接入点」的下拉值
@@ -40,7 +40,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
     setGptImageEndpoint,
     setGptImageCustomEndpoints,
     setGptImagePresetApiKeys,
-  } = useGlobalStore()
+  } = useGptImageStore()
 
   const endpoint = Form.useWatch('endpoint', form)
   const baseUrlValue = Form.useWatch('baseUrl', form)

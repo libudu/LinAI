@@ -1,10 +1,10 @@
-import { useGlobalStore } from '@/client/store/global'
 import { isAdmin } from '@/client/utils/admin'
 import type { AppType } from '@/server'
-import type { GPTImageQuotaResponse } from '@/server/api/gpt-image'
+import type { GPTImageQuotaResponse } from '@/server/api/gpt-image/endpoint'
 import { hc } from 'hono/client'
 import { useEffect, useMemo, useRef } from 'react'
 import { create } from 'zustand'
+import { useGptImageStore } from '../store'
 import { useTasks } from './useTasks'
 
 // 人民币和积分的汇率
@@ -53,7 +53,7 @@ const useQuotaStore = create<QuotaStore>((set, get) => ({
     const promise = (async () => {
       set({ loading: true, error: null, lastApiKey: apiKey })
       try {
-        const response = await client.api.gptImage.quota.$get()
+        const response = await client.api.gptImage.endpoint.quota.$get()
         const json = await response.json()
         if (!json.success) {
           throw new Error(json.error || '获取余额失败')
@@ -85,8 +85,8 @@ export const isPublicApiKey = (name?: string | null) =>
   false
 
 export function useGPTImageQuota() {
-  const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
-  const gptImageBaseUrl = useGlobalStore((state) => state.gptImageBaseUrl)
+  const gptImageApiKey = useGptImageStore((state) => state.gptImageApiKey)
+  const gptImageBaseUrl = useGptImageStore((state) => state.gptImageBaseUrl)
   const { data: tasks } = useTasks()
   const knownCompletedTasks = useRef<Set<string> | null>(null)
 

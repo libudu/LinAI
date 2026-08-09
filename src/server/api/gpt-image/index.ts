@@ -2,23 +2,17 @@ import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
-import { getGptImageEndpoint, getYunwuApiKey } from '../common/config'
-import { TaskTemplate, templateManager } from '../common/template-manager'
-import { TRIAL_TEMPLATE_TITLE } from '../common/template-manager/enum'
-import { handleImageGeneration } from '../module/gpt-image'
-import { GPT_IMAGE_OUTPUT_MAX_N } from '../module/gpt-image/enum'
-
-export interface GPTImageQuotaResponse {
-  message: string
-  data: {
-    expires_at: number
-    name: string
-    total_available: number
-    total_granted: number
-    total_used: number
-    unlimited_quota: boolean
-  }
-}
+import { TaskTemplate, templateManager } from '../../common/template-manager'
+import { TRIAL_TEMPLATE_TITLE } from '../../common/template-manager/enum'
+import { handleImageGeneration } from '../../module/gpt-image'
+import {
+  getGptImageConfig,
+  getGptImageEndpoint,
+  getYunwuApiKey,
+  updateGptImageConfig,
+} from '../../module/gpt-image/config'
+import { GPT_IMAGE_OUTPUT_MAX_N } from '../../module/gpt-image/enum'
+import gptImageEndpointApi from './endpoint'
 
 // 比例拼接：在提示词末尾追加一行“图片比例X：Y”，
 // 用于 default 等不支持分辨率/比例参数的便宜分组
@@ -34,65 +28,41 @@ function withAspectRatioLine(
 }
 
 const gptImageApi = new Hono()
-  .get('/quota', async (c) => {
-    const apiKey = getYunwuApiKey()
-    if (!apiKey) {
-      return c.json(
-        { success: false as const, error: '[配置] API Key is not configured' },
-        400,
-      )
-    }
-
-    try {
-      const { baseUrl } = getGptImageEndpoint()
-      const origin = new URL(baseUrl).origin
-      const response = await fetch(`${origin}/api/usage/token/`, {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-        },
-      })
-      const json = (await response.json()) as any
-      const quota = json?.data
-      // 不同服务商报错结构不统一，且 HTTP 状态码可能仍是 200，需要逐项判断：
-      // 1. { success: true, data: { message: '...', success: false } }
-      // 2. { success: true, data: { error: { message: '...', type: '...' } } }
-      // 3. 非 200 时 message 可能在顶层
-      const errorMessage: string | undefined =
-        (typeof quota?.error?.message === 'string' && quota.error.message) ||
-        (quota?.success === false && typeof quota?.message === 'string'
-          ? quota.message
-          : undefined) ||
-        (!response.ok && typeof json?.message === 'string'
-          ? json.message
-          : undefined) ||
-        undefined
-      if (errorMessage || !quota || typeof quota.total_available !== 'number') {
-        // Invalid token 一般是密钥填错或接入点与密钥不匹配
-        const isInvalidToken = /invalid token/i.test(errorMessage || '')
-        const prefix = isInvalidToken ? '[密钥]' : '[服务]'
-        return c.json(
-          {
-            success: false as const,
-            error: `${prefix} ${errorMessage || `获取余额失败（HTTP ${response.status}）`}`,
-          },
-          502,
-        )
-      }
-      const data: GPTImageQuotaResponse = json
+  // 接入点相关（余额查询等）
+  .route('/endpoint', gptImageEndpointApi)
+  // 生图模块配置（独立存储 data/images/config.json）
+  .get('/config', (c) => {
+    return c.json({ success: true as const, data: getGptImageConfig() })
+  })
+  .post(
+    '/config',
+    zValidator(
+      'json',
+      z.object({
+        gptImageApiKey: z.string().nullable().optional(),
+        gptImageBaseUrl: z.string().nullable().optional(),
+        gptImageModelId: z.string().nullable().optional(),
+        gptImageCustomEndpoints: z
+          .array(
+            z.object({
+              id: z.string(),
+              title: z.string(),
+              baseUrl: z.string(),
+              modelId: z.string(),
+              apiKey: z.string().optional(),
+            }),
+          )
+          .optional(),
+        gptImagePresetApiKeys: z.record(z.string(), z.string()).optional(),
+      }),
+    ),
+    (c) => {
       return c.json({
         success: true as const,
-        data: data,
+        data: updateGptImageConfig(c.req.valid('json')),
       })
-    } catch (error: any) {
-      return c.json(
-        {
-          success: false as const,
-          error: `[网络] ${error.message || '获取余额失败'}`,
-        },
-        500,
-      )
-    }
-  })
+    },
+  )
   .post(
     '/generate',
     zValidator(

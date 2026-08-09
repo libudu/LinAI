@@ -1,9 +1,9 @@
 import { Tooltip } from 'antd'
 import { useMemo } from 'react'
-import { useGlobalStore } from '../../../store/global'
 import { useGPTImageQuota } from '../GenImage/hooks/useGPTImageQuota'
 import { openGPTImageSettingModal } from '../GenImage/SettingModal'
 import { ENDPOINT_PRESETS } from '../GenImage/SettingModal/Endpoint/endpointPresets'
+import { useGptImageStore } from '../GenImage/store'
 
 // 当前接入点展示：优先匹配预设，其次自定义接入点标题，否则回退到模型 ID
 export function EndpointDisplay() {
@@ -12,7 +12,7 @@ export function EndpointDisplay() {
     gptImageModelId,
     gptImageCustomEndpoints,
     gptImageApiKey,
-  } = useGlobalStore()
+  } = useGptImageStore()
   const { quota, loading, error } = useGPTImageQuota()
 
   const currentEndpointName = useMemo(() => {

@@ -28,16 +28,16 @@
 
 - `src/client/`：前端
   - `pages/module/`：功能页面（GeminiTTS、MediaClassifier、Novel 小说生成、YunwuAdmin 云雾用户管理，仅管理员可见）；Novel 下的 `service/` 承载小说生成编排（prompt 组装、上下文勾选、`/api/novel/llm` 代理调用、结果落盘），`hooks/useNovelConfig.ts` 承载小说模块配置状态
-  - `pages/common/`：通用页面组件（Sidebar、GenImage 图片生成首页，含其下的 TaskList、TemplateSection、SettingModal，及 Notification）
+  - `pages/common/`：通用页面组件（Sidebar、GenImage 图片生成首页，含其下的 TaskList、TemplateSection、SettingModal、store.ts（生图模块配置状态，同步 /api/gptImage/config），及 Notification）
   - `routes.tsx`：路由注册表，新增页面在此登记
   - `store/global.ts`：zustand 全局状态；`hooks/`、`common/`、`utils/`
 - `src/server/`：后端
   - `index.ts`：Hono 入口，所有 API 路由在此挂载（`/api/*`），导出 `AppType` 供前端 RPC 类型推导
-  - `api/`：HTTP 接口层（chat、gpt-image、media-classifier、novel、style-analyze、yunwu-token，`api/tts/` 下的 index（/api/tts）与 inworld（/api/tts-inworld，含 `/config` 配置读写），及 `api/common/` 下的 task/template/log/static/config）
-  - `module/`：业务逻辑层（gpt-image、tts、media-classifier、chat、novel、utils/logger；tts 独立配置 `tts/config.ts`（存储 data/tts/config.json）；novel 保留落盘 store、共享类型与独立配置 `novel/config.ts`，参考文/设定/大纲/正文/摘要统一为 NovelText 单一模型（仅靠 type 区分，生成溯源记录 sourceIds），后端只提供统一文本 CRUD，生成编排与业务规则在前端 `Novel/service/`）
-  - `common/`：基础设施（config 配置读写，含通用 `config/config-json.ts` 的 `ConfigJson` 类——新模块的 config.json 用它创建；static 静态文件、task-manager 任务管理、template-manager 模板管理）
+  - `api/`：HTTP 接口层（chat、media-classifier、novel、style-analyze、yunwu-token，`api/gpt-image/` 下的 index（/api/gptImage，含 `/config` 配置读写）与 endpoint（/api/gptImage/endpoint，余额查询等接入点相关接口），`api/tts/` 下的 index（/api/tts）与 inworld（/api/tts-inworld，含 `/config` 配置读写），及 `api/common/` 下的 task/template/log/static/config）
+  - `module/`：业务逻辑层（gpt-image、tts、media-classifier、chat、novel、utils/logger；gpt-image 独立配置 `gpt-image/config.ts`（存储 data/images/config.json，含旧 data/config.json 的一次性迁移）；tts 独立配置 `tts/config.ts`（存储 data/tts/config.json）；novel 保留落盘 store、共享类型与独立配置 `novel/config.ts`，参考文/设定/大纲/正文/摘要统一为 NovelText 单一模型（仅靠 type 区分，生成溯源记录 sourceIds），后端只提供统一文本 CRUD，生成编排与业务规则在前端 `Novel/service/`）
+  - `common/`：基础设施（通用 `config/config-json.ts` 的 `ConfigJson` 类——新模块的 config.json 用它创建；static 静态文件、task-manager 任务管理、template-manager 模板管理）
   - `migrate.ts`：版本迁移脚本，供最终用户拖入新版压缩包升级
-- `data/`：运行时数据（不入库的用户数据），含 `config.json`（API 密钥）、`tasks.json`、`templates.json`、`images/`、`tts/`（TTS 音频输出 + 模块独立配置 config.json）、`logs/`、`media-classifier/`、`novels/`（小说数据：index.json + 每书目录 + 模块独立配置 config.json）；服务以 `process.cwd()/data` 定位
+- `data/`：运行时数据（不入库的用户数据），含 `config.json`（旧版通用配置，生图配置已迁移至 images/config.json）、`tasks.json`、`templates.json`、`images/`（生图输出 + 模块独立配置 config.json）、`tts/`（TTS 音频输出 + 模块独立配置 config.json）、`logs/`、`media-classifier/`、`novels/`（小说数据：index.json + 每书目录 + 模块独立配置 config.json）；服务以 `process.cwd()/data` 定位
 - `data-template/`：发布时打包进 `dist/data` 的初始数据
 - `dist-template/`：发布模板，含便携 Node 运行时（`runtime/node.exe`）和 `双击运行.bat`、`版本迁移….bat`
 - `scripts/post-build.ts`：构建后处理（git tag 检查、复制模板、dist 内安装生产依赖、打 zip）；`scripts/renpy_dialogue/` 为 Ren'Py 台词提取的辅助脚本
@@ -59,5 +59,5 @@
 
 ## 安全注意事项
 
-- `data/config.json` 保存用户的 API 密钥（GPT 图像密钥经 `src/server/module/gpt-image/encrypt.ts` 加密存储），不得提交或泄露；仓库内该文件属于本地运行数据
+- `data/images/config.json` 保存用户的 GPT 图像 API 密钥（经 `src/server/module/gpt-image/encrypt.ts` 加密存储），不得提交或泄露；仓库内 `data/` 下文件属于本地运行数据
 - `.husky/pre-commit` 会拒绝 git `user.name` 含汉字的提交（避免真名泄露），提交前确保用户名不含中文

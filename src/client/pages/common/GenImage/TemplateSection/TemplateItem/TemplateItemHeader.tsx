@@ -1,6 +1,5 @@
 import openaiIcon from '@/client/assets/icon/openai.svg'
 import { useLocalSetting } from '@/client/hooks/useLocalSetting'
-import { useGlobalStore } from '@/client/store/global'
 import type { AppType } from '@/server'
 import { TaskTemplate } from '@/server/common/template-manager'
 import type { GptImageSize } from '@/server/module/gpt-image/enum'
@@ -10,6 +9,7 @@ import { hc } from 'hono/client'
 import React from 'react'
 import { useTemplates } from '../../hooks/useTemplates'
 import { openGPTImageSettingModal } from '../../SettingModal'
+import { useGptImageStore } from '../../store'
 import { TemplateEditButton } from './TemplateItemEditButton'
 
 const client = hc<AppType>('/')
@@ -18,7 +18,7 @@ export const TemplateItemGenerateButtons: React.FC<{
   template: TaskTemplate
 }> = ({ template }) => {
   const { gptImageSettings, appendAspectRatio } = useLocalSetting()
-  const gptImageApiKey = useGlobalStore((state) => state.gptImageApiKey)
+  const gptImageApiKey = useGptImageStore((state) => state.gptImageApiKey)
 
   const doGenerate = async (templateId: string, size: GptImageSize) => {
     try {

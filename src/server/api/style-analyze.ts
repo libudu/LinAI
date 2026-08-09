@@ -3,10 +3,10 @@ import fs from 'fs-extra'
 import { Hono } from 'hono'
 import path from 'path'
 import { z } from 'zod'
-import { getYunwuApiKey } from '../common/config'
 import { INPUT_IMAGES_DIR } from '../common/static'
 import { INPUT_IMAGES_API_PATH } from '../common/static/enum'
 import { createChatCompletion } from '../module/chat'
+import { getYunwuApiKey } from '../module/gpt-image/config'
 
 const STYLE_ANALYZE_MODEL = 'gemini-3.1-flash-lite'
 

@@ -3,6 +3,7 @@ import zhCN from 'antd/locale/zh_CN'
 import { useEffect, useState, type CSSProperties } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import pkg from '../../package.json'
+import { useGptImageStore } from './pages/common/GenImage/store'
 import { openNotificationModal } from './pages/common/Notification'
 import { Sidebar } from './pages/common/Sidebar'
 import { appRoutes } from './routes'
@@ -15,6 +16,7 @@ function App() {
 
   useEffect(() => {
     useGlobalStore.getState().fetchConfig()
+    useGptImageStore.getState().fetchConfig()
 
     // 检查版本号并弹出通知
     const currentVersion = pkg.version
