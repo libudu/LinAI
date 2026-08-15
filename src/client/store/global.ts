@@ -1,5 +1,5 @@
 import type { AppType } from '@/server'
-import type { TaskTemplate } from '@/server/common/template-manager'
+import type { TaskTemplate } from '@/shared/image/template'
 import { hc } from 'hono/client'
 import { create } from 'zustand'
 

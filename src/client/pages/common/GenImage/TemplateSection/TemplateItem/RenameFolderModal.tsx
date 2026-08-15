@@ -1,9 +1,6 @@
-import type { AppType } from '@/server'
 import { Form, Input, Modal, message } from 'antd'
-import { hc } from 'hono/client'
 import { useState } from 'react'
-
-const client = hc<AppType>('/')
+import { renameTemplateFolder } from '../../service/templates'
 
 interface RenameFolderModalProps {
   folder: string
@@ -25,22 +22,12 @@ export function RenameFolderModal({
     try {
       const values = await form.validateFields()
       setSubmitting(true)
-      const res = await client.api.template.folder.rename.$put({
-        json: {
-          oldFolder: folder,
-          newFolder: values.newFolder,
-        },
-      })
-      const json = await res.json()
-      if (json.success) {
-        message.success('重命名成功')
-        onSuccess(values.newFolder)
-      } else {
-        message.error(json.error || '重命名失败')
-      }
+      await renameTemplateFolder(folder, values.newFolder)
+      message.success('重命名成功')
+      onSuccess(values.newFolder)
     } catch (error) {
       if (error instanceof Error) {
-        message.error(`[网络] ${error.message || '重命名失败'}`)
+        message.error(error.message || '重命名失败')
       }
     } finally {
       setSubmitting(false)

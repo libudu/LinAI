@@ -1,19 +1,15 @@
-import type { AppType } from '@/server'
 import { useRequest } from 'ahooks'
 import { message } from 'antd'
-import { hc } from 'hono/client'
-
-const client = hc<AppType>('/')
+import { listTemplates } from '../service/templates'
 
 export function useTemplates() {
   return useRequest(
     async () => {
-      const res = await client.api.template.$get()
-      const json = await res.json()
-      if (json.success) {
-        return json.data
-      } else {
-        message.error(json.error || '获取模板失败')
+      try {
+        const { templates } = await listTemplates()
+        return templates
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : '获取模板失败')
         return []
       }
     },

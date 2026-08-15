@@ -1,7 +1,7 @@
 import {
   CustomEndpoint,
-  ENDPOINT_PRESETS,
-} from '@/client/pages/common/GenImage/SettingModal/Endpoint/endpointPresets'
+  ENDPOINT_PRESET_INFOS,
+} from '@/shared/gpt-image/endpoints'
 import fs from 'fs'
 import path from 'path'
 import { ConfigJson } from '../../common/config/config-json'
@@ -17,8 +17,8 @@ export interface GptImageConfig {
   gptImagePresetApiKeys: Record<string, string>
 }
 
-// 默认接入点取前端预设列表的第一项
-const DEFAULT_ENDPOINT = ENDPOINT_PRESETS[0]
+// 默认接入点取预设列表的第一项
+const DEFAULT_ENDPOINT = ENDPOINT_PRESET_INFOS[0]
 
 const DEFAULT_GPT_IMAGE_CONFIG: GptImageConfig = {
   gptImageApiKey: null,
@@ -68,7 +68,9 @@ export const getYunwuApiKey = (): string | null => {
 // 获取 GPT 图像接入点，未配置时回退到默认值
 export const getGptImageEndpoint = () => {
   const config = gptImageConfigJson.get()
-  const baseUrl = config.gptImageBaseUrl || DEFAULT_GPT_IMAGE_CONFIG.gptImageBaseUrl!
-  const modelId = config.gptImageModelId || DEFAULT_GPT_IMAGE_CONFIG.gptImageModelId!
+  const baseUrl =
+    config.gptImageBaseUrl || DEFAULT_GPT_IMAGE_CONFIG.gptImageBaseUrl!
+  const modelId =
+    config.gptImageModelId || DEFAULT_GPT_IMAGE_CONFIG.gptImageModelId!
   return { baseUrl, modelId }
 }

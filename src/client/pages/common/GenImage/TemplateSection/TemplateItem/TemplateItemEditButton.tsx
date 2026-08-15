@@ -1,13 +1,10 @@
-import type { AppType } from '@/server'
-import { TaskTemplate } from '@/server/common/template-manager'
+import { TaskTemplate } from '@/shared/image/template'
 import { EditOutlined } from '@ant-design/icons'
 import { Button, Form, message, Modal, Tooltip } from 'antd'
-import { hc } from 'hono/client'
 import { useState } from 'react'
 import { useTemplates } from '../../hooks/useTemplates'
+import { createTemplate, patchTemplate } from '../../service/templates'
 import { TemplateFormFields } from '../TemplateForm/TemplateFormItems'
-
-const client = hc<AppType>('/')
 
 interface TemplateEditButtonProps {
   template: TaskTemplate
@@ -41,23 +38,12 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
   const handleFinish = async (values: any) => {
     setSubmitting(true)
     try {
-      const res = await client.api.template[':id'].$put({
-        param: { id: template.id },
-        json: {
-          ...values,
-          images: imageUrls,
-        },
-      })
-      const json = await res.json()
-      if (json.success) {
-        message.success('更新成功')
-        refresh()
-        handleClose()
-      } else {
-        message.error(json.error || '更新失败')
-      }
+      await patchTemplate(template, { ...values, images: imageUrls })
+      message.success('更新成功')
+      refresh()
+      handleClose()
     } catch (error) {
-      message.error('请求失败')
+      message.error(error instanceof Error ? error.message : '更新失败')
     } finally {
       setSubmitting(false)
     }
@@ -67,23 +53,16 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
     try {
       const values = await form.validateFields()
       setSubmitting(true)
-      const res = await client.api.template.$post({
-        json: {
-          title: values.title,
-          prompt: values.prompt,
-          aspectRatio: values.aspectRatio,
-          folder: values.folder,
-          images: imageUrls,
-        },
+      await createTemplate({
+        title: values.title,
+        prompt: values.prompt,
+        aspectRatio: values.aspectRatio,
+        folder: values.folder,
+        images: imageUrls,
       })
-      const json = await res.json()
-      if (json.success) {
-        message.success('另存成功')
-        refresh()
-        handleClose()
-      } else {
-        message.error(json.error || '另存失败')
-      }
+      message.success('另存成功')
+      refresh()
+      handleClose()
     } catch (error) {
       if (error && typeof error === 'object' && 'errorFields' in error) {
         // Validation failed, do nothing

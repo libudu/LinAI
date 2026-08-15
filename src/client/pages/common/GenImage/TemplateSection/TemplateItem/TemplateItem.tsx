@@ -1,4 +1,4 @@
-import { TaskTemplate } from '@/server/common/template-manager'
+import { TaskTemplate } from '@/shared/image/template'
 import { Card, Tooltip, message } from 'antd'
 import copy from 'copy-to-clipboard'
 import dayjs from 'dayjs'

@@ -1,9 +1,9 @@
+import { TRIAL_TEMPLATE_TITLE } from '@/shared/image/template'
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { TaskTemplate, templateManager } from '../../common/template-manager'
-import { TRIAL_TEMPLATE_TITLE } from '../../common/template-manager/enum'
 import { handleImageGeneration } from '../../module/gpt-image'
 import {
   getGptImageConfig,
@@ -67,15 +67,30 @@ const gptImageApi = new Hono()
     '/generate',
     zValidator(
       'json',
-      z.object({
-        templateId: z.string().min(1, 'Template ID is required'),
-        size: z.enum(['1k', '2k', '4k']),
-        quality: z.enum(['medium', 'high']),
-        appendAspectRatio: z.boolean().optional(),
-      }),
+      z
+        .object({
+          // 兼容旧调用：仅传 templateId 时由后端查模板；
+          // 新调用由前端提交一次生成所需的完整模板快照（input）
+          templateId: z.string().min(1).optional(),
+          input: z
+            .object({
+              title: z.string().optional(),
+              prompt: z.string().min(1, 'Prompt is required'),
+              images: z.array(z.string()).optional(),
+              aspectRatio: z.string().optional(),
+              n: z.number().min(1).max(GPT_IMAGE_OUTPUT_MAX_N).optional(),
+            })
+            .optional(),
+          size: z.enum(['1k', '2k', '4k']),
+          quality: z.enum(['medium', 'high']),
+          appendAspectRatio: z.boolean().optional(),
+        })
+        .refine((d) => d.templateId || d.input, {
+          message: 'templateId or input is required',
+        }),
     ),
     async (c) => {
-      const { templateId, size, quality, appendAspectRatio } =
+      const { templateId, input, size, quality, appendAspectRatio } =
         c.req.valid('json')
       const apiKey = getYunwuApiKey()
       if (!apiKey) {
@@ -87,13 +102,25 @@ const gptImageApi = new Hono()
           400,
         )
       }
-      const templates = await templateManager.getTemplates()
-      const template = templates.find((t) => t.id === templateId)
-      if (!template) {
-        return c.json(
-          { success: false as const, error: '[服务] Template not found' },
-          404,
-        )
+      let template: TaskTemplate
+      if (input) {
+        // 前端提交的完整快照：后端不再依赖模板存储
+        template = {
+          id: templateId || uuidv4(),
+          createdAt: Date.now(),
+          images: [],
+          ...input,
+        }
+      } else {
+        const templates = await templateManager.getTemplates()
+        const found = templates.find((t) => t.id === templateId)
+        if (!found) {
+          return c.json(
+            { success: false as const, error: '[服务] Template not found' },
+            404,
+          )
+        }
+        template = found
       }
       const result = await handleImageGeneration({
         apiKey,

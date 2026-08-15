@@ -1,13 +1,10 @@
-import type { AppType } from '@/server'
-import { TaskTemplate } from '@/server/common/template-manager'
+import { TaskTemplate } from '@/shared/image/template'
 import { InboxOutlined } from '@ant-design/icons'
 import { message } from 'antd'
-import { hc } from 'hono/client'
 import { useTemplates } from '../../hooks/useTemplates'
+import { patchTemplate } from '../../service/templates'
 import { TemplateFolder } from '../TemplateItem/TemplateFolder'
 import { TemplateItem } from '../TemplateItem/TemplateItem'
-
-const client = hc<AppType>('/')
 
 interface TemplateItemListProps {
   filteredTemplates: TaskTemplate[]
@@ -23,21 +20,15 @@ export function TemplateItemList({
   const { refresh: refreshTemplates } = useTemplates()
 
   const handleDropTemplate = async (templateId: string, folder: string) => {
+    const template = filteredTemplates.find((t) => t.id === templateId)
+    if (!template) return
     try {
-      const res = await client.api.template[':id'].$put({
-        param: { id: templateId },
-        json: { folder },
-      })
-      const json = await res.json()
-      if (json.success) {
-        message.success('已移动到文件夹')
-        refreshTemplates()
-      } else {
-        message.error(json.error || '移动失败')
-      }
+      await patchTemplate(template, { folder })
+      message.success('已移动到文件夹')
+      refreshTemplates()
     } catch (error) {
       const msg =
-        error instanceof Error ? `[网络] ${error.message}` : '请求失败'
+        error instanceof Error ? `[网络] ${error.message}` : '移动失败'
       message.error(msg)
     }
   }

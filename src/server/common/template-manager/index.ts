@@ -1,39 +1,39 @@
-import fs from 'fs-extra'
-import path from 'path'
-import { v4 as uuidv4 } from 'uuid'
+import type { TaskTemplate, TemplateValue } from '@/shared/image/template'
+import type { StoredItem } from '@/shared/storage/types'
+import { StorageError } from '../storage/errors'
+import { storageRegistry } from '../storage/registry'
+// 注册通用存储资源（副作用）
+import '../storage/resources'
 
-export interface TaskTemplate {
-  id: string
-  title?: string
-  images: string[]
-  prompt: string
-  createdAt: number
-  aspectRatio?: string
-  folder?: string
-  n?: number
-}
+export type { TaskTemplate } from '@/shared/image/template'
 
-export interface GeminiTaskTemplate extends TaskTemplate {
-  // Add any gemini specific fields here if needed
-}
+// 信封条目转回旧版扁平结构（兼容 /api/template 与任务快照）
+const flatten = (item: StoredItem<TemplateValue>): TaskTemplate => ({
+  id: item.id,
+  createdAt: item.createdAt,
+  ...item.value,
+})
 
+const store = () =>
+  storageRegistry.getCollection<TemplateValue>('image.templates')
+
+/**
+ * 旧版模板管理接口的兼容适配器：底层已迁移到通用 CollectionStore
+ * （data/templates.json，原子写入 + 串行队列 + revision），
+ * 前端新代码请直接使用 /api/storage/collections/image.templates。
+ */
 class TemplateManager {
-  private dataDir: string
-  private dbPath: string
+  private readonly ready: Promise<void>
 
   constructor() {
-    this.dataDir = path.join(process.cwd(), 'data')
-    this.dbPath = path.join(this.dataDir, 'templates.json')
-    this.init()
+    this.ready = this.seed()
   }
 
-  private init() {
-    if (!fs.existsSync(this.dataDir)) {
-      fs.mkdirSync(this.dataDir, { recursive: true })
-    }
-    if (!fs.existsSync(this.dbPath)) {
-      fs.writeFileSync(this.dbPath, JSON.stringify([]), 'utf-8')
-      this.addTemplate({
+  // 仅在文件尚不存在（revision 0 且无条目）时写入示例模板
+  private async seed() {
+    const snapshot = await store().getSnapshot()
+    if (snapshot.revision === 0 && snapshot.items.length === 0) {
+      await store().create({
         title: '模板示例1',
         images: [],
         prompt: '生成一张2030年福瑞（furry）科目的中考试卷',
@@ -42,89 +42,67 @@ class TemplateManager {
   }
 
   public async getTemplates(): Promise<TaskTemplate[]> {
-    try {
-      const data = await fs.readFile(this.dbPath, 'utf-8')
-      return JSON.parse(data)
-    } catch (error) {
-      console.error('Failed to read templates:', error)
-      return []
-    }
+    await this.ready
+    const snapshot = await store().getSnapshot()
+    return snapshot.items.map(flatten)
   }
 
   public async addTemplate(
     template: Omit<TaskTemplate, 'id' | 'createdAt'>,
   ): Promise<TaskTemplate> {
-    const templates = await this.getTemplates()
-    const id = uuidv4()
-
-    const newTemplate: TaskTemplate = {
+    await this.ready
+    const item = await store().create({
       ...template,
       images: template.images || [],
-      id,
-      createdAt: Date.now(),
-    }
-    templates.push(newTemplate)
-    await fs.writeFile(this.dbPath, JSON.stringify(templates, null, 2), 'utf-8')
-    return newTemplate
+    })
+    return flatten(item)
   }
 
   public async deleteTemplate(id: string): Promise<boolean> {
-    const templates = await this.getTemplates()
-    const target = templates.find((t) => t.id === id)
-    if (!target) {
-      return false
+    await this.ready
+    try {
+      await store().remove(id)
+      return true
+    } catch (error) {
+      if (error instanceof StorageError && error.code === 'NOT_FOUND') {
+        return false
+      }
+      throw error
     }
-
-    const filtered = templates.filter((t) => t.id !== id)
-    await fs.writeFile(this.dbPath, JSON.stringify(filtered, null, 2), 'utf-8')
-    return true
   }
 
   public async updateTemplate(
     id: string,
-    updates: Partial<
-      Pick<
-        TaskTemplate,
-        'title' | 'prompt' | 'aspectRatio' | 'folder' | 'images' | 'n'
-      >
-    >,
+    updates: Partial<TemplateValue>,
   ): Promise<TaskTemplate | null> {
-    const templates = await this.getTemplates()
-    const index = templates.findIndex((t) => t.id === id)
-    if (index === -1) {
+    await this.ready
+    const snapshot = await store().getSnapshot()
+    const item = snapshot.items.find((i) => i.id === id)
+    if (!item) {
       return null
     }
-
-    templates[index] = {
-      ...templates[index],
-      ...updates,
-    }
-    await fs.writeFile(this.dbPath, JSON.stringify(templates, null, 2), 'utf-8')
-    return templates[index]
+    const updated = await store().replace(id, { ...item.value, ...updates })
+    return flatten(updated)
   }
 
   public async renameFolder(
     oldFolder: string,
     newFolder: string,
   ): Promise<number> {
-    const templates = await this.getTemplates()
-    let updatedCount = 0
-
-    for (const t of templates) {
-      if (t.folder === oldFolder) {
-        t.folder = newFolder
-        updatedCount++
-      }
+    await this.ready
+    const snapshot = await store().getSnapshot()
+    const targets = snapshot.items.filter((i) => i.value.folder === oldFolder)
+    if (targets.length === 0) {
+      return 0
     }
-
-    if (updatedCount > 0) {
-      await fs.writeFile(
-        this.dbPath,
-        JSON.stringify(templates, null, 2),
-        'utf-8',
-      )
-    }
-    return updatedCount
+    await store().batch(
+      targets.map((i) => ({
+        type: 'replace' as const,
+        id: i.id,
+        value: { ...i.value, folder: newFolder },
+      })),
+    )
+    return targets.length
   }
 }
 

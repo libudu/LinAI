@@ -1,0 +1,97 @@
+import { zValidator } from '@hono/zod-validator'
+import { Hono } from 'hono'
+import { z } from 'zod'
+import { storageRegistry } from '../../common/storage/registry'
+// 注册所有通用存储资源（副作用）
+import '../../common/storage/resources'
+
+/**
+ * 通用集合存储接口：客户端只能通过已注册的资源 ID 访问，value 由前端定义。
+ * 错误统一抛 StorageError，由全局 onError 映射为 404/409/500。
+ */
+const storageApi = new Hono()
+  .get('/collections/:resource', async (c) => {
+    const store = storageRegistry.getCollection(c.req.param('resource'))
+    const snapshot = await store.getSnapshot()
+    return c.json({
+      success: true as const,
+      revision: snapshot.revision,
+      data: { items: snapshot.items },
+    })
+  })
+  .post(
+    '/collections/:resource',
+    zValidator(
+      'json',
+      z.object({
+        value: z.unknown(),
+        id: z.string().max(64).optional(),
+      }),
+    ),
+    async (c) => {
+      const store = storageRegistry.getCollection(c.req.param('resource'))
+      const { value, id } = c.req.valid('json')
+      const item = await store.create(value, id)
+      return c.json({ success: true as const, data: item })
+    },
+  )
+  .put(
+    '/collections/:resource/:id',
+    zValidator(
+      'json',
+      z.object({
+        value: z.unknown(),
+        expectedRevision: z.number().int().min(0).optional(),
+      }),
+    ),
+    async (c) => {
+      const store = storageRegistry.getCollection(c.req.param('resource'))
+      const { value, expectedRevision } = c.req.valid('json')
+      const item = await store.replace(
+        c.req.param('id'),
+        value,
+        expectedRevision,
+      )
+      return c.json({ success: true as const, data: item })
+    },
+  )
+  .delete('/collections/:resource/:id', async (c) => {
+    const store = storageRegistry.getCollection(c.req.param('resource'))
+    await store.remove(c.req.param('id'))
+    return c.json({ success: true as const })
+  })
+  .post(
+    '/collections/:resource/batch',
+    zValidator(
+      'json',
+      z.object({
+        expectedRevision: z.number().int().min(0).optional(),
+        operations: z
+          .array(
+            z.discriminatedUnion('type', [
+              z.object({
+                type: z.literal('create'),
+                value: z.unknown(),
+                id: z.string().max(64).optional(),
+              }),
+              z.object({
+                type: z.literal('replace'),
+                id: z.string(),
+                value: z.unknown(),
+              }),
+              z.object({ type: z.literal('delete'), id: z.string() }),
+            ]),
+          )
+          .min(1)
+          .max(500),
+      }),
+    ),
+    async (c) => {
+      const store = storageRegistry.getCollection(c.req.param('resource'))
+      const { operations, expectedRevision } = c.req.valid('json')
+      await store.batch(operations, expectedRevision)
+      return c.json({ success: true as const })
+    },
+  )
+
+export default storageApi

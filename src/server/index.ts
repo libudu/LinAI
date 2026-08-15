@@ -7,6 +7,7 @@ import chatApi from './api/chat'
 import configApi from './api/common/config'
 import logApi from './api/common/log'
 import staticApi from './api/common/static'
+import storageApi from './api/common/storage'
 import taskApi from './api/common/task'
 import templateApi from './api/common/template'
 import gptImageApi from './api/gpt-image'
@@ -63,6 +64,7 @@ const routes = app
   // common
   .route('/api/task', taskApi)
   .route('/api/template', templateApi)
+  .route('/api/storage', storageApi)
   .route('/api/log', logApi)
   .route('/api/static', staticApi)
   .route('/api/config', configApi)

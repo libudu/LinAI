@@ -1,7 +1,7 @@
+import { isVeniceEndpoint } from '@/server/module/gpt-image/enum'
 import { CloseOutlined } from '@ant-design/icons'
 import { Form, Input, message, Select } from 'antd'
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
-import { isVeniceEndpoint } from '@/server/module/gpt-image/enum'
 import { useGptImageStore } from '../../store'
 import { ENDPOINT_PRESETS } from './endpointPresets'
 

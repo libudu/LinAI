@@ -31,10 +31,11 @@
   - `theme.tsx`：全局明暗主题 + 自定义强调色（`AppThemeProvider` / `useAppTheme`），localStorage 键 `app_theme` / `app_theme_accent`；暗色样式靠 `index.css` 中 `html[data-theme='dark']` 属性选择器映射 Tailwind 亮色类；独立 createRoot 的弹窗需自行包一层 `AppThemeProvider`
 - `src/server/`：后端
   - `index.ts`：Hono 入口，所有 API 路由在此挂载（`/api/*`），导出 `AppType` 供前端 RPC 类型推导
-  - `api/`：HTTP 接口层，每个业务模块一个文件或同名文件夹；`api/common/` 为通用接口（task/template/log/static/config）
+  - `api/`：HTTP 接口层，每个业务模块一个文件或同名文件夹；`api/common/` 为通用接口（task/template/storage/log/static/config）
   - `module/`：业务逻辑层；`common/`：基础设施（storage、config-json、static、task-manager、template-manager）
-  - `common/storage/`：可靠存储基础层（原子 JSON 读写、`.bak`/`.corrupt` 备份恢复、资源级串行队列、StorageError 统一错误、`dataPath()`），写盘失败抛错由全局 `app.onError` 映射为 404/409/500
+  - `common/storage/`：可靠存储基础层（原子 JSON 读写、`.bak`/`.corrupt` 备份恢复、资源级串行队列、CollectionStore、StorageRegistry、StorageError 统一错误、`dataPath()`），写盘失败抛错由全局 `app.onError` 映射为 404/409/500；资源在 `common/storage/resources.ts` 注册后，前端经 `/api/storage/collections/:resource` 访问（信封结构见 `src/shared/storage/types.ts`）
   - `migrate.ts`：版本迁移脚本，供最终用户拖入新版压缩包升级
+- `src/shared/`：前后端共享的类型与常量（无 UI、无 Node 依赖），如 `gpt-image/endpoints.ts`（接入点预设）、`image/template.ts`（模板业务类型）、`storage/types.ts`（通用存储信封）
 - `data/`：运行时数据（不入库的用户数据），服务以 `process.cwd()/data` 定位
 - `data-template/`、`dist-template/`：发布模板（后者含便携 Node 运行时与启动/迁移 bat）
 - `scripts/post-build.ts`：构建后处理（git tag、复制模板、dist 内安装生产依赖、打 zip）

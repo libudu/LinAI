@@ -7,6 +7,7 @@ import { Button, Form, message } from 'antd'
 import { hc } from 'hono/client'
 import { useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/shallow'
+import { createTemplate } from '../../service/templates'
 import { openGPTImageSettingModal } from '../../SettingModal'
 import { useGptImageStore } from '../../store'
 import { StyleExtractModal } from './StyleExtractModal'
@@ -113,24 +114,16 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
   const handleFinish = async (values: any) => {
     setSubmitting(true)
     try {
-      const payload = {
+      await createTemplate({
         ...values,
         images: imageUrls,
-      }
-
-      const res = await client.api.template.$post({ json: payload })
-      const json = await res.json()
-
-      if (json.success) {
-        message.success('保存成功')
-        form.resetFields()
-        setImageUrls([])
-        onSuccess()
-      } else {
-        message.error(json.error || '保存失败')
-      }
+      })
+      message.success('保存成功')
+      form.resetFields()
+      setImageUrls([])
+      onSuccess()
     } catch (error) {
-      message.error('请求失败')
+      message.error(error instanceof Error ? error.message : '保存失败')
     } finally {
       setSubmitting(false)
     }

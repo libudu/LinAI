@@ -2,8 +2,8 @@ import { useLocalSetting } from '@/client/hooks/useLocalSetting'
 import { useGlobalStore } from '@/client/store/global'
 import type { AppType } from '@/server'
 import type { Task } from '@/server/common/task-manager'
-import { TRIAL_TEMPLATE_TITLE } from '@/server/common/template-manager/enum'
 import { GPT_IMAGE_SOURCE_MODEL } from '@/server/module/gpt-image/enum'
+import { TRIAL_TEMPLATE_TITLE } from '@/shared/image/template'
 import {
   RedoOutlined,
   SyncOutlined,
@@ -42,9 +42,18 @@ export function TaskList() {
   )
 
   const handleRetry = async (task: Task) => {
+    // 用任务创建时的模板快照重试，不再依赖模板存储中的当前内容
+    const snapshot = task.rawTemplate
     await client.api.gptImage.generate.$post({
       json: {
-        templateId: task.rawTemplate?.id || '',
+        templateId: snapshot?.id || '',
+        input: {
+          title: snapshot?.title,
+          prompt: snapshot?.prompt || '',
+          images: snapshot?.images || [],
+          aspectRatio: snapshot?.aspectRatio,
+          n: snapshot?.n,
+        },
         size: (task.size as any) || '2k',
         quality: (task.quality as any) || 'medium',
       },

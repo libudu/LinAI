@@ -1,13 +1,14 @@
 import openaiIcon from '@/client/assets/icon/openai.svg'
 import { useLocalSetting } from '@/client/hooks/useLocalSetting'
 import type { AppType } from '@/server'
-import { TaskTemplate } from '@/server/common/template-manager'
 import type { GptImageSize } from '@/server/module/gpt-image/enum'
+import { TaskTemplate } from '@/shared/image/template'
 import { DeleteOutlined, HolderOutlined } from '@ant-design/icons'
 import { Button, message, Popconfirm, Space, Tag, Tooltip } from 'antd'
 import { hc } from 'hono/client'
 import React from 'react'
 import { useTemplates } from '../../hooks/useTemplates'
+import { deleteTemplate } from '../../service/templates'
 import { openGPTImageSettingModal } from '../../SettingModal'
 import { useGptImageStore } from '../../store'
 import { TemplateEditButton } from './TemplateItemEditButton'
@@ -20,11 +21,19 @@ export const TemplateItemGenerateButtons: React.FC<{
   const { gptImageSettings, appendAspectRatio } = useLocalSetting()
   const gptImageApiKey = useGptImageStore((state) => state.gptImageApiKey)
 
-  const doGenerate = async (templateId: string, size: GptImageSize) => {
+  const doGenerate = async (template: TaskTemplate, size: GptImageSize) => {
     try {
       const res = await client.api.gptImage.generate.$post({
         json: {
-          templateId,
+          templateId: template.id,
+          // 提交完整模板快照，后端不再依赖模板存储
+          input: {
+            title: template.title,
+            prompt: template.prompt,
+            images: template.images || [],
+            aspectRatio: template.aspectRatio,
+            n: template.n,
+          },
           size,
           quality: gptImageSettings.quality,
           appendAspectRatio,
@@ -42,19 +51,19 @@ export const TemplateItemGenerateButtons: React.FC<{
     }
   }
 
-  const handleGenerate = (templateId: string, size: GptImageSize) => {
+  const handleGenerate = (template: TaskTemplate, size: GptImageSize) => {
     const apiKey = gptImageApiKey
     if (!apiKey) {
       openGPTImageSettingModal({
         initialTab: 'endpoint',
         onSuccess: () => {
-          doGenerate(templateId, size)
+          doGenerate(template, size)
         },
       })
       return
     }
 
-    doGenerate(templateId, size)
+    doGenerate(template, size)
   }
   return (
     <>
@@ -77,7 +86,7 @@ export const TemplateItemGenerateButtons: React.FC<{
                     className="app-invert-icon h-4 w-4 opacity-70"
                   />
                 }
-                onClick={() => handleGenerate(template.id, item.value)}
+                onClick={() => handleGenerate(template, item.value)}
               >
                 {item.size}
               </Button>
@@ -99,16 +108,11 @@ export const TemplateItemHeader = ({
 
   const handleDelete = async (id: string) => {
     try {
-      const res = await client.api.template[':id'].$delete({ param: { id } })
-      const json = await res.json()
-      if (json.success) {
-        message.success('删除成功')
-        refreshTemplates()
-      } else {
-        message.error(json.error || '删除失败')
-      }
+      await deleteTemplate(id)
+      message.success('删除成功')
+      refreshTemplates()
     } catch (error) {
-      message.error('请求失败')
+      message.error(error instanceof Error ? error.message : '删除失败')
     }
   }
 
