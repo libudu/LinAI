@@ -1,39 +1,29 @@
-import type { AppType } from '@/server'
-import { TTSProject } from '@/server/module/tts'
+import type { TTSProject } from '@/server/module/tts'
 import { message, Tabs } from 'antd'
-import { hc } from 'hono/client'
-import { useState } from 'react'
+import { updateProject, type TTSProjectEntity } from '../service/projects'
 import { CharacterList } from './CharacterList'
 import { DialogueList } from './DialogueList'
 import { VoiceList } from './VoiceList'
 
-const client = hc<AppType>('/')
-
 interface ProjectManagerProps {
-  project: TTSProject
+  entity: TTSProjectEntity
+  onEntityChange: (entity: TTSProjectEntity) => void
 }
 
 export const ProjectDetail = ({
-  project: initialProject,
+  entity,
+  onEntityChange,
 }: ProjectManagerProps) => {
-  const [project, setProject] = useState(initialProject)
+  const project = entity.value
 
+  // 角色/对白等修改在前端合并后整体保存（携带 revision，冲突时 service 层自动重放一次）
   const updateProjectData = async (
     updates: Partial<Omit<TTSProject, 'id' | 'createdAt'>>,
   ) => {
     try {
-      const response = await client.api.tts.projects[':id'].$put({
-        param: { id: project.id },
-        json: updates,
-      })
-      const data = await response.json()
-      if (data.success) {
-        setProject(data.data)
-      } else {
-        message.error(data.error || '保存失败')
-      }
+      onEntityChange(await updateProject(project.id, updates))
     } catch (error: any) {
-      message.error(error.message || '网络错误')
+      message.error(error.message || '保存失败')
     }
   }
 
@@ -52,7 +42,7 @@ export const ProjectDetail = ({
             label: '对话编排',
             children: (
               <DialogueList
-                projectId={project.id}
+                renpyExportDir={project.renpyExportDir}
                 dialogues={project.dialogues || []}
                 characters={project.characters || []}
                 onUpdateProject={updateProjectData}

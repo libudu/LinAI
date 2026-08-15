@@ -1,5 +1,7 @@
 import type {
   CollectionBatchOperation,
+  StoredEntity,
+  StoredEntitySummary,
   StoredItem,
 } from '@/shared/storage/types'
 
@@ -11,6 +13,17 @@ import type {
 interface ApiErrorBody {
   success: false
   error?: { code?: string; message?: string } | string
+}
+
+/** 存储接口错误：message 为服务端中文信息，code 为结构化错误码（如 REVISION_CONFLICT） */
+export class StorageApiError extends Error {
+  constructor(
+    message: string,
+    readonly code?: string,
+  ) {
+    super(message)
+    this.name = 'StorageApiError'
+  }
 }
 
 const request = async <T>(
@@ -28,7 +41,8 @@ const request = async <T>(
       typeof error === 'string'
         ? error
         : error?.message || `请求失败（${res.status}）`
-    throw new Error(message)
+    const code = typeof error === 'string' ? undefined : error?.code
+    throw new StorageApiError(message, code)
   }
   return json
 }
@@ -72,5 +86,40 @@ export const collectionClient = <T>(resource: string) => {
         method: 'POST',
         body: JSON.stringify({ operations, expectedRevision }),
       }).then(() => undefined),
+  }
+}
+
+/**
+ * 通用实体存储客户端（/api/storage/entities/:resource）。
+ * 列表只返回摘要；value 与 summary 均由前端定义并随写入一并提交
+ */
+export const entityClient = <T, S>(resource: string) => {
+  const base = `/api/storage/entities/${resource}`
+  return {
+    list: (): Promise<StoredEntitySummary<S>[]> =>
+      request<{ items: StoredEntitySummary<S>[] }>(base).then(
+        (r) => r.data.items,
+      ),
+    create: (value: T, summary: S, id?: string): Promise<StoredEntity<T, S>> =>
+      request<StoredEntity<T, S>>(base, {
+        method: 'POST',
+        body: JSON.stringify({ value, summary, id }),
+      }).then((r) => r.data),
+    get: (id: string): Promise<StoredEntity<T, S>> =>
+      request<StoredEntity<T, S>>(`${base}/${id}`).then((r) => r.data),
+    replace: (
+      id: string,
+      value: T,
+      summary: S,
+      expectedRevision?: number,
+    ): Promise<StoredEntity<T, S>> =>
+      request<StoredEntity<T, S>>(`${base}/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ value, summary, expectedRevision }),
+      }).then((r) => r.data),
+    remove: (id: string): Promise<void> =>
+      request<void>(`${base}/${id}`, { method: 'DELETE' }).then(
+        () => undefined,
+      ),
   }
 }

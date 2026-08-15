@@ -93,5 +93,60 @@ const storageApi = new Hono()
       return c.json({ success: true as const })
     },
   )
+  // ---------- 实体存储：每个实体一个文件，列表只返回摘要 ----------
+  .get('/entities/:resource', async (c) => {
+    const store = storageRegistry.getEntity(c.req.param('resource'))
+    const items = await store.list()
+    return c.json({ success: true as const, data: { items } })
+  })
+  .post(
+    '/entities/:resource',
+    zValidator(
+      'json',
+      z.object({
+        value: z.unknown(),
+        summary: z.unknown().optional(),
+        id: z.string().max(64).optional(),
+      }),
+    ),
+    async (c) => {
+      const store = storageRegistry.getEntity(c.req.param('resource'))
+      const { value, summary, id } = c.req.valid('json')
+      const entity = await store.create(value, summary ?? {}, id)
+      return c.json({ success: true as const, data: entity })
+    },
+  )
+  .get('/entities/:resource/:id', async (c) => {
+    const store = storageRegistry.getEntity(c.req.param('resource'))
+    const entity = await store.get(c.req.param('id'))
+    return c.json({ success: true as const, data: entity })
+  })
+  .put(
+    '/entities/:resource/:id',
+    zValidator(
+      'json',
+      z.object({
+        value: z.unknown(),
+        summary: z.unknown().optional(),
+        expectedRevision: z.number().int().min(0).optional(),
+      }),
+    ),
+    async (c) => {
+      const store = storageRegistry.getEntity(c.req.param('resource'))
+      const { value, summary, expectedRevision } = c.req.valid('json')
+      const entity = await store.replace(
+        c.req.param('id'),
+        value,
+        summary ?? {},
+        expectedRevision,
+      )
+      return c.json({ success: true as const, data: entity })
+    },
+  )
+  .delete('/entities/:resource/:id', async (c) => {
+    const store = storageRegistry.getEntity(c.req.param('resource'))
+    await store.remove(c.req.param('id'))
+    return c.json({ success: true as const })
+  })
 
 export default storageApi

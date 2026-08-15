@@ -7,9 +7,18 @@ import {
   TTS_INWORLD_OUTPUT_DIR,
   copyRenpyFiles,
   getRenpySyncStatus,
-  projectManager,
   validateRenpyWorkDir,
 } from '../../module/tts/index'
+
+// TTS 项目数据已由前端通过通用实体接口（/api/storage/entities/tts.projects）整体读写，
+// 后端不再保留项目 CRUD；本文件只剩音频输出与 Ren'Py 同步（最小参数，§7.5）
+
+// Ren'Py 同步只依赖对白的这几个字段
+const renpyDialogueSchema = z.object({
+  id: z.string(),
+  audioUrl: z.string().optional(),
+  data: z.object({ renpyId: z.string() }).optional(),
+})
 
 const ttsApi = new Hono()
   .get('/output/trial', async (c) => {
@@ -91,161 +100,60 @@ const ttsApi = new Hono()
       return c.notFound()
     },
   )
-  .get('/projects', async (c) => {
-    try {
-      const projects = await projectManager.getProjects()
-      return c.json({ success: true, data: projects })
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 500)
-    }
-  })
+  // 校验 Ren'Py 工作目录（存在、为目录、可读写），前端校验通过后再写入项目
   .post(
-    '/projects',
+    '/renpy-sync/validate-dir',
+    zValidator('json', z.object({ workDir: z.string() })),
+    async (c) => {
+      try {
+        const workDir = await validateRenpyWorkDir(c.req.valid('json').workDir)
+        return c.json({ success: true as const, data: { workDir } })
+      } catch (error: any) {
+        return c.json({ success: false as const, error: error.message }, 500)
+      }
+    },
+  )
+  // 同步状态：workDir 与对白列表均由前端随请求提交
+  .post(
+    '/renpy-sync/status',
     zValidator(
       'json',
       z.object({
-        name: z.string(),
-        description: z.string().optional().default(''),
+        workDir: z.string().nullish(),
+        dialogues: z.array(renpyDialogueSchema).max(5000),
       }),
     ),
     async (c) => {
       try {
-        const data = c.req.valid('json')
-        const project = await projectManager.createProject(data)
-        return c.json({ success: true, data: project })
-      } catch (error: any) {
-        return c.json({ success: false, error: error.message }, 500)
-      }
-    },
-  )
-  .get(
-    '/projects/:id',
-    zValidator('param', z.object({ id: z.string() })),
-    async (c) => {
-      try {
-        const { id } = c.req.valid('param')
-        const project = await projectManager.getProjectById(id)
-        if (!project) {
-          return c.json({ success: false, error: 'Project not found' }, 404)
-        }
-        return c.json({ success: true, data: project })
-      } catch (error: any) {
-        return c.json({ success: false, error: error.message }, 500)
-      }
-    },
-  )
-  .get(
-    '/projects/:id/renpy-sync',
-    zValidator('param', z.object({ id: z.string() })),
-    async (c) => {
-      try {
-        const { id } = c.req.valid('param')
-        const project = await projectManager.getProjectById(id)
-        if (!project) {
-          return c.json({ success: false, error: 'Project not found' }, 404)
-        }
-
+        const { workDir, dialogues } = c.req.valid('json')
         return c.json({
-          success: true,
-          data: await getRenpySyncStatus(project),
+          success: true as const,
+          data: await getRenpySyncStatus({ workDir, dialogues }),
         })
       } catch (error: any) {
-        return c.json({ success: false, error: error.message }, 500)
+        return c.json({ success: false as const, error: error.message }, 500)
       }
     },
   )
+  // 执行同步：把有效音频覆盖复制到 Ren'Py 工作目录
   .post(
-    '/projects/:id/renpy-sync/work-dir',
-    zValidator('param', z.object({ id: z.string() })),
+    '/renpy-sync/run',
     zValidator(
       'json',
       z.object({
         workDir: z.string(),
+        dialogues: z.array(renpyDialogueSchema).max(5000),
       }),
     ),
     async (c) => {
       try {
-        const { id } = c.req.valid('param')
-        const { workDir } = c.req.valid('json')
-        const project = await projectManager.getProjectById(id)
-        if (!project) {
-          return c.json({ success: false, error: 'Project not found' }, 404)
-        }
-
-        const validatedWorkDir = await validateRenpyWorkDir(workDir)
-
-        const updatedProject = await projectManager.updateProject(id, {
-          renpyExportDir: validatedWorkDir,
-        })
-
-        if (!updatedProject) {
-          return c.json({ success: false, error: 'Project not found' }, 404)
-        }
-
+        const { workDir, dialogues } = c.req.valid('json')
         return c.json({
-          success: true,
-          data: {
-            status: await getRenpySyncStatus(updatedProject),
-          },
+          success: true as const,
+          data: await copyRenpyFiles({ workDir, dialogues }),
         })
       } catch (error: any) {
-        return c.json({ success: false, error: error.message }, 500)
-      }
-    },
-  )
-  .post(
-    '/projects/:id/renpy-sync',
-    zValidator('param', z.object({ id: z.string() })),
-    async (c) => {
-      try {
-        const { id } = c.req.valid('param')
-        const project = await projectManager.getProjectById(id)
-        if (!project) {
-          return c.json({ success: false, error: 'Project not found' }, 404)
-        }
-
-        await copyRenpyFiles(project)
-
-        return c.json({
-          success: true,
-          data: await getRenpySyncStatus(project),
-        })
-      } catch (error: any) {
-        return c.json({ success: false, error: error.message }, 500)
-      }
-    },
-  )
-  .put(
-    '/projects/:id',
-    zValidator('param', z.object({ id: z.string() })),
-    zValidator('json', z.any()),
-    async (c) => {
-      try {
-        const { id } = c.req.valid('param')
-        const data = c.req.valid('json')
-        const project = await projectManager.updateProject(id, data)
-        if (!project) {
-          return c.json({ success: false, error: 'Project not found' }, 404)
-        }
-        return c.json({ success: true, data: project })
-      } catch (error: any) {
-        return c.json({ success: false, error: error.message }, 500)
-      }
-    },
-  )
-  .delete(
-    '/projects/:id',
-    zValidator('param', z.object({ id: z.string() })),
-    async (c) => {
-      try {
-        const { id } = c.req.valid('param')
-        const success = await projectManager.deleteProject(id)
-        if (!success) {
-          return c.json({ success: false, error: 'Project not found' }, 404)
-        }
-        return c.json({ success: true })
-      } catch (error: any) {
-        return c.json({ success: false, error: error.message }, 500)
+        return c.json({ success: false as const, error: error.message }, 500)
       }
     },
   )

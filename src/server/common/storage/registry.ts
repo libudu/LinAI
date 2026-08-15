@@ -1,5 +1,6 @@
 import type { StoredItem } from '@/shared/storage/types'
 import { CollectionStore, CollectionStoreOptions } from './collection-store'
+import { EntityStore, EntityStoreOptions } from './entity-store'
 import { StorageError } from './errors'
 
 /**
@@ -16,23 +17,36 @@ export interface CollectionResourceDef<T = unknown> {
   migrateLegacy?: (raw: unknown) => StoredItem<T>[]
 }
 
-export type StorageResourceDef = CollectionResourceDef
+export interface EntityResourceDef<T = unknown, S = unknown> {
+  kind: 'entity'
+  /** 实体目录（服务端固定，不来自客户端），每个实体一个 <id>.json */
+  dir: string
+  /** 旧格式一次性迁移，见 EntityStoreOptions */
+  migrateLegacy?: EntityStoreOptions<T, S>['migrateLegacy']
+  /** 单个 value 序列化后的最大字符数，见 EntityStoreOptions */
+  maxValueLength?: number
+}
+
+export type StorageResourceDef = CollectionResourceDef | EntityResourceDef
 
 // 资源 ID 形如 image.templates：小写段以点分隔
 const RESOURCE_ID_PATTERN = /^[a-z0-9]+(\.[a-z0-9-]+)*$/
 
 class StorageRegistry {
   private readonly defs = new Map<string, StorageResourceDef>()
-  private readonly stores = new Map<string, CollectionStore<unknown>>()
+  private readonly stores = new Map<
+    string,
+    CollectionStore<unknown> | EntityStore<unknown, unknown>
+  >()
 
-  register<T>(id: string, def: CollectionResourceDef<T>): void {
+  register(id: string, def: StorageResourceDef): void {
     if (!RESOURCE_ID_PATTERN.test(id)) {
       throw new Error(`[storage] 非法资源 ID: ${id}`)
     }
     if (this.defs.has(id)) {
       throw new Error(`[storage] 重复注册资源: ${id}`)
     }
-    this.defs.set(id, def as CollectionResourceDef)
+    this.defs.set(id, def)
   }
 
   getCollection<T>(id: string): CollectionStore<T> {
@@ -49,6 +63,23 @@ class StorageRegistry {
       this.stores.set(id, store)
     }
     return store as CollectionStore<T>
+  }
+
+  getEntity<T, S>(id: string): EntityStore<T, S> {
+    const def = this.defs.get(id)
+    if (!def || def.kind !== 'entity') {
+      throw new StorageError('INVALID_RESOURCE', `未注册的存储资源: ${id}`)
+    }
+    let store = this.stores.get(id)
+    if (!store) {
+      const options: EntityStoreOptions<unknown, unknown> = {
+        migrateLegacy: def.migrateLegacy,
+        maxValueLength: def.maxValueLength,
+      }
+      store = new EntityStore(def.dir, options)
+      this.stores.set(id, store)
+    }
+    return store as EntityStore<T, S>
   }
 }
 

@@ -1,5 +1,6 @@
 export * from './collection-store'
 export * from './data-path'
+export * from './entity-store'
 export * from './errors'
 export * from './json-file'
 export * from './registry'

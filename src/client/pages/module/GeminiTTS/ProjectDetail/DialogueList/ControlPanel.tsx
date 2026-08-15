@@ -23,15 +23,15 @@ interface RenpySyncStatus {
 }
 
 interface ControlPanelProps {
-  projectId: string
+  renpyExportDir?: string
   dialogues: TTSDialogue[]
   characters: TTSCharacter[]
   onAddClick: () => void
-  onUpdateProject: (updates: any) => void
+  onUpdateProject: (updates: any) => void | Promise<void>
 }
 
 export const ControlPanel = ({
-  projectId,
+  renpyExportDir,
   dialogues,
   characters,
   onAddClick,
@@ -59,11 +59,16 @@ export const ControlPanel = ({
 
   const hasIssues = issues.length > 0
 
+  // 同步状态：workDir 与对白列表由前端随请求提交，后端不再回读项目存储
   const loadRenpySyncStatus = useCallback(async () => {
+    if (!renpyExportDir) {
+      setSyncStatus(null)
+      return
+    }
     setIsLoadingSyncStatus(true)
     try {
-      const response = await client.api.tts.projects[':id']['renpy-sync'].$get({
-        param: { id: projectId },
+      const response = await client.api.tts['renpy-sync'].status.$post({
+        json: { workDir: renpyExportDir, dialogues },
       })
       const data = await response.json()
       if (data.success) {
@@ -76,11 +81,11 @@ export const ControlPanel = ({
     } finally {
       setIsLoadingSyncStatus(false)
     }
-  }, [projectId])
+  }, [renpyExportDir, dialogues])
 
   useEffect(() => {
     loadRenpySyncStatus()
-  }, [loadRenpySyncStatus, dialogues])
+  }, [loadRenpySyncStatus])
 
   const handleImportClick = () => {
     fileInputRef.current?.click()
@@ -118,19 +123,19 @@ export const ControlPanel = ({
 
     setIsSavingDir(true)
     try {
-      const response = await client.api.tts.projects[':id']['renpy-sync'][
-        'work-dir'
-      ].$post({
-        param: { id: projectId },
-        json: { workDir },
-      })
+      const response = await client.api.tts['renpy-sync']['validate-dir'].$post(
+        {
+          json: { workDir },
+        },
+      )
       const data = await response.json()
       if (!data.success) {
         message.error(data.error || '设置目录失败')
         return
       }
 
-      setSyncStatus(data.data.status)
+      // 校验通过后由前端写回项目（renpyExportDir 是项目业务字段）
+      await onUpdateProject({ renpyExportDir: data.data.workDir })
       setIsDirModalOpen(false)
       message.success('RenPy 导出目录已更新')
     } catch (error: any) {
@@ -141,20 +146,19 @@ export const ControlPanel = ({
   }
 
   const handleSyncToRenpy = async () => {
+    if (!renpyExportDir) return
     setIsSyncing(true)
     try {
-      const response = await client.api.tts.projects[':id']['renpy-sync'].$post(
-        {
-          param: { id: projectId },
-        },
-      )
+      const response = await client.api.tts['renpy-sync'].run.$post({
+        json: { workDir: renpyExportDir, dialogues },
+      })
       const data = await response.json()
       if (!data.success) {
         message.error(data.error || '同步失败')
         return
       }
 
-      setSyncStatus(data.data)
+      setSyncStatus({ workDir: renpyExportDir, ...data.data })
       message.success(`已同步 ${data.data.syncedCount} 个音频文件`)
     } catch (error: any) {
       message.error(error.message || '同步失败')

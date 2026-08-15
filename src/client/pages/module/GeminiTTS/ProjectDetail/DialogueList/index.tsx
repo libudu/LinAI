@@ -17,16 +17,16 @@ import { inworldSourceMap } from '../VoiceList'
 import { ControlPanel } from './ControlPanel'
 
 interface DialogueListProps {
-  projectId: string
+  renpyExportDir?: string
   dialogues: TTSDialogue[]
   characters: TTSCharacter[]
   onUpdateProject: (
     updates: Partial<Omit<TTSProject, 'id' | 'createdAt'>>,
-  ) => void
+  ) => void | Promise<void>
 }
 
 export const DialogueList = ({
-  projectId,
+  renpyExportDir,
   dialogues = [],
   characters = [],
   onUpdateProject,
@@ -211,7 +211,7 @@ export const DialogueList = ({
   return (
     <div className="space-y-4">
       <ControlPanel
-        projectId={projectId}
+        renpyExportDir={renpyExportDir}
         dialogues={dialogues}
         characters={characters}
         onAddClick={() => handleOpenModal()}

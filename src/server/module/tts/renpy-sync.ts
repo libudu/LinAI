@@ -1,8 +1,17 @@
 import { constants } from 'fs'
 import fs from 'fs-extra'
 import path from 'path'
-import { TTSDialogue, TTSProject } from './project'
 import { TTS_INWORLD_OUTPUT_DIR } from './server-const'
+
+// Ren'Py 同步只依赖对白的这几个字段，接口入参按此最小化（§7.5），
+// 后端不再回读完整 TTS 项目存储
+export interface RenpySyncDialogue {
+  id: string
+  audioUrl?: string
+  data?: {
+    renpyId: string
+  }
+}
 
 const sanitizeFilename = (name: string) => {
   return name.replace(/[\\/:*?"<>|]/g, '_').trim()
@@ -33,7 +42,7 @@ const resolveDialogueAudioPath = (audioUrl?: string) => {
 }
 
 const createRenpySyncEntries = async (
-  dialogues: TTSDialogue[],
+  dialogues: RenpySyncDialogue[],
   workDir?: string,
 ) => {
   const nameCountMap: Record<string, number> = {}
@@ -130,13 +139,14 @@ export const validateRenpyWorkDir = async (inputPath: string) => {
   return workDir
 }
 
-export const getRenpySyncStatus = async (project: TTSProject) => {
+export const getRenpySyncStatus = async (input: {
+  workDir?: string | null
+  dialogues: RenpySyncDialogue[]
+}) => {
   const workDir =
-    project.renpyExportDir && project.renpyExportDir.trim()
-      ? project.renpyExportDir
-      : null
+    input.workDir && input.workDir.trim() ? input.workDir.trim() : null
   const entries = await createRenpySyncEntries(
-    project.dialogues || [],
+    input.dialogues,
     workDir || undefined,
   )
 
@@ -159,11 +169,12 @@ export const getRenpySyncStatus = async (project: TTSProject) => {
   }
 }
 
-export const copyRenpyFiles = async (project: TTSProject) => {
-  const workDir = await validateRenpyWorkDir(
-    project.renpyExportDir?.trim() || '',
-  )
-  const entries = await createRenpySyncEntries(project.dialogues || [], workDir)
+export const copyRenpyFiles = async (input: {
+  workDir: string
+  dialogues: RenpySyncDialogue[]
+}) => {
+  const workDir = await validateRenpyWorkDir(input.workDir)
+  const entries = await createRenpySyncEntries(input.dialogues, workDir)
 
   for (const entry of entries) {
     if (!entry.targetPath) {

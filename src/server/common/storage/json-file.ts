@@ -69,6 +69,14 @@ export const readJsonFileSync = <T>(file: string): T | undefined => {
   }
 }
 
+// Windows 上杀软/索引器可能瞬时持有目标文件句柄，导致 rename 替换偶发 EPERM/EBUSY，短退避重试
+const RENAME_RETRIES = 5
+const isRetriableRename = (error: unknown): boolean =>
+  ['EPERM', 'EBUSY', 'EACCES'].includes(
+    (error as NodeJS.ErrnoException)?.code ?? '',
+  )
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
 /** 原子写入 JSON；任何一步失败都抛 StorageError(WRITE_FAILED)，调用方必须感知 */
 export const writeJsonFile = async (
   file: string,
@@ -90,7 +98,15 @@ export const writeJsonFile = async (
     } catch {
       /* 目标不存在或备份失败时忽略 */
     }
-    await fsp.rename(tempFile, file)
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await fsp.rename(tempFile, file)
+        break
+      } catch (error) {
+        if (attempt >= RENAME_RETRIES || !isRetriableRename(error)) throw error
+        await sleep(20 * attempt)
+      }
+    }
   } catch (error) {
     await fsp.rm(tempFile, { force: true }).catch(() => undefined)
     if (error instanceof StorageError) throw error
@@ -117,7 +133,20 @@ export const writeJsonFileSync = (file: string, data: unknown): void => {
     } catch {
       /* 目标不存在或备份失败时忽略 */
     }
-    fs.renameSync(tempFile, file)
+    for (let attempt = 1; ; attempt++) {
+      try {
+        fs.renameSync(tempFile, file)
+        break
+      } catch (error) {
+        if (attempt >= RENAME_RETRIES || !isRetriableRename(error)) throw error
+        Atomics.wait(
+          new Int32Array(new SharedArrayBuffer(4)),
+          0,
+          0,
+          20 * attempt,
+        )
+      }
+    }
   } catch (error) {
     try {
       fs.rmSync(tempFile, { force: true })

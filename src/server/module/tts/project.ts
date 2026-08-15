@@ -1,6 +1,6 @@
-import fs from 'fs-extra'
-import { v4 as uuidv4 } from 'uuid'
-import { PROJECTS_FILE } from './server-const'
+// TTS 项目数据类型（前端复用：src/client/pages/module/GeminiTTS 直接引用）
+// 项目数据已由前端通过通用实体接口（/api/storage/entities/tts.projects）整体读写，
+// 后端不再提供项目 CRUD，本文件只保留类型与旧格式迁移所需的结构定义
 
 export interface TTSCharacter {
   id: string
@@ -30,89 +30,8 @@ export interface TTSProject {
   updatedAt: number
 }
 
-class ProjectManager {
-  private static instance: ProjectManager
-
-  private constructor() {}
-
-  static getInstance(): ProjectManager {
-    if (!ProjectManager.instance) {
-      ProjectManager.instance = new ProjectManager()
-    }
-    return ProjectManager.instance
-  }
-
-  async getProjects(): Promise<TTSProject[]> {
-    if (await fs.pathExists(PROJECTS_FILE)) {
-      const data = await fs.readFile(PROJECTS_FILE, 'utf-8')
-      try {
-        return JSON.parse(data)
-      } catch (e) {
-        return []
-      }
-    }
-    return []
-  }
-
-  async saveProjects(projects: TTSProject[]): Promise<void> {
-    await fs.ensureFile(PROJECTS_FILE)
-    await fs.writeFile(
-      PROJECTS_FILE,
-      JSON.stringify(projects, null, 2),
-      'utf-8',
-    )
-  }
-
-  async createProject(
-    data: Pick<TTSProject, 'name' | 'description'>,
-  ): Promise<TTSProject> {
-    const projects = await this.getProjects()
-    const newProject: TTSProject = {
-      id: uuidv4(),
-      name: data.name,
-      description: data.description || '',
-      characters: [],
-      dialogues: [],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    }
-    projects.push(newProject)
-    await this.saveProjects(projects)
-    return newProject
-  }
-
-  async getProjectById(id: string): Promise<TTSProject | null> {
-    const projects = await this.getProjects()
-    return projects.find((p) => p.id === id) || null
-  }
-
-  async updateProject(
-    id: string,
-    data: Partial<Omit<TTSProject, 'id' | 'createdAt'>>,
-  ): Promise<TTSProject | null> {
-    const projects = await this.getProjects()
-    const index = projects.findIndex((p) => p.id === id)
-    if (index !== -1) {
-      projects[index] = {
-        ...projects[index],
-        ...data,
-        updatedAt: Date.now(),
-      }
-      await this.saveProjects(projects)
-      return projects[index]
-    }
-    return null
-  }
-
-  async deleteProject(id: string): Promise<boolean> {
-    const projects = await this.getProjects()
-    const newProjects = projects.filter((p) => p.id !== id)
-    if (newProjects.length !== projects.length) {
-      await this.saveProjects(newProjects)
-      return true
-    }
-    return false
-  }
+// EntityStore('tts.projects') 的摘要：项目列表所需信息，写入时由前端提供
+export interface TTSSummary {
+  name: string
+  description: string
 }
-
-export const projectManager = ProjectManager.getInstance()

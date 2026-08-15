@@ -1,13 +1,10 @@
-import type { AppType } from '@/server'
 import { Col, Row, message } from 'antd'
-import { hc } from 'hono/client'
 import { useEffect, useState } from 'react'
+import { listProjects, type TTSProjectListItem } from '../service/projects'
 import { ProjectCard } from './ProjectCard'
 
-const client = hc<AppType>('/')
-
 interface ProjectListProps {
-  onEditProject: (project: any) => void
+  onEditProject: (project: TTSProjectListItem) => void
   refreshTrigger: number
 }
 
@@ -15,21 +12,15 @@ export const ProjectList = ({
   onEditProject,
   refreshTrigger,
 }: ProjectListProps) => {
-  const [projects, setProjects] = useState<any[]>([])
+  const [projects, setProjects] = useState<TTSProjectListItem[]>([])
   const [loading, setLoading] = useState(false)
 
   const fetchProjects = async () => {
     setLoading(true)
     try {
-      const response = await client.api.tts.projects.$get()
-      const data = await response.json()
-      if (data.success) {
-        setProjects(data.data)
-      } else {
-        message.error(data.error || '获取项目失败')
-      }
+      setProjects(await listProjects())
     } catch (error: any) {
-      message.error(error.message || '网络错误')
+      message.error(error.message || '获取项目失败')
     } finally {
       setLoading(false)
     }

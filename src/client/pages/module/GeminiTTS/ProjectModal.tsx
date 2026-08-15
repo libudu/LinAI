@@ -1,14 +1,14 @@
-import type { AppType } from '@/server'
-import { TTSProject } from '@/server/module/tts'
 import { Form, Input, Modal, message } from 'antd'
-import { hc } from 'hono/client'
 import { useEffect } from 'react'
-
-const client = hc<AppType>('/')
+import {
+  createProject,
+  updateProject,
+  type TTSProjectListItem,
+} from './service/projects'
 
 interface ProjectModalProps {
   open: boolean
-  editingProject?: TTSProject
+  editingProject?: TTSProjectListItem | null
   onClose: () => void
   onSuccess: () => void
 }
@@ -36,28 +36,16 @@ export const ProjectModal = ({
 
   const handleCreateOrUpdateProject = async (values: any) => {
     try {
-      let response
       if (editingProject) {
-        response = await client.api.tts.projects[':id'].$put({
-          param: { id: editingProject.id },
-          json: values,
-        })
+        await updateProject(editingProject.id, values)
       } else {
-        response = await client.api.tts.projects.$post({
-          json: values,
-        })
+        await createProject(values)
       }
-
-      const data = await response.json()
-      if (data.success) {
-        message.success(editingProject ? '更新成功' : '创建成功')
-        onSuccess()
-        onClose()
-      } else {
-        message.error(data.error || (editingProject ? '更新失败' : '创建失败'))
-      }
+      message.success(editingProject ? '更新成功' : '创建成功')
+      onSuccess()
+      onClose()
     } catch (error: any) {
-      message.error(error.message || '网络错误')
+      message.error(error.message || (editingProject ? '更新失败' : '创建失败'))
     }
   }
 

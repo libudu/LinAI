@@ -61,6 +61,12 @@ export interface NovelIndexItem {
   chapterCount: number
 }
 
+// EntityStore('novel.books') 的摘要：书籍列表所需信息，写入时由业务方提供
+export interface NovelSummary {
+  title: string
+  chapterCount: number
+}
+
 // 生成任务类型
 export const GENERATE_KINDS = [
   'setting',

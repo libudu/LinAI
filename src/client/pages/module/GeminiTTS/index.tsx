@@ -1,16 +1,14 @@
-import type { AppType } from '@/server'
 import { Button, message } from 'antd'
-import { hc } from 'hono/client'
 import { useEffect, useState } from 'react'
 import { ProjectDetail } from './ProjectDetail'
 import { ProjectList } from './ProjectList'
 import { ProjectModal } from './ProjectModal'
+import { getProject, type TTSProjectEntity } from './service/projects'
 import { useTTSStore } from './store'
 
-const client = hc<AppType>('/')
-
 export const TTS = () => {
-  const [selectedProject, setSelectedProject] = useState<any>(null)
+  const [selectedProject, setSelectedProject] =
+    useState<TTSProjectEntity | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<any>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
@@ -38,18 +36,9 @@ export const TTS = () => {
     if (selectedProjectId) {
       const fetchProject = async () => {
         try {
-          const response = await client.api.tts.projects[':id'].$get({
-            param: { id: selectedProjectId },
-          })
-          const data = await response.json()
-          if (data.success) {
-            setSelectedProject(data.data)
-          } else {
-            message.error(data.error || '获取项目失败')
-            setSelectedProjectId(null)
-          }
+          setSelectedProject(await getProject(selectedProjectId))
         } catch (error: any) {
-          message.error(error.message || '网络错误')
+          message.error(error.message || '获取项目失败')
           setSelectedProjectId(null)
         }
       }
@@ -88,7 +77,7 @@ export const TTS = () => {
                 项目列表
               </span>
               <span className="mx-2 font-normal text-slate-400">/</span>
-              <span>{selectedProject?.name || '...'}</span>
+              <span>{selectedProject?.value.name || '...'}</span>
             </>
           )}
         </div>
@@ -100,7 +89,11 @@ export const TTS = () => {
       </div>
       {selectedProjectId ? (
         selectedProject ? (
-          <ProjectDetail project={selectedProject} />
+          <ProjectDetail
+            key={selectedProject.id}
+            entity={selectedProject}
+            onEntityChange={setSelectedProject}
+          />
         ) : null
       ) : (
         <ProjectList

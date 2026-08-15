@@ -9,6 +9,7 @@ export type {
   Novel,
   NovelChapter,
   NovelIndexItem,
+  NovelSummary,
   NovelText,
   NovelTextType,
 } from '@/server/module/novel/types'

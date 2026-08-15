@@ -1,20 +1,18 @@
-import type { AppType } from '@/server'
 import {
   DeleteOutlined,
   EditOutlined,
   ExclamationCircleFilled,
 } from '@ant-design/icons'
 import { Card, Modal, Tooltip, message } from 'antd'
-import { hc } from 'hono/client'
+import { deleteProject, type TTSProjectListItem } from '../service/projects'
 import { useTTSStore } from '../store'
 
 const { confirm } = Modal
-const client = hc<AppType>('/')
 
 interface ProjectCardProps {
-  project: any
+  project: TTSProjectListItem
   onUpdate: () => void
-  onEdit: (project: any) => void
+  onEdit: (project: TTSProjectListItem) => void
 }
 
 export const ProjectCard = ({
@@ -32,18 +30,11 @@ export const ProjectCard = ({
       content: '删除后无法恢复',
       onOk: async () => {
         try {
-          const response = await client.api.tts.projects[':id'].$delete({
-            param: { id: project.id },
-          })
-          const data = await response.json()
-          if (data.success) {
-            message.success('删除成功')
-            onUpdate()
-          } else {
-            message.error(data.error || '删除失败')
-          }
+          await deleteProject(project.id)
+          message.success('删除成功')
+          onUpdate()
         } catch (error: any) {
-          message.error(error.message || '网络错误')
+          message.error(error.message || '删除失败')
         }
       },
     })
