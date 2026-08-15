@@ -2,7 +2,7 @@ import openaiIcon from '@/client/assets/icon/openai.svg'
 import { useLocalSetting } from '@/client/hooks/useLocalSetting'
 import type { AppType } from '@/server'
 import type { GptImageSize } from '@/server/module/gpt-image/enum'
-import { TaskTemplate } from '@/shared/image/template'
+import { FlatTemplate } from '@/shared/image/template'
 import { DeleteOutlined, HolderOutlined } from '@ant-design/icons'
 import { Button, message, Popconfirm, Space, Tag, Tooltip } from 'antd'
 import { hc } from 'hono/client'
@@ -16,16 +16,15 @@ import { TemplateEditButton } from './TemplateItemEditButton'
 const client = hc<AppType>('/')
 
 export const TemplateItemGenerateButtons: React.FC<{
-  template: TaskTemplate
+  template: FlatTemplate
 }> = ({ template }) => {
   const { gptImageSettings, appendAspectRatio } = useLocalSetting()
   const gptImageApiKey = useGptImageStore((state) => state.gptImageApiKey)
 
-  const doGenerate = async (template: TaskTemplate, size: GptImageSize) => {
+  const doGenerate = async (template: FlatTemplate, size: GptImageSize) => {
     try {
       const res = await client.api.gptImage.generate.$post({
         json: {
-          templateId: template.id,
           // 提交完整模板快照，后端不再依赖模板存储
           input: {
             title: template.title,
@@ -51,7 +50,7 @@ export const TemplateItemGenerateButtons: React.FC<{
     }
   }
 
-  const handleGenerate = (template: TaskTemplate, size: GptImageSize) => {
+  const handleGenerate = (template: FlatTemplate, size: GptImageSize) => {
     const apiKey = gptImageApiKey
     if (!apiKey) {
       openGPTImageSettingModal({
@@ -101,7 +100,7 @@ export const TemplateItemHeader = ({
   template,
   draggable,
 }: {
-  template: TaskTemplate
+  template: FlatTemplate
   draggable: boolean
 }) => {
   const { refresh: refreshTemplates } = useTemplates()

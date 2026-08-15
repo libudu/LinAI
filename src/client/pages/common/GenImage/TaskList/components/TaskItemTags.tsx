@@ -1,5 +1,5 @@
 import { usePlatform } from '@/client/hooks/usePlatform'
-import type { Task } from '@/server/common/task-manager'
+import type { Task } from '@/server/common/task'
 import { ClockCircleOutlined } from '@ant-design/icons'
 import { Tag, Tooltip } from 'antd'
 
@@ -13,8 +13,8 @@ export function TaskItemTags({ task, downloadedIds }: TaskItemTagsProps) {
 
   return (
     <div className="mb-2 flex flex-wrap gap-1">
-      {task.rawTemplate?.aspectRatio && (
-        <Tag color="blue">{task.rawTemplate.aspectRatio}</Tag>
+      {task.inputSnapshot?.aspectRatio && (
+        <Tag color="blue">{task.inputSnapshot.aspectRatio}</Tag>
       )}
       {task.size && (
         <Tooltip

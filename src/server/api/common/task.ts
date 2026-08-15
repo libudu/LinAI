@@ -1,94 +1,30 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
-import { streamSSE } from 'hono/streaming'
 import { z } from 'zod'
-import { taskManager } from '../../common/task-manager'
+import { taskService } from '../../common/task'
 
+/**
+ * 任务接口：任务由后端 TaskService 生成和流转，前端只能读取列表与删除。
+ * 变更通知走统一变更总线：GET /api/storage/events?resources=image.tasks
+ */
 const taskApi = new Hono()
   // Chain route declarations so Hono keeps the full client route map in AppType.
   .get('/', async (c) => {
-    try {
-      const tasks = await taskManager.getTasks()
-      return c.json({ success: true as const, data: tasks })
-    } catch (error: any) {
-      return c.json({ success: false as const, error: error.message }, 500)
-    }
-  })
-  .get('/stream', (c) => {
-    return streamSSE(c, async (stream) => {
-      let aborted = false
-      // Send initial tasks
-      try {
-        const initialTasks = await taskManager.getTasks()
-        await stream.writeSSE({
-          data: JSON.stringify({ success: true, data: initialTasks }),
-          event: 'message',
-        })
-      } catch (error: any) {
-        await stream.writeSSE({
-          data: JSON.stringify({ success: false, error: error.message }),
-          event: 'error',
-        })
-      }
-
-      // Listen for updates
-      const listener = async (tasks: any[]) => {
-        if (aborted) return
-        try {
-          await stream.writeSSE({
-            data: JSON.stringify({ success: true, data: tasks }),
-            event: 'message',
-          })
-        } catch (e) {
-          console.error('Failed to send SSE update:', e)
-        }
-      }
-
-      taskManager.on('tasks-updated', listener)
-
-      // Cleanup on disconnect
-      stream.onAbort(() => {
-        aborted = true
-        taskManager.off('tasks-updated', listener)
-      })
-
-      // Keep connection alive
-      while (!aborted) {
-        await stream.sleep(30000)
-        if (aborted) break
-        try {
-          await stream.writeSSE({
-            data: 'ping',
-            event: 'ping',
-          })
-        } catch (e) {
-          break
-        }
-      }
-    })
+    const tasks = await taskService.getTasks()
+    return c.json({ success: true as const, data: tasks })
   })
   .delete(
     '/:id',
     zValidator('param', z.object({ id: z.string() })),
     zValidator('query', z.object({ keepImage: z.string().optional() })),
     async (c) => {
-      try {
-        const { id } = c.req.valid('param')
-        const { keepImage } = c.req.valid('query')
-        const result = await taskManager.deleteTask(id, keepImage === 'true')
-        if (!result.success) {
-          return c.json(
-            {
-              success: false as const,
-              error: result.error || 'Failed to delete task',
-            },
-            404,
-          )
-        }
-        return c.json({ success: true as const })
-      } catch (error: any) {
-        return c.json({ success: false as const, error: error.message }, 500)
+      const { id } = c.req.valid('param')
+      const { keepImage } = c.req.valid('query')
+      const deleted = await taskService.deleteTask(id, keepImage === 'true')
+      if (!deleted) {
+        return c.json({ success: false as const, error: 'Task not found' }, 404)
       }
+      return c.json({ success: true as const })
     },
   )
 

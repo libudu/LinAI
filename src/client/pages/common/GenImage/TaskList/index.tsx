@@ -1,7 +1,7 @@
 import { useLocalSetting } from '@/client/hooks/useLocalSetting'
 import { useGlobalStore } from '@/client/store/global'
 import type { AppType } from '@/server'
-import type { Task } from '@/server/common/task-manager'
+import type { Task } from '@/server/common/task'
 import { GPT_IMAGE_SOURCE_MODEL } from '@/server/module/gpt-image/enum'
 import { TRIAL_TEMPLATE_TITLE } from '@/shared/image/template'
 import {
@@ -43,10 +43,9 @@ export function TaskList() {
 
   const handleRetry = async (task: Task) => {
     // 用任务创建时的模板快照重试，不再依赖模板存储中的当前内容
-    const snapshot = task.rawTemplate
+    const snapshot = task.inputSnapshot
     await client.api.gptImage.generate.$post({
       json: {
-        templateId: snapshot?.id || '',
         input: {
           title: snapshot?.title,
           prompt: snapshot?.prompt || '',
@@ -169,45 +168,45 @@ export function TaskList() {
                           downloadedIds={downloadedIds || []}
                         />
                         <div className="flex items-center gap-2">
-                          {task.rawTemplate?.title && (
+                          {task.inputSnapshot?.title && (
                             <Typography.Text
                               strong
                               className="truncate"
-                              title={task.rawTemplate.title}
+                              title={task.inputSnapshot.title}
                             >
-                              {task.rawTemplate.title}
+                              {task.inputSnapshot.title}
                             </Typography.Text>
                           )}
                           <div className="shrink-0 text-xs text-slate-400">
                             {dayjs(task.createdAt).format('YY/MM/DD HH:mm')}
                           </div>
                         </div>
-                        {task.rawTemplate?.prompt && (
+                        {task.inputSnapshot?.prompt && (
                           <Typography.Paragraph
                             type="secondary"
                             className="mb-0! cursor-pointer text-xs transition-colors hover:text-blue-500"
                             ellipsis={{
                               rows: 2,
                               tooltip: {
-                                title: task.rawTemplate.prompt,
+                                title: task.inputSnapshot.prompt,
                                 placement: 'top',
                               },
                             }}
                             onClick={() => {
-                              if (task.rawTemplate?.prompt) {
-                                copy(task.rawTemplate.prompt)
+                              if (task.inputSnapshot?.prompt) {
+                                copy(task.inputSnapshot.prompt)
                                 message.success('提示词已复制')
                               }
                             }}
                           >
-                            {task.rawTemplate.prompt}
+                            {task.inputSnapshot.prompt}
                           </Typography.Paragraph>
                         )}
                       </div>
 
                       <div className="flex items-center justify-end">
                         <div className="flex items-center gap-1">
-                          {task.rawTemplate && (
+                          {task.inputSnapshot && (
                             <Tooltip title="重新填入">
                               <Button
                                 type="text"
@@ -215,7 +214,7 @@ export function TaskList() {
                                 onClick={() => {
                                   useGlobalStore
                                     .getState()
-                                    .setFillTemplateData(task.rawTemplate)
+                                    .setFillTemplateData(task.inputSnapshot)
                                   message.success('已重新填入表单')
                                 }}
                               />
@@ -225,8 +224,8 @@ export function TaskList() {
                             <TaskItemDownloadButton
                               outputUrls={task.outputUrls}
                               fileName={
-                                task.rawTemplate?.title ||
-                                task.rawTemplate?.prompt ||
+                                task.inputSnapshot?.title ||
+                                task.inputSnapshot?.prompt ||
                                 `task_${task.id}`
                               }
                               onDownloaded={() => {
@@ -239,7 +238,8 @@ export function TaskList() {
                               }}
                             />
                           )}
-                          {task.rawTemplate?.title !== TRIAL_TEMPLATE_TITLE && (
+                          {task.inputSnapshot?.title !==
+                            TRIAL_TEMPLATE_TITLE && (
                             <Tooltip title="重试">
                               <Button
                                 type="text"

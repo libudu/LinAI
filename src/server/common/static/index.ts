@@ -1,10 +1,13 @@
+import type { TemplateValue } from '@/shared/image/template'
 import { exec } from 'child_process'
 import crypto from 'crypto'
 import fs from 'fs-extra'
 import path from 'path'
 import sharp from 'sharp'
-import { taskManager } from '../task-manager'
-import { templateManager } from '../template-manager'
+import { storageRegistry } from '../storage/registry'
+// 注册通用存储资源（副作用）
+import '../storage/resources'
+import { taskService } from '../task'
 import { GENERATED_IMAGES_API_PATH, INPUT_IMAGES_API_PATH } from './enum'
 
 export const IMAGE_MAX_DIMENSION = 1600
@@ -194,14 +197,16 @@ async function getReferencedImageFilenames(type: ImageDirectoryType) {
   const referencedImages = new Set<string>()
 
   if (type === 'input') {
-    const templates = await templateManager.getTemplates()
+    const snapshot = await storageRegistry
+      .getCollection<TemplateValue>('image.templates')
+      .getSnapshot()
 
-    for (const template of templates) {
-      if (!Array.isArray(template.images)) {
+    for (const item of snapshot.items) {
+      if (!Array.isArray(item.value.images)) {
         continue
       }
 
-      for (const imageUrl of template.images) {
+      for (const imageUrl of item.value.images) {
         const filename = getFilenameFromUrl(type, imageUrl)
         if (filename) {
           referencedImages.add(filename)
@@ -212,7 +217,7 @@ async function getReferencedImageFilenames(type: ImageDirectoryType) {
     return referencedImages
   }
 
-  const tasks = await taskManager.getTasks()
+  const tasks = await taskService.getTasks()
 
   for (const task of tasks) {
     const imageUrls = Array.isArray(task.outputUrls)

@@ -1,6 +1,9 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
+import { streamSSE } from 'hono/streaming'
 import { z } from 'zod'
+import { changeBus } from '../../common/storage/change-bus'
+import { StorageError } from '../../common/storage/errors'
 import { storageRegistry } from '../../common/storage/registry'
 // 注册所有通用存储资源（副作用）
 import '../../common/storage/resources'
@@ -147,6 +150,47 @@ const storageApi = new Hono()
     const store = storageRegistry.getEntity(c.req.param('resource'))
     await store.remove(c.req.param('id'))
     return c.json({ success: true as const })
+  })
+  // ---------- 资源变更事件：只发送资源 ID 与版本信息，前端按需重新读取 ----------
+  // 可订阅的资源包括通用存储资源与后端专用服务登记的资源（如 image.tasks）
+  .get('/events', (c) => {
+    const resources = (c.req.query('resources') ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    if (resources.length === 0) {
+      throw new StorageError('INVALID_RESOURCE', '缺少 resources 查询参数')
+    }
+    for (const resource of resources) {
+      if (!changeBus.has(resource)) {
+        throw new StorageError('INVALID_RESOURCE', `未登记的资源: ${resource}`)
+      }
+    }
+    return streamSSE(c, async (stream) => {
+      let aborted = false
+      const unsubscribes = resources.map((resource) =>
+        changeBus.subscribe(resource, (change) => {
+          if (aborted) return
+          stream
+            .writeSSE({ event: 'change', data: JSON.stringify(change) })
+            .catch(() => undefined)
+        }),
+      )
+      stream.onAbort(() => {
+        aborted = true
+        for (const unsubscribe of unsubscribes) unsubscribe()
+      })
+      // 保持连接活跃
+      while (!aborted) {
+        await stream.sleep(30000)
+        if (aborted) break
+        try {
+          await stream.writeSSE({ data: 'ping', event: 'ping' })
+        } catch {
+          break
+        }
+      }
+    })
   })
 
 export default storageApi

@@ -1,13 +1,13 @@
 import { collectionClient } from '@/client/service/storage'
-import type { TaskTemplate, TemplateValue } from '@/shared/image/template'
+import type { FlatTemplate, TemplateValue } from '@/shared/image/template'
 import type { StoredItem } from '@/shared/storage/types'
 
 /**
  * 图片模板业务封装：通用集合 image.templates 的业务字段由前端定义。
- * 对外暴露扁平结构（TaskTemplate + 信封元数据），内部负责与信封互转。
+ * 对外暴露扁平结构（FlatTemplate + 信封元数据），内部负责与信封互转。
  */
 
-export type TemplateRecord = TaskTemplate & {
+export type TemplateRecord = FlatTemplate & {
   /** 条目版本，更新时作为 expectedRevision 做冲突检测 */
   revision: number
   updatedAt: number
@@ -24,7 +24,7 @@ const flatten = (item: StoredItem<TemplateValue>): TemplateRecord => ({
 })
 
 // 从扁平结构提取业务字段（剥离信封元数据）
-export const pickTemplateValue = (t: TaskTemplate): TemplateValue => ({
+export const pickTemplateValue = (t: FlatTemplate): TemplateValue => ({
   title: t.title,
   images: t.images || [],
   prompt: t.prompt,
@@ -52,7 +52,7 @@ export const updateTemplate = (
 
 /** 基于已有记录做部分修改：合并业务字段后整体替换 */
 export const patchTemplate = (
-  record: TaskTemplate,
+  record: FlatTemplate,
   patch: Partial<TemplateValue>,
 ) => updateTemplate(record.id, { ...pickTemplateValue(record), ...patch })
 

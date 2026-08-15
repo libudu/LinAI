@@ -6,7 +6,7 @@ import {
 
 import { useLocalSetting } from '@/client/hooks/useLocalSetting'
 import type { AppType } from '@/server'
-import type { Task } from '@/server/common/task-manager'
+import type { Task } from '@/server/common/task'
 import type { MenuProps } from 'antd'
 import { Button, Dropdown, Modal, Space, message } from 'antd'
 import { hc } from 'hono/client'

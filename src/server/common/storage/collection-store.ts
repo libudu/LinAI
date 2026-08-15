@@ -18,6 +18,8 @@ export interface CollectionStoreOptions<T> {
   migrateLegacy?: (raw: unknown) => StoredItem<T>[]
   /** 单个 value 序列化后的最大字符数，默认 256K */
   maxValueLength?: number
+  /** 每次成功落盘后回调（registry 用来接线 change bus） */
+  onChange?: (change: { revision: number }) => void
 }
 
 const isEnvelope = (raw: unknown): raw is StoredCollection =>
@@ -102,6 +104,7 @@ export class CollectionStore<T = unknown> {
       data.revision += 1
       data.updatedAt = Date.now()
       await writeJsonFile(this.file, data)
+      this.options.onChange?.({ revision: data.revision })
       return structuredClone(result)
     })
   }
@@ -138,6 +141,29 @@ export class CollectionStore<T = unknown> {
         throw new StorageError('NOT_FOUND', `条目不存在: ${id}`)
       }
       item.value = value
+      item.revision += 1
+      item.updatedAt = Date.now()
+      return item
+    }, expectedRevision)
+  }
+
+  /**
+   * 读改写在同一把资源锁内完成：fn 基于当前 value 计算新 value，
+   * 适合后端拥有的数据做合并式更新（如任务状态流转）
+   */
+  readonly update = (
+    id: string,
+    fn: (value: T) => T,
+    expectedRevision?: number,
+  ): Promise<StoredItem<T>> => {
+    return this.mutate((data) => {
+      const item = data.items.find((i) => i.id === id)
+      if (!item) {
+        throw new StorageError('NOT_FOUND', `条目不存在: ${id}`)
+      }
+      const next = fn(structuredClone(item.value))
+      this.assertValueSize(next)
+      item.value = next
       item.revision += 1
       item.updatedAt = Date.now()
       return item

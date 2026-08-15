@@ -1,4 +1,4 @@
-import { TaskTemplate } from '@/shared/image/template'
+import { FlatTemplate } from '@/shared/image/template'
 import { EditOutlined } from '@ant-design/icons'
 import { Button, Form, message, Modal, Tooltip } from 'antd'
 import { useState } from 'react'
@@ -7,7 +7,7 @@ import { createTemplate, patchTemplate } from '../../service/templates'
 import { TemplateFormFields } from '../TemplateForm/TemplateFormItems'
 
 interface TemplateEditButtonProps {
-  template: TaskTemplate
+  template: FlatTemplate
 }
 
 export function TemplateEditButton({ template }: TemplateEditButtonProps) {

@@ -16,6 +16,8 @@ export interface EntityStoreOptions<T, S> {
   migrateLegacy?: () => Promise<StoredEntity<T, S>[]>
   /** 单个 value 序列化后的最大字符数，默认 8M（实体含正文，比集合条目大得多） */
   maxValueLength?: number
+  /** 每次成功落盘后回调（registry 用来接线 change bus） */
+  onChange?: (change: { entityId: string; revision?: number }) => void
 }
 
 // 实体 ID 直接拼成文件名，必须严格限制字符集，杜绝路径穿越
@@ -165,6 +167,7 @@ export class EntityStore<T = unknown, S = unknown> {
         value,
       }
       await writeJsonFile(file, entity)
+      this.options.onChange?.({ entityId, revision: entity.revision })
       return structuredClone(entity)
     })
   }
@@ -195,6 +198,7 @@ export class EntityStore<T = unknown, S = unknown> {
       entity.revision += 1
       entity.updatedAt = Date.now()
       await writeJsonFile(this.fileOf(id), entity)
+      this.options.onChange?.({ entityId: id, revision: entity.revision })
       return structuredClone(entity)
     })
   }
@@ -204,6 +208,7 @@ export class EntityStore<T = unknown, S = unknown> {
     return resourceLock.run(this.fileOf(id), async () => {
       await this.readEntity(id) // 不存在抛 NOT_FOUND
       await fs.rm(this.fileOf(id), { force: true })
+      this.options.onChange?.({ entityId: id })
     })
   }
 }

@@ -1,4 +1,4 @@
-import type { Task } from '@/server/common/task-manager'
+import type { Task } from '@/server/common/task'
 import { BellOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { Switch } from 'antd'

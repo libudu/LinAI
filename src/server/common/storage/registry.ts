@@ -1,4 +1,5 @@
 import type { StoredItem } from '@/shared/storage/types'
+import { changeBus } from './change-bus'
 import { CollectionStore, CollectionStoreOptions } from './collection-store'
 import { EntityStore, EntityStoreOptions } from './entity-store'
 import { StorageError } from './errors'
@@ -47,6 +48,8 @@ class StorageRegistry {
       throw new Error(`[storage] 重复注册资源: ${id}`)
     }
     this.defs.set(id, def)
+    // 登记为可订阅的变更资源（/api/storage/events）
+    changeBus.register(id)
   }
 
   getCollection<T>(id: string): CollectionStore<T> {
@@ -58,6 +61,7 @@ class StorageRegistry {
     if (!store) {
       const options: CollectionStoreOptions<unknown> = {
         migrateLegacy: def.migrateLegacy,
+        onChange: (change) => changeBus.publish({ resource: id, ...change }),
       }
       store = new CollectionStore(def.file, options)
       this.stores.set(id, store)
@@ -75,6 +79,7 @@ class StorageRegistry {
       const options: EntityStoreOptions<unknown, unknown> = {
         migrateLegacy: def.migrateLegacy,
         maxValueLength: def.maxValueLength,
+        onChange: (change) => changeBus.publish({ resource: id, ...change }),
       }
       store = new EntityStore(def.dir, options)
       this.stores.set(id, store)

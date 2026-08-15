@@ -3,7 +3,7 @@ import {
   downloadFile,
   downloadFilesZip,
 } from '@/client/utils/download'
-import type { Task } from '@/server/common/task-manager'
+import type { Task } from '@/server/common/task'
 import { DownloadOutlined } from '@ant-design/icons'
 import { Button, message } from 'antd'
 import { useState } from 'react'
@@ -39,8 +39,8 @@ export function TaskListDownloadButton({
     try {
       const filesToDownload = unDownloadedTasks.flatMap((task) => {
         const baseName =
-          task.rawTemplate?.title ||
-          task.rawTemplate?.prompt ||
+          task.inputSnapshot?.title ||
+          task.inputSnapshot?.prompt ||
           `task_${task.id}`
 
         return task.outputUrls!.map((url, index) => ({

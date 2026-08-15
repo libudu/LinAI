@@ -1,9 +1,9 @@
+import type { TaskInputSnapshot } from '@/shared/image/template'
 import fs from 'fs-extra'
 import path from 'path'
 import { INPUT_IMAGES_DIR } from '../../common/static'
 import { GENERATED_IMAGES_API_PATH } from '../../common/static/enum'
-import { taskManager } from '../../common/task-manager'
-import { TaskTemplate } from '../../common/template-manager'
+import { taskService } from '../../common/task'
 import { logger } from '../utils/logger'
 import { GPT_IMAGE_SOURCE_MODEL, GptImageQuality, GptImageSize } from './enum'
 import { calculateSize, generateGPTImage, GptImageUsage } from './generate'
@@ -12,7 +12,7 @@ export async function handleImageGeneration(options: {
   apiKey: string
   baseUrl: string
   modelId: string
-  template: TaskTemplate
+  snapshot: TaskInputSnapshot
   size?: GptImageSize
   quality?: GptImageQuality
 }) {
@@ -21,7 +21,7 @@ export async function handleImageGeneration(options: {
       apiKey,
       baseUrl,
       modelId,
-      template,
+      snapshot,
       size = '1k',
       quality = 'medium',
     } = options
@@ -36,30 +36,20 @@ export async function handleImageGeneration(options: {
 
     logger.info(`Generating GPT image`)
 
-    const task = await taskManager.createTaskFromTemplate({
-      template,
+    const task = await taskService.createTaskFromSnapshot({
+      snapshot,
       source: GPT_IMAGE_SOURCE_MODEL,
       size,
       quality,
     })
 
-    if (!task) {
-      return {
-        status: 500,
-        data: {
-          success: false as const,
-          error: '[服务] Failed to create task',
-        },
-      }
-    }
-
-    await taskManager.updateTaskStatus(task.id, 'running')
+    await taskService.updateTaskStatus(task.id, 'running')
     const startTime = Date.now()
 
-    const finalSize = calculateSize(template.aspectRatio || '1:1', size)
+    const finalSize = calculateSize(snapshot.aspectRatio || '1:1', size)
 
     const imagePaths: string[] = []
-    for (const imgUrl of template.images) {
+    for (const imgUrl of snapshot.images) {
       const filename = imgUrl.split('/').pop()
       if (filename) {
         const imagePath = path.join(INPUT_IMAGES_DIR, filename)
@@ -80,13 +70,13 @@ export async function handleImageGeneration(options: {
         apiKey,
         baseUrl,
         modelId,
-        prompt: template.prompt,
+        prompt: snapshot.prompt,
         size: finalSize,
         quality,
         imagePaths,
-        n: template.n || 1,
+        n: snapshot.n || 1,
         resolution: size,
-        aspectRatio: template.aspectRatio || '1:1',
+        aspectRatio: snapshot.aspectRatio || '1:1',
       })
       logger.info('GPT image generated successfully')
       filenames = res.filenames
@@ -96,7 +86,7 @@ export async function handleImageGeneration(options: {
         `Failed to generate GPT image via ${endpointHost}`,
         error.message,
       )
-      await taskManager.updateTaskStatus(task.id, 'failed', error.message)
+      await taskService.updateTaskStatus(task.id, 'failed', error.message)
       return {
         status: 500,
         data: {
@@ -108,7 +98,7 @@ export async function handleImageGeneration(options: {
 
     const duration = Date.now() - startTime
     const outputUrls = filenames.map((f) => `${GENERATED_IMAGES_API_PATH}/${f}`)
-    await taskManager.updateTask(task.id, {
+    await taskService.updateTask(task.id, {
       status: 'completed',
       duration,
       outputUrls,

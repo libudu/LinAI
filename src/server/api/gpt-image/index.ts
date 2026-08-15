@@ -1,9 +1,11 @@
-import { TRIAL_TEMPLATE_TITLE } from '@/shared/image/template'
+import {
+  TaskInputSnapshot,
+  TRIAL_TEMPLATE_TITLE,
+} from '@/shared/image/template'
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
-import { TaskTemplate, templateManager } from '../../common/template-manager'
 import { handleImageGeneration } from '../../module/gpt-image'
 import {
   getGptImageConfig,
@@ -17,13 +19,13 @@ import gptImageEndpointApi from './endpoint'
 // 比例拼接：在提示词末尾追加一行“图片比例X：Y”，
 // 用于 default 等不支持分辨率/比例参数的便宜分组
 function withAspectRatioLine(
-  template: TaskTemplate,
+  snapshot: TaskInputSnapshot,
   appendAspectRatio?: boolean,
-): TaskTemplate {
-  if (!appendAspectRatio || !template.aspectRatio) return template
+): TaskInputSnapshot {
+  if (!appendAspectRatio || !snapshot.aspectRatio) return snapshot
   return {
-    ...template,
-    prompt: `${template.prompt}\n图片比例${template.aspectRatio.replace(':', '：')}`,
+    ...snapshot,
+    prompt: `${snapshot.prompt}\n图片比例${snapshot.aspectRatio.replace(':', '：')}`,
   }
 }
 
@@ -67,31 +69,22 @@ const gptImageApi = new Hono()
     '/generate',
     zValidator(
       'json',
-      z
-        .object({
-          // 兼容旧调用：仅传 templateId 时由后端查模板；
-          // 新调用由前端提交一次生成所需的完整模板快照（input）
-          templateId: z.string().min(1).optional(),
-          input: z
-            .object({
-              title: z.string().optional(),
-              prompt: z.string().min(1, 'Prompt is required'),
-              images: z.array(z.string()).optional(),
-              aspectRatio: z.string().optional(),
-              n: z.number().min(1).max(GPT_IMAGE_OUTPUT_MAX_N).optional(),
-            })
-            .optional(),
-          size: z.enum(['1k', '2k', '4k']),
-          quality: z.enum(['medium', 'high']),
-          appendAspectRatio: z.boolean().optional(),
-        })
-        .refine((d) => d.templateId || d.input, {
-          message: 'templateId or input is required',
+      z.object({
+        // 前端提交一次生成所需的完整模板快照，后端不再依赖模板存储
+        input: z.object({
+          title: z.string().optional(),
+          prompt: z.string().min(1, 'Prompt is required'),
+          images: z.array(z.string()).optional(),
+          aspectRatio: z.string().optional(),
+          n: z.number().min(1).max(GPT_IMAGE_OUTPUT_MAX_N).optional(),
         }),
+        size: z.enum(['1k', '2k', '4k']),
+        quality: z.enum(['medium', 'high']),
+        appendAspectRatio: z.boolean().optional(),
+      }),
     ),
     async (c) => {
-      const { templateId, input, size, quality, appendAspectRatio } =
-        c.req.valid('json')
+      const { input, size, quality, appendAspectRatio } = c.req.valid('json')
       const apiKey = getYunwuApiKey()
       if (!apiKey) {
         return c.json(
@@ -102,30 +95,16 @@ const gptImageApi = new Hono()
           400,
         )
       }
-      let template: TaskTemplate
-      if (input) {
-        // 前端提交的完整快照：后端不再依赖模板存储
-        template = {
-          id: templateId || uuidv4(),
-          createdAt: Date.now(),
-          images: [],
-          ...input,
-        }
-      } else {
-        const templates = await templateManager.getTemplates()
-        const found = templates.find((t) => t.id === templateId)
-        if (!found) {
-          return c.json(
-            { success: false as const, error: '[服务] Template not found' },
-            404,
-          )
-        }
-        template = found
+      const snapshot: TaskInputSnapshot = {
+        id: uuidv4(),
+        createdAt: Date.now(),
+        images: [],
+        ...input,
       }
       const result = await handleImageGeneration({
         apiKey,
         ...getGptImageEndpoint(),
-        template: withAspectRatioLine(template, appendAspectRatio),
+        snapshot: withAspectRatioLine(snapshot, appendAspectRatio),
         size,
         quality,
       })
@@ -166,7 +145,7 @@ const gptImageApi = new Hono()
           400,
         )
       }
-      const template: TaskTemplate = {
+      const snapshot: TaskInputSnapshot = {
         id: uuidv4(),
         createdAt: Date.now(),
         prompt,
@@ -178,7 +157,7 @@ const gptImageApi = new Hono()
       const result = await handleImageGeneration({
         apiKey,
         ...getGptImageEndpoint(),
-        template: withAspectRatioLine(template, appendAspectRatio),
+        snapshot: withAspectRatioLine(snapshot, appendAspectRatio),
         size,
         quality,
       })

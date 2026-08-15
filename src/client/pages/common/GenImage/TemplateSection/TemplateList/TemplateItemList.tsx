@@ -1,4 +1,4 @@
-import { TaskTemplate } from '@/shared/image/template'
+import { FlatTemplate } from '@/shared/image/template'
 import { InboxOutlined } from '@ant-design/icons'
 import { message } from 'antd'
 import { useTemplates } from '../../hooks/useTemplates'
@@ -7,7 +7,7 @@ import { TemplateFolder } from '../TemplateItem/TemplateFolder'
 import { TemplateItem } from '../TemplateItem/TemplateItem'
 
 interface TemplateItemListProps {
-  filteredTemplates: TaskTemplate[]
+  filteredTemplates: FlatTemplate[]
   selectedFolder: string | null
   onSelectFolder: (folder: string | null) => void
 }

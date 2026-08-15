@@ -1,5 +1,5 @@
 import type { AppType } from '@/server'
-import type { TaskTemplate } from '@/shared/image/template'
+import type { FlatTemplate } from '@/shared/image/template'
 import { hc } from 'hono/client'
 import { create } from 'zustand'
 
@@ -7,8 +7,8 @@ const client = hc<AppType>('/')
 
 interface GlobalState {
   localNetworkUrl: string | null
-  fillTemplateData: Partial<TaskTemplate> | null
-  setFillTemplateData: (data: Partial<TaskTemplate> | null) => void
+  fillTemplateData: Partial<FlatTemplate> | null
+  setFillTemplateData: (data: Partial<FlatTemplate> | null) => void
   fetchConfig: () => Promise<void>
 }
 

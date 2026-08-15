@@ -9,7 +9,6 @@ import logApi from './api/common/log'
 import staticApi from './api/common/static'
 import storageApi from './api/common/storage'
 import taskApi from './api/common/task'
-import templateApi from './api/common/template'
 import gptImageApi from './api/gpt-image'
 import mediaClassifierApi from './api/media-classifier'
 import novelApi from './api/novel'
@@ -63,7 +62,6 @@ const routes = app
   .route('/api/novel', novelApi)
   // common
   .route('/api/task', taskApi)
-  .route('/api/template', templateApi)
   .route('/api/storage', storageApi)
   .route('/api/log', logApi)
   .route('/api/static', staticApi)

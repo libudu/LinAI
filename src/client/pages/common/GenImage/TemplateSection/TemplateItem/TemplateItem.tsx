@@ -1,4 +1,4 @@
-import { TaskTemplate } from '@/shared/image/template'
+import { FlatTemplate } from '@/shared/image/template'
 import { Card, Tooltip, message } from 'antd'
 import copy from 'copy-to-clipboard'
 import dayjs from 'dayjs'
@@ -9,7 +9,7 @@ import {
 } from './TemplateItemHeader'
 
 interface TemplateItemProps {
-  template: TaskTemplate
+  template: FlatTemplate
   draggable?: boolean
 }
 

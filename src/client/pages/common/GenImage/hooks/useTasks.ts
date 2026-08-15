@@ -1,6 +1,17 @@
-import type { Task } from '@/server/common/task-manager'
+import type { Task } from '@/server/common/task'
 import { useEffect } from 'react'
 import { create } from 'zustand'
+
+const fetchTasks = async (): Promise<Task[]> => {
+  const res = await fetch('/api/task')
+  const json = await res.json()
+  if (!json.success) {
+    throw new Error(json.error || 'Failed to load tasks')
+  }
+  const tasks = json.data as Task[]
+  tasks.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+  return tasks
+}
 
 interface TasksState {
   data: Task[]
@@ -21,22 +32,23 @@ const useTasksStore = create<TasksState>((set, get) => ({
       const newCount = state.subscriberCount + 1
       if (newCount === 1) {
         if (!state.eventSource) {
-          const es = new EventSource('/api/task/stream')
+          // 初始拉取 + 订阅统一变更事件：SSE 只携带资源版本信息，收到 change 后重新拉取
+          fetchTasks()
+            .then((tasks) => set({ data: tasks, loading: false }))
+            .catch((error) => {
+              console.error('Failed to load tasks', error)
+              set({ loading: false })
+            })
 
-          es.onmessage = (event) => {
-            try {
-              const json = JSON.parse(event.data)
-              if (json.success) {
-                const tasks = json.data as Task[]
-                tasks.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
-                set({ data: tasks, loading: false })
-              } else {
-                set({ data: [], loading: false })
-              }
-            } catch (error) {
-              console.error('Failed to parse tasks SSE data', error)
-            }
-          }
+          const es = new EventSource(
+            '/api/storage/events?resources=image.tasks',
+          )
+
+          es.addEventListener('change', () => {
+            fetchTasks()
+              .then((tasks) => set({ data: tasks }))
+              .catch((error) => console.error('Failed to refresh tasks', error))
+          })
 
           es.onerror = (error) => {
             console.error('SSE Error:', error)

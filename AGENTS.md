@@ -31,9 +31,10 @@
   - `theme.tsx`：全局明暗主题 + 自定义强调色（`AppThemeProvider` / `useAppTheme`），localStorage 键 `app_theme` / `app_theme_accent`；暗色样式靠 `index.css` 中 `html[data-theme='dark']` 属性选择器映射 Tailwind 亮色类；独立 createRoot 的弹窗需自行包一层 `AppThemeProvider`
 - `src/server/`：后端
   - `index.ts`：Hono 入口，所有 API 路由在此挂载（`/api/*`），导出 `AppType` 供前端 RPC 类型推导
-  - `api/`：HTTP 接口层，每个业务模块一个文件或同名文件夹；`api/common/` 为通用接口（task/template/storage/log/static/config）
-  - `module/`：业务逻辑层；`common/`：基础设施（storage、config-json、static、task-manager、template-manager）
-  - `common/storage/`：可靠存储基础层（原子 JSON 读写、`.bak`/`.corrupt` 备份恢复、资源级串行队列、CollectionStore / EntityStore、StorageRegistry、StorageError 统一错误、`dataPath()`），写盘失败抛错由全局 `app.onError` 映射为 404/409/500；资源在 `common/storage/resources.ts` 注册后，前端经 `/api/storage/collections|entities/:resource` 访问（信封结构见 `src/shared/storage/types.ts`，客户端封装在 `client/service/storage.ts`）；EntityStore 每实体一个 `<id>.json`、列表只返回 summary，小说（`data/novels/books/`）与 TTS 项目（`data/tts/projects/`）已迁入，业务修改全部在前端读改写整体保存
+  - `api/`：HTTP 接口层，每个业务模块一个文件或同名文件夹；`api/common/` 为通用接口（task/storage/log/static/config）
+  - `module/`：业务逻辑层；`common/`：基础设施（storage、config-json、static、task）
+  - `common/storage/`：可靠存储基础层（原子 JSON 读写、`.bak`/`.corrupt` 备份恢复、资源级串行队列、CollectionStore / EntityStore、StorageRegistry、StorageError 统一错误、`dataPath()`、change-bus 变更总线），写盘失败抛错由全局 `app.onError` 映射为 404/409/500；资源在 `common/storage/resources.ts` 注册后，前端经 `/api/storage/collections|entities/:resource` 访问（信封结构见 `src/shared/storage/types.ts`，客户端封装在 `client/service/storage.ts`）；EntityStore 每实体一个 `<id>.json`、列表只返回 summary，小说（`data/novels/books/`）与 TTS 项目（`data/tts/projects/`）已迁入，业务修改全部在前端读改写整体保存；资源变更经 `/api/storage/events?resources=...` 订阅（SSE 只发资源 ID + 版本信息，前端收到后重新拉取）
+  - `common/task/`：生成任务（TaskRepository 私有复用 CollectionStore 持久化 `data/tasks.json`，不注册到通用存储；TaskService 负责状态流转、输出文件清理、启动恢复，变更发布到 change bus 的 `image.tasks`）
   - `migrate.ts`：版本迁移脚本，供最终用户拖入新版压缩包升级
 - `src/shared/`：前后端共享的类型与常量（无 UI、无 Node 依赖），如 `gpt-image/endpoints.ts`（接入点预设）、`image/template.ts`（模板业务类型）、`storage/types.ts`（通用存储信封）
 - `data/`：运行时数据（不入库的用户数据），服务以 `process.cwd()/data` 定位

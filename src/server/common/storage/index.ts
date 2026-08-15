@@ -1,3 +1,4 @@
+export * from './change-bus'
 export * from './collection-store'
 export * from './data-path'
 export * from './entity-store'
