@@ -16,10 +16,39 @@ import styleAnalyzeApi from './api/style-analyze'
 import ttsApi from './api/tts'
 import ttsInworldApi from './api/tts/inworld'
 import yunwuTokenApi from './api/yunwu-token'
+import { StorageError } from './common/storage/errors'
 
 dotenv.config()
 
 const app = new Hono()
+
+// 统一错误响应：存储层错误按 code 映射状态码，其余未捕获错误返回 500，
+// 写入失败等异常必须让接口失败，禁止静默吞错
+app.onError((err, c) => {
+  if (err instanceof StorageError) {
+    const status =
+      err.code === 'NOT_FOUND'
+        ? 404
+        : err.code === 'REVISION_CONFLICT'
+          ? 409
+          : 500
+    return c.json(
+      {
+        success: false as const,
+        error: { code: err.code, message: err.message, ...err.details },
+      },
+      status,
+    )
+  }
+  console.error('[Server] 未处理错误', err)
+  return c.json(
+    {
+      success: false as const,
+      error: { code: 'INTERNAL_ERROR', message: err.message },
+    },
+    500,
+  )
+})
 
 const routes = app
   // module

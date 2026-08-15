@@ -32,7 +32,8 @@
 - `src/server/`：后端
   - `index.ts`：Hono 入口，所有 API 路由在此挂载（`/api/*`），导出 `AppType` 供前端 RPC 类型推导
   - `api/`：HTTP 接口层，每个业务模块一个文件或同名文件夹；`api/common/` 为通用接口（task/template/log/static/config）
-  - `module/`：业务逻辑层；`common/`：基础设施（config-json、static、task-manager、template-manager）
+  - `module/`：业务逻辑层；`common/`：基础设施（storage、config-json、static、task-manager、template-manager）
+  - `common/storage/`：可靠存储基础层（原子 JSON 读写、`.bak`/`.corrupt` 备份恢复、资源级串行队列、StorageError 统一错误、`dataPath()`），写盘失败抛错由全局 `app.onError` 映射为 404/409/500
   - `migrate.ts`：版本迁移脚本，供最终用户拖入新版压缩包升级
 - `data/`：运行时数据（不入库的用户数据），服务以 `process.cwd()/data` 定位
 - `data-template/`、`dist-template/`：发布模板（后者含便携 Node 运行时与启动/迁移 bat）
