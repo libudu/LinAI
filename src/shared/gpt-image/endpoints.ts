@@ -53,3 +53,38 @@ export const ENDPOINT_PRESET_INFOS: EndpointPresetInfo[] = [
     currency: '$',
   },
 ]
+
+/** 接入点与密钥设置的最小形状（GptImageSettings 与子集均满足） */
+export interface GptImageEndpointSettings {
+  gptImageApiKey: string | null
+  gptImageBaseUrl: string | null
+  gptImageModelId: string | null
+  gptImageCustomEndpoints: CustomEndpoint[]
+  gptImagePresetApiKeys: Record<string, string>
+}
+
+/**
+ * 按当前接入点（baseUrl + modelId）解析生效的 API Key：
+ * 预设/自定义接入点各自保存的 key 优先，旧的平铺 gptImageApiKey 字段兜底。
+ * 前后端共用：后端注入真实密钥，前端用于"是否已配置"判断与表单回填
+ */
+export const resolveGptImageApiKey = (
+  settings: GptImageEndpointSettings,
+): string | null => {
+  const preset = ENDPOINT_PRESET_INFOS.find(
+    (p) =>
+      p.baseUrl === settings.gptImageBaseUrl &&
+      p.modelId === settings.gptImageModelId,
+  )
+  if (preset) {
+    const key = settings.gptImagePresetApiKeys[preset.label]
+    if (key) return key
+  }
+  const custom = settings.gptImageCustomEndpoints.find(
+    (c) =>
+      c.baseUrl === settings.gptImageBaseUrl &&
+      c.modelId === settings.gptImageModelId,
+  )
+  if (custom?.apiKey) return custom.apiKey
+  return settings.gptImageApiKey || null
+}

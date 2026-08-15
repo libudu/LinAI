@@ -177,7 +177,11 @@ export async function generateGPTImage(options: GenerateGPTImageOptions) {
   } = options
   const normalizedBaseUrl = normalizeGptImageBaseUrl(baseUrl)
   // DragonAPI 接入点按分辨率档位切换模型 id
-  const finalModelId = resolveDragonModelId(normalizedBaseUrl, modelId, resolution)
+  const finalModelId = resolveDragonModelId(
+    normalizedBaseUrl,
+    modelId,
+    resolution,
+  )
 
   // Venice 接入点走原生接口（见 venice.ts），其余走标准 OpenAI 契约
   const res: OpenAI.Images.ImagesResponse = isVeniceEndpoint(normalizedBaseUrl)

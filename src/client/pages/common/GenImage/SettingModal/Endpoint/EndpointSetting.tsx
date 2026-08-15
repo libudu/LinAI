@@ -27,7 +27,6 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
     gptImageModelId,
     gptImageCustomEndpoints,
     gptImagePresetApiKeys,
-    setGptImageApiKey,
     setGptImageEndpoint,
     setGptImageCustomEndpoints,
     setGptImagePresetApiKeys,
@@ -117,8 +116,6 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
     ) {
       const preset = ENDPOINT_PRESETS[0]
       await setGptImageEndpoint(preset.baseUrl, preset.modelId)
-      // 回退到预设接入点时同步切换为其保存的 API Key
-      await setGptImageApiKey(gptImagePresetApiKeys[preset.label] ?? null)
     }
     message.success('已删除自定义接入点')
   }
@@ -178,7 +175,8 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
         })
       }
 
-      await setGptImageApiKey(values.apiKey)
+      // 生效密钥按接入点从 keychain 解析与读写（shared/gpt-image/endpoints.ts），
+      // 无需再单独维护 gptImageApiKey 平铺字段
       await setGptImageEndpoint(baseUrl, modelId)
       message.success('配置保存成功')
       return values.apiKey

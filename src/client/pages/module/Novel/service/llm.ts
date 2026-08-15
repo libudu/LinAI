@@ -1,5 +1,6 @@
-// 后端 /api/novel/llm 代理的封装：流式（SSE-over-POST）与非流式两种调用
-// API Key 与模型配置由后端持有，前端只发 messages + temperature
+// 受限请求中继（/api/relay/novel.openai）的封装：流式（SSE-over-POST）与非流式两种调用
+// API Key 与模型由后端设置持有并注入，前端只发 messages + temperature；
+// 中继逐事件透传上游 OpenAI 兼容 SSE（data 为原始 chunk 或 [DONE]）
 import type { ChatMessage } from '../types'
 
 interface SSEEvent {
@@ -67,6 +68,13 @@ export interface StreamResult {
   aborted: boolean
 }
 
+// OpenAI 兼容流式 chunk 的最小形状
+interface ChatCompletionChunk {
+  choices?: { delta?: { content?: string } }[]
+  usage?: unknown
+  error?: { message?: string }
+}
+
 // 流式生成：delta 通过 onDelta 透出并累积；signal 中断时返回已生成的部分文本（aborted: true）
 export const chatStream = async (opts: {
   messages: ChatMessage[]
@@ -79,13 +87,17 @@ export const chatStream = async (opts: {
 
   let res: Response
   try {
-    res = await fetch('/api/novel/llm', {
+    res = await fetch('/api/relay/novel.openai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        messages: opts.messages,
-        temperature: opts.temperature,
-        stream: true,
+        path: '/chat/completions',
+        body: {
+          messages: opts.messages,
+          temperature: opts.temperature,
+          stream: true,
+          stream_options: { include_usage: true },
+        },
       }),
       signal: opts.signal,
     })
@@ -106,25 +118,23 @@ export const chatStream = async (opts: {
 
   try {
     for await (const evt of readSSE(res.body)) {
-      const data = JSON.parse(evt.data) as Record<string, unknown>
-      if (evt.event === 'delta') {
-        const text = (data.text as string) ?? ''
+      if (evt.data === '[DONE]') break
+      const chunk = JSON.parse(evt.data) as ChatCompletionChunk
+      if (chunk.error) {
+        throw new GenerationError(chunk.error.message || '生成失败', buffer)
+      }
+      const text = chunk.choices?.[0]?.delta?.content ?? ''
+      if (text) {
         buffer += text
         opts.onDelta?.(text)
-      } else if (evt.event === 'done') {
-        usage = data.usage ?? null
-      } else if (evt.event === 'error') {
-        throw new GenerationError(
-          (data.message as string) || '[DeepSeek] 生成失败',
-          buffer,
-        )
       }
+      if (chunk.usage) usage = chunk.usage
     }
   } catch (error: any) {
     // 主动 abort：保留已生成部分，正常返回
     if (opts.signal.aborted) return { text: buffer, usage, aborted: true }
     if (error instanceof GenerationError) throw error
-    throw new GenerationError(error?.message || '[DeepSeek] 生成失败', buffer)
+    throw new GenerationError(error?.message || '生成失败', buffer)
   }
   return { text: buffer, usage, aborted: opts.signal.aborted }
 }
@@ -134,18 +144,24 @@ export const chatOnce = async (opts: {
   messages: ChatMessage[]
   temperature: number
 }): Promise<string> => {
-  const res = await fetch('/api/novel/llm', {
+  const res = await fetch('/api/relay/novel.openai', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      messages: opts.messages,
-      temperature: opts.temperature,
-      stream: false,
+      path: '/chat/completions',
+      body: {
+        messages: opts.messages,
+        temperature: opts.temperature,
+        stream: false,
+      },
     }),
   })
   const json = (await res.json()) as
-    | { success: true; data: { content: string } }
+    | {
+        success: true
+        data: { choices?: { message?: { content?: string } }[] }
+      }
     | { success: false; error: string }
   if (!json.success) throw new Error(json.error || '请求失败')
-  return json.data.content
+  return json.data.choices?.[0]?.message?.content ?? ''
 }

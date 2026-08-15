@@ -1,64 +1,35 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import {
-  generateAndSaveAudioInworld,
-  listInworldVoices,
-} from '../../module/tts/index'
-import { getTTSConfig, updateTTSConfig } from '../../module/tts/config'
+import { generateAndSaveAudioInworld } from '../../module/tts/index'
 
-const ttsInworldApi = new Hono()
-  // TTS 模块配置（独立存储 data/tts/config.json）
-  .get('/config', (c) => {
-    return c.json({ success: true as const, data: getTTSConfig() })
-  })
-  .post(
-    '/config',
-    zValidator(
-      'json',
-      z.object({
-        ttsInworldApiKey: z.string().nullable().optional(),
-      }),
-    ),
-    (c) => {
-      return c.json({
-        success: true as const,
-        data: updateTTSConfig(c.req.valid('json')),
-      })
-    },
-  )
-  .post(
-    '/generate',
-    zValidator(
-      'json',
-      z.object({
-        text: z.string(),
-        voiceId: z.string(),
-      }),
-    ),
-    async (c) => {
-      try {
-        const { text, voiceId } = c.req.valid('json')
-        const filename = await generateAndSaveAudioInworld({
-          text,
-          voiceId,
-        })
-        return c.json({
-          success: true,
-          url: `/api/tts/output/${filename}?t=${Date.now()}`,
-        })
-      } catch (error: any) {
-        return c.json({ success: false, error: error.message }, 500)
-      }
-    },
-  )
-  .get('/voices', async (c) => {
+// 模块配置走注册式设置接口（GET/PUT /api/settings/tts）；
+// 音色列表与试听为纯代理，走受限请求中继（/api/relay/inworld）；
+// 这里只保留带文件副作用的音频生成
+const ttsInworldApi = new Hono().post(
+  '/generate',
+  zValidator(
+    'json',
+    z.object({
+      text: z.string(),
+      voiceId: z.string(),
+    }),
+  ),
+  async (c) => {
     try {
-      const voices = await listInworldVoices()
-      return c.json({ success: true, data: voices })
+      const { text, voiceId } = c.req.valid('json')
+      const filename = await generateAndSaveAudioInworld({
+        text,
+        voiceId,
+      })
+      return c.json({
+        success: true,
+        url: `/api/tts/output/${filename}?t=${Date.now()}`,
+      })
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 500)
     }
-  })
+  },
+)
 
 export default ttsInworldApi

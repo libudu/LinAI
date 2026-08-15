@@ -28,7 +28,7 @@ export const TTS = () => {
 
   useEffect(() => {
     if (ttsInworldApiKey && !hasFetchedVoiceList) {
-      fetchVoiceList(ttsInworldApiKey)
+      fetchVoiceList()
     }
   }, [ttsInworldApiKey, hasFetchedVoiceList, fetchVoiceList])
 

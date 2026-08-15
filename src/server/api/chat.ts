@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { INPUT_IMAGES_DIR } from '../common/static'
 import { INPUT_IMAGES_API_PATH } from '../common/static/enum'
 import { createChatCompletion } from '../module/chat'
-import { getYunwuApiKey } from '../module/gpt-image/config'
+import { getYunwuApiKey } from '../module/gpt-image/settings'
 
 const chatContentPartSchema = z.discriminatedUnion('type', [
   z
@@ -137,7 +137,7 @@ const chatApi = new Hono().post(
   '/completions',
   zValidator('json', chatCompletionSchema),
   async (c) => {
-    const apiKey = getYunwuApiKey()
+    const apiKey = await getYunwuApiKey()
     if (!apiKey) {
       return c.json(
         { success: false as const, error: '[配置] API Key is not configured' },

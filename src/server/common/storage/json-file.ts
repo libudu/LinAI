@@ -9,7 +9,7 @@ import { StorageError } from './errors'
  * - 备份：替换前把最近一次有效文件复制为 <file>.bak
  * - 损坏：解析失败时把原文件改名为 <file>.corrupt-<时间戳> 并抛 StorageError(CORRUPT)，
  *   绝不把损坏文件当成空数据继续覆盖
- * 异步与同步版本并存：同步版供 ConfigJson 等启动期/同步调用方使用
+ * 异步与同步版本并存：同步版供启动期/同步调用方使用
  */
 
 const tempFileOf = (file: string): string =>

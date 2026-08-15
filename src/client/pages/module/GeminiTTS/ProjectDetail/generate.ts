@@ -1,3 +1,4 @@
+import { relayRequest } from '@/client/service/relay'
 import type { AppType } from '@/server'
 import { TTS_INWORLD_MODEL_ID } from '@/server/module/tts/client-const'
 import { hc } from 'hono/client'
@@ -24,24 +25,13 @@ export async function generateTTS({
   }
 }
 
-export async function previewVoice(
-  voiceId: string,
-  apiKey: string,
-): Promise<string> {
-  const response = await fetch(
-    `https://api.inworld.ai/tts/v1/voice:preview?voice_id=${voiceId}&model_id=${TTS_INWORLD_MODEL_ID}`,
-    {
-      headers: {
-        Authorization: `Basic ${apiKey}`,
-      },
-    },
-  )
+export async function previewVoice(voiceId: string): Promise<string> {
+  // 走受限请求中继，Inworld 密钥由服务端注入，前端不再持有
+  const data = await relayRequest<{ audioContent?: string }>('inworld', {
+    method: 'GET',
+    path: `/tts/v1/voice:preview?voice_id=${encodeURIComponent(voiceId)}&model_id=${TTS_INWORLD_MODEL_ID}`,
+  })
 
-  if (!response.ok) {
-    throw new Error('试听请求失败')
-  }
-
-  const data = await response.json()
   if (data.audioContent) {
     return `data:audio/mp3;base64,${data.audioContent}`
   }

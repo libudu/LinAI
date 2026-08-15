@@ -26,7 +26,7 @@ export class StorageApiError extends Error {
   }
 }
 
-const request = async <T>(
+export const apiRequest = async <T>(
   url: string,
   init?: RequestInit,
 ): Promise<{ data: T; revision?: number }> => {
@@ -57,11 +57,11 @@ export const collectionClient = <T>(resource: string) => {
   const base = `/api/storage/collections/${resource}`
   return {
     list: async (): Promise<CollectionListResult<T>> => {
-      const json = await request<{ items: StoredItem<T>[] }>(base)
+      const json = await apiRequest<{ items: StoredItem<T>[] }>(base)
       return { revision: json.revision ?? 0, items: json.data.items }
     },
     create: (value: T): Promise<StoredItem<T>> =>
-      request<StoredItem<T>>(base, {
+      apiRequest<StoredItem<T>>(base, {
         method: 'POST',
         body: JSON.stringify({ value }),
       }).then((r) => r.data),
@@ -70,19 +70,19 @@ export const collectionClient = <T>(resource: string) => {
       value: T,
       expectedRevision?: number,
     ): Promise<StoredItem<T>> =>
-      request<StoredItem<T>>(`${base}/${id}`, {
+      apiRequest<StoredItem<T>>(`${base}/${id}`, {
         method: 'PUT',
         body: JSON.stringify({ value, expectedRevision }),
       }).then((r) => r.data),
     remove: (id: string): Promise<void> =>
-      request<void>(`${base}/${id}`, { method: 'DELETE' }).then(
+      apiRequest<void>(`${base}/${id}`, { method: 'DELETE' }).then(
         () => undefined,
       ),
     batch: (
       operations: CollectionBatchOperation<T>[],
       expectedRevision?: number,
     ): Promise<void> =>
-      request<void>(`${base}/batch`, {
+      apiRequest<void>(`${base}/batch`, {
         method: 'POST',
         body: JSON.stringify({ operations, expectedRevision }),
       }).then(() => undefined),
@@ -97,28 +97,28 @@ export const entityClient = <T, S>(resource: string) => {
   const base = `/api/storage/entities/${resource}`
   return {
     list: (): Promise<StoredEntitySummary<S>[]> =>
-      request<{ items: StoredEntitySummary<S>[] }>(base).then(
+      apiRequest<{ items: StoredEntitySummary<S>[] }>(base).then(
         (r) => r.data.items,
       ),
     create: (value: T, summary: S, id?: string): Promise<StoredEntity<T, S>> =>
-      request<StoredEntity<T, S>>(base, {
+      apiRequest<StoredEntity<T, S>>(base, {
         method: 'POST',
         body: JSON.stringify({ value, summary, id }),
       }).then((r) => r.data),
     get: (id: string): Promise<StoredEntity<T, S>> =>
-      request<StoredEntity<T, S>>(`${base}/${id}`).then((r) => r.data),
+      apiRequest<StoredEntity<T, S>>(`${base}/${id}`).then((r) => r.data),
     replace: (
       id: string,
       value: T,
       summary: S,
       expectedRevision?: number,
     ): Promise<StoredEntity<T, S>> =>
-      request<StoredEntity<T, S>>(`${base}/${id}`, {
+      apiRequest<StoredEntity<T, S>>(`${base}/${id}`, {
         method: 'PUT',
         body: JSON.stringify({ value, summary, expectedRevision }),
       }).then((r) => r.data),
     remove: (id: string): Promise<void> =>
-      request<void>(`${base}/${id}`, { method: 'DELETE' }).then(
+      apiRequest<void>(`${base}/${id}`, { method: 'DELETE' }).then(
         () => undefined,
       ),
   }

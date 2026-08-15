@@ -1,10 +1,7 @@
 // 小说模块数据访问层（生成相关的 LLM 调用与编排在 service/ 下，不在此文件）
 // 书籍数据走通用实体接口（novel.books）：章节/文本增删、删章节级联、摘要计算全部在前端完成，
-// 每次修改整体读改写并携带 expectedRevision；后端只剩 /novels/config 与 /llm 代理
+// 每次修改整体读改写并携带 expectedRevision；模块配置走 /api/settings/novel，LLM 请求走 /api/relay/novel.openai
 import { StorageApiError, entityClient } from '@/client/service/storage'
-import type { AppType } from '@/server'
-import type { NovelConfig } from '@/server/module/novel/config'
-import { hc } from 'hono/client'
 import { DEFAULT_RECENT_FULL_CHAPTERS } from './service/constants'
 import type {
   Novel,
@@ -15,7 +12,6 @@ import type {
   NovelTextType,
 } from './types'
 
-const client = hc<AppType>('/')
 const novelsClient = entityClient<Novel, NovelSummary>('novel.books')
 
 const summaryOf = (novel: Novel): NovelSummary => ({
@@ -189,21 +185,3 @@ export const deleteChapter = (novelId: string, cid: string): Promise<void> =>
     novel.chapters = novel.chapters.filter((c) => c.id !== cid)
     novel.texts = novel.texts.filter((t) => t.chapterId !== cid)
   })
-
-// ---------- 模块配置（data/novels/config.json） ----------
-
-// 统一解包 { success, data | error } 响应，失败抛出带中文信息的 Error
-const unwrap = async <T>(p: Promise<Response>): Promise<T> => {
-  const res = await p
-  const json = (await res.json()) as
-    | { success: true; data: T }
-    | { success: false; error: string }
-  if (!json.success) throw new Error(json.error || '请求失败')
-  return json.data
-}
-
-export const getNovelConfig = () =>
-  unwrap<NovelConfig>(client.api.novel.novels.config.$get())
-
-export const updateNovelConfig = (patch: Partial<NovelConfig>) =>
-  unwrap<NovelConfig>(client.api.novel.novels.config.$post({ json: patch }))

@@ -1,9 +1,9 @@
 import fs from 'fs-extra'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
-import { getTTSInworldApiKey } from './config'
 import { TTS_INWORLD_MODEL_ID } from './client-const'
 import { TTS_INWORLD_OUTPUT_DIR } from './server-const'
+import { getTTSInworldApiKey } from './settings'
 
 export interface InworldVoiceItem {
   name: string
@@ -40,7 +40,7 @@ export const generateAndSaveAudioInworld = async ({
   text: string
   voiceId: string
 }): Promise<string> => {
-  const apiKey = getTTSInworldApiKey() || process.env.INWORLD_API_KEY
+  const apiKey = (await getTTSInworldApiKey()) || process.env.INWORLD_API_KEY
 
   if (!apiKey) {
     throw new Error('No API key provided for Inworld TTS')
@@ -81,33 +81,4 @@ export const generateAndSaveAudioInworld = async ({
   await fs.writeFile(filePath, audioBuffer)
 
   return fileName
-}
-
-export const listInworldVoices = async (): Promise<InworldVoiceItem[]> => {
-  const apiKey = getTTSInworldApiKey() || process.env.INWORLD_API_KEY
-
-  if (!apiKey) {
-    throw new Error('No API key provided for Inworld TTS')
-  }
-
-  const url = new URL('https://api.inworld.ai/voices/v1/voices')
-  url.searchParams.append('filter', 'source = "IVC"')
-  url.searchParams.append('orderBy', 'display_name asc')
-  url.searchParams.append('pageSize', '100') // increased from 20 to get more
-
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      Authorization: `Basic ${apiKey}`,
-    },
-  })
-
-  const res: InworldVoiceListResponse & { code?: number; message?: string } =
-    await response.json()
-
-  if (!response.ok || res.code || res.message) {
-    throw new Error(`Inworld TTS Error: ${res.message || response.statusText}`)
-  }
-
-  return res.voices || []
 }

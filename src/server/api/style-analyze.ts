@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { INPUT_IMAGES_DIR } from '../common/static'
 import { INPUT_IMAGES_API_PATH } from '../common/static/enum'
 import { createChatCompletion } from '../module/chat'
-import { getYunwuApiKey } from '../module/gpt-image/config'
+import { getYunwuApiKey } from '../module/gpt-image/settings'
 
 const STYLE_ANALYZE_MODEL = 'gemini-3.1-flash-lite'
 
@@ -168,7 +168,7 @@ const styleAnalyzeApi = new Hono().post(
   '/analyze',
   zValidator('json', styleAnalyzeSchema),
   async (c) => {
-    const apiKey = getYunwuApiKey()
+    const apiKey = await getYunwuApiKey()
     if (!apiKey) {
       return c.json(
         { success: false as const, error: '[配置] API Key is not configured' },

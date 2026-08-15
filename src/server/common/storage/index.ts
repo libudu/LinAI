@@ -1,6 +1,7 @@
 export * from './change-bus'
 export * from './collection-store'
 export * from './data-path'
+export * from './document-store'
 export * from './entity-store'
 export * from './errors'
 export * from './json-file'

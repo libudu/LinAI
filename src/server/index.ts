@@ -3,15 +3,17 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import dotenv from 'dotenv'
 import { Hono } from 'hono'
 import * as path from 'path'
+import { ZodError } from 'zod'
 import chatApi from './api/chat'
 import configApi from './api/common/config'
 import logApi from './api/common/log'
+import relayApi from './api/common/relay'
+import settingsApi from './api/common/settings'
 import staticApi from './api/common/static'
 import storageApi from './api/common/storage'
 import taskApi from './api/common/task'
 import gptImageApi from './api/gpt-image'
 import mediaClassifierApi from './api/media-classifier'
-import novelApi from './api/novel'
 import styleAnalyzeApi from './api/style-analyze'
 import ttsApi from './api/tts'
 import ttsInworldApi from './api/tts/inworld'
@@ -31,13 +33,25 @@ app.onError((err, c) => {
         ? 404
         : err.code === 'REVISION_CONFLICT'
           ? 409
-          : 500
+          : err.code === 'INVALID_RESOURCE'
+            ? 404
+            : 500
     return c.json(
       {
         success: false as const,
         error: { code: err.code, message: err.message, ...err.details },
       },
       status,
+    )
+  }
+  // 设置 schema 校验失败等客户端输入问题返回 400
+  if (err instanceof ZodError) {
+    return c.json(
+      {
+        success: false as const,
+        error: { code: 'VALIDATION_FAILED', message: err.message },
+      },
+      400,
     )
   }
   console.error('[Server] 未处理错误', err)
@@ -59,10 +73,11 @@ const routes = app
   .route('/api/gptImage', gptImageApi)
   .route('/api/gptImage', yunwuTokenApi)
   .route('/api/media-classifier', mediaClassifierApi)
-  .route('/api/novel', novelApi)
   // common
   .route('/api/task', taskApi)
   .route('/api/storage', storageApi)
+  .route('/api/settings', settingsApi)
+  .route('/api/relay', relayApi)
   .route('/api/log', logApi)
   .route('/api/static', staticApi)
   .route('/api/config', configApi)

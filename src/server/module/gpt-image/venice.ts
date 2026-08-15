@@ -99,7 +99,9 @@ export async function requestVeniceImage(options: {
 
   if (imagePaths.length) {
     const images = await Promise.all(
-      imagePaths.map(async (file) => (await fs.readFile(file)).toString('base64')),
+      imagePaths.map(async (file) =>
+        (await fs.readFile(file)).toString('base64'),
+      ),
     )
     return postVenice(apiKey, `${origin}${MULTI_EDIT_PATH}`, {
       prompt,

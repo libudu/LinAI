@@ -7,13 +7,11 @@ import { Hono } from 'hono'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { handleImageGeneration } from '../../module/gpt-image'
+import { GPT_IMAGE_OUTPUT_MAX_N } from '../../module/gpt-image/enum'
 import {
-  getGptImageConfig,
   getGptImageEndpoint,
   getYunwuApiKey,
-  updateGptImageConfig,
-} from '../../module/gpt-image/config'
-import { GPT_IMAGE_OUTPUT_MAX_N } from '../../module/gpt-image/enum'
+} from '../../module/gpt-image/settings'
 import gptImageEndpointApi from './endpoint'
 
 // 比例拼接：在提示词末尾追加一行“图片比例X：Y”，
@@ -32,39 +30,7 @@ function withAspectRatioLine(
 const gptImageApi = new Hono()
   // 接入点相关（余额查询等）
   .route('/endpoint', gptImageEndpointApi)
-  // 生图模块配置（独立存储 data/images/config.json）
-  .get('/config', (c) => {
-    return c.json({ success: true as const, data: getGptImageConfig() })
-  })
-  .post(
-    '/config',
-    zValidator(
-      'json',
-      z.object({
-        gptImageApiKey: z.string().nullable().optional(),
-        gptImageBaseUrl: z.string().nullable().optional(),
-        gptImageModelId: z.string().nullable().optional(),
-        gptImageCustomEndpoints: z
-          .array(
-            z.object({
-              id: z.string(),
-              title: z.string(),
-              baseUrl: z.string(),
-              modelId: z.string(),
-              apiKey: z.string().optional(),
-            }),
-          )
-          .optional(),
-        gptImagePresetApiKeys: z.record(z.string(), z.string()).optional(),
-      }),
-    ),
-    (c) => {
-      return c.json({
-        success: true as const,
-        data: updateGptImageConfig(c.req.valid('json')),
-      })
-    },
-  )
+  // 模块配置走注册式设置接口：GET/PUT /api/settings/gpt-image
   .post(
     '/generate',
     zValidator(
@@ -85,7 +51,7 @@ const gptImageApi = new Hono()
     ),
     async (c) => {
       const { input, size, quality, appendAspectRatio } = c.req.valid('json')
-      const apiKey = getYunwuApiKey()
+      const apiKey = await getYunwuApiKey()
       if (!apiKey) {
         return c.json(
           {
@@ -103,7 +69,7 @@ const gptImageApi = new Hono()
       }
       const result = await handleImageGeneration({
         apiKey,
-        ...getGptImageEndpoint(),
+        ...(await getGptImageEndpoint()),
         snapshot: withAspectRatioLine(snapshot, appendAspectRatio),
         size,
         quality,
@@ -135,7 +101,7 @@ const gptImageApi = new Hono()
         n,
         appendAspectRatio,
       } = c.req.valid('json')
-      const apiKey = getYunwuApiKey()
+      const apiKey = await getYunwuApiKey()
       if (!apiKey) {
         return c.json(
           {
@@ -156,7 +122,7 @@ const gptImageApi = new Hono()
       }
       const result = await handleImageGeneration({
         apiKey,
-        ...getGptImageEndpoint(),
+        ...(await getGptImageEndpoint()),
         snapshot: withAspectRatioLine(snapshot, appendAspectRatio),
         size,
         quality,

@@ -44,7 +44,7 @@ export const VoiceList = ({ characters = [] }: VoiceListProps) => {
 
     try {
       setPlayingId(`${voiceId}_loading`)
-      const url = await previewVoice(voiceId, ttsInworldApiKey || '')
+      const url = await previewVoice(voiceId)
       if (audioRef.current) {
         audioRef.current.pause()
       }
@@ -97,7 +97,7 @@ export const VoiceList = ({ characters = [] }: VoiceListProps) => {
         />
         <Button
           icon={<SyncOutlined />}
-          onClick={() => fetchVoiceList(ttsInworldApiKey)}
+          onClick={() => fetchVoiceList()}
           loading={loadingVoiceList}
         >
           刷新列表

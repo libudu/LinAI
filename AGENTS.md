@@ -31,9 +31,11 @@
   - `theme.tsx`：全局明暗主题 + 自定义强调色（`AppThemeProvider` / `useAppTheme`），localStorage 键 `app_theme` / `app_theme_accent`；暗色样式靠 `index.css` 中 `html[data-theme='dark']` 属性选择器映射 Tailwind 亮色类；独立 createRoot 的弹窗需自行包一层 `AppThemeProvider`
 - `src/server/`：后端
   - `index.ts`：Hono 入口，所有 API 路由在此挂载（`/api/*`），导出 `AppType` 供前端 RPC 类型推导
-  - `api/`：HTTP 接口层，每个业务模块一个文件或同名文件夹；`api/common/` 为通用接口（task/storage/log/static/config）
-  - `module/`：业务逻辑层；`common/`：基础设施（storage、config-json、static、task）
-  - `common/storage/`：可靠存储基础层（原子 JSON 读写、`.bak`/`.corrupt` 备份恢复、资源级串行队列、CollectionStore / EntityStore、StorageRegistry、StorageError 统一错误、`dataPath()`、change-bus 变更总线），写盘失败抛错由全局 `app.onError` 映射为 404/409/500；资源在 `common/storage/resources.ts` 注册后，前端经 `/api/storage/collections|entities/:resource` 访问（信封结构见 `src/shared/storage/types.ts`，客户端封装在 `client/service/storage.ts`）；EntityStore 每实体一个 `<id>.json`、列表只返回 summary，小说（`data/novels/books/`）与 TTS 项目（`data/tts/projects/`）已迁入，业务修改全部在前端读改写整体保存；资源变更经 `/api/storage/events?resources=...` 订阅（SSE 只发资源 ID + 版本信息，前端收到后重新拉取）
+  - `api/`：HTTP 接口层，每个业务模块一个文件或同名文件夹；`api/common/` 为通用接口（task/storage/settings/relay/log/static/config）
+  - `module/`：业务逻辑层；`common/`：基础设施（storage、settings、relay、static、task）
+  - `common/storage/`：可靠存储基础层（原子 JSON 读写、`.bak`/`.corrupt` 备份恢复、资源级串行队列、CollectionStore / EntityStore / DocumentStore、StorageRegistry、StorageError 统一错误、`dataPath()`、change-bus 变更总线），写盘失败抛错由全局 `app.onError` 映射为 404/409/500；资源在 `common/storage/resources.ts` 注册后，前端经 `/api/storage/collections|entities/:resource` 访问（信封结构见 `src/shared/storage/types.ts`，客户端封装在 `client/service/storage.ts`）；EntityStore 每实体一个 `<id>.json`、列表只返回 summary，小说（`data/novels/books/`）与 TTS 项目（`data/tts/projects/`）已迁入，业务修改全部在前端读改写整体保存；资源变更经 `/api/storage/events?resources=...` 订阅（SSE 只发资源 ID + 版本信息，前端收到后重新拉取）
+  - `common/settings/`：注册式设置（SettingsRegistry），通用路由 `GET/PUT /api/settings/:id`，详见下文"模块与配置的实现方式"
+  - `common/relay/`：受限请求中继（RequestRegistry：origin/方法/路径白名单 + 服务端凭据注入 + SSE 透传），通用路由 `POST /api/relay/:target`，目标在 `common/relay/resources.ts` 注册（当前为 novel.openai、inworld）；带文件副作用或业务预处理的请求保留专用适配器，不开放任意 URL 代理
   - `common/task/`：生成任务（TaskRepository 私有复用 CollectionStore 持久化 `data/tasks.json`，不注册到通用存储；TaskService 负责状态流转、输出文件清理、启动恢复，变更发布到 change bus 的 `image.tasks`）
   - `migrate.ts`：版本迁移脚本，供最终用户拖入新版压缩包升级
 - `src/shared/`：前后端共享的类型与常量（无 UI、无 Node 依赖），如 `gpt-image/endpoints.ts`（接入点预设）、`image/template.ts`（模板业务类型）、`storage/types.ts`（通用存储信封）
@@ -43,11 +45,13 @@
 
 ## 模块与配置的实现方式
 
-每个业务模块的配置遵循同一套三层结构（参考 gpt-image / tts / novel）：
+后端会消费的模块配置（API Key、Base URL、模型 ID 等）统一走注册式 SettingsRegistry（参考 gpt-image / tts / novel）：
 
-1. **配置存储**：`src/server/module/<模块>/config.ts`，用 `common/config/config-json.ts` 的 `ConfigJson` 类创建实例（自动建目录、合并默认值、落盘），独立存储在模块自己的数据目录下（如 `data/images/config.json`、`data/tts/config.json`），导出 `getXxxConfig` / `updateXxxConfig` 及按业务需要的使用方辅助函数（如 `getYunwuApiKey`）
-2. **接口层**：在模块的 api 文件中暴露 `/config` GET/POST（如 `/api/gptImage/config`，zod 校验 + `updateXxxConfig`），通用 `api/common/config.ts` 只保留真正全局的项（目前仅 localNetworkUrl）
-3. **前端状态**：模块自己的 zustand store（如 `GenImage/store.ts`、`Novel/SettingModal/useNovelConfig.ts`），setter 调 `/config` POST 并用服务端返回的完整配置覆盖本地状态；启动时统一 `fetchConfig` 拉取一次
+1. **注册定义**：`src/server/module/<模块>/settings.ts`，调用 `settingsRegistry.register()` 声明 zod schema（字段唯一定义来源）、defaults 与旧格式迁移，落盘在模块自己的数据目录（如 `data/images/config.json`，自动迁移为 DocumentStore 信封结构）；导出异步的服务端内部辅助函数（如 `getYunwuApiKey`）。注册汇总在 `common/settings/resources.ts`
+2. **接口层**：通用路由 `GET/PUT /api/settings/:id`（`api/common/settings.ts`），各模块不再实现自己的 `/config` 路由；本应用前后端均在用户本地，密钥明文回传，方便用户查看与复制
+3. **前端状态**：模块自己的 zustand store（如 `GenImage/store.ts`、`Novel/SettingModal/useNovelConfig.ts`），经 `client/service/settings.ts` 的 `settingsClient` 整体读写（带 revision 冲突检测），启动时统一拉取一次；`gptImageApiKey` 按当前接入点从 keychain 派生（`resolveGptImageApiKey`），用于"是否已配置"判断与表单回填
+
+纯前端拥有的业务数据（模板、小说、TTS 项目）不走 SettingsRegistry，走通用存储 `/api/storage/*`（见上目录结构）。真正全局的项仍在 `api/common/config.ts`（目前仅 localNetworkUrl）
 
 ## 构建与发布流程
 
