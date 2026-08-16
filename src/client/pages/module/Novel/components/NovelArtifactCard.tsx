@@ -2,9 +2,9 @@ import { DeleteOutlined, FileTextOutlined } from '@ant-design/icons'
 import { Button, Modal } from 'antd'
 import { useState } from 'react'
 
-// NovelText 通用卡片：左侧文本图标 + 标题/字数上下排版 + 右侧删除按钮，
-// 点击卡片弹出模态框查看原文。用于参考文列表等 NovelText 展示场景
-export const NovelTextCard = ({
+// NovelArtifact 通用卡片：左侧文本图标 + 标题/字数上下排版 + 右侧删除按钮，
+// 点击卡片弹出模态框查看原文。用于参考文列表等文段展示场景
+export const NovelArtifactCard = ({
   title,
   content,
   warning,

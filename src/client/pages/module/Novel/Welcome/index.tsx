@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useNovelConfig } from '../SettingModal/useNovelConfig'
 import { classifyFirstIntent } from '../service/intent'
 import { useNovelStore } from '../store'
-import { findChapterText } from '../types'
+import { findChapterArtifact } from '../types'
 import { QuickPrompts } from './QuickPrompts'
 import { RefUpload, type PendingRef } from './RefUpload'
 
@@ -46,22 +46,42 @@ export const Welcome = () => {
       }
       // 3. 未配置 API Key 时仅创建书籍，编辑页顶部会引导去设置
       if (!novelApiKey) return
-      // 4. 由 AI 判断用户意图，开始首次生成
+      // 4. 由 AI 判断用户意图，开始首次生成（分类结果即 generate 的 outputType）
       const novelId = useNovelStore.getState().currentNovelId
       if (!novelId) return
-      const intent = await classifyFirstIntent(instruction)
-      if (intent === 'setting') {
-        await startGeneration({ kind: 'setting', novelId, instruction })
-      } else if (intent === 'outline') {
-        await startGeneration({ kind: 'outline', novelId, instruction })
+      const outputType = await classifyFirstIntent(instruction)
+      if (outputType === 'setting') {
+        await startGeneration({
+          op: 'generate',
+          outputType: 'setting',
+          novelId,
+          instruction,
+        })
+      } else if (outputType === 'outline') {
+        await startGeneration({
+          op: 'generate',
+          outputType: 'outline',
+          novelId,
+          instruction,
+        })
       } else {
         // 正文依赖大纲：先生成第一章大纲，再生成正文
-        await startGeneration({ kind: 'outline', novelId, instruction })
+        await startGeneration({
+          op: 'generate',
+          outputType: 'outline',
+          novelId,
+          instruction,
+        })
         const novel = useNovelStore.getState().currentNovel
         const chapter = novel?.chapters[0]
-        if (novel && chapter && findChapterText(novel, chapter.id, 'outline')) {
+        if (
+          novel &&
+          chapter &&
+          findChapterArtifact(novel, chapter.id, 'outline')
+        ) {
           await startGeneration({
-            kind: 'content',
+            op: 'generate',
+            outputType: 'content',
             novelId,
             chapterId: chapter.id,
             instruction,

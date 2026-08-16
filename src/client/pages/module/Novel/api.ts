@@ -1,15 +1,16 @@
 // 小说模块数据访问层（生成相关的 LLM 调用与编排在 service/ 下，不在此文件）
-// 书籍数据走通用实体接口（novel.books）：章节/文本增删、删章节级联、摘要计算全部在前端完成，
+// 书籍数据走通用实体接口（novel.books）：章节/文段增删、删章节级联、摘要计算全部在前端完成，
 // 每次修改整体读改写并携带 expectedRevision；模块配置走 /api/settings/novel，LLM 请求走 /api/relay/novel.openai
 import { entityClient, mutateEntity } from '@/client/service/storage'
 import { DEFAULT_RECENT_FULL_CHAPTERS } from './service/constants'
 import type {
+  ArtifactType,
+  ChatMessage,
   Novel,
+  NovelArtifact,
   NovelChapter,
   NovelIndexItem,
   NovelSummary,
-  NovelText,
-  NovelTextType,
 } from './types'
 
 const novelsClient = entityClient<Novel, NovelSummary>('novel.books')
@@ -56,7 +57,7 @@ export const createNovel = async (title: string): Promise<Novel> => {
     id: crypto.randomUUID(),
     title,
     chapters: [],
-    texts: [],
+    artifacts: [],
     recentFullChapters: DEFAULT_RECENT_FULL_CHAPTERS,
     createdAt: now,
     updatedAt: now,
@@ -83,63 +84,78 @@ export const updateNovel = (
 export const deleteNovel = (id: string): Promise<void> =>
   novelsClient.remove(id)
 
-// ---------- 统一文本 CRUD（参考文/设定/大纲/正文/摘要，前端业务修改） ----------
+// ---------- 统一文段 CRUD（参考文/设定/大纲/正文/摘要，前端业务修改） ----------
 
-export const createText = (
+export const createArtifact = (
   novelId: string,
   payload: {
-    type: NovelTextType
+    type: ArtifactType
     chapterId?: string
     title?: string
     content: string
-    sourceIds?: string[]
+    inputs?: string[]
     estimatedTokens?: number
     originalLength?: number
   },
-): Promise<NovelText> =>
+): Promise<NovelArtifact> =>
   mutateNovel(novelId, (novel) => {
     const now = Date.now()
-    const text: NovelText = {
+    const artifact: NovelArtifact = {
       id: crypto.randomUUID(),
       type: payload.type,
       title: payload.title ?? '',
       content: payload.content,
-      sourceIds: payload.sourceIds ?? [],
+      inputs: payload.inputs ?? [],
+      version: 1,
+      messages: [],
       createdAt: now,
       updatedAt: now,
     }
-    if (payload.chapterId) text.chapterId = payload.chapterId
+    if (payload.chapterId) artifact.chapterId = payload.chapterId
     if (payload.estimatedTokens !== undefined) {
-      text.estimatedTokens = payload.estimatedTokens
+      artifact.estimatedTokens = payload.estimatedTokens
     }
     if (payload.originalLength !== undefined) {
-      text.originalLength = payload.originalLength
+      artifact.originalLength = payload.originalLength
     }
-    novel.texts.push(text)
-    return text
+    novel.artifacts.push(artifact)
+    return artifact
   })
 
-export const updateText = (
+export const updateArtifact = (
   novelId: string,
-  textId: string,
-  patch: { title?: string; content?: string; sourceIds?: string[] },
-): Promise<NovelText> =>
+  artifactId: string,
+  patch: {
+    title?: string
+    content?: string
+    inputs?: string[]
+    messages?: ChatMessage[]
+  },
+): Promise<NovelArtifact> =>
   mutateNovel(novelId, (novel) => {
-    const text = novel.texts.find((t) => t.id === textId)
-    if (!text) throw new Error('[小说] 文本不存在')
-    if (patch.title !== undefined) text.title = patch.title
-    if (patch.content !== undefined) text.content = patch.content
-    if (patch.sourceIds !== undefined) text.sourceIds = patch.sourceIds
-    text.updatedAt = Date.now()
-    return text
+    const artifact = novel.artifacts.find((t) => t.id === artifactId)
+    if (!artifact) throw new Error('[小说] 文段不存在')
+    if (patch.title !== undefined) artifact.title = patch.title
+    // 任何内容修改（含手动编辑）版本号 +1
+    if (patch.content !== undefined && patch.content !== artifact.content) {
+      artifact.content = patch.content
+      artifact.version += 1
+    }
+    if (patch.inputs !== undefined) artifact.inputs = patch.inputs
+    if (patch.messages !== undefined) artifact.messages = patch.messages
+    artifact.updatedAt = Date.now()
+    return artifact
   })
 
-export const deleteText = (novelId: string, textId: string): Promise<void> =>
+export const deleteArtifact = (
+  novelId: string,
+  artifactId: string,
+): Promise<void> =>
   mutateNovel(novelId, (novel) => {
-    if (!novel.texts.some((t) => t.id === textId)) {
-      throw new Error('[小说] 文本不存在')
+    if (!novel.artifacts.some((t) => t.id === artifactId)) {
+      throw new Error('[小说] 文段不存在')
     }
-    novel.texts = novel.texts.filter((t) => t.id !== textId)
+    novel.artifacts = novel.artifacts.filter((t) => t.id !== artifactId)
   })
 
 // ---------- 章节（轻量分组容器） ----------
@@ -171,12 +187,12 @@ export const updateChapter = (
     return chapter
   })
 
-// 删章节并级联删除其归属文本（「仅可删最后一章」的规则由页面控制）
+// 删章节并级联删除其归属文段（「仅可删最后一章」的规则由页面控制）
 export const deleteChapter = (novelId: string, cid: string): Promise<void> =>
   mutateNovel(novelId, (novel) => {
     if (!novel.chapters.some((c) => c.id === cid)) {
       throw new Error('[小说] 章节不存在')
     }
     novel.chapters = novel.chapters.filter((c) => c.id !== cid)
-    novel.texts = novel.texts.filter((t) => t.chapterId !== cid)
+    novel.artifacts = novel.artifacts.filter((t) => t.chapterId !== cid)
   })

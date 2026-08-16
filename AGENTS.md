@@ -70,5 +70,5 @@
 
 ## 安全注意事项
 
-- 各模块 `data/` 下的 config.json 保存用户的 API 密钥，经 `/api/settings/:id` 明文读写（本地应用，方便用户查看复制），不得提交或泄露；`src/server/module/gpt-image/encrypt.ts` 仅服务于 YunwuAdmin 的"API Key 加密转换"工具与存量 `la-` 前缀密钥的解密；仓库内 `data/` 下文件属于本地运行数据
+- 各模块 `data/` 下的 config.json 保存用户的 API 密钥，经 `/api/settings/:id` 明文读写（本地应用，方便用户查看复制），不得提交或泄露；仓库内 `data/` 下文件属于本地运行数据
 - `.husky/pre-commit` 会拒绝 git `user.name` 含汉字的提交（避免真名泄露），提交前确保用户名不含中文

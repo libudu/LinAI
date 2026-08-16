@@ -18,8 +18,8 @@ import {
 import { useEffect, useState } from 'react'
 import { REF_MAX_CHARS } from '../service/constants'
 import { useNovelStore } from '../store'
-import type { NovelText } from '../types'
-import { textsByType } from '../types'
+import type { NovelArtifact } from '../types'
+import { artifactsByType } from '../types'
 
 // 上传参考文弹窗（粘贴文本或导入 txt/md 文件，前端截取末尾后上传）
 const RefUploadModal = ({
@@ -111,7 +111,7 @@ const RefViewModal = ({
   refItem,
   onClose,
 }: {
-  refItem: NovelText | null
+  refItem: NovelArtifact | null
   onClose: () => void
 }) => (
   <Modal
@@ -132,11 +132,11 @@ const SettingEditModal = ({
   editing,
   onClose,
 }: {
-  editing: NovelText | 'new' | null
+  editing: NovelArtifact | 'new' | null
   onClose: () => void
 }) => {
-  const createText = useNovelStore((s) => s.createText)
-  const updateText = useNovelStore((s) => s.updateText)
+  const createArtifact = useNovelStore((s) => s.createArtifact)
+  const updateArtifact = useNovelStore((s) => s.updateArtifact)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
@@ -159,13 +159,13 @@ const SettingEditModal = ({
     setSaving(true)
     const ok =
       editing === 'new'
-        ? !!(await createText({
+        ? !!(await createArtifact({
             type: 'setting',
             title: title.trim(),
             content,
           }))
         : editing
-          ? await updateText(editing.id, { title: title.trim(), content })
+          ? await updateArtifact(editing.id, { title: title.trim(), content })
           : false
     setSaving(false)
     if (ok) onClose()
@@ -214,17 +214,22 @@ const SectionHeader = ({
 )
 
 export const ResourcePanel = () => {
-  const { currentNovel, deleteText, openDrawer, streaming, abortGeneration } =
-    useNovelStore()
+  const {
+    currentNovel,
+    deleteArtifact,
+    openDrawer,
+    streaming,
+    abortGeneration,
+  } = useNovelStore()
 
   const [refUploadOpen, setRefUploadOpen] = useState(false)
-  const [viewRef, setViewRef] = useState<NovelText | null>(null)
+  const [viewRef, setViewRef] = useState<NovelArtifact | null>(null)
   const [editingSetting, setEditingSetting] = useState<
-    NovelText | 'new' | null
+    NovelArtifact | 'new' | null
   >(null)
 
-  const refs = currentNovel ? textsByType(currentNovel, 'ref') : []
-  const settings = currentNovel ? textsByType(currentNovel, 'setting') : []
+  const refs = currentNovel ? artifactsByType(currentNovel, 'ref') : []
+  const settings = currentNovel ? artifactsByType(currentNovel, 'setting') : []
 
   return (
     <div className="space-y-4">
@@ -275,7 +280,7 @@ export const ResourcePanel = () => {
                       </Tooltip>
                       <Popconfirm
                         title="删除该参考文？"
-                        onConfirm={() => deleteText(ref.id)}
+                        onConfirm={() => deleteArtifact(ref.id)}
                       >
                         <Button
                           size="small"
@@ -325,7 +330,7 @@ export const ResourcePanel = () => {
                       size="small"
                       type="text"
                       icon={<RobotOutlined />}
-                      onClick={() => openDrawer({ kind: 'setting' })}
+                      onClick={() => openDrawer({ outputType: 'setting' })}
                     />
                   </Tooltip>
                 </>
@@ -365,7 +370,7 @@ export const ResourcePanel = () => {
                     </span>
                     <Popconfirm
                       title="删除该设定？"
-                      onConfirm={() => deleteText(setting.id)}
+                      onConfirm={() => deleteArtifact(setting.id)}
                     >
                       <Button
                         size="small"

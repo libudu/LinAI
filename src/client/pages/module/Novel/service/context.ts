@@ -1,26 +1,24 @@
 // 上下文组装：所有生成任务的唯一上下文入口
-// 所有文本（参考文/设定/大纲/正文/摘要）统一为 NovelText 内联在 novel.texts 中，
-// 勾选与快照都是扁平的 textIds 列表；全文/摘要的携带方式由 id 天然编码
+// 所有文段（参考文/设定/大纲/正文/摘要）统一为 NovelArtifact 内联在 novel.artifacts 中，
+// 勾选与快照都是扁平的 artifactIds 列表；全文/摘要的携带方式由 id 天然编码
 import { estimateTokens } from '../shared/tokenEstimate'
 import type {
+  ArtifactOperation,
+  ArtifactType,
   ChatMessage,
   ContextSelection,
-  GenerateKind,
   Novel,
+  NovelArtifact,
   NovelChapter,
 } from '../types'
-import { chapterIndex, findChapterText, textsByType } from '../types'
+import { artifactsByType, chapterIndex, findChapterArtifact } from '../types'
 import { CONTINUE_PREFIX_CHARS, DEFAULT_TARGET_LENGTH } from './constants'
 import {
   BASE_SYSTEM_PROMPT,
-  buildContentTask,
   buildContinueTask,
-  buildOutlineTask,
-  buildReviseContentTask,
-  buildReviseOutlineTask,
-  buildRewriteSelectionTask,
-  buildSettingTask,
-  buildSummaryTask,
+  buildGenerateTask,
+  buildReviseTask,
+  buildRewriteRangeTask,
   formatFullChapters,
   formatOutline,
   formatRefMaterials,
@@ -28,86 +26,106 @@ import {
   formatSummaries,
 } from './prompts'
 
+export interface DefaultSelectionOpts {
+  /** 仅 generate：产出类型 */
+  outputType?: ArtifactType
+  /** 目标章节（章节类操作）；revise/continue/rewrite-range 缺省时由 target 推出 */
+  chapter?: NovelChapter
+  /** revise / continue / rewrite-range 的目标文段 */
+  target?: NovelArtifact
+}
+
 // 默认勾选规则：
-// - 摘要、整章微调、选段重写：prompt 自带正文全文，默认不带其他上下文
+// - 选段重写、摘要、正文整体修改：prompt 自带正文全文，默认不带其他上下文
 // - 生成设定：默认勾选全部参考文
-// - 正文/续写：继承本章大纲文本的 sourceIds
-// - 大纲：设定全勾、最近 N 章全文 + 更早章节摘要（无摘要的降级为全文，且不占 N 的名额）
+// - 续写：沿用本章大纲文段的 inputs（无则按大纲默认）
+// - 生成正文：设定全勾 + 之前所有章的正文 + 本章大纲；
+//   recentFullChapters 仅作上限保护——历史正文超出 N 章时更早章节自动改挂摘要（无摘要降级全文）
+// - 生成大纲 / 大纲整体修改：设定全勾 + 历史章正文（同样按 N 上限保护改挂摘要）
 export const getDefaultSelection = (
   novel: Novel,
-  kind: GenerateKind,
-  chapter?: NovelChapter,
+  op: ArtifactOperation,
+  opts: DefaultSelectionOpts = {},
 ): ContextSelection => {
-  const empty: ContextSelection = { textIds: [] }
+  const empty: ContextSelection = { artifactIds: [] }
+  const chapter =
+    opts.chapter ??
+    (opts.target?.chapterId
+      ? novel.chapters.find((c) => c.id === opts.target!.chapterId)
+      : undefined)
 
-  if (
-    kind === 'summary' ||
-    kind === 'revise-content' ||
-    kind === 'rewrite-selection'
-  ) {
-    return empty
+  if (op === 'rewrite-range') return empty
+  if (op === 'generate' && opts.outputType === 'summary') return empty
+  // 正文整体修改：prompt 自带全文；大纲整体修改走下方大纲默认
+  if (op === 'revise' && opts.target?.type !== 'outline') return empty
+
+  if (op === 'generate' && opts.outputType === 'setting') {
+    return { artifactIds: artifactsByType(novel, 'ref').map((t) => t.id) }
   }
 
-  if (kind === 'setting') {
-    return { textIds: textsByType(novel, 'ref').map((t) => t.id) }
-  }
-
-  if (kind !== 'outline' && kind !== 'revise-outline' && chapter) {
-    const outline = findChapterText(novel, chapter.id, 'outline')
-    if (outline && outline.sourceIds.length > 0) {
-      return { textIds: [...outline.sourceIds] }
+  // 续写：沿用本章大纲文段的 inputs
+  if (op === 'continue' && chapter) {
+    const outline = findChapterArtifact(novel, chapter.id, 'outline')
+    if (outline && outline.inputs.length > 0) {
+      return { artifactIds: [...outline.inputs] }
     }
   }
 
-  const textIds: string[] = textsByType(novel, 'setting').map((t) => t.id)
+  const artifactIds: string[] = artifactsByType(novel, 'setting').map(
+    (t) => t.id,
+  )
   const history = [...novel.chapters]
     .filter((c) => c.id !== chapter?.id)
     .sort((a, b) => a.createdAt - b.createdAt)
   const n = novel.recentFullChapters
   history.forEach((c, i) => {
-    const content = findChapterText(novel, c.id, 'content')
+    const content = findChapterArtifact(novel, c.id, 'content')
     if (!content) return
-    const summary = findChapterText(novel, c.id, 'summary')
+    const summary = findChapterArtifact(novel, c.id, 'summary')
     if (i >= history.length - n || !summary) {
-      textIds.push(content.id)
+      artifactIds.push(content.id)
     } else {
-      textIds.push(summary.id)
+      artifactIds.push(summary.id)
     }
   })
-  return { textIds }
+  // 生成正文：再勾上本章大纲
+  if (op === 'generate' && opts.outputType === 'content' && chapter) {
+    const outline = findChapterArtifact(novel, chapter.id, 'outline')
+    if (outline) artifactIds.push(outline.id)
+  }
+  return { artifactIds }
 }
 
-export interface BuildMessagesParams {
+export interface BuildMessagesParams extends DefaultSelectionOpts {
   novel: Novel
-  kind: GenerateKind
-  /** 目标章节（章节类 kind 必传） */
-  chapter?: NovelChapter
+  op: ArtifactOperation
   /** 勾选；缺省时按默认规则计算 */
   selection?: ContextSelection
   /** 用户附加要求 / 修改指令 */
   instruction?: string
   /** 正文目标篇幅，默认 3000 */
   targetLength?: number
-  /** rewrite-selection：选中区间（正文字符偏移） */
+  /** rewrite-range：选中区间（正文字符偏移） */
   range?: { start: number; end: number }
 }
 
 export interface BuiltContext {
   messages: ChatMessage[]
-  /** 实际使用的勾选（落盘为生成文本的 sourceIds） */
+  /** 实际使用的勾选（落盘为生成文段的 inputs） */
   selection: ContextSelection
   estimatedTokens: number
 }
 
-// 组装消息，并同步算出 estimatedTokens 随生成文本记录
+// 组装消息，并同步算出 estimatedTokens 随生成文段记录。
+// 沙箱规则（写死在代码里，不靠 prompt 自觉）：任何上下文组装一律不读任何文段的
+// messages——对话只服务该节点自身的修改，文段内容才是唯一向下游传递的产物
 export const buildMessages = (params: BuildMessagesParams): BuiltContext => {
-  const { novel, kind, chapter } = params
-  const selection =
-    params.selection ?? getDefaultSelection(novel, kind, chapter)
+  const { novel, op, chapter } = params
+  const selection = params.selection ?? getDefaultSelection(novel, op, params)
 
-  // 按勾选取出文本并按类型分组
-  const selected = selection.textIds
-    .map((id) => novel.texts.find((t) => t.id === id))
+  // 按勾选取出文段并按类型分组
+  const selected = selection.artifactIds
+    .map((id) => novel.artifacts.find((t) => t.id === id))
     .filter((t): t is NonNullable<typeof t> => !!t)
   const byType = (type: (typeof selected)[number]['type']) =>
     selected
@@ -115,7 +133,7 @@ export const buildMessages = (params: BuildMessagesParams): BuiltContext => {
       .sort((a, b) => a.createdAt - b.createdAt)
   const settings = byType('setting')
   const refs = byType('ref')
-  // 章节类文本按章节顺序排序
+  // 章节类文段按章节顺序排序
   const byChapterOrder = (
     a: (typeof selected)[number],
     b: (typeof selected)[number],
@@ -135,7 +153,9 @@ export const buildMessages = (params: BuildMessagesParams): BuiltContext => {
       role: 'user',
       content: formatRefMaterials(
         refs,
-        kind === 'setting' ? '【参考材料】' : '【参考文节选】',
+        op === 'generate' && params.outputType === 'setting'
+          ? '【参考材料】'
+          : '【参考文节选】',
       ),
     })
   }
@@ -165,80 +185,99 @@ export const buildMessages = (params: BuildMessagesParams): BuiltContext => {
     })
   }
 
-  // 本章的大纲/正文文本（章节类 kind 使用）
-  const outlineText = chapter
-    ? findChapterText(novel, chapter.id, 'outline')
+  // 本章的大纲/正文文段（章节类操作使用）
+  const outlineArtifact = chapter
+    ? findChapterArtifact(novel, chapter.id, 'outline')
     : undefined
-  const contentText = chapter
-    ? findChapterText(novel, chapter.id, 'content')
+  const contentArtifact = chapter
+    ? findChapterArtifact(novel, chapter.id, 'content')
     : undefined
   const index = chapter
     ? chapterIndex(novel, chapter.id)
     : novel.chapters.length + 1
 
-  // 各 kind 的大纲段与任务段
-  switch (kind) {
-    case 'setting':
-      messages.push({
-        role: 'user',
-        content: buildSettingTask(params.instruction || '', refs.length > 0),
-      })
+  // 各操作的大纲段与任务段（4 种操作，generate 内部按产出类型分派）
+  switch (op) {
+    case 'generate':
+      switch (params.outputType) {
+        case 'setting':
+          messages.push({
+            role: 'user',
+            content: buildGenerateTask('setting', {
+              instruction: params.instruction,
+              hasRefs: refs.length > 0,
+            }),
+          })
+          break
+        case 'outline':
+          messages.push({
+            role: 'user',
+            content: buildGenerateTask('outline', {
+              index,
+              instruction: params.instruction,
+            }),
+          })
+          break
+        case 'content':
+          if (outlineArtifact) {
+            messages.push({
+              role: 'user',
+              content: formatOutline(outlineArtifact.content),
+            })
+          }
+          messages.push({
+            role: 'user',
+            content: buildGenerateTask('content', {
+              index,
+              targetLength: params.targetLength ?? DEFAULT_TARGET_LENGTH,
+              instruction: params.instruction,
+            }),
+          })
+          break
+        case 'summary':
+          messages.push({
+            role: 'user',
+            content: `【章节正文】\n${contentArtifact?.content || ''}\n\n${buildGenerateTask('summary')}`,
+          })
+          break
+      }
       break
-    case 'outline':
-      messages.push({
-        role: 'user',
-        content: buildOutlineTask(index, params.instruction),
-      })
-      break
-    case 'revise-outline':
-      messages.push({
-        role: 'user',
-        content: buildReviseOutlineTask(
-          outlineText?.content ?? '',
-          params.instruction || '',
-        ),
-      })
-      break
-    case 'content':
-      if (outlineText) {
+    case 'revise':
+      if (params.target) {
         messages.push({
           role: 'user',
-          content: formatOutline(outlineText.content),
+          content: buildReviseTask(
+            params.target.type,
+            params.target.content,
+            params.instruction || '',
+          ),
         })
       }
-      messages.push({
-        role: 'user',
-        content: buildContentTask(
-          index,
-          params.targetLength ?? DEFAULT_TARGET_LENGTH,
-          params.instruction,
-        ),
-      })
       break
-    case 'continue-content':
-      if (outlineText) {
+    case 'continue':
+      if (outlineArtifact) {
         messages.push({
           role: 'user',
-          content: formatOutline(outlineText.content),
+          content: formatOutline(outlineArtifact.content),
         })
       }
       messages.push({
         role: 'user',
         content: buildContinueTask(
           index,
-          (contentText?.content || '').slice(-CONTINUE_PREFIX_CHARS),
+          (params.target?.content || '').slice(-CONTINUE_PREFIX_CHARS),
           params.instruction,
         ),
       })
       break
-    case 'rewrite-selection': {
-      const content = contentText?.content || ''
+    case 'rewrite-range': {
+      const content = params.target?.content || ''
       const selectedRange = params.range
         ? content.slice(params.range.start, params.range.end)
         : ''
       messages.push({
         role: 'user',
-        content: buildRewriteSelectionTask(
+        content: buildRewriteRangeTask(
           content,
           selectedRange,
           params.instruction || '',
@@ -246,21 +285,6 @@ export const buildMessages = (params: BuildMessagesParams): BuiltContext => {
       })
       break
     }
-    case 'revise-content':
-      messages.push({
-        role: 'user',
-        content: buildReviseContentTask(
-          contentText?.content || '',
-          params.instruction || '',
-        ),
-      })
-      break
-    case 'summary':
-      messages.push({
-        role: 'user',
-        content: buildSummaryTask(contentText?.content || ''),
-      })
-      break
   }
 
   const estimatedTokens = messages.reduce(

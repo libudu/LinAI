@@ -8,10 +8,10 @@ import { Button, Input, Popconfirm, Tooltip } from 'antd'
 import { useEffect, useState } from 'react'
 import { useNovelStore } from '../store'
 import type { Novel, NovelChapter } from '../types'
-import { findChapterText } from '../types'
+import { findChapterArtifact } from '../types'
 import { ContextTagBar } from './ContextTagBar'
 
-// 大纲卡：纯文本编辑（大纲是一段 NovelText）+ 按指令微调 + 重新生成
+// 大纲卡：纯文本编辑（大纲是一个文段）+ 按指令微调 + 重新生成
 export const OutlineCard = ({
   chapter,
   novel,
@@ -22,8 +22,8 @@ export const OutlineCard = ({
   const {
     collapsed,
     toggleCollapsed,
-    updateText,
-    deleteText,
+    updateArtifact,
+    deleteArtifact,
     openDrawer,
     startGeneration,
     streaming,
@@ -40,7 +40,7 @@ export const OutlineCard = ({
       ? streaming
       : null
 
-  const outline = findChapterText(novel, chapter.id, 'outline')
+  const outline = findChapterArtifact(novel, chapter.id, 'outline')
   const [draft, setDraft] = useState(outline?.content ?? '')
   const [reviseText, setReviseText] = useState('')
 
@@ -54,17 +54,17 @@ export const OutlineCard = ({
     if (!outline) return
     const content = draft.trim()
     if (!content || content === outline.content) return
-    updateText(outline.id, { content })
+    updateArtifact(outline.id, { content })
   }
 
   const handleRevise = (v: string) => {
     const instruction = v.trim()
-    if (!instruction || outlineStream) return
+    if (!instruction || outlineStream || !outline) return
     setReviseText('')
     startGeneration({
-      kind: 'revise-outline',
+      op: 'revise',
       novelId: novel.id,
-      chapterId: chapter.id,
+      targetId: outline.id,
       instruction,
     })
   }
@@ -81,7 +81,7 @@ export const OutlineCard = ({
         </span>
         <span className="text-sm font-medium text-slate-600">大纲</span>
         <div className="ml-auto flex items-center gap-1">
-          <ContextTagBar text={outline} novel={novel} />
+          <ContextTagBar artifact={outline} novel={novel} />
           {outline && (
             <Tooltip title="重新生成大纲（打开上下文抽屉）">
               <Button
@@ -91,7 +91,7 @@ export const OutlineCard = ({
                 disabled={!!streaming}
                 onClick={(e) => {
                   e.stopPropagation()
-                  openDrawer({ kind: 'outline', chapterId: chapter.id })
+                  openDrawer({ outputType: 'outline', chapterId: chapter.id })
                 }}
               />
             </Tooltip>
@@ -105,7 +105,7 @@ export const OutlineCard = ({
             <div>
               <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
                 <span>
-                  {outlineStream.kind === 'revise-outline'
+                  {outlineStream.op === 'revise'
                     ? '按指令微调大纲中…'
                     : '大纲生成中…'}
                 </span>
@@ -131,7 +131,7 @@ export const OutlineCard = ({
                 ghost
                 disabled={!!streaming}
                 onClick={() =>
-                  openDrawer({ kind: 'outline', chapterId: chapter.id })
+                  openDrawer({ outputType: 'outline', chapterId: chapter.id })
                 }
               >
                 生成大纲
@@ -160,7 +160,7 @@ export const OutlineCard = ({
                 />
                 <Popconfirm
                   title="删除该大纲？"
-                  onConfirm={() => deleteText(outline.id)}
+                  onConfirm={() => deleteArtifact(outline.id)}
                 >
                   <Button
                     size="small"

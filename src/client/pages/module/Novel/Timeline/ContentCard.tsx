@@ -15,16 +15,16 @@ import {
 } from 'antd'
 import { useRef, useState } from 'react'
 import { useNovelStore } from '../store'
-import type { GenerateKind, Novel, NovelChapter } from '../types'
-import { findChapterText } from '../types'
+import type { ArtifactOperation, Novel, NovelChapter } from '../types'
+import { findChapterArtifact } from '../types'
 import { ContextTagBar } from './ContextTagBar'
 
-// 流式生成中各 kind 的提示语
-const STREAMING_LABELS: Partial<Record<GenerateKind, string>> = {
-  content: '正文生成中…',
-  'continue-content': '续写中…',
-  'revise-content': '按指令微调中…',
-  'rewrite-selection': '重写选中段落中…',
+// 流式生成中各操作的提示语
+const STREAMING_LABELS: Partial<Record<ArtifactOperation, string>> = {
+  generate: '正文生成中…',
+  continue: '续写中…',
+  revise: '按指令微调中…',
+  'rewrite-range': '重写选中段落中…',
 }
 
 // 正文卡：流式渲染 / 续写 / 选段重写 / 按指令微调 / 手动编辑 / 摘要
@@ -38,7 +38,7 @@ export const ContentCard = ({
   const {
     collapsed,
     toggleCollapsed,
-    updateText,
+    updateArtifact,
     openDrawer,
     startGeneration,
     streaming,
@@ -86,10 +86,10 @@ export const ContentCard = ({
   const [summaryEditing, setSummaryEditing] = useState(false)
   const [summaryDraft, setSummaryDraft] = useState('')
 
-  const outline = findChapterText(novel, chapter.id, 'outline')
-  const contentText = findChapterText(novel, chapter.id, 'content')
-  const summaryText = findChapterText(novel, chapter.id, 'summary')
-  const content = contentText?.content ?? ''
+  const outline = findChapterArtifact(novel, chapter.id, 'outline')
+  const contentArtifact = findChapterArtifact(novel, chapter.id, 'content')
+  const summaryArtifact = findChapterArtifact(novel, chapter.id, 'summary')
+  const content = contentArtifact?.content ?? ''
 
   // 从 window.getSelection 换算正文字符偏移（容器内为纯文本节点）
   const handleMouseUp = () => {
@@ -128,14 +128,15 @@ export const ContentCard = ({
       message.warning('请填写重写要求')
       return
     }
+    if (!contentArtifact) return
     const range = { start: sel.start, end: sel.end }
     setRewriteOpen(false)
     setSel(null)
     window.getSelection()?.removeAllRanges()
     await startGeneration({
-      kind: 'rewrite-selection',
+      op: 'rewrite-range',
       novelId: novel.id,
-      chapterId: chapter.id,
+      targetId: contentArtifact.id,
       instruction: rewriteText.trim(),
       range,
     })
@@ -143,11 +144,12 @@ export const ContentCard = ({
   }
 
   const handleContinue = () => {
+    if (!contentArtifact) return
     setContinueOpen(false)
     startGeneration({
-      kind: 'continue-content',
+      op: 'continue',
       novelId: novel.id,
-      chapterId: chapter.id,
+      targetId: contentArtifact.id,
       instruction: continueText.trim() || undefined,
     })
     setContinueText('')
@@ -158,25 +160,28 @@ export const ContentCard = ({
       message.warning('请填写修改指令')
       return
     }
+    if (!contentArtifact) return
     setReviseOpen(false)
     startGeneration({
-      kind: 'revise-content',
+      op: 'revise',
       novelId: novel.id,
-      chapterId: chapter.id,
+      targetId: contentArtifact.id,
       instruction: reviseText.trim(),
     })
     setReviseText('')
   }
 
   const saveManualEdit = async () => {
-    if (!contentText) return
-    const ok = await updateText(contentText.id, { content: draft })
+    if (!contentArtifact) return
+    const ok = await updateArtifact(contentArtifact.id, { content: draft })
     if (ok) setEditing(false)
   }
 
   const saveSummary = async () => {
-    if (!summaryText) return
-    const ok = await updateText(summaryText.id, { content: summaryDraft })
+    if (!summaryArtifact) return
+    const ok = await updateArtifact(summaryArtifact.id, {
+      content: summaryDraft,
+    })
     if (ok) setSummaryEditing(false)
   }
 
@@ -197,7 +202,7 @@ export const ContentCard = ({
           </span>
         )}
         <div className="ml-auto flex items-center gap-1">
-          <ContextTagBar text={contentText} novel={novel} />
+          <ContextTagBar artifact={contentArtifact} novel={novel} />
           {content && (
             <Tooltip title="重新生成正文（打开上下文抽屉）">
               <Button
@@ -207,7 +212,7 @@ export const ContentCard = ({
                 disabled={!!streaming}
                 onClick={(e) => {
                   e.stopPropagation()
-                  openDrawer({ kind: 'content', chapterId: chapter.id })
+                  openDrawer({ outputType: 'content', chapterId: chapter.id })
                 }}
               />
             </Tooltip>
@@ -221,7 +226,7 @@ export const ContentCard = ({
             <div>
               <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
                 <span>
-                  {STREAMING_LABELS[contentStream.kind] ?? '生成中…'}
+                  {STREAMING_LABELS[contentStream.op] ?? '生成中…'}
                   {contentStream.text &&
                     `（${contentStream.text.length.toLocaleString()} 字）`}
                 </span>
@@ -249,7 +254,7 @@ export const ContentCard = ({
                   ghost
                   disabled={!!streaming || !outline}
                   onClick={() =>
-                    openDrawer({ kind: 'content', chapterId: chapter.id })
+                    openDrawer({ outputType: 'content', chapterId: chapter.id })
                   }
                 >
                   生成正文
@@ -384,13 +389,13 @@ export const ContentCard = ({
                       （供后续章节上下文使用）
                     </span>
                   </span>
-                  {summaryText && !summaryEditing && (
+                  {summaryArtifact && !summaryEditing && (
                     <div className="flex items-center gap-1">
                       <Button
                         size="small"
                         type="text"
                         onClick={() => {
-                          setSummaryDraft(summaryText.content)
+                          setSummaryDraft(summaryArtifact.content)
                           setSummaryEditing(true)
                         }}
                       >
@@ -400,7 +405,8 @@ export const ContentCard = ({
                         title="重新生成摘要？"
                         onConfirm={() =>
                           startGeneration({
-                            kind: 'summary',
+                            op: 'generate',
+                            outputType: 'summary',
                             novelId: novel.id,
                             chapterId: chapter.id,
                           })
@@ -436,9 +442,9 @@ export const ContentCard = ({
                       </Button>
                     </div>
                   </div>
-                ) : summaryText ? (
+                ) : summaryArtifact ? (
                   <div className="text-xs leading-6 break-words whitespace-pre-wrap text-slate-600">
-                    {summaryText.content}
+                    {summaryArtifact.content}
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 text-xs text-amber-600">
@@ -448,7 +454,8 @@ export const ContentCard = ({
                       disabled={!!streaming}
                       onClick={() =>
                         startGeneration({
-                          kind: 'summary',
+                          op: 'generate',
+                          outputType: 'summary',
                           novelId: novel.id,
                           chapterId: chapter.id,
                         })

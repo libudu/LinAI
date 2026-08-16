@@ -1,7 +1,7 @@
 import { FileTextOutlined, UploadOutlined } from '@ant-design/icons'
 import { Button, Input, Modal, Upload, message } from 'antd'
 import { useState } from 'react'
-import { NovelTextCard } from '../components/NovelTextCard'
+import { NovelArtifactCard } from '../components/NovelArtifactCard'
 import { REF_MAX_CHARS } from '../service/constants'
 
 // 待上传的参考文（小说创建前先暂存在本地）
@@ -119,7 +119,7 @@ export const RefUpload = ({
       ) : (
         <div className="space-y-1.5">
           {refs.map((ref, i) => (
-            <NovelTextCard
+            <NovelArtifactCard
               key={`${ref.title}-${i}`}
               title={ref.title}
               content={ref.content}

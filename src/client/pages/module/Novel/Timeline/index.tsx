@@ -87,7 +87,7 @@ export const Timeline = () => {
           size="large"
           icon={<PlusOutlined />}
           disabled={!!streaming}
-          onClick={() => openDrawer({ kind: 'outline' })}
+          onClick={() => openDrawer({ outputType: 'outline' })}
         >
           生成下一章大纲
         </Button>

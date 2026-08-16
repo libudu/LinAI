@@ -5,14 +5,14 @@ import * as api from './api'
 import { REF_MAX_CHARS } from './service/constants'
 import { runGeneration, type GenerateRequest } from './service/generate'
 import type { Novel, NovelIndexItem, StreamingState } from './types'
-import { kindToTarget } from './types'
+import { streamingTargetOf } from './types'
 
 // 当前生成任务的中断控制器（单页单任务，由 streaming 状态保证互斥）
 let generationController: AbortController | null = null
 
-// 上下文选择抽屉的打开意图（正文入口的默认勾选从大纲文本的 sourceIds 还原，由抽屉组件计算）
+// 上下文选择抽屉的打开意图（默认勾选规则由 service/context 按产出类型计算）
 export interface DrawerRequest {
-  kind: 'setting' | 'outline' | 'content'
+  outputType: 'setting' | 'outline' | 'content'
   chapterId?: string
 }
 
@@ -46,16 +46,16 @@ interface NovelStore {
     patch: { title?: string; recentFullChapters?: number },
   ) => Promise<boolean>
 
-  // 统一文本操作（参考文/设定/大纲/正文/摘要）
+  // 统一文段操作（参考文/设定/大纲/正文/摘要）
   uploadRef: (title: string, content: string) => Promise<boolean>
-  createText: (
-    payload: Parameters<typeof api.createText>[1],
+  createArtifact: (
+    payload: Parameters<typeof api.createArtifact>[1],
   ) => Promise<string | null>
-  updateText: (
-    textId: string,
+  updateArtifact: (
+    artifactId: string,
     patch: { title?: string; content?: string },
   ) => Promise<boolean>
-  deleteText: (textId: string) => Promise<boolean>
+  deleteArtifact: (artifactId: string) => Promise<boolean>
 
   // 章节
   editChapterTitle: (cid: string, title: string) => Promise<boolean>
@@ -158,7 +158,7 @@ export const useNovelStore = create<NovelStore>()(
         }
       },
 
-      // 上传参考文：前端截取超限部分，落盘为 type='ref' 的 NovelText
+      // 上传参考文：前端截取超限部分，落盘为 type='ref' 的文段
       uploadRef: async (title, content) => {
         const novel = get().currentNovel
         if (!novel) return false
@@ -167,44 +167,51 @@ export const useNovelStore = create<NovelStore>()(
           content.length > REF_MAX_CHARS
             ? content.slice(-REF_MAX_CHARS)
             : content
-        const textId = await get().createText({
+        const artifactId = await get().createArtifact({
           type: 'ref',
           title,
           content: stored,
           originalLength: content.length,
         })
-        if (textId) {
+        if (artifactId) {
           message.success(
             stored.length < content.length
               ? `已上传（超长已截断：原 ${content.length.toLocaleString()} 字 → 取末尾 ${stored.length.toLocaleString()} 字）`
               : '已上传',
           )
         }
-        return !!textId
+        return !!artifactId
       },
 
-      createText: async (payload) => {
+      createArtifact: async (payload) => {
         const novel = get().currentNovel
         if (!novel) return null
         try {
-          const text = await api.createText(novel.id, payload)
-          set({ currentNovel: { ...novel, texts: [...novel.texts, text] } })
-          return text.id
+          const artifact = await api.createArtifact(novel.id, payload)
+          set({
+            currentNovel: {
+              ...novel,
+              artifacts: [...novel.artifacts, artifact],
+            },
+          })
+          return artifact.id
         } catch (error: any) {
           message.error(error.message || '保存失败')
           return null
         }
       },
 
-      updateText: async (textId, patch) => {
+      updateArtifact: async (artifactId, patch) => {
         const novel = get().currentNovel
         if (!novel) return false
         try {
-          const text = await api.updateText(novel.id, textId, patch)
+          const artifact = await api.updateArtifact(novel.id, artifactId, patch)
           set({
             currentNovel: {
               ...novel,
-              texts: novel.texts.map((t) => (t.id === textId ? text : t)),
+              artifacts: novel.artifacts.map((t) =>
+                t.id === artifactId ? artifact : t,
+              ),
             },
           })
           return true
@@ -214,15 +221,15 @@ export const useNovelStore = create<NovelStore>()(
         }
       },
 
-      deleteText: async (textId) => {
+      deleteArtifact: async (artifactId) => {
         const novel = get().currentNovel
         if (!novel) return false
         try {
-          await api.deleteText(novel.id, textId)
+          await api.deleteArtifact(novel.id, artifactId)
           set({
             currentNovel: {
               ...novel,
-              texts: novel.texts.filter((t) => t.id !== textId),
+              artifacts: novel.artifacts.filter((t) => t.id !== artifactId),
             },
           })
           message.success('已删除')
@@ -275,11 +282,16 @@ export const useNovelStore = create<NovelStore>()(
         if (!novel || novel.id !== req.novelId) return
         const controller = new AbortController()
         generationController = controller
-        const chapterId = 'chapterId' in req ? (req.chapterId ?? null) : null
+        // 章节 id：generate 直接带；revise/continue/rewrite-range 由目标文段归属推出
+        const chapterId =
+          req.chapterId ??
+          novel.artifacts.find((t) => t.id === req.targetId)?.chapterId ??
+          null
         set({
           streaming: {
-            kind: req.kind,
-            target: kindToTarget(req.kind),
+            op: req.op,
+            outputType: req.outputType,
+            target: streamingTargetOf(req, novel),
             chapterId,
             text: '',
           },

@@ -1,26 +1,34 @@
 // 小说生成模块数据类型（前后端共享）
 // 前端从 src/client/pages/module/Novel/types.ts re-export 复用
 //
-// 核心抽象：参考文 / 核心设定 / 章节大纲 / 正文 / 章节摘要 统一为 NovelText，
-// 仅靠 type 区分；后端只提供统一的文本 CRUD，业务编排全部在前端 service/ 完成
+// 核心抽象：参考文 / 核心设定 / 章节大纲 / 正文 / 章节摘要 统一为 NovelArtifact（文段），
+// 仅靠 type 区分；每次生成都是「参考若干文段（inputs）→ 产出一个文段」，
+// 后端只提供统一的书籍实体存取，业务编排全部在前端 service/ 完成
 
-export type NovelTextType =
-  | 'ref'
-  | 'setting'
-  | 'outline'
-  | 'content'
-  | 'summary'
+// 文段类型：封闭联合足够覆盖当前全部场景，扩展时加成员即可
+export type ArtifactType =
+  | 'ref' // 用户上传的参考文（原小说）
+  | 'setting' // 核心设定（人物、世界观等；定位灵活，用户自行命名）
+  | 'outline' // 章节大纲
+  | 'content' // 章节正文
+  | 'summary' // 章节摘要
 
-// 一段有效文本（内容统一内联存储在 novel.json）
-export interface NovelText {
+// 文段：一切可引用、可生成、可修改的文本资源（内容统一内联存储在书籍 JSON）
+export interface NovelArtifact {
   id: string
-  type: NovelTextType
-  chapterId?: string // outline/content/summary 归属的章节；ref/setting 无
+  type: ArtifactType
   title: string // ref/setting 的标题；outline/content/summary 一般为空
   content: string
-  // 生成该文本时引用的 NovelText id 列表（生成溯源快照；手动创建为 []）。
-  // 引用的文本被删除后 id 仍保留，前端查不到即展示删除线（已删除）
-  sourceIds: string[]
+  chapterId?: string // outline/content/summary 归属的章节；ref/setting 无
+  // 生成该文段时引用的文段 id 列表（生成溯源快照；手动创建为 []）。
+  // 这是文段 DAG 的边：反向查询（"谁引用了我"）由前端遍历全部 artifacts 派生。
+  // 引用的文段被删除后 id 仍保留，前端查不到即展示删除线（已删除）
+  inputs: string[]
+  // 版本号：新建为 1，任何内容修改 +1（阶段 4 的版本历史以此对齐）
+  version: number
+  // 该文段节点上的对话记录（阶段 2 的节点对话）。
+  // 沙箱规则：只用于修改本节点，任何 generate 的上下文组装都不读它
+  messages: ChatMessage[]
   estimatedTokens?: number // 生成时的上下文估算值，仅记录
   originalLength?: number // 仅 ref：截断前原始字符数（> content.length 即已截断）
   createdAt: number
@@ -39,17 +47,17 @@ export interface Novel {
   id: string
   title: string
   chapters: NovelChapter[] // 按 createdAt 排序即章节顺序
-  texts: NovelText[]
-  recentFullChapters: number // N：默认携带最近几章全文，默认 3
+  artifacts: NovelArtifact[]
+  recentFullChapters: number // N：默认勾选的上限保护——历史正文超出 N 章时更早章节改挂摘要，默认 3
   createdAt: number
   updatedAt: number
 }
 
-// 上下文勾选：生成请求与估算接口的入参，与生成的文本落盘的 sourceIds 同构。
-// 全文/摘要的携带方式由 id 天然编码：勾选「全文」即引用该章 content 文本 id，
-// 勾选「摘要」即引用该章 summary 文本 id
+// 上下文勾选：生成请求的入参，与生成的文段落盘的 inputs 同构。
+// 全文/摘要的携带方式由 id 天然编码：勾选「全文」即引用该章 content 文段 id，
+// 勾选「摘要」即引用该章 summary 文段 id
 export interface ContextSelection {
-  textIds: string[]
+  artifactIds: string[]
 }
 
 // 书籍列表项：前端列表页的展示形状（存储层为 EntityStore('novel.books') 的 summary，
@@ -68,18 +76,13 @@ export interface NovelSummary {
   chapterCount: number
 }
 
-// 生成任务类型
-export const GENERATE_KINDS = [
-  'setting',
-  'outline',
-  'revise-outline',
-  'content',
-  'continue-content',
-  'rewrite-selection',
-  'revise-content',
-  'summary',
-] as const
-export type GenerateKind = (typeof GENERATE_KINDS)[number]
+// 文段操作：「生成什么」由输出文段类型（outputType）决定，「参考什么」由勾选（selection）决定，
+// 两者都不是场景枚举；UI 标题仍说人话（生成大纲/生成正文），底层都是同一套操作
+export type ArtifactOperation =
+  | 'generate' // 参考勾选文段生成新文段，产出类型由 outputType 指定
+  | 'revise' // 按指令整体修改某文段 → version +1
+  | 'continue' // 续写 content 文段（拼接，version +1）
+  | 'rewrite-range' // 选段重写（字符区间替换，version +1）
 
 // 上下文组装产出的消息（OpenAI 兼容接口的 system/user/assistant 文本消息）
 export interface ChatMessage {

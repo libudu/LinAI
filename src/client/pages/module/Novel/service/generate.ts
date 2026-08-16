@@ -1,63 +1,40 @@
-// 小说生成编排：kind 前置校验 → 上下文组装 → 流式生成 → 结果落盘（统一文本接口）→ 自动摘要
-// 后端只提供统一文本 CRUD 与 /llm 代理，业务编排全部在此
+// 小说生成编排：操作前置校验 → 上下文组装 → 流式生成 → 结果落盘（统一文段接口）→ 自动摘要
+// 后端只提供统一的书籍实体存取与 /llm 中继，业务编排全部在此。
+// 「生成什么」由 outputType 决定，「参考什么」由 selection 决定，操作只有 4 种（ArtifactOperation）
 import * as api from '../api'
-import type { ContextSelection, Novel, NovelChapter } from '../types'
-import { findChapterText, textsByType } from '../types'
-import { TEMPERATURES } from './constants'
+import type {
+  ArtifactOperation,
+  ArtifactType,
+  ContextSelection,
+  Novel,
+  NovelArtifact,
+  NovelChapter,
+} from '../types'
+import { findChapterArtifact } from '../types'
+import { ARTIFACT_MESSAGES_MAX, temperatureOf } from './constants'
 import { buildMessages } from './context'
 import { GenerationError, chatOnce, chatStream } from './llm'
 import { buildSummaryMessages } from './prompts'
 
-// 生成请求体（kind 决定必填字段）
-export type GenerateRequest =
-  | {
-      kind: 'setting'
-      novelId: string
-      instruction: string
-      selection?: ContextSelection
-    }
-  | {
-      kind: 'outline'
-      novelId: string
-      chapterId?: string
-      instruction?: string
-      selection?: ContextSelection
-    }
-  | {
-      kind: 'revise-outline'
-      novelId: string
-      chapterId: string
-      instruction: string
-      selection?: ContextSelection
-    }
-  | {
-      kind: 'content'
-      novelId: string
-      chapterId: string
-      instruction?: string
-      selection?: ContextSelection
-      targetLength?: number
-    }
-  | {
-      kind: 'continue-content'
-      novelId: string
-      chapterId: string
-      instruction?: string
-    }
-  | {
-      kind: 'rewrite-selection'
-      novelId: string
-      chapterId: string
-      instruction: string
-      range: { start: number; end: number }
-    }
-  | {
-      kind: 'revise-content'
-      novelId: string
-      chapterId: string
-      instruction: string
-    }
-  | { kind: 'summary'; novelId: string; chapterId: string }
+// 生成请求体（op 决定必填字段）
+export interface GenerateRequest {
+  op: ArtifactOperation
+  novelId: string
+  /** 仅 generate：产出的文段类型（setting / outline / content / summary） */
+  outputType?: ArtifactType
+  /** revise / continue / rewrite-range 的目标文段 */
+  targetId?: string
+  /** generate outline/content/summary 时归属章节；outline 缺省时自动新建章节 */
+  chapterId?: string
+  /** revise / rewrite-range 的修改指令；generate / continue 的附加要求 */
+  instruction?: string
+  /** 仅 generate + content：目标篇幅（字） */
+  targetLength?: number
+  /** 仅 rewrite-range：选中区间（正文字符偏移） */
+  range?: { start: number; end: number }
+  /** 上下文勾选；缺省时按默认规则计算 */
+  selection?: ContextSelection
+}
 
 export interface GenerateDoneData {
   chapterId?: string
@@ -72,12 +49,16 @@ export interface GenerateHandlers {
 }
 
 interface PersistParams {
-  kind: GenerateRequest['kind']
+  op: ArtifactOperation
+  outputType?: ArtifactType
+  targetId?: string
   novel: Novel
   chapter?: NovelChapter
   text: string
-  /** 生成时实际使用的勾选（落盘为新文本的 sourceIds） */
+  /** 生成时实际使用的勾选（generate 落盘为新文段的 inputs） */
   selection: ContextSelection
+  /** revise 的修改指令（记入目标文段 messages） */
+  instruction?: string
   estimatedTokens: number
   /** false 表示中途出错或被 abort：仅保存可保留的部分 */
   final: boolean
@@ -103,118 +84,38 @@ const deriveSettingTitle = (text: string, count: number): string => {
   return cleaned || `设定 ${count + 1}`
 }
 
-// 生成结果落盘：按 kind 写入设定 / 大纲 / 正文 / 摘要文本（统一 texts 接口）
+// 生成结果落盘：generate 新建（version=1）/ revise 整体替换 / continue 拼接 /
+// rewrite-range 区间替换；updateArtifact 内部维护 version +1
 const persistGeneration = async (
   params: PersistParams,
 ): Promise<PersistResult> => {
-  const { kind, novel, chapter, text, selection, final } = params
+  const { op, novel, chapter, text, selection, final } = params
   const result: PersistResult = {}
   if (!text.trim()) return result
 
-  if (kind === 'setting') {
-    await api.createText(novel.id, {
-      type: 'setting',
-      title: deriveSettingTitle(text, textsByType(novel, 'setting').length),
-      content: text,
-      sourceIds: selection.textIds,
-      estimatedTokens: params.estimatedTokens,
-    })
-    return result
-  }
-  if (!chapter) return result
-
-  if (kind === 'outline' || kind === 'revise-outline') {
-    // revise-outline 的部分结果不覆盖原大纲；outline 中断保留部分结果
-    if (!final && kind === 'revise-outline') return result
-    const existing = findChapterText(novel, chapter.id, 'outline')
-    if (existing) {
-      await api.updateText(novel.id, existing.id, { content: text })
-    } else {
-      await api.createText(novel.id, {
-        type: 'outline',
-        chapterId: chapter.id,
-        content: text,
-        sourceIds: selection.textIds,
-        estimatedTokens: params.estimatedTokens,
-      })
-    }
-    return result
-  }
-
-  if (kind === 'summary') {
-    if (final) {
-      const existing = findChapterText(novel, chapter.id, 'summary')
-      if (existing) {
-        await api.updateText(novel.id, existing.id, { content: text.trim() })
-      } else {
-        await api.createText(novel.id, {
-          type: 'summary',
-          chapterId: chapter.id,
-          content: text.trim(),
-        })
-      }
-    }
-    return result
-  }
-
-  // 正文类：revise/rewrite 的部分结果会覆盖原有内容，仅 final 时落盘
-  if (!final && (kind === 'revise-content' || kind === 'rewrite-selection')) {
-    return result
-  }
-
-  const existing = findChapterText(novel, chapter.id, 'content')
-  let content = text
-  if (kind === 'continue-content') {
-    content = (existing?.content || '') + text
-  } else if (kind === 'rewrite-selection' && params.range) {
-    content =
-      (existing?.content || '').slice(0, params.range.start) +
-      text +
-      (existing?.content || '').slice(params.range.end)
-  }
-
-  // 正文溯源快照 = 本章大纲文本 + 实际勾选
-  const outlineId = findChapterText(novel, chapter.id, 'outline')?.id
-  const sourceIds = [...(outlineId ? [outlineId] : []), ...selection.textIds]
-
-  let contentTextId: string
-  if (existing) {
-    // 仅「生成正文」覆盖溯源快照；续写/微调/重写保留原快照
-    const updated = await api.updateText(novel.id, existing.id, {
-      content,
-      ...(kind === 'content' ? { sourceIds } : {}),
-    })
-    contentTextId = updated.id
-  } else {
-    const created = await api.createText(novel.id, {
-      type: 'content',
-      chapterId: chapter.id,
-      content,
-      sourceIds,
-      estimatedTokens: params.estimatedTokens,
-    })
-    contentTextId = created.id
-  }
-
-  // 正文正常完成后自动生成章节摘要；失败不阻塞流程，前端可手动重试
-  if (final) {
+  // 正文落盘后（final）自动生成/更新章节摘要；失败不阻塞流程，前端可手动重试
+  const regenerateSummary = async (
+    chapterId: string,
+    content: string,
+    contentArtifactId: string,
+  ) => {
     try {
       const summary = await chatOnce({
         messages: buildSummaryMessages(content),
-        temperature: TEMPERATURES.summary,
+        temperature: temperatureOf('summary'),
       })
       if (summary.trim()) {
-        const existingSummary = findChapterText(novel, chapter.id, 'summary')
+        const existingSummary = findChapterArtifact(novel, chapterId, 'summary')
         if (existingSummary) {
-          await api.updateText(novel.id, existingSummary.id, {
+          await api.updateArtifact(novel.id, existingSummary.id, {
             content: summary.trim(),
           })
         } else {
-          await api.createText(novel.id, {
+          await api.createArtifact(novel.id, {
             type: 'summary',
-            chapterId: chapter.id,
+            chapterId,
             content: summary.trim(),
-            sourceIds: [contentTextId],
+            inputs: [contentArtifactId],
           })
         }
       }
@@ -222,6 +123,125 @@ const persistGeneration = async (
       console.error('[小说] 自动生成摘要失败:', error)
       result.summaryError = error.message
     }
+  }
+
+  if (op === 'generate') {
+    if (params.outputType === 'setting') {
+      await api.createArtifact(novel.id, {
+        type: 'setting',
+        title: deriveSettingTitle(
+          text,
+          novel.artifacts.filter((t) => t.type === 'setting').length,
+        ),
+        content: text,
+        inputs: selection.artifactIds,
+        estimatedTokens: params.estimatedTokens,
+      })
+      return result
+    }
+    if (!chapter) return result
+
+    if (params.outputType === 'outline') {
+      const existing = findChapterArtifact(novel, chapter.id, 'outline')
+      if (existing) {
+        await api.updateArtifact(novel.id, existing.id, { content: text })
+      } else {
+        await api.createArtifact(novel.id, {
+          type: 'outline',
+          chapterId: chapter.id,
+          content: text,
+          inputs: selection.artifactIds,
+          estimatedTokens: params.estimatedTokens,
+        })
+      }
+      return result
+    }
+
+    if (params.outputType === 'summary') {
+      if (final) {
+        const existing = findChapterArtifact(novel, chapter.id, 'summary')
+        if (existing) {
+          await api.updateArtifact(novel.id, existing.id, {
+            content: text.trim(),
+          })
+        } else {
+          await api.createArtifact(novel.id, {
+            type: 'summary',
+            chapterId: chapter.id,
+            content: text.trim(),
+          })
+        }
+      }
+      return result
+    }
+
+    // generate + content：新建或覆盖本章正文
+    const existing = findChapterArtifact(novel, chapter.id, 'content')
+    // 正文溯源快照 = 本章大纲文段 + 实际勾选
+    const outlineId = findChapterArtifact(novel, chapter.id, 'outline')?.id
+    const inputs = [...(outlineId ? [outlineId] : []), ...selection.artifactIds]
+
+    let contentArtifactId: string
+    if (existing) {
+      const updated = await api.updateArtifact(novel.id, existing.id, {
+        content: text,
+        inputs,
+      })
+      contentArtifactId = updated.id
+    } else {
+      const created = await api.createArtifact(novel.id, {
+        type: 'content',
+        chapterId: chapter.id,
+        content: text,
+        inputs,
+        estimatedTokens: params.estimatedTokens,
+      })
+      contentArtifactId = created.id
+    }
+    if (final) await regenerateSummary(chapter.id, text, contentArtifactId)
+    return result
+  }
+
+  // revise / continue / rewrite-range：围绕目标文段修改
+  const target: NovelArtifact | undefined = novel.artifacts.find(
+    (t) => t.id === params.targetId,
+  )
+  if (!target) return result
+
+  if (op === 'revise') {
+    // 整体替换；部分结果（中断/出错）不覆盖原文段
+    if (!final) return result
+    // AI 场景产生的修改：指令记入目标文段 messages（保留最近 ARTIFACT_MESSAGES_MAX 轮，超出丢弃最旧）
+    const messages = [
+      ...target.messages,
+      { role: 'user' as const, content: params.instruction ?? '' },
+    ].slice(-ARTIFACT_MESSAGES_MAX)
+    await api.updateArtifact(novel.id, target.id, { content: text, messages })
+    if (target.type === 'content' && target.chapterId) {
+      await regenerateSummary(target.chapterId, text, target.id)
+    }
+    return result
+  }
+
+  if (op === 'continue') {
+    // 拼接续写；中断时保留已生成的部分
+    const content = target.content + text
+    await api.updateArtifact(novel.id, target.id, { content })
+    if (final && target.chapterId) {
+      await regenerateSummary(target.chapterId, content, target.id)
+    }
+    return result
+  }
+
+  // rewrite-range：字符区间替换；部分结果不覆盖原文段
+  if (!final || !params.range) return result
+  const content =
+    target.content.slice(0, params.range.start) +
+    text +
+    target.content.slice(params.range.end)
+  await api.updateArtifact(novel.id, target.id, { content })
+  if (target.chapterId) {
+    await regenerateSummary(target.chapterId, content, target.id)
   }
   return result
 }
@@ -236,69 +256,91 @@ export const runGeneration = async (
   handlers: GenerateHandlers,
   signal: AbortSignal,
 ): Promise<void> => {
-  const kind = req.kind
+  const { op } = req
 
-  // 定位/创建目标章节并做 kind 前置校验
+  // 定位目标文段 / 目标章节并做前置校验
   let chapter: NovelChapter | undefined
-  if (kind === 'outline') {
-    if (req.chapterId) {
+  let target: NovelArtifact | undefined
+
+  if (op === 'generate') {
+    if (!req.outputType) throw new Error('[小说] 缺少产出文段类型')
+    if (req.outputType === 'outline') {
+      if (req.chapterId) {
+        chapter = novel.chapters.find((ch) => ch.id === req.chapterId)
+        if (!chapter) throw new Error('[小说] 章节不存在')
+      } else {
+        chapter = (await api.createChapter(novel.id)) ?? undefined
+        if (!chapter) throw new Error('[小说] 创建章节失败')
+      }
+    } else if (req.outputType === 'content' || req.outputType === 'summary') {
       chapter = novel.chapters.find((ch) => ch.id === req.chapterId)
       if (!chapter) throw new Error('[小说] 章节不存在')
-    } else {
-      chapter = (await api.createChapter(novel.id)) ?? undefined
-      if (!chapter) throw new Error('[小说] 创建章节失败')
     }
-  } else if (kind !== 'setting') {
-    chapter = novel.chapters.find((ch) => ch.id === req.chapterId)
-    if (!chapter) throw new Error('[小说] 章节不存在')
-  }
-
-  const outlineText = chapter
-    ? findChapterText(novel, chapter.id, 'outline')
-    : undefined
-  const contentText = chapter
-    ? findChapterText(novel, chapter.id, 'content')
-    : undefined
-
-  if ((kind === 'revise-outline' || kind === 'content') && !outlineText) {
-    throw new Error('[小说] 该章节还没有大纲，请先生成大纲')
-  }
-  if (
-    (kind === 'continue-content' ||
-      kind === 'revise-content' ||
-      kind === 'summary') &&
-    !contentText
-  ) {
-    throw new Error('[小说] 该章节还没有正文')
-  }
-  if (kind === 'rewrite-selection') {
-    const length = contentText?.content?.length ?? 0
+    // setting 无需章节
     if (
-      !contentText ||
-      req.range.start >= req.range.end ||
-      req.range.end > length
+      req.outputType === 'content' &&
+      !findChapterArtifact(novel, chapter!.id, 'outline')
     ) {
-      throw new Error('[小说] 选中区间无效')
+      throw new Error('[小说] 该章节还没有大纲，请先生成大纲')
+    }
+    if (
+      req.outputType === 'summary' &&
+      !findChapterArtifact(novel, chapter!.id, 'content')
+    ) {
+      throw new Error('[小说] 该章节还没有正文')
+    }
+  } else {
+    target = novel.artifacts.find((t) => t.id === req.targetId)
+    if (!target) throw new Error('[小说] 目标文段不存在')
+    chapter = target.chapterId
+      ? novel.chapters.find((ch) => ch.id === target!.chapterId)
+      : undefined
+    if (
+      (op === 'revise' || op === 'rewrite-range') &&
+      !req.instruction?.trim()
+    ) {
+      throw new Error('[小说] 请填写修改指令')
+    }
+    if (op === 'continue' && target.type !== 'content') {
+      throw new Error('[小说] 仅正文文段支持续写')
+    }
+    if (op === 'rewrite-range') {
+      if (target.type !== 'content') {
+        throw new Error('[小说] 仅正文文段支持选段重写')
+      }
+      const length = target.content.length
+      if (
+        !req.range ||
+        req.range.start >= req.range.end ||
+        req.range.end > length
+      ) {
+        throw new Error('[小说] 选中区间无效')
+      }
     }
   }
 
   const { messages, selection, estimatedTokens } = buildMessages({
     novel,
-    kind,
+    op,
+    outputType: req.outputType,
     chapter,
-    selection: 'selection' in req ? req.selection : undefined,
-    instruction: 'instruction' in req ? req.instruction : undefined,
-    targetLength: kind === 'content' ? req.targetLength : undefined,
-    range: kind === 'rewrite-selection' ? req.range : undefined,
+    target,
+    selection: req.selection,
+    instruction: req.instruction,
+    targetLength: req.targetLength,
+    range: req.range,
   })
-  const temperature = TEMPERATURES[kind]
+  const temperature = temperatureOf(
+    op === 'generate' ? req.outputType! : target!.type,
+  )
 
   // 摘要走非流式，全文作为单个 delta 发出
-  if (kind === 'summary') {
+  if (op === 'generate' && req.outputType === 'summary') {
     const text = await chatOnce({ messages, temperature })
     if (text) handlers.onDelta?.(text)
     const extra = await persistGeneration({
-      kind,
+      op,
+      outputType: req.outputType,
       novel,
       chapter,
       text,
@@ -328,14 +370,17 @@ export const runGeneration = async (
     const partial = error instanceof GenerationError ? error.partial : ''
     try {
       await persistGeneration({
-        kind,
+        op,
+        outputType: req.outputType,
+        targetId: req.targetId,
         novel,
         chapter,
         text: partial,
         selection,
+        instruction: req.instruction,
         estimatedTokens,
         final: false,
-        range: kind === 'rewrite-selection' ? req.range : undefined,
+        range: req.range,
       })
     } catch (e) {
       console.error('[小说] 部分结果落盘失败:', e)
@@ -344,14 +389,17 @@ export const runGeneration = async (
   }
 
   const extra = await persistGeneration({
-    kind,
+    op,
+    outputType: req.outputType,
+    targetId: req.targetId,
     novel,
     chapter,
     text,
     selection,
+    instruction: req.instruction,
     estimatedTokens,
     final: !aborted,
-    range: kind === 'rewrite-selection' ? req.range : undefined,
+    range: req.range,
   })
   handlers.onDone?.({
     chapterId: chapter?.id,

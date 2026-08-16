@@ -1,32 +1,43 @@
 // 前端复用共享类型
-import type { GenerateKind } from '@/shared/novel/types'
-import type { Novel, NovelText, NovelTextType } from './types'
-export { GENERATE_KINDS } from '@/shared/novel/types'
+import type {
+  ArtifactOperation,
+  ArtifactType,
+  Novel,
+} from '@/shared/novel/types'
 export type {
+  ArtifactOperation,
+  ArtifactType,
   ChatMessage,
   ContextSelection,
-  GenerateKind,
   Novel,
+  NovelArtifact,
   NovelChapter,
   NovelIndexItem,
   NovelSummary,
-  NovelText,
-  NovelTextType,
 } from '@/shared/novel/types'
 
 // 流式生成在前端的落点（决定 streaming 文本渲染在哪张卡片上）
 export type StreamingTarget = 'setting' | 'outline' | 'content' | 'summary'
 
-export const kindToTarget = (kind: GenerateKind): StreamingTarget => {
-  if (kind === 'setting') return 'setting'
-  if (kind === 'outline' || kind === 'revise-outline') return 'outline'
-  if (kind === 'summary') return 'summary'
-  return 'content'
+// 由请求推导流式落点：generate 看产出类型，其余看目标文段类型
+export const streamingTargetOf = (
+  req: {
+    op: ArtifactOperation
+    outputType?: ArtifactType
+    targetId?: string
+  },
+  novel: Novel | null,
+): StreamingTarget => {
+  if (req.op === 'generate') return req.outputType as StreamingTarget
+  const target = novel?.artifacts.find((t) => t.id === req.targetId)
+  return target?.type === 'outline' ? 'outline' : 'content'
 }
 
 // 流式生成会话状态
 export interface StreamingState {
-  kind: GenerateKind
+  op: ArtifactOperation
+  /** 仅 generate：产出类型 */
+  outputType?: ArtifactType
   target: StreamingTarget
   /** outline 自动新建章节时为空，生成开始时由 service 创建章节 */
   chapterId: string | null
@@ -37,7 +48,7 @@ export interface StreamingState {
 export const formatTokens = (n: number): string =>
   n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`
 
-// ---------- NovelText 查询工具 ----------
+// ---------- NovelArtifact 查询工具 ----------
 
 // 按创建时间排序的章节列表（章节顺序即创建时间顺序）
 export const sortedChapters = (novel: Novel): Novel['chapters'] =>
@@ -47,16 +58,15 @@ export const sortedChapters = (novel: Novel): Novel['chapters'] =>
 export const chapterIndex = (novel: Novel, chapterId: string): number =>
   sortedChapters(novel).findIndex((c) => c.id === chapterId) + 1
 
-// 取某章指定类型的文本（outline/content/summary 每章至多一条，由前端约束）
-export const findChapterText = (
+// 取某章指定类型的文段（outline/content/summary 每章至多一条，由前端约束）
+export const findChapterArtifact = (
   novel: Novel,
   chapterId: string,
-  type: NovelTextType,
-): NovelText | undefined =>
-  novel.texts.find((t) => t.chapterId === chapterId && t.type === type)
+  type: ArtifactType,
+) => novel.artifacts.find((t) => t.chapterId === chapterId && t.type === type)
 
-// 取某类型的全部文本，按创建时间排序
-export const textsByType = (novel: Novel, type: NovelTextType): NovelText[] =>
-  novel.texts
+// 取某类型的全部文段，按创建时间排序
+export const artifactsByType = (novel: Novel, type: ArtifactType) =>
+  novel.artifacts
     .filter((t) => t.type === type)
     .sort((a, b) => a.createdAt - b.createdAt)

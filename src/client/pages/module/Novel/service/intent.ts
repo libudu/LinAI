@@ -1,12 +1,12 @@
 // 欢迎页提交后的首发生成意图判断：由模型将用户要求分类为 设定 / 大纲 / 正文
+// 分类结果即首发 generate 操作的 outputType
+import type { ArtifactType } from '../types'
 import { chatOnce } from './llm'
-
-export type FirstIntent = 'setting' | 'outline' | 'content'
 
 // 分类失败（无网络/上游报错等）时回退为 setting——模块的标准第一步
 export const classifyFirstIntent = async (
   instruction: string,
-): Promise<FirstIntent> => {
+): Promise<ArtifactType> => {
   try {
     const res = await chatOnce({
       messages: [

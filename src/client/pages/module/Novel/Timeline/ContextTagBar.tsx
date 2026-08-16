@@ -1,21 +1,21 @@
 import { Popover } from 'antd'
-import type { Novel, NovelText } from '../types'
+import type { Novel, NovelArtifact } from '../types'
 import { chapterIndex, formatTokens } from '../types'
 
-// 生成溯源标签条：展示该文本生成时引用的 sourceIds，
-// 引用的文本已删除（查不到）时显示删除线 + （已删除）
+// 生成溯源标签条：展示该文段生成时引用的 inputs，
+// 引用的文段已删除（查不到）时显示删除线 + （已删除）
 export const ContextTagBar = ({
-  text,
+  artifact,
   novel,
 }: {
-  text: NovelText | undefined
+  artifact: NovelArtifact | undefined
   novel: Novel
 }) => {
-  if (!text || text.sourceIds.length === 0) return null
+  if (!artifact || artifact.inputs.length === 0) return null
 
   // 解析单个来源 id 的展示名；查不到返回 null（已删除）
   const resolveLabel = (id: string): string | null => {
-    const source = novel.texts.find((t) => t.id === id)
+    const source = novel.artifacts.find((t) => t.id === id)
     if (!source) return null
     switch (source.type) {
       case 'ref':
@@ -31,7 +31,7 @@ export const ContextTagBar = ({
     }
   }
 
-  const labels = text.sourceIds.map((id) => ({ id, label: resolveLabel(id) }))
+  const labels = artifact.inputs.map((id) => ({ id, label: resolveLabel(id) }))
   const deletedCount = labels.filter((l) => l.label === null).length
 
   const detail = (
@@ -45,25 +45,25 @@ export const ContextTagBar = ({
           <div key={id}>{label}</div>
         ),
       )}
-      {text.estimatedTokens !== undefined && (
+      {artifact.estimatedTokens !== undefined && (
         <div className="border-t border-slate-100 pt-1">
           <span className="text-slate-400">生成时估算：</span>≈
-          {formatTokens(text.estimatedTokens)} tokens
+          {formatTokens(artifact.estimatedTokens)} tokens
         </div>
       )}
     </div>
   )
 
   return (
-    <Popover content={detail} title="生成时引用的文本" placement="bottomLeft">
+    <Popover content={detail} title="生成时引用的文段" placement="bottomLeft">
       <span
         className="app-accent-hover cursor-pointer text-xs text-slate-400"
         onClick={(e) => e.stopPropagation()}
       >
-        引用×{text.sourceIds.length}
+        引用×{artifact.inputs.length}
         {deletedCount > 0 && `（${deletedCount} 已删除）`}
-        {text.estimatedTokens !== undefined &&
-          ` · ≈${formatTokens(text.estimatedTokens)} tokens`}
+        {artifact.estimatedTokens !== undefined &&
+          ` · ≈${formatTokens(artifact.estimatedTokens)} tokens`}
       </span>
     </Popover>
   )

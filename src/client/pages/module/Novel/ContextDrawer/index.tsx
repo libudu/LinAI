@@ -19,51 +19,51 @@ import type { DrawerRequest } from '../store'
 import { useNovelStore } from '../store'
 import type { Novel } from '../types'
 import {
+  artifactsByType,
   chapterIndex,
-  findChapterText,
+  findChapterArtifact,
   formatTokens,
   sortedChapters,
-  textsByType,
 } from '../types'
 
 type ChapterMode = 'full' | 'summary' | 'none'
 
-// 章节当前的携带方式由勾选的文本 id 反推：勾了 content 文本 = 全文，勾了 summary 文本 = 摘要
+// 章节当前的携带方式由勾选的文段 id 反推：勾了 content 文段 = 全文，勾了 summary 文段 = 摘要
 const chapterModeOf = (
   novel: Novel,
   chapterId: string,
-  textIds: string[],
+  artifactIds: string[],
 ): ChapterMode => {
-  const content = findChapterText(novel, chapterId, 'content')
-  if (content && textIds.includes(content.id)) return 'full'
-  const summary = findChapterText(novel, chapterId, 'summary')
-  if (summary && textIds.includes(summary.id)) return 'summary'
+  const content = findChapterArtifact(novel, chapterId, 'content')
+  if (content && artifactIds.includes(content.id)) return 'full'
+  const summary = findChapterArtifact(novel, chapterId, 'summary')
+  if (summary && artifactIds.includes(summary.id)) return 'summary'
   return 'none'
 }
 
-// 切换某章的携带方式（全文/摘要互斥，先移除该章两条文本再按需加入）
+// 切换某章的携带方式（全文/摘要互斥，先移除该章两条文段再按需加入）
 const withChapterMode = (
   novel: Novel,
   chapterId: string,
-  textIds: string[],
+  artifactIds: string[],
   mode: ChapterMode,
 ): string[] => {
-  const content = findChapterText(novel, chapterId, 'content')
-  const summary = findChapterText(novel, chapterId, 'summary')
+  const content = findChapterArtifact(novel, chapterId, 'content')
+  const summary = findChapterArtifact(novel, chapterId, 'summary')
   const own = [content?.id, summary?.id].filter(Boolean) as string[]
-  const rest = textIds.filter((id) => !own.includes(id))
+  const rest = artifactIds.filter((id) => !own.includes(id))
   if (mode === 'full' && content) return [...rest, content.id]
   if (mode === 'summary' && summary) return [...rest, summary.id]
   return rest
 }
 
-const DRAWER_TITLES: Record<DrawerRequest['kind'], string> = {
+const DRAWER_TITLES: Record<DrawerRequest['outputType'], string> = {
   setting: '生成核心设定',
   outline: '生成章节大纲',
   content: '生成章节正文',
 }
 
-const INSTRUCTION_PLACEHOLDERS: Record<DrawerRequest['kind'], string> = {
+const INSTRUCTION_PLACEHOLDERS: Record<DrawerRequest['outputType'], string> = {
   setting: '设定要求（必填），如：参考材料整理一套世界观与主要角色',
   outline: '本章要求（可选），如：本章让两人关系出现裂痕',
   content: '写作要求（可选），如：对话多一些、节奏放慢',
@@ -81,9 +81,13 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
     ? novel.chapters.find((c) => c.id === req.chapterId)
     : undefined
 
-  // 默认勾选：正文入口继承本章大纲文本的 sourceIds，其余按默认规则（service/context）
-  const [textIds, setTextIds] = useState<string[]>(
-    () => getDefaultSelection(novel, req.kind, chapter).textIds,
+  // 默认勾选：按产出类型走 service/context 的默认规则
+  const [artifactIds, setArtifactIds] = useState<string[]>(
+    () =>
+      getDefaultSelection(novel, 'generate', {
+        outputType: req.outputType,
+        chapter,
+      }).artifactIds,
   )
   const [instruction, setInstruction] = useState('')
   const [targetLength, setTargetLength] = useState<number | null>(
@@ -101,9 +105,10 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
       try {
         const { estimatedTokens } = buildMessages({
           novel,
-          kind: req.kind,
+          op: 'generate',
+          outputType: req.outputType,
           chapter,
-          selection: { textIds: ids },
+          selection: { artifactIds: ids },
           instruction: instr || undefined,
         })
         setEstimate({
@@ -117,21 +122,21 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
     { wait: 300 },
   )
   useEffect(() => {
-    runEstimate(textIds, instruction)
-  }, [textIds, instruction, runEstimate])
+    runEstimate(artifactIds, instruction)
+  }, [artifactIds, instruction, runEstimate])
 
-  const toggleText = (id: string, checked: boolean) =>
-    setTextIds((prev) =>
+  const toggleArtifact = (id: string, checked: boolean) =>
+    setArtifactIds((prev) =>
       checked ? [...prev, id] : prev.filter((x) => x !== id),
     )
 
-  const refs = textsByType(novel, 'ref')
-  const settings = textsByType(novel, 'setting')
+  const refs = artifactsByType(novel, 'ref')
+  const settings = artifactsByType(novel, 'setting')
   const refIds = refs.map((r) => r.id)
   const settingIds = settings.map((s) => s.id)
-  const checkedRefCount = refIds.filter((id) => textIds.includes(id)).length
+  const checkedRefCount = refIds.filter((id) => artifactIds.includes(id)).length
   const checkedSettingCount = settingIds.filter((id) =>
-    textIds.includes(id),
+    artifactIds.includes(id),
   ).length
 
   const percent = estimate
@@ -142,22 +147,24 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
 
   const handleSubmit = async () => {
     const instr = instruction.trim()
-    if (req.kind === 'setting' && !instr) {
+    if (req.outputType === 'setting' && !instr) {
       message.warning('请填写设定要求')
       return
     }
     closeDrawer()
-    const selection = { textIds }
-    if (req.kind === 'setting') {
+    const selection = { artifactIds }
+    if (req.outputType === 'setting') {
       await startGeneration({
-        kind: 'setting',
+        op: 'generate',
+        outputType: 'setting',
         novelId: novel.id,
         instruction: instr,
         selection,
       })
-    } else if (req.kind === 'outline') {
+    } else if (req.outputType === 'outline') {
       await startGeneration({
-        kind: 'outline',
+        op: 'generate',
+        outputType: 'outline',
         novelId: novel.id,
         chapterId: req.chapterId,
         instruction: instr || undefined,
@@ -165,7 +172,8 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
       })
     } else {
       await startGeneration({
-        kind: 'content',
+        op: 'generate',
+        outputType: 'content',
         novelId: novel.id,
         chapterId: req.chapterId!,
         instruction: instr || undefined,
@@ -191,7 +199,7 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
                 type="link"
                 size="small"
                 onClick={() =>
-                  setTextIds((prev) =>
+                  setArtifactIds((prev) =>
                     checkedRefCount === refIds.length
                       ? prev.filter((id) => !refIds.includes(id))
                       : [
@@ -212,8 +220,8 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
               {refs.map((ref) => (
                 <div key={ref.id}>
                   <Checkbox
-                    checked={textIds.includes(ref.id)}
-                    onChange={(e) => toggleText(ref.id, e.target.checked)}
+                    checked={artifactIds.includes(ref.id)}
+                    onChange={(e) => toggleArtifact(ref.id, e.target.checked)}
                   >
                     <span className="text-sm">{ref.title}</span>
                     <span className="ml-1 text-xs text-slate-400">
@@ -235,7 +243,7 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
                 type="link"
                 size="small"
                 onClick={() =>
-                  setTextIds((prev) =>
+                  setArtifactIds((prev) =>
                     checkedSettingCount === settingIds.length
                       ? prev.filter((id) => !settingIds.includes(id))
                       : [
@@ -256,8 +264,10 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
               {settings.map((setting) => (
                 <div key={setting.id}>
                   <Checkbox
-                    checked={textIds.includes(setting.id)}
-                    onChange={(e) => toggleText(setting.id, e.target.checked)}
+                    checked={artifactIds.includes(setting.id)}
+                    onChange={(e) =>
+                      toggleArtifact(setting.id, e.target.checked)
+                    }
                   >
                     <span className="text-sm">{setting.title}</span>
                   </Checkbox>
@@ -280,8 +290,16 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
           ) : (
             <div className="space-y-1.5">
               {historyChapters.map((ch) => {
-                const hasContent = !!findChapterText(novel, ch.id, 'content')
-                const hasSummary = !!findChapterText(novel, ch.id, 'summary')
+                const hasContent = !!findChapterArtifact(
+                  novel,
+                  ch.id,
+                  'content',
+                )
+                const hasSummary = !!findChapterArtifact(
+                  novel,
+                  ch.id,
+                  'summary',
+                )
                 return (
                   <div
                     key={ch.id}
@@ -297,9 +315,9 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
                     </span>
                     <Segmented
                       size="small"
-                      value={chapterModeOf(novel, ch.id, textIds)}
+                      value={chapterModeOf(novel, ch.id, artifactIds)}
                       onChange={(v) =>
-                        setTextIds((prev) =>
+                        setArtifactIds((prev) =>
                           withChapterMode(novel, ch.id, prev, v as ChapterMode),
                         )
                       }
@@ -323,17 +341,17 @@ const DrawerBody = ({ req, novel }: { req: DrawerRequest; novel: Novel }) => {
         {/* 指令 */}
         <div>
           <div className="mb-1 text-sm font-medium text-slate-600">
-            {req.kind === 'setting' ? '设定要求' : '附加要求'}
+            {req.outputType === 'setting' ? '设定要求' : '附加要求'}
           </div>
           <Input.TextArea
             rows={3}
-            placeholder={INSTRUCTION_PLACEHOLDERS[req.kind]}
+            placeholder={INSTRUCTION_PLACEHOLDERS[req.outputType]}
             value={instruction}
             onChange={(e) => setInstruction(e.target.value)}
           />
         </div>
 
-        {req.kind === 'content' && (
+        {req.outputType === 'content' && (
           <div>
             <div className="mb-1 text-sm font-medium text-slate-600">
               目标篇幅（字）
@@ -402,7 +420,7 @@ export const ContextDrawer = () => {
 
   return (
     <Drawer
-      title={drawer ? DRAWER_TITLES[drawer.kind] : ''}
+      title={drawer ? DRAWER_TITLES[drawer.outputType] : ''}
       placement="right"
       width={440}
       open={!!drawer}
@@ -411,7 +429,7 @@ export const ContextDrawer = () => {
     >
       {drawer && currentNovel && (
         <DrawerBody
-          key={`${drawer.kind}:${drawer.chapterId ?? 'new'}`}
+          key={`${drawer.outputType}:${drawer.chapterId ?? 'new'}`}
           req={drawer}
           novel={currentNovel}
         />

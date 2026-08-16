@@ -1157,8 +1157,3 @@ Artifact → Task → ─┼→ Qwen
 
 **所以我会非常支持你沿这个方向做。**
 尤其是你提出的“**中间产物取代聊天上下文**”这个想法，我认为它不是一个小优化，而是整个系统最核心的产品设计。
-
-[1]: https://reference.langchain.com/javascript/deepagents/index/StateBackend?utm_source=chatgpt.com "StateBackend | deepagents | LangChain Reference"
-[2]: https://docs.langchain.com/oss/python/langgraph/thinking-in-langgraph?utm_source=chatgpt.com "Thinking in LangGraph - Docs by LangChain"
-[3]: https://developer-openai-com.sitemirror.store/api/docs/guides/tools-apply-patch/?utm_source=chatgpt.com "Apply patch | OpenAI API"
-[4]: https://reference.langchain.com/python/deepagents/graph?utm_source=chatgpt.com "graph | deepagents | LangChain Reference"
