@@ -98,19 +98,6 @@ export type ArtifactOperation =
   | 'continue' // 续写 content 文段（拼接，version +1）
   | 'rewrite-range' // 选段重写（字符区间替换，version +1）
 
-// AI 局部修改（patch）：模型按指令返回的编辑操作（阶段 3）。
-// 采用搜索/区间定位：find 必须逐字摘自原文且在文段中恰好出现一次；
-// 校验与顺序应用见前端 service/patch.ts（block 稳定 ID 方案仅记录在案，暂不引入）
-export type ArtifactEditOp =
-  | { op: 'replace-text'; find: string; content: string } // find 必须在文段中唯一出现
-  | { op: 'insert-after'; find: string; content: string }
-  | { op: 'delete-text'; find: string }
-  | { op: 'append'; content: string }
-
-export interface ArtifactPatch {
-  operations: ArtifactEditOp[]
-}
-
 // 上下文组装产出的消息（OpenAI 兼容接口的 system/user/assistant 文本消息）
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant'

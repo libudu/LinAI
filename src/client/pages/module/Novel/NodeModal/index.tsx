@@ -24,25 +24,16 @@ import {
 } from '../Canvas/NodeCard'
 import { ContextTagBar } from '../components/ContextTagBar'
 import { ARTIFACT_MESSAGES_MAX } from '../service/constants'
-import { collapseSameRuns, diffLines } from '../service/lineDiff'
+import {
+  EDIT_OP_DEFS,
+  type ArtifactEditOp,
+  type ArtifactPatch,
+} from '../service/editOps'
 import { requestPatch, shouldUsePatch } from '../service/patch'
 import { useNovelStore } from '../store'
-import type {
-  ArtifactEditOp,
-  ArtifactPatch,
-  ArtifactRevision,
-  Novel,
-  NovelArtifact,
-} from '../types'
+import type { ArtifactRevision, Novel, NovelArtifact } from '../types'
 import { findChapterArtifact, sortedChapters } from '../types'
-
-// patch 操作的中文标签（diff 预览与结果摘要共用）
-const PATCH_OP_LABELS: Record<ArtifactEditOp['op'], string> = {
-  'replace-text': '替换',
-  'insert-after': '插入',
-  'delete-text': '删除',
-  append: '文末追加',
-}
+import { collapseSameRuns, diffLines } from '../utils/lineDiff'
 
 // 历史版本来源标签（rewrite-range 落盘时归入 revise）
 const REVISION_SOURCE_LABELS: Record<ArtifactRevision['source'], string> = {
@@ -221,7 +212,9 @@ const NodeModalBody = ({
       counts.set(op.op, (counts.get(op.op) ?? 0) + 1)
     }
     const detail = [...counts.entries()]
-      .map(([op, n]) => `${PATCH_OP_LABELS[op as ArtifactEditOp['op']]}×${n}`)
+      .map(
+        ([op, n]) => `${EDIT_OP_DEFS[op as ArtifactEditOp['op']].label}×${n}`,
+      )
       .join('、')
     const messages = [
       ...artifact.messages,
@@ -790,7 +783,7 @@ const NodeModalBody = ({
                 className="space-y-1 rounded-md border border-slate-200 p-2"
               >
                 <Tag className="mr-0">
-                  {i + 1} · {PATCH_OP_LABELS[op.op]}
+                  {i + 1} · {EDIT_OP_DEFS[op.op].label}
                 </Tag>
                 {op.op === 'insert-after' ? (
                   <div className="rounded bg-slate-50 px-2 py-1 text-xs leading-5 break-words whitespace-pre-wrap text-slate-500">

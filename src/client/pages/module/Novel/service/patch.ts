@@ -1,7 +1,8 @@
 // AI 局部修改（patch）：模型输出 ArtifactPatch JSON → 严格校验 → 内存顺序应用。
+// 操作的一切定义（类型/标签/prompt 示例/校验/执行）收敛在 ./editOps.ts；
 // 安全原则：find 必须恰好出现一次，任何一步失败整体报错，绝不允许静默错误应用；
 // 校验失败带错误信息重试一次，再失败由调用方降级为整体 revise
-import type { ArtifactEditOp, ArtifactPatch } from '../types'
+import { applyEditOp, validateEditOp, type ArtifactPatch } from './editOps'
 import { chatOnce } from './llm'
 import { buildPatchMessages } from './prompts'
 
@@ -29,51 +30,6 @@ export const shouldUsePatch = (
   LOCAL_HINT.test(instruction) &&
   !GLOBAL_HINT.test(instruction)
 
-// 统计子串出现次数（非重叠）
-const countOccurrences = (haystack: string, needle: string): number => {
-  if (!needle) return 0
-  let count = 0
-  let i = 0
-  while ((i = haystack.indexOf(needle, i)) !== -1) {
-    count++
-    i += needle.length
-  }
-  return count
-}
-
-const isNonEmptyString = (v: unknown): v is string =>
-  typeof v === 'string' && v.length > 0
-
-const validateOp = (raw: any, index: number): ArtifactEditOp => {
-  const where = `第 ${index + 1} 个操作`
-  if (!raw || typeof raw !== 'object') {
-    throw new Error(`${where}不是对象`)
-  }
-  switch (raw.op) {
-    case 'replace-text':
-    case 'insert-after':
-      if (!isNonEmptyString(raw.find)) {
-        throw new Error(`${where}（${raw.op}）缺少有效的 find`)
-      }
-      if (typeof raw.content !== 'string') {
-        throw new Error(`${where}（${raw.op}）缺少 content`)
-      }
-      return { op: raw.op, find: raw.find, content: raw.content }
-    case 'delete-text':
-      if (!isNonEmptyString(raw.find)) {
-        throw new Error(`${where}（delete-text）缺少有效的 find`)
-      }
-      return { op: 'delete-text', find: raw.find }
-    case 'append':
-      if (typeof raw.content !== 'string' || raw.content.length === 0) {
-        throw new Error(`${where}（append）缺少有效的 content`)
-      }
-      return { op: 'append', content: raw.content }
-    default:
-      throw new Error(`${where}的 op 无法识别：${String(raw.op)}`)
-  }
-}
-
 // 解析模型输出为 ArtifactPatch（容错：截取首个 { 到末个 }，容忍代码块包裹）
 export const parsePatch = (raw: string): ArtifactPatch => {
   const start = raw.indexOf('{')
@@ -93,40 +49,12 @@ export const parsePatch = (raw: string): ArtifactPatch => {
   if (parsed.operations.length === 0) {
     throw new Error('operations 为空，未包含任何编辑操作')
   }
-  return { operations: parsed.operations.map(validateOp) }
+  return { operations: parsed.operations.map(validateEditOp) }
 }
 
 // 校验并顺序应用：返回新内容；任何 find 不唯一/找不到即抛错（带操作序号与原因）
-export const applyPatch = (content: string, patch: ArtifactPatch): string => {
-  let result = content
-  patch.operations.forEach((op, i) => {
-    const where = `第 ${i + 1} 个操作（${op.op}）`
-    if (op.op === 'append') {
-      result += op.content
-      return
-    }
-    const count = countOccurrences(result, op.find)
-    if (count === 0) {
-      throw new Error(
-        `${where}的 find 未在文段中出现：「${op.find.slice(0, 30)}…」`,
-      )
-    }
-    if (count > 1) {
-      throw new Error(
-        `${where}的 find 在文段中出现 ${count} 次，必须恰好一次：「${op.find.slice(0, 30)}…」`,
-      )
-    }
-    if (op.op === 'replace-text') {
-      result = result.replace(op.find, op.content)
-    } else if (op.op === 'insert-after') {
-      result = result.replace(op.find, op.find + op.content)
-    } else {
-      // delete-text
-      result = result.replace(op.find, '')
-    }
-  })
-  return result
-}
+export const applyPatch = (content: string, patch: ArtifactPatch): string =>
+  patch.operations.reduce(applyEditOp, content)
 
 export interface PatchResult {
   patch: ArtifactPatch

@@ -2,6 +2,7 @@
 // 原则：结构化但字段少、允许留空；约束走向，放开笔法
 // 生成编排整体在前端 service/ 完成；参考文/设定/大纲/正文/摘要统一为 NovelArtifact（文段）
 import type { ArtifactType, ChatMessage, NovelArtifact } from '../types'
+import { EDIT_OP_DEFS } from './editOps'
 
 // 通用系统提示（prompts.md 第 1 节），所有生成任务共用
 export const BASE_SYSTEM_PROMPT = `你是一名中文网络小说作家，擅长成人向言情小说，文笔直白流畅，重视感官细节与人物情绪的刻画。
@@ -171,7 +172,8 @@ export const buildSummaryMessages = (content: string): ChatMessage[] => [
 ]
 
 // 局部修改（patch）任务段：要求模型只输出 ArtifactPatch JSON，
-// find 唯一匹配约束写死在 prompt 里（前端仍做严格校验，不靠 prompt 自觉）
+// find 唯一匹配约束写死在 prompt 里（前端仍做严格校验，不靠 prompt 自觉）。
+// 操作清单由 EDIT_OP_DEFS 的 promptHint 生成，新增操作类型自动进入 prompt
 export const buildPatchTask = (
   content: string,
   instruction: string,
@@ -187,11 +189,10 @@ ${instruction}
 不要重写全文。把修改指令拆成若干编辑操作，只输出一个 JSON 对象：
 {"operations": [操作, ...]}
 
-四种操作：
-- {"op": "replace-text", "find": "要替换的原文", "content": "新文本"}
-- {"op": "insert-after", "find": "定位原文", "content": "插入到其后的文本"}
-- {"op": "delete-text", "find": "要删除的原文"}
-- {"op": "append", "content": "追加到文末的文本"}
+可用操作：
+${Object.values(EDIT_OP_DEFS)
+  .map((def) => `- ${def.promptHint}`)
+  .join('\n')}
 
 约束：
 - find 必须逐字摘自上文全文（含标点），且在全文恰好出现一次；尽量选取足够长、有辨识度的片段
