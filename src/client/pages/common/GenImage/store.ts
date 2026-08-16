@@ -15,7 +15,6 @@ interface GptImageState {
   gptImageCustomEndpoints: CustomEndpoint[]
   gptImagePresetApiKeys: Record<string, string>
   revision: number
-  setGptImageApiKey: (key: string | null) => Promise<void>
   setGptImageEndpoint: (
     baseUrl: string | null,
     modelId: string | null,
@@ -49,7 +48,9 @@ export const useGptImageStore = create<GptImageState>()((set, get) => {
     try {
       const state = get()
       const next: GptImageSettings = {
-        gptImageApiKey: state.gptImageApiKey,
+        // state.gptImageApiKey 是按当前接入点解析出的生效 key，不能写回平铺兜底字段；
+        // 密钥只保存在 keychain（预设/自定义接入点），平铺字段固定清除避免残留旧 key
+        gptImageApiKey: null,
         gptImageBaseUrl: state.gptImageBaseUrl,
         gptImageModelId: state.gptImageModelId,
         gptImageCustomEndpoints: state.gptImageCustomEndpoints,
@@ -70,7 +71,6 @@ export const useGptImageStore = create<GptImageState>()((set, get) => {
     gptImageCustomEndpoints: [],
     gptImagePresetApiKeys: {},
     revision: 0,
-    setGptImageApiKey: (key) => postConfig({ gptImageApiKey: key }),
     setGptImageEndpoint: (baseUrl, modelId) =>
       postConfig({ gptImageBaseUrl: baseUrl, gptImageModelId: modelId }),
     setGptImageCustomEndpoints: (endpoints) =>

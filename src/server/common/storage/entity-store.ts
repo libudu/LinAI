@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto'
 import fs from 'fs/promises'
 import path from 'path'
 import { StorageError } from './errors'
-import { readJsonFile, writeJsonFile } from './json-file'
+import { readJsonFile, toCorrupt, writeJsonFile } from './json-file'
 import { resourceLock } from './resource-lock'
 
 const STORAGE_VERSION = 1
@@ -34,7 +34,7 @@ const isEnvelope = (raw: unknown): raw is StoredEntity =>
 
 /**
  * 实体存储：每个实体独立保存一个 JSON 文件（dir/<id>.json）。
- * - 新增走集合级锁（影响列表成员），修改/删除走实体级锁，全部原子落盘
+ * - 新增/删除走集合级锁（影响列表成员），修改走实体级锁，全部原子落盘
  * - revision 单调递增，replace 可携带 expectedRevision 做并发冲突检测（409）
  * - 列表只返回 summary，不加载 value 正文；后端只管理信封字段
  */
@@ -68,11 +68,24 @@ export class EntityStore<T = unknown, S = unknown> {
         if (!exists && this.options.migrateLegacy) {
           const entities = await this.options.migrateLegacy()
           for (const entity of entities) {
-            await writeJsonFile(this.fileOf(entity.id), entity)
+            try {
+              await writeJsonFile(this.fileOf(entity.id), entity)
+            } catch (error) {
+              // 旧文件 id 含非法字符（assertId 抛 NOT_FOUND）时跳过该实体，不中断整个迁移
+              if (error instanceof StorageError && error.code === 'NOT_FOUND') {
+                console.warn(`[storage] 迁移跳过非法实体 id: ${entity.id}`)
+                continue
+              }
+              throw error
+            }
           }
         }
         await fs.mkdir(this.dir, { recursive: true })
       })()
+      // 失败时重置缓存，允许后续调用重试，而不是永久缓存 rejected Promise
+      this.readyPromise.catch(() => {
+        this.readyPromise = null
+      })
     }
     return this.readyPromise
   }
@@ -107,12 +120,24 @@ export class EntityStore<T = unknown, S = unknown> {
     const entities: StoredEntity<T, S>[] = []
     for (const file of files) {
       if (!file.endsWith('.json')) continue
-      const raw = await readJsonFile<unknown>(path.join(this.dir, file))
+      const filePath = path.join(this.dir, file)
+      let raw: unknown
+      try {
+        raw = await readJsonFile<unknown>(filePath)
+      } catch (error) {
+        // 单个文件损坏（readJsonFile 已将其改名为 .corrupt）：警告并跳过，不影响其余实体
+        if (error instanceof StorageError && error.code === 'CORRUPT') {
+          console.warn(`[storage] 跳过损坏的实体文件: ${filePath}`)
+          continue
+        }
+        throw error
+      }
       if (raw === undefined) continue
       if (!isEnvelope(raw)) {
-        throw new StorageError('CORRUPT', `无法识别的实体文件格式: ${file}`, {
-          file: path.join(this.dir, file),
-        })
+        // 能解析但不是信封结构：同样隔离为 .corrupt 并跳过
+        toCorrupt(filePath, new Error('无法识别的实体文件格式'))
+        console.warn(`[storage] 跳过损坏的实体文件: ${filePath}`)
+        continue
       }
       entities.push(raw as StoredEntity<T, S>)
     }
@@ -129,11 +154,6 @@ export class EntityStore<T = unknown, S = unknown> {
       updatedAt,
       summary,
     }))
-  }
-
-  /** 全量读取（含 value）；仅供兼容适配器等内部场景，前端列表应使用 list() */
-  readonly getAll = async (): Promise<StoredEntity<T, S>[]> => {
-    return structuredClone(await this.readAll())
   }
 
   readonly get = async (id: string): Promise<StoredEntity<T, S>> => {
@@ -205,9 +225,12 @@ export class EntityStore<T = unknown, S = unknown> {
 
   readonly remove = async (id: string): Promise<void> => {
     await this.ensureReady()
-    return resourceLock.run(this.fileOf(id), async () => {
+    // 删除影响列表成员，使用集合级锁（与 create 一致）
+    return resourceLock.run(this.dir, async () => {
       await this.readEntity(id) // 不存在抛 NOT_FOUND
       await fs.rm(this.fileOf(id), { force: true })
+      // 连带清理写入时留下的 .bak 备份，避免成为孤儿文件
+      await fs.rm(`${this.fileOf(id)}.bak`, { force: true })
       this.options.onChange?.({ entityId: id })
     })
   }

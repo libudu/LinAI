@@ -1,5 +1,5 @@
-// 小说生成模块数据类型
-// 前端从本文件导入复用（src/client/pages/module/Novel/types.ts re-export）
+// 小说生成模块数据类型（前后端共享）
+// 前端从 src/client/pages/module/Novel/types.ts re-export 复用
 //
 // 核心抽象：参考文 / 核心设定 / 章节大纲 / 正文 / 章节摘要 统一为 NovelText，
 // 仅靠 type 区分；后端只提供统一的文本 CRUD，业务编排全部在前端 service/ 完成

@@ -108,24 +108,4 @@ export class DocumentStore<T = unknown> {
       return structuredClone(next)
     })
   }
-
-  /** 读改写在同一把资源锁内完成；doc 为 undefined 表示文件尚不存在 */
-  readonly update = (
-    fn: (doc: StoredDocument<T> | undefined) => T,
-  ): Promise<StoredDocument<T>> => {
-    return resourceLock.run(this.file, async () => {
-      const doc = await this.load()
-      const value = fn(doc ? structuredClone(doc) : undefined)
-      this.assertValueSize(value)
-      const next: StoredDocument<T> = {
-        storageVersion: STORAGE_VERSION,
-        revision: (doc?.revision ?? 0) + 1,
-        updatedAt: Date.now(),
-        value,
-      }
-      await writeJsonFile(this.file, next)
-      this.options.onChange?.({ revision: next.revision })
-      return structuredClone(next)
-    })
-  }
 }

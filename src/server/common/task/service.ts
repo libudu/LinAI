@@ -6,6 +6,7 @@ import { Logger } from '../../module/utils/logger'
 import { GENERATED_IMAGES_DIR } from '../static'
 import { GENERATED_IMAGES_API_PATH } from '../static/enum'
 import { changeBus } from '../storage/change-bus'
+import { StorageError } from '../storage/errors'
 import { TaskRepository } from './repository'
 import { TASKS_RESOURCE, Task } from './types'
 
@@ -79,8 +80,12 @@ export class TaskService {
       // id/createdAt 由信封管理，不允许通过 updates 覆盖
       const { id: _id, createdAt: _createdAt, ...rest } = updates
       await this.repository.update(id, (record) => ({ ...record, ...rest }))
-    } catch {
-      return false
+    } catch (error) {
+      // 仅任务不存在返回 false；写盘失败等错误必须向上抛，禁止静默吞掉
+      if (error instanceof StorageError && error.code === 'NOT_FOUND') {
+        return false
+      }
+      throw error
     }
     this.publishChange()
     return true

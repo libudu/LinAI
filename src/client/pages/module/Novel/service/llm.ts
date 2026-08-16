@@ -1,6 +1,7 @@
 // 受限请求中继（/api/relay/novel.openai）的封装：流式（SSE-over-POST）与非流式两种调用
 // API Key 与模型由后端设置持有并注入，前端只发 messages + temperature；
 // 中继逐事件透传上游 OpenAI 兼容 SSE（data 为原始 chunk 或 [DONE]）
+import { relayRequest } from '@/client/service/relay'
 import type { ChatMessage } from '../types'
 
 interface SSEEvent {
@@ -108,8 +109,12 @@ export const chatStream = async (opts: {
   if (!res.ok || !res.body) {
     let msg = `生成请求失败（${res.status}）`
     try {
-      const json = (await res.json()) as { error?: string }
-      if (json.error) msg = json.error
+      const json = (await res.json()) as {
+        error?: string | { code?: string; message?: string }
+      }
+      // 错误可能是字符串或 { code, message } 对象，避免拼出 [object Object]
+      if (typeof json.error === 'string') msg = json.error
+      else if (json.error?.message) msg = json.error.message
     } catch {
       // 保留默认错误信息
     }
@@ -139,29 +144,20 @@ export const chatStream = async (opts: {
   return { text: buffer, usage, aborted: opts.signal.aborted }
 }
 
-// 非流式调用（章节摘要、大纲 JSON 修复重试）
+// 非流式调用（章节摘要、大纲 JSON 修复重试）；错误形状由 relayRequest 统一处理
 export const chatOnce = async (opts: {
   messages: ChatMessage[]
   temperature: number
 }): Promise<string> => {
-  const res = await fetch('/api/relay/novel.openai', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      path: '/chat/completions',
-      body: {
-        messages: opts.messages,
-        temperature: opts.temperature,
-        stream: false,
-      },
-    }),
+  const data = await relayRequest<{
+    choices?: { message?: { content?: string } }[]
+  }>('novel.openai', {
+    path: '/chat/completions',
+    body: {
+      messages: opts.messages,
+      temperature: opts.temperature,
+      stream: false,
+    },
   })
-  const json = (await res.json()) as
-    | {
-        success: true
-        data: { choices?: { message?: { content?: string } }[] }
-      }
-    | { success: false; error: string }
-  if (!json.success) throw new Error(json.error || '请求失败')
-  return json.data.choices?.[0]?.message?.content ?? ''
+  return data.choices?.[0]?.message?.content ?? ''
 }

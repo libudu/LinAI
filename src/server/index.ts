@@ -35,7 +35,9 @@ app.onError((err, c) => {
           ? 409
           : err.code === 'INVALID_RESOURCE'
             ? 404
-            : 500
+            : err.code === 'PAYLOAD_TOO_LARGE'
+              ? 413
+              : 500
     return c.json(
       {
         success: false as const,

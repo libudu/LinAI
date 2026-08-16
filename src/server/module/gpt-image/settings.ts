@@ -3,7 +3,10 @@ import {
   resolveGptImageApiKey,
 } from '@/shared/gpt-image/endpoints'
 import { z } from 'zod'
-import { settingsRegistry } from '../../common/settings/registry'
+import {
+  pickLegacyFields,
+  settingsRegistry,
+} from '../../common/settings/registry'
 import { dataPath } from '../../common/storage/data-path'
 import { readJsonFile } from '../../common/storage/json-file'
 import { decryptApiKey } from './encrypt'
@@ -45,17 +48,7 @@ const KNOWN_KEYS = Object.keys(
 ) as (keyof GptImageSettings)[]
 
 // 旧版扁平 config.json（无信封）→ value，只挑已知字段
-const migrateLegacy = (raw: unknown): GptImageSettings => {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    throw new Error('旧配置文件不是对象')
-  }
-  const record = raw as Record<string, unknown>
-  const picked: Record<string, unknown> = {}
-  for (const key of KNOWN_KEYS) {
-    if (record[key] !== undefined) picked[key] = record[key]
-  }
-  return picked as unknown as GptImageSettings
-}
+const migrateLegacy = pickLegacyFields<GptImageSettings>(KNOWN_KEYS)
 
 // 更旧的全局 data/config.json：仅在本模块文件完全不存在时兜底挑字段
 const LEGACY_GLOBAL_CONFIG_FILE = dataPath('config.json')
@@ -65,11 +58,7 @@ const loadLegacy = async (): Promise<Partial<GptImageSettings>> => {
       LEGACY_GLOBAL_CONFIG_FILE,
     )
     if (!legacy) return {}
-    const picked: Record<string, unknown> = {}
-    for (const key of KNOWN_KEYS) {
-      if (legacy[key] !== undefined) picked[key] = legacy[key]
-    }
-    return picked as Partial<GptImageSettings>
+    return pickLegacyFields<Partial<GptImageSettings>>(KNOWN_KEYS)(legacy)
   } catch (error) {
     console.error('[GPT图像] 迁移旧配置失败', error)
     return {}

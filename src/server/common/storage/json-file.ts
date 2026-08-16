@@ -9,7 +9,6 @@ import { StorageError } from './errors'
  * - 备份：替换前把最近一次有效文件复制为 <file>.bak
  * - 损坏：解析失败时把原文件改名为 <file>.corrupt-<时间戳> 并抛 StorageError(CORRUPT)，
  *   绝不把损坏文件当成空数据继续覆盖
- * 异步与同步版本并存：同步版供启动期/同步调用方使用
  */
 
 const tempFileOf = (file: string): string =>
@@ -19,7 +18,8 @@ const backupOf = (file: string): string => `${file}.bak`
 
 const corruptFileOf = (file: string): string => `${file}.corrupt-${Date.now()}`
 
-const toCorrupt = (file: string, error: unknown): StorageError => {
+/** 把损坏文件改名为 .corrupt-<时间戳> 并返回对应的 StorageError(CORRUPT)，供调用方抛出或记录 */
+export const toCorrupt = (file: string, error: unknown): StorageError => {
   try {
     fs.renameSync(file, corruptFileOf(file))
   } catch (renameError) {
@@ -37,24 +37,6 @@ export const readJsonFile = async <T>(file: string): Promise<T | undefined> => {
   let content: string
   try {
     content = await fsp.readFile(file, 'utf-8')
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
-    throw new StorageError('READ_FAILED', `读取文件失败: ${file}`, {
-      file,
-      cause: String(error),
-    })
-  }
-  try {
-    return JSON.parse(content) as T
-  } catch (error) {
-    throw toCorrupt(file, error)
-  }
-}
-
-export const readJsonFileSync = <T>(file: string): T | undefined => {
-  let content: string
-  try {
-    content = fs.readFileSync(file, 'utf-8')
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
     throw new StorageError('READ_FAILED', `读取文件失败: ${file}`, {
@@ -109,50 +91,6 @@ export const writeJsonFile = async (
     }
   } catch (error) {
     await fsp.rm(tempFile, { force: true }).catch(() => undefined)
-    if (error instanceof StorageError) throw error
-    throw new StorageError('WRITE_FAILED', `写入文件失败: ${file}`, {
-      file,
-      cause: String(error),
-    })
-  }
-}
-
-export const writeJsonFileSync = (file: string, data: unknown): void => {
-  const tempFile = tempFileOf(file)
-  try {
-    fs.mkdirSync(path.dirname(file), { recursive: true })
-    const fd = fs.openSync(tempFile, 'w')
-    try {
-      fs.writeFileSync(fd, JSON.stringify(data, null, 2), 'utf-8')
-      fs.fsyncSync(fd)
-    } finally {
-      fs.closeSync(fd)
-    }
-    try {
-      fs.copyFileSync(file, backupOf(file))
-    } catch {
-      /* 目标不存在或备份失败时忽略 */
-    }
-    for (let attempt = 1; ; attempt++) {
-      try {
-        fs.renameSync(tempFile, file)
-        break
-      } catch (error) {
-        if (attempt >= RENAME_RETRIES || !isRetriableRename(error)) throw error
-        Atomics.wait(
-          new Int32Array(new SharedArrayBuffer(4)),
-          0,
-          0,
-          20 * attempt,
-        )
-      }
-    }
-  } catch (error) {
-    try {
-      fs.rmSync(tempFile, { force: true })
-    } catch {
-      /* 清理临时文件失败时忽略 */
-    }
     if (error instanceof StorageError) throw error
     throw new StorageError('WRITE_FAILED', `写入文件失败: ${file}`, {
       file,

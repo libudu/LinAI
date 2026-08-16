@@ -1,18 +1,17 @@
 import type { TemplateValue } from '@/shared/image/template'
+import type { Novel, NovelSummary } from '@/shared/novel/types'
 import type { StoredEntity, StoredItem } from '@/shared/storage/types'
+import type { TTSProject, TTSSummary } from '@/shared/tts/project'
 import { randomUUID } from 'crypto'
 import fsp from 'fs/promises'
 import path from 'path'
-import type { Novel, NovelSummary } from '../../module/novel/types'
-import type { TTSProject, TTSSummary } from '../../module/tts/project'
-import { PROJECTS_FILE } from '../../module/tts/server-const'
 import { dataPath } from './data-path'
 import { readJsonFile } from './json-file'
 import { storageRegistry } from './registry'
 
 /**
  * 通用存储资源注册：服务端启动时执行一次（由 api/common/storage.ts 与
- * common/template-manager 引用触发）。新增前端业务集合时在此登记即可。
+ * common/static 引用触发）。新增前端业务集合时在此登记即可。
  */
 
 // 旧格式：data/templates.json 为 TaskTemplate 扁平数组，迁移为信封结构
@@ -89,13 +88,20 @@ storageRegistry.register('novel.books', {
 // 旧布局：data/tts/projects.json 单文件数组；新布局：data/tts/projects/<id>.json。
 // 旧文件保留不删（可手动清理）
 
+const LEGACY_PROJECTS_FILE = dataPath('tts', 'projects.json')
+
 const migrateLegacyTtsProjects = async (): Promise<
   StoredEntity<TTSProject, TTSSummary>[]
 > => {
-  const raw = await readJsonFile<TTSProject[]>(PROJECTS_FILE).catch((error) => {
-    console.error(`[storage] 旧 TTS 项目迁移跳过: ${PROJECTS_FILE}`, error)
-    return undefined
-  })
+  const raw = await readJsonFile<TTSProject[]>(LEGACY_PROJECTS_FILE).catch(
+    (error) => {
+      console.error(
+        `[storage] 旧 TTS 项目迁移跳过: ${LEGACY_PROJECTS_FILE}`,
+        error,
+      )
+      return undefined
+    },
+  )
   if (!Array.isArray(raw)) return []
   return raw
     .filter((p) => p && typeof p.id === 'string')

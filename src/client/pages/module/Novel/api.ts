@@ -1,7 +1,7 @@
 // 小说模块数据访问层（生成相关的 LLM 调用与编排在 service/ 下，不在此文件）
 // 书籍数据走通用实体接口（novel.books）：章节/文本增删、删章节级联、摘要计算全部在前端完成，
 // 每次修改整体读改写并携带 expectedRevision；模块配置走 /api/settings/novel，LLM 请求走 /api/relay/novel.openai
-import { StorageApiError, entityClient } from '@/client/service/storage'
+import { entityClient, mutateEntity } from '@/client/service/storage'
 import { DEFAULT_RECENT_FULL_CHAPTERS } from './service/constants'
 import type {
   Novel,
@@ -19,27 +19,22 @@ const summaryOf = (novel: Novel): NovelSummary => ({
   chapterCount: novel.chapters.length,
 })
 
-// 读改写整体保存：GET 实体 → 前端业务修改 → 携带 expectedRevision 整体 PUT。
-// 版本冲突（其他页面改过）时重取实体重放一次修改，仍冲突则抛错提示刷新
+// 读改写整体保存：通用重试循环收敛在 mutateEntity（storage.ts），此处只保留业务修改
 const mutateNovel = async <R>(
   id: string,
   mutate: (novel: Novel) => R,
 ): Promise<R> => {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const entity = await novelsClient.get(id)
-    const novel = structuredClone(entity.value)
-    const result = mutate(novel)
-    novel.updatedAt = Date.now()
-    try {
-      await novelsClient.replace(id, novel, summaryOf(novel), entity.revision)
+  const { result } = await mutateEntity(
+    novelsClient,
+    id,
+    (novel) => {
+      const result = mutate(novel)
+      novel.updatedAt = Date.now()
       return result
-    } catch (error) {
-      const conflict =
-        error instanceof StorageApiError && error.code === 'REVISION_CONFLICT'
-      if (!conflict || attempt === 1) throw error
-    }
-  }
-  throw new Error('unreachable')
+    },
+    summaryOf,
+  )
+  return result
 }
 
 // ---------- 书籍 ----------

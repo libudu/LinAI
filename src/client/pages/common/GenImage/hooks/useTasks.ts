@@ -6,7 +6,10 @@ const fetchTasks = async (): Promise<Task[]> => {
   const res = await fetch('/api/task')
   const json = await res.json()
   if (!json.success) {
-    throw new Error(json.error || 'Failed to load tasks')
+    // 错误可能是字符串或 { code, message } 对象，避免拼出 [object Object]
+    const error = json.error
+    const message = typeof error === 'string' ? error : error?.message
+    throw new Error(message || 'Failed to load tasks')
   }
   const tasks = json.data as Task[]
   tasks.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))

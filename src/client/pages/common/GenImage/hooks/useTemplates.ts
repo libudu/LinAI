@@ -15,9 +15,6 @@ export function useTemplates() {
     },
     {
       cacheKey: 'global-templates',
-      onError: () => {
-        message.error('请求失败')
-      },
     },
   )
 }

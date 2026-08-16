@@ -123,3 +123,37 @@ export const entityClient = <T, S>(resource: string) => {
       ),
   }
 }
+
+type EntityClient<T, S> = ReturnType<typeof entityClient<T, S>>
+
+/**
+ * 通用读改写整体保存：GET 实体 → structuredClone → mutate 业务修改 → 携带 expectedRevision 整体 PUT。
+ * 版本冲突（REVISION_CONFLICT，其他页面改过）时重取实体重放一次修改，仍冲突则抛错提示刷新；
+ * mutate 抛出的业务校验错误在 try 之外，直接向上抛、不参与重试
+ */
+export const mutateEntity = async <T, S, R>(
+  client: EntityClient<T, S>,
+  id: string,
+  mutate: (value: T) => R,
+  summaryOf: (value: T) => S,
+): Promise<{ result: R; entity: StoredEntity<T, S> }> => {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const entity = await client.get(id)
+    const value = structuredClone(entity.value)
+    const result = mutate(value)
+    try {
+      const saved = await client.replace(
+        id,
+        value,
+        summaryOf(value),
+        entity.revision,
+      )
+      return { result, entity: saved }
+    } catch (error) {
+      const conflict =
+        error instanceof StorageApiError && error.code === 'REVISION_CONFLICT'
+      if (!conflict || attempt === 1) throw error
+    }
+  }
+  throw new Error('unreachable')
+}

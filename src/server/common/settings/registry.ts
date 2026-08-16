@@ -30,6 +30,26 @@ const SETTINGS_ID_PATTERN = /^[a-z0-9-]+$/
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
+/** 旧扁平配置迁移辅助：非对象抛错后返回记录，供各模块整体转换或挑字段 */
+export const asLegacyRecord = (raw: unknown): Record<string, unknown> => {
+  if (!isPlainObject(raw)) {
+    throw new Error('旧配置文件不是对象')
+  }
+  return raw
+}
+
+/** 旧扁平配置迁移工厂：非对象抛错 + 只挑已知字段 */
+export const pickLegacyFields =
+  <T>(knownKeys: readonly string[]) =>
+  (raw: unknown): T => {
+    const record = asLegacyRecord(raw)
+    const picked: Record<string, unknown> = {}
+    for (const key of knownKeys) {
+      if (record[key] !== undefined) picked[key] = record[key]
+    }
+    return picked as T
+  }
+
 // 深合并默认值：只补齐缺失字段，已有的值（含数组与 null）以提交/文件为准
 const mergeDefaults = <T>(defaults: T, loaded: unknown): T => {
   if (!isPlainObject(loaded)) return structuredClone(defaults)

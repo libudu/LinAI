@@ -1,23 +1,10 @@
+import type { InworldVoiceItem } from '@/shared/tts/inworld'
 import fs from 'fs-extra'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import { TTS_INWORLD_MODEL_ID } from './client-const'
 import { TTS_INWORLD_OUTPUT_DIR } from './server-const'
 import { getTTSInworldApiKey } from './settings'
-
-export interface InworldVoiceItem {
-  name: string
-  voiceId: string
-  langCode: string
-  displayName: string
-  description: string
-  tags: string[]
-  categories: string[]
-  source: string
-  gender: string
-  ageGroup: string
-  promptLanguages: string[]
-}
 
 export interface InworldVoiceListResponse {
   voices?: InworldVoiceItem[]

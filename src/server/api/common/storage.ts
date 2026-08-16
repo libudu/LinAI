@@ -10,7 +10,7 @@ import '../../common/storage/resources'
 
 /**
  * 通用集合存储接口：客户端只能通过已注册的资源 ID 访问，value 由前端定义。
- * 错误统一抛 StorageError，由全局 onError 映射为 404/409/500。
+ * 错误统一抛 StorageError，由全局 onError 映射为 404/409/413/500。
  */
 const storageApi = new Hono()
   .get('/collections/:resource', async (c) => {
@@ -137,10 +137,13 @@ const storageApi = new Hono()
     async (c) => {
       const store = storageRegistry.getEntity(c.req.param('resource'))
       const { value, summary, expectedRevision } = c.req.valid('json')
+      const id = c.req.param('id')
+      // summary 省略时保留现有摘要，避免静默清空
+      const nextSummary = summary ?? (await store.get(id)).summary
       const entity = await store.replace(
-        c.req.param('id'),
+        id,
         value,
-        summary ?? {},
+        nextSummary,
         expectedRevision,
       )
       return c.json({ success: true as const, data: entity })

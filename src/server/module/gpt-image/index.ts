@@ -3,6 +3,7 @@ import fs from 'fs-extra'
 import path from 'path'
 import { INPUT_IMAGES_DIR } from '../../common/static'
 import { GENERATED_IMAGES_API_PATH } from '../../common/static/enum'
+import { StorageError } from '../../common/storage/errors'
 import { taskService } from '../../common/task'
 import { logger } from '../utils/logger'
 import { GPT_IMAGE_SOURCE_MODEL, GptImageQuality, GptImageSize } from './enum'
@@ -111,6 +112,8 @@ export async function handleImageGeneration(options: {
       data: { success: true as const, outputUrls, taskId: task.id },
     }
   } catch (error: any) {
+    // 存储层错误（如任务状态写盘失败）抛给全局 onError 统一映射，不在此吞掉
+    if (error instanceof StorageError) throw error
     logger.error(`Failed to generate GPT image`, error.message)
     return {
       status: 500,

@@ -1,6 +1,6 @@
 // TTS 项目数据访问层：项目走通用实体接口（tts.projects），
 // 角色/对白/备注的增删改全部在前端完成，每次修改整体读改写并携带 expectedRevision
-import { StorageApiError, entityClient } from '@/client/service/storage'
+import { entityClient, mutateEntity } from '@/client/service/storage'
 import type { TTSProject, TTSSummary } from '@/server/module/tts'
 import type { StoredEntity } from '@/shared/storage/types'
 
@@ -53,33 +53,20 @@ export const createProject = async (input: {
   return projectsClient.create(project, summaryOf(project), project.id)
 }
 
-// 读改写整体保存：GET 实体 → 前端合并修改 → 携带 expectedRevision 整体 PUT。
-// 版本冲突（其他页面改过）时重取实体重放一次修改，仍冲突则抛错提示刷新
+// 读改写整体保存：通用重试循环收敛在 mutateEntity（storage.ts），此处只做合并修改
 export const updateProject = async (
   id: string,
   updates: Partial<Omit<TTSProject, 'id' | 'createdAt'>>,
 ): Promise<TTSProjectEntity> => {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const entity = await projectsClient.get(id)
-    const project: TTSProject = {
-      ...structuredClone(entity.value),
-      ...updates,
-      updatedAt: Date.now(),
-    }
-    try {
-      return await projectsClient.replace(
-        id,
-        project,
-        summaryOf(project),
-        entity.revision,
-      )
-    } catch (error) {
-      const conflict =
-        error instanceof StorageApiError && error.code === 'REVISION_CONFLICT'
-      if (!conflict || attempt === 1) throw error
-    }
-  }
-  throw new Error('unreachable')
+  const { entity } = await mutateEntity(
+    projectsClient,
+    id,
+    (project) => {
+      Object.assign(project, updates, { updatedAt: Date.now() })
+    },
+    summaryOf,
+  )
+  return entity
 }
 
 export const deleteProject = (id: string): Promise<void> =>

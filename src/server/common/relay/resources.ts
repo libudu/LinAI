@@ -8,21 +8,24 @@ import { RelayError, requestRegistry } from './index'
  */
 
 // 小说生成：OpenAI 兼容 chat completions（SSE 流式），origin/密钥/模型来自小说模块设置
-requestRegistry.register('novel.openai', {
-  resolveOrigin: async () => (await getNovelEndpoint()).baseUrl,
+type NovelEndpoint = Awaited<ReturnType<typeof getNovelEndpoint>>
+
+requestRegistry.register<NovelEndpoint>('novel.openai', {
+  // 每次中继请求只读一次设置，origin/凭据/模型共用
+  resolveContext: () => getNovelEndpoint(),
+  resolveOrigin: (endpoint) => endpoint.baseUrl,
   allowedMethods: ['POST'],
   allowedPaths: ['/chat/completions'],
   streaming: true,
   timeoutMs: 120_000,
-  injectCredential: async (headers) => {
-    const { apiKey } = await getNovelEndpoint()
-    if (!apiKey) {
+  injectCredential: (headers, endpoint) => {
+    if (!endpoint.apiKey) {
       throw new RelayError(400, '[配置] 请先在设置中配置小说生成的 API Key')
     }
-    headers.Authorization = `Bearer ${apiKey}`
+    headers.Authorization = `Bearer ${endpoint.apiKey}`
   },
   // 模型由服务端配置权威注入，前端不感知
-  injectBody: async () => ({ model: (await getNovelEndpoint()).modelId }),
+  injectBody: (endpoint) => ({ model: endpoint.modelId }),
 })
 
 // Inworld TTS：音色列表与试听（纯 GET 代理，无文件副作用；音频保存保留专用接口）

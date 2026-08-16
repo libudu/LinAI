@@ -1,5 +1,8 @@
 import { z } from 'zod'
-import { settingsRegistry } from '../../common/settings/registry'
+import {
+  asLegacyRecord,
+  settingsRegistry,
+} from '../../common/settings/registry'
 import { dataPath } from '../../common/storage/data-path'
 
 // 小说模块（DeepSeek，OpenAI 兼容）设置：注册式存储，落盘 data/novels/config.json
@@ -18,12 +21,8 @@ const DEFAULT_NOVEL_SETTINGS: NovelSettings = {
 }
 
 // 旧版扁平 config.json（无信封）→ value
-const migrateLegacy = (raw: unknown): NovelSettings => {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    throw new Error('旧配置文件不是对象')
-  }
-  return raw as NovelSettings
-}
+const migrateLegacy = (raw: unknown): NovelSettings =>
+  asLegacyRecord(raw) as NovelSettings
 
 settingsRegistry.register<NovelSettings>('novel', {
   file: dataPath('novels', 'config.json'),

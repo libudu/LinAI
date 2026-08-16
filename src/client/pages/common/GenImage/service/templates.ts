@@ -50,11 +50,16 @@ export const updateTemplate = (
   expectedRevision?: number,
 ) => client.replace(id, value, expectedRevision).then(flatten)
 
-/** 基于已有记录做部分修改：合并业务字段后整体替换 */
+/** 基于已有记录做部分修改：合并业务字段后整体替换（带上条目版本做冲突检测） */
 export const patchTemplate = (
-  record: FlatTemplate,
+  record: FlatTemplate & { revision?: number },
   patch: Partial<TemplateValue>,
-) => updateTemplate(record.id, { ...pickTemplateValue(record), ...patch })
+) =>
+  updateTemplate(
+    record.id,
+    { ...pickTemplateValue(record), ...patch },
+    record.revision,
+  )
 
 export const deleteTemplate = (id: string) => client.remove(id)
 

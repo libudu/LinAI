@@ -1,7 +1,7 @@
-// 前端复用服务端类型
-import type { GenerateKind } from '@/server/module/novel/types'
+// 前端复用共享类型
+import type { GenerateKind } from '@/shared/novel/types'
 import type { Novel, NovelText, NovelTextType } from './types'
-export { GENERATE_KINDS } from '@/server/module/novel/types'
+export { GENERATE_KINDS } from '@/shared/novel/types'
 export type {
   ChatMessage,
   ContextSelection,
@@ -12,7 +12,7 @@ export type {
   NovelSummary,
   NovelText,
   NovelTextType,
-} from '@/server/module/novel/types'
+} from '@/shared/novel/types'
 
 // 流式生成在前端的落点（决定 streaming 文本渲染在哪张卡片上）
 export type StreamingTarget = 'setting' | 'outline' | 'content' | 'summary'
