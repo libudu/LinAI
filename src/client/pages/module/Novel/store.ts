@@ -4,7 +4,12 @@ import { persist } from 'zustand/middleware'
 import * as api from './api'
 import { REF_MAX_CHARS } from './service/constants'
 import { runGeneration, type GenerateRequest } from './service/generate'
-import type { Novel, NovelIndexItem, StreamingState } from './types'
+import type {
+  ChatMessage,
+  Novel,
+  NovelIndexItem,
+  StreamingState,
+} from './types'
 import { streamingTargetOf } from './types'
 
 // 当前生成任务的中断控制器（单页单任务，由 streaming 状态保证互斥）
@@ -54,7 +59,7 @@ interface NovelStore {
   ) => Promise<string | null>
   updateArtifact: (
     artifactId: string,
-    patch: { title?: string; content?: string },
+    patch: { title?: string; content?: string; messages?: ChatMessage[] },
   ) => Promise<boolean>
   deleteArtifact: (artifactId: string) => Promise<boolean>
 

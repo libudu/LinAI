@@ -5,7 +5,9 @@ import type {
   Novel,
 } from '@/shared/novel/types'
 export type {
+  ArtifactEditOp,
   ArtifactOperation,
+  ArtifactPatch,
   ArtifactType,
   ChatMessage,
   ContextSelection,

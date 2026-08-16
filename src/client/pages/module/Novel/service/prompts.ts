@@ -169,3 +169,40 @@ export const buildSummaryMessages = (content: string): ChatMessage[] => [
     content: `【章节正文】\n${content}\n\n${buildGenerateTask('summary')}`,
   },
 ]
+
+// 局部修改（patch）任务段：要求模型只输出 ArtifactPatch JSON，
+// find 唯一匹配约束写死在 prompt 里（前端仍做严格校验，不靠 prompt 自觉）
+export const buildPatchTask = (
+  content: string,
+  instruction: string,
+  /** 上一次输出校验失败的错误信息（重试时反馈给模型） */
+  lastError?: string | null,
+): string => `【文段全文】
+${content}
+
+【修改指令】
+${instruction}
+
+【任务】
+不要重写全文。把修改指令拆成若干编辑操作，只输出一个 JSON 对象：
+{"operations": [操作, ...]}
+
+四种操作：
+- {"op": "replace-text", "find": "要替换的原文", "content": "新文本"}
+- {"op": "insert-after", "find": "定位原文", "content": "插入到其后的文本"}
+- {"op": "delete-text", "find": "要删除的原文"}
+- {"op": "append", "content": "追加到文末的文本"}
+
+约束：
+- find 必须逐字摘自上文全文（含标点），且在全文恰好出现一次；尽量选取足够长、有辨识度的片段
+- 操作按数组顺序依次生效
+- 只输出 JSON 本身：不要 markdown 代码块、不要任何说明文字${lastError ? `\n\n【上次输出有误】\n${lastError}\n请修正后重新输出完整 JSON。` : ''}`
+
+export const buildPatchMessages = (
+  content: string,
+  instruction: string,
+  lastError?: string | null,
+): ChatMessage[] => [
+  { role: 'system', content: BASE_SYSTEM_PROMPT },
+  { role: 'user', content: buildPatchTask(content, instruction, lastError) },
+]

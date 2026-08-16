@@ -16,9 +16,24 @@ import {
   artifactNodeTitle,
 } from '../Canvas/NodeCard'
 import { ContextTagBar } from '../components/ContextTagBar'
+import { ARTIFACT_MESSAGES_MAX } from '../service/constants'
+import { requestPatch, shouldUsePatch } from '../service/patch'
 import { useNovelStore } from '../store'
-import type { Novel, NovelArtifact } from '../types'
+import type {
+  ArtifactEditOp,
+  ArtifactPatch,
+  Novel,
+  NovelArtifact,
+} from '../types'
 import { findChapterArtifact, sortedChapters } from '../types'
+
+// patch 操作的中文标签（diff 预览与结果摘要共用）
+const PATCH_OP_LABELS: Record<ArtifactEditOp['op'], string> = {
+  'replace-text': '替换',
+  'insert-after': '插入',
+  'delete-text': '删除',
+  append: '文末追加',
+}
 
 // 节点模态框内容（以 key=artifactId 强制切换节点时重新挂载，重置本地编辑态）
 const NodeModalBody = ({
@@ -61,6 +76,14 @@ const NodeModalBody = ({
   // 长回复默认折叠（assistant 回复是修改后的全文）
   const [expanded, setExpanded] = useState<Record<number, boolean>>({})
 
+  // 局部修改（patch）：请求中状态 + 待确认的 diff 预览
+  const [patchBusy, setPatchBusy] = useState(false)
+  const [patchPreview, setPatchPreview] = useState<{
+    instruction: string
+    patch: ArtifactPatch
+    newContent: string
+  } | null>(null)
+
   // 续写 / 选段重写（仅正文节点）
   const [continueOpen, setContinueOpen] = useState(false)
   const [continueText, setContinueText] = useState('')
@@ -102,18 +125,64 @@ const NodeModalBody = ({
     await updateArtifact(artifact.id, { content: draft })
   }
 
-  const handleSend = () => {
-    const instr = instruction.trim()
-    if (!instr || streaming) return
-    setInstruction('')
+  // 整体修改（revise）：流式，指令与回复都记入该文段 messages
+  const sendRevise = (instr: string) => {
     setPending((prev) => [...prev, instr])
-    // 节点对话 = 按指令整体修改本节点（revise）；指令与回复都记入该文段 messages
     startGeneration({
       op: 'revise',
       novelId: novel.id,
       targetId: artifact.id,
       instruction: instr,
     })
+  }
+
+  // 节点对话发送：启发式选择 patch（局部指令，非流式 + diff 预览确认）/ 整体 revise（流式）
+  const handleSend = async () => {
+    const instr = instruction.trim()
+    if (!instr || streaming || patchBusy) return
+    setInstruction('')
+    if (!shouldUsePatch(instr, artifact.content.length)) {
+      sendRevise(instr)
+      return
+    }
+    setPatchBusy(true)
+    try {
+      const result = await requestPatch(artifact.content, instr)
+      setPatchPreview({ instruction: instr, ...result })
+    } catch (error: any) {
+      // 重试一次仍失败：降级为整体 revise 并提示用户（绝不静默错误应用）
+      console.warn('[小说] 局部修改失败，降级为整体修改:', error)
+      message.warning(`局部修改未能应用（${error.message}），已降级为整体修改`)
+      sendRevise(instr)
+    } finally {
+      setPatchBusy(false)
+    }
+  }
+
+  // 接受 patch：落盘新内容（version+1 由 updateArtifact 维护），指令 + 结果摘要记入 messages
+  const handleAcceptPatch = async () => {
+    if (!patchPreview) return
+    const { instruction: instr, patch, newContent } = patchPreview
+    const counts = new Map<string, number>()
+    for (const op of patch.operations) {
+      counts.set(op.op, (counts.get(op.op) ?? 0) + 1)
+    }
+    const detail = [...counts.entries()]
+      .map(([op, n]) => `${PATCH_OP_LABELS[op as ArtifactEditOp['op']]}×${n}`)
+      .join('、')
+    const messages = [
+      ...artifact.messages,
+      { role: 'user' as const, content: instr },
+      {
+        role: 'assistant' as const,
+        content: `已应用 ${patch.operations.length} 处局部修改（${detail}）`,
+      },
+    ].slice(-ARTIFACT_MESSAGES_MAX)
+    const ok = await updateArtifact(artifact.id, {
+      content: newContent,
+      messages,
+    })
+    if (ok) setPatchPreview(null)
   }
 
   const handleContinue = () => {
@@ -362,10 +431,11 @@ const NodeModalBody = ({
             type="primary"
             size="small"
             icon={<SendOutlined />}
-            disabled={!!streaming || !instruction.trim()}
+            loading={patchBusy}
+            disabled={!!streaming || patchBusy || !instruction.trim()}
             onClick={handleSend}
           >
-            发送
+            {patchBusy ? '生成局部修改…' : '发送'}
           </Button>
         </div>
       </div>
@@ -486,6 +556,56 @@ const NodeModalBody = ({
           )}
         </div>
       ) : null}
+
+      {/* patch diff 预览：逐操作展示 旧文本 → 新文本，接受才落盘，放弃丢弃 */}
+      <Modal
+        title="局部修改预览"
+        open={!!patchPreview}
+        onCancel={() => setPatchPreview(null)}
+        width={640}
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button onClick={() => setPatchPreview(null)}>放弃</Button>
+            <Button type="primary" onClick={handleAcceptPatch}>
+              接受修改
+            </Button>
+          </div>
+        }
+      >
+        {patchPreview && (
+          <div className="max-h-[60vh] space-y-3 overflow-y-auto">
+            <div className="text-xs text-slate-500">
+              指令：{patchPreview.instruction}
+            </div>
+            {patchPreview.patch.operations.map((op, i) => (
+              <div
+                key={i}
+                className="space-y-1 rounded-md border border-slate-200 p-2"
+              >
+                <Tag className="mr-0">
+                  {i + 1} · {PATCH_OP_LABELS[op.op]}
+                </Tag>
+                {op.op === 'insert-after' ? (
+                  <div className="rounded bg-slate-50 px-2 py-1 text-xs leading-5 break-words whitespace-pre-wrap text-slate-500">
+                    定位：{op.find}
+                  </div>
+                ) : (
+                  op.op !== 'append' && (
+                    <div className="rounded bg-slate-50 px-2 py-1 text-xs leading-5 break-words whitespace-pre-wrap text-slate-400 line-through">
+                      {op.find}
+                    </div>
+                  )
+                )}
+                {op.op !== 'delete-text' && (
+                  <div className="rounded bg-slate-50 px-2 py-1 text-xs leading-5 break-words whitespace-pre-wrap text-slate-700">
+                    {op.content}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
 
       {/* 选段重写指令弹窗 */}
       <Modal
