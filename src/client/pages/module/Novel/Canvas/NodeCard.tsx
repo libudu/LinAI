@@ -1,38 +1,7 @@
 import { LoadingOutlined, PlusOutlined } from '@ant-design/icons'
 import { Tag } from 'antd'
+import { ARTIFACT_TYPE_DEFS, artifactNodeTitle } from '../artifactTypes'
 import type { Novel, NovelArtifact } from '../types'
-import { chapterIndex } from '../types'
-
-// 文段类型 tag 配色（画布/模态框共用的类型区分）
-export const ARTIFACT_TAG_COLORS: Record<NovelArtifact['type'], string> = {
-  ref: 'cyan',
-  setting: 'purple',
-  outline: 'geekblue',
-  content: 'green',
-  summary: 'orange',
-}
-
-export const ARTIFACT_TYPE_LABELS: Record<NovelArtifact['type'], string> = {
-  ref: '参考文',
-  setting: '设定',
-  outline: '大纲',
-  content: '正文',
-  summary: '摘要',
-}
-
-// 节点标题：章节类文段用「第 N 章大纲/正文」（带章节名），其余用文段标题
-export const artifactNodeTitle = (
-  novel: Novel,
-  artifact: NovelArtifact,
-): string => {
-  if (artifact.chapterId) {
-    const index = chapterIndex(novel, artifact.chapterId)
-    const chapterTitle =
-      novel.chapters.find((c) => c.id === artifact.chapterId)?.title ?? ''
-    return `第 ${index} 章${ARTIFACT_TYPE_LABELS[artifact.type]}${chapterTitle ? ` · ${chapterTitle}` : ''}`
-  }
-  return artifact.title || ARTIFACT_TYPE_LABELS[artifact.type]
-}
 
 // 画布节点卡片：标题 + 类型 tag + 字数 + 版本号 + 内容预览几行；生成中态在卡片上体现
 export const NodeCard = ({
@@ -66,8 +35,8 @@ export const NodeCard = ({
     onClick={onClick}
   >
     <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2">
-      <Tag color={ARTIFACT_TAG_COLORS[artifact.type]} className="mr-0">
-        {ARTIFACT_TYPE_LABELS[artifact.type]}
+      <Tag color={ARTIFACT_TYPE_DEFS[artifact.type].tagColor} className="mr-0">
+        {ARTIFACT_TYPE_DEFS[artifact.type].label}
       </Tag>
       <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">
         {artifactNodeTitle(novel, artifact)}

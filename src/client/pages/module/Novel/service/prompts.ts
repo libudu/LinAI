@@ -1,6 +1,7 @@
 // 小说生成模块全部 prompt 模板（设计见 docs/novel/prompts.md）
 // 原则：结构化但字段少、允许留空；约束走向，放开笔法
 // 生成编排整体在前端 service/ 完成；参考文/设定/大纲/正文/摘要统一为 NovelArtifact（文段）
+import { ARTIFACT_TYPE_DEFS } from '../artifactTypes'
 import type { ArtifactType, ChatMessage, NovelArtifact } from '../types'
 import { EDIT_OP_DEFS } from './editOps'
 
@@ -107,21 +108,13 @@ ${instruction ?? ''}
   }
 }
 
-// 按指令整体修改文段（op: revise）
-const REVISE_LABELS: Record<ArtifactType, string> = {
-  ref: '参考文',
-  setting: '设定',
-  outline: '大纲',
-  content: '正文',
-  summary: '摘要',
-}
-
+// 按指令整体修改文段（op: revise）；类型中文名统一取注册表
 export const buildReviseTask = (
   type: ArtifactType,
   content: string,
   instruction: string,
 ): string => {
-  const label = REVISE_LABELS[type]
+  const label = ARTIFACT_TYPE_DEFS[type].label
   return `【现有${label}】
 ${content}
 

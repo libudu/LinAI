@@ -17,11 +17,7 @@ import {
   message,
 } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
-import {
-  ARTIFACT_TAG_COLORS,
-  ARTIFACT_TYPE_LABELS,
-  artifactNodeTitle,
-} from '../Canvas/NodeCard'
+import { ARTIFACT_TYPE_DEFS, artifactNodeTitle } from '../artifactTypes'
 import { ContextTagBar } from '../components/ContextTagBar'
 import { ARTIFACT_MESSAGES_MAX } from '../service/constants'
 import {
@@ -677,14 +673,14 @@ const NodeModalBody = ({
         {((isLastChapter && isChapterArtifact) ||
           artifact.type === 'setting') && (
           <Popconfirm
-            title={`删除该${ARTIFACT_TYPE_LABELS[artifact.type]}？`}
+            title={`删除该${ARTIFACT_TYPE_DEFS[artifact.type].label}？`}
             onConfirm={async () => {
               const ok = await deleteArtifact(artifact.id)
               if (ok) closeNodeModal()
             }}
           >
             <Button size="small" danger icon={<DeleteOutlined />}>
-              删除{ARTIFACT_TYPE_LABELS[artifact.type]}
+              删除{ARTIFACT_TYPE_DEFS[artifact.type].label}
             </Button>
           </Popconfirm>
         )}
@@ -849,8 +845,11 @@ export const NodeModal = () => {
       title={
         artifact && currentNovel ? (
           <span className="flex items-center gap-2">
-            <Tag color={ARTIFACT_TAG_COLORS[artifact.type]} className="mr-0">
-              {ARTIFACT_TYPE_LABELS[artifact.type]}
+            <Tag
+              color={ARTIFACT_TYPE_DEFS[artifact.type].tagColor}
+              className="mr-0"
+            >
+              {ARTIFACT_TYPE_DEFS[artifact.type].label}
             </Tag>
             {artifactNodeTitle(currentNovel, artifact)}
           </span>

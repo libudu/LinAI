@@ -2,6 +2,7 @@
 // 后端只提供统一的书籍实体存取与 /llm 中继，业务编排全部在此。
 // 「生成什么」由 outputType 决定，「参考什么」由 selection 决定，操作只有 4 种（ArtifactOperation）
 import * as api from '../api'
+import { temperatureOf } from '../artifactTypes'
 import type {
   ArtifactOperation,
   ArtifactType,
@@ -11,7 +12,7 @@ import type {
   NovelChapter,
 } from '../types'
 import { findChapterArtifact } from '../types'
-import { ARTIFACT_MESSAGES_MAX, temperatureOf } from './constants'
+import { ARTIFACT_MESSAGES_MAX } from './constants'
 import { buildMessages } from './context'
 import { GenerationError, chatOnce, chatStream } from './llm'
 import { buildSummaryMessages } from './prompts'

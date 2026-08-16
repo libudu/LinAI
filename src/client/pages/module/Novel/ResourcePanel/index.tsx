@@ -17,6 +17,7 @@ import {
   message,
 } from 'antd'
 import { useEffect, useState } from 'react'
+import { ARTIFACT_TYPE_DEFS } from '../artifactTypes'
 import { REF_MAX_CHARS } from '../service/constants'
 import { useNovelStore } from '../store'
 import type { NovelArtifact } from '../types'
@@ -260,8 +261,8 @@ export const ResourcePanel = () => {
               onChange={(v) => setTypeFilter(v as typeof typeFilter)}
               options={[
                 { label: '全部', value: 'all' },
-                { label: '参考文', value: 'ref' },
-                { label: '设定', value: 'setting' },
+                { label: ARTIFACT_TYPE_DEFS.ref.label, value: 'ref' },
+                { label: ARTIFACT_TYPE_DEFS.setting.label, value: 'setting' },
               ]}
             />
           </div>

@@ -90,13 +90,8 @@ export interface NovelSummary {
   chapterCount: number
 }
 
-// 文段操作：「生成什么」由输出文段类型（outputType）决定，「参考什么」由勾选（selection）决定，
-// 两者都不是场景枚举；UI 标题仍说人话（生成大纲/生成正文），底层都是同一套操作
-export type ArtifactOperation =
-  | 'generate' // 参考勾选文段生成新文段，产出类型由 outputType 指定
-  | 'revise' // 按指令整体修改某文段 → version +1
-  | 'continue' // 续写 content 文段（拼接，version +1）
-  | 'rewrite-range' // 选段重写（字符区间替换，version +1）
+// 文段操作（generate / revise / continue / rewrite-range）是纯前端编排概念
+// （不落盘、后端无感知），定义在前端 pages/module/Novel/types.ts
 
 // 上下文组装产出的消息（OpenAI 兼容接口的 system/user/assistant 文本消息）
 export interface ChatMessage {

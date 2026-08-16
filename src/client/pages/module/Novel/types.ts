@@ -1,11 +1,6 @@
 // 前端复用共享类型
-import type {
-  ArtifactOperation,
-  ArtifactType,
-  Novel,
-} from '@/shared/novel/types'
+import type { ArtifactType, Novel } from '@/shared/novel/types'
 export type {
-  ArtifactOperation,
   ArtifactRevision,
   ArtifactType,
   ChatMessage,
@@ -16,6 +11,16 @@ export type {
   NovelIndexItem,
   NovelSummary,
 } from '@/shared/novel/types'
+
+// 文段操作：纯前端编排概念（GenerateRequest 的 op 字段，不落盘、后端无感知，故不在 shared）。
+// 「生成什么」由输出文段类型（outputType）决定，「参考什么」由勾选（selection）决定，
+// 两者都不是场景枚举；UI 标题仍说人话（生成大纲/生成正文），底层都是同一套操作。
+// 落盘到历史快照的来源枚举（ArtifactRevision.source）是另一个 union，注意不要混用
+export type ArtifactOperation =
+  | 'generate' // 参考勾选文段生成新文段，产出类型由 outputType 指定
+  | 'revise' // 按指令整体修改某文段 → version +1
+  | 'continue' // 续写 content 文段（拼接，version +1）
+  | 'rewrite-range' // 选段重写（字符区间替换，version +1）
 
 // 流式生成在前端的落点（决定 streaming 文本渲染在哪张卡片上）
 export type StreamingTarget = 'setting' | 'outline' | 'content' | 'summary'

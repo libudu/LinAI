@@ -2,6 +2,7 @@
 // 书籍数据走通用实体接口（novel.books）：章节/文段增删、删章节级联、摘要计算全部在前端完成，
 // 每次修改整体读改写并携带 expectedRevision；模块配置走 /api/settings/novel，LLM 请求走 /api/relay/novel.openai
 import { entityClient, mutateEntity } from '@/client/service/storage'
+import { ARTIFACT_TYPE_DEFS } from './artifactTypes'
 import { DEFAULT_RECENT_FULL_CHAPTERS } from './service/constants'
 import type {
   ArtifactRevision,
@@ -14,15 +15,7 @@ import type {
   NovelSummary,
 } from './types'
 
-// 历史版本上限：正文 10 版，其余 20 版（整本 JSON 体积控制，超出丢弃最旧）
-const REVISION_LIMITS: Record<ArtifactType, number> = {
-  ref: 20,
-  setting: 20,
-  outline: 20,
-  content: 10,
-  summary: 20,
-}
-
+// 历史版本上限按文段类型取值（ARTIFACT_TYPE_DEFS.revisionLimit：正文 10 版，其余 20 版）。
 // 内容修改时把旧版本压入历史快照；source/instruction 描述触发本次修改的来源。
 // 旧数据可能缺 history 字段，这里兜底初始化（不做显式迁移）
 const pushRevision = (
@@ -40,7 +33,7 @@ const pushRevision = (
     instruction,
     createdAt: Date.now(),
   })
-  const limit = REVISION_LIMITS[artifact.type]
+  const limit = ARTIFACT_TYPE_DEFS[artifact.type].revisionLimit
   if (list.length > limit) list.splice(0, list.length - limit)
 }
 
