@@ -39,6 +39,8 @@ export interface StreamingState {
   /** 仅 generate：产出类型 */
   outputType?: ArtifactType
   target: StreamingTarget
+  /** revise / continue / rewrite-range 的目标文段 id（generate 为 null） */
+  targetId: string | null
   /** outline 自动新建章节时为空，生成开始时由 service 创建章节 */
   chapterId: string | null
   text: string

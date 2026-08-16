@@ -7,7 +7,7 @@ export const DEFAULT_RECENT_FULL_CHAPTERS = 3 // 默认勾选的上限保护：�
 export const DEFAULT_TARGET_LENGTH = 3_000 // 正文默认目标篇幅（字）
 export const CONTINUE_PREFIX_CHARS = 2_000 // 续写时携带已有正文末尾的字数
 
-export const ARTIFACT_MESSAGES_MAX = 20 // 每个文段保留的最近对话轮数上限，超出丢弃最旧
+export const ARTIFACT_MESSAGES_MAX = 20 // 每个文段保留的最近对话消息条数上限，超出丢弃最旧
 
 // 各操作的 temperature（调优备忘录见 docs/novel/prompts.md 第 6 节）：
 // generate 按产出类型取值，revise/continue/rewrite-range 按目标文段类型取值

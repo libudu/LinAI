@@ -11,6 +11,7 @@ import {
   Input,
   Modal,
   Popconfirm,
+  Segmented,
   Tooltip,
   Upload,
   message,
@@ -127,29 +128,25 @@ const RefViewModal = ({
   </Modal>
 )
 
-// 核心设定 新增/编辑弹窗
-const SettingEditModal = ({
-  editing,
+// 核心设定 新增弹窗（编辑在节点模态框里完成）
+const SettingCreateModal = ({
+  open,
   onClose,
 }: {
-  editing: NovelArtifact | 'new' | null
+  open: boolean
   onClose: () => void
 }) => {
   const createArtifact = useNovelStore((s) => s.createArtifact)
-  const updateArtifact = useNovelStore((s) => s.updateArtifact)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (editing === 'new') {
+    if (open) {
       setTitle('')
       setContent('')
-    } else if (editing) {
-      setTitle(editing.title)
-      setContent(editing.content)
     }
-  }, [editing])
+  }, [open])
 
   const handleOk = async () => {
     if (!title.trim()) {
@@ -157,24 +154,19 @@ const SettingEditModal = ({
       return
     }
     setSaving(true)
-    const ok =
-      editing === 'new'
-        ? !!(await createArtifact({
-            type: 'setting',
-            title: title.trim(),
-            content,
-          }))
-        : editing
-          ? await updateArtifact(editing.id, { title: title.trim(), content })
-          : false
+    const ok = !!(await createArtifact({
+      type: 'setting',
+      title: title.trim(),
+      content,
+    }))
     setSaving(false)
     if (ok) onClose()
   }
 
   return (
     <Modal
-      title={editing === 'new' ? '新增设定' : '编辑设定'}
-      open={!!editing}
+      title="新增设定"
+      open={open}
       onCancel={onClose}
       onOk={handleOk}
       confirmLoading={saving}
@@ -217,19 +209,30 @@ export const ResourcePanel = () => {
   const {
     currentNovel,
     deleteArtifact,
-    openDrawer,
+    openGenerateModal,
+    openNodeModal,
     streaming,
     abortGeneration,
   } = useNovelStore()
 
   const [refUploadOpen, setRefUploadOpen] = useState(false)
   const [viewRef, setViewRef] = useState<NovelArtifact | null>(null)
-  const [editingSetting, setEditingSetting] = useState<
-    NovelArtifact | 'new' | null
-  >(null)
+  const [settingCreateOpen, setSettingCreateOpen] = useState(false)
+  // 资源区筛选/搜索（参考文 + 设定这两类「原料」文段）
+  const [keyword, setKeyword] = useState('')
+  const [typeFilter, setTypeFilter] = useState<'all' | 'ref' | 'setting'>('all')
 
-  const refs = currentNovel ? artifactsByType(currentNovel, 'ref') : []
-  const settings = currentNovel ? artifactsByType(currentNovel, 'setting') : []
+  const kw = keyword.trim().toLowerCase()
+  const match = (a: NovelArtifact) =>
+    !kw ||
+    a.title.toLowerCase().includes(kw) ||
+    a.content.toLowerCase().includes(kw)
+  const refs = currentNovel
+    ? artifactsByType(currentNovel, 'ref').filter(match)
+    : []
+  const settings = currentNovel
+    ? artifactsByType(currentNovel, 'setting').filter(match)
+    : []
 
   return (
     <div className="space-y-4">
@@ -241,46 +244,165 @@ export const ResourcePanel = () => {
         />
       ) : (
         <>
-          {/* 参考文 */}
-          <div>
-            <SectionHeader
-              title={`参考文（${refs.length}）`}
-              extra={
-                <Tooltip title="上传参考文">
-                  <Button
-                    size="small"
-                    type="text"
-                    icon={<PlusOutlined />}
-                    onClick={() => setRefUploadOpen(true)}
-                  />
-                </Tooltip>
-              }
+          {/* 筛选/搜索 */}
+          <div className="space-y-2">
+            <Input
+              allowClear
+              size="small"
+              placeholder="搜索标题 / 内容"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
             />
-            <div className="space-y-1.5">
-              {refs.map((ref) => (
-                <div
-                  key={ref.id}
-                  className="rounded-md border border-slate-200 bg-white px-2.5 py-2"
-                >
-                  <div className="flex items-center justify-between gap-1">
-                    <span
-                      className="min-w-0 flex-1 truncate text-sm"
-                      title={ref.title}
-                    >
-                      {ref.title}
-                    </span>
-                    <div className="flex shrink-0 items-center">
-                      <Tooltip title="查看内容">
-                        <Button
-                          size="small"
-                          type="text"
-                          icon={<EyeOutlined />}
-                          onClick={() => setViewRef(ref)}
-                        />
-                      </Tooltip>
+            <Segmented
+              block
+              size="small"
+              value={typeFilter}
+              onChange={(v) => setTypeFilter(v as typeof typeFilter)}
+              options={[
+                { label: '全部', value: 'all' },
+                { label: '参考文', value: 'ref' },
+                { label: '设定', value: 'setting' },
+              ]}
+            />
+          </div>
+
+          {/* 参考文 */}
+          {typeFilter !== 'setting' && (
+            <div>
+              <SectionHeader
+                title={`参考文（${refs.length}）`}
+                extra={
+                  <Tooltip title="上传参考文">
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<PlusOutlined />}
+                      onClick={() => setRefUploadOpen(true)}
+                    />
+                  </Tooltip>
+                }
+              />
+              <div className="space-y-1.5">
+                {refs.map((ref) => (
+                  <div
+                    key={ref.id}
+                    className="rounded-md border border-slate-200 bg-white px-2.5 py-2"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span
+                        className="min-w-0 flex-1 truncate text-sm"
+                        title={ref.title}
+                      >
+                        {ref.title}
+                      </span>
+                      <div className="flex shrink-0 items-center">
+                        <Tooltip title="查看内容">
+                          <Button
+                            size="small"
+                            type="text"
+                            icon={<EyeOutlined />}
+                            onClick={() => setViewRef(ref)}
+                          />
+                        </Tooltip>
+                        <Popconfirm
+                          title="删除该参考文？"
+                          onConfirm={() => deleteArtifact(ref.id)}
+                        >
+                          <Button
+                            size="small"
+                            type="text"
+                            danger
+                            icon={<DeleteOutlined />}
+                          />
+                        </Popconfirm>
+                      </div>
+                    </div>
+                    <div className="mt-0.5 text-xs text-slate-400">
+                      {ref.content.length.toLocaleString()} 字
+                      {ref.originalLength !== undefined &&
+                        ref.originalLength > ref.content.length && (
+                          <span className="ml-1 text-amber-500">
+                            已截断：原 {ref.originalLength.toLocaleString()} 字
+                            → 取末尾 {ref.content.length.toLocaleString()} 字
+                          </span>
+                        )}
+                    </div>
+                  </div>
+                ))}
+                {refs.length === 0 && (
+                  <div className="py-2 text-xs text-slate-400">
+                    {kw
+                      ? '没有匹配的参考文'
+                      : '暂无参考文，可在生成设定/大纲时作为参考材料勾选'}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 核心设定 */}
+          {typeFilter !== 'ref' && (
+            <div>
+              <SectionHeader
+                title={`核心设定（${settings.length}）`}
+                extra={
+                  <>
+                    <Tooltip title="手动新增">
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<PlusOutlined />}
+                        onClick={() => setSettingCreateOpen(true)}
+                      />
+                    </Tooltip>
+                    <Tooltip title="AI 生成设定（勾选参考文 + 自由要求）">
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<RobotOutlined />}
+                        onClick={() =>
+                          openGenerateModal({ outputType: 'setting' })
+                        }
+                      />
+                    </Tooltip>
+                  </>
+                }
+              />
+              <div className="space-y-1.5">
+                {streaming?.target === 'setting' && (
+                  <div className="app-accent-outline app-accent-surface rounded-md border px-2.5 py-2">
+                    <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+                      <span>设定生成中…</span>
+                      <Button
+                        size="small"
+                        type="text"
+                        danger
+                        onClick={abortGeneration}
+                      >
+                        中断
+                      </Button>
+                    </div>
+                    <div className="max-h-40 overflow-y-auto text-xs break-words whitespace-pre-wrap text-slate-600">
+                      {streaming.text || '等待响应…'}
+                    </div>
+                  </div>
+                )}
+                {settings.map((setting) => (
+                  <div
+                    key={setting.id}
+                    className="rounded-md border border-slate-200 bg-white px-2.5 py-2"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span
+                        className="app-accent-hover min-w-0 flex-1 cursor-pointer truncate text-sm"
+                        title="点击打开节点（查看 / 编辑 / 对话修改）"
+                        onClick={() => openNodeModal(setting.id)}
+                      >
+                        {setting.title}
+                      </span>
                       <Popconfirm
-                        title="删除该参考文？"
-                        onConfirm={() => deleteArtifact(ref.id)}
+                        title="删除该设定？"
+                        onConfirm={() => deleteArtifact(setting.id)}
                       >
                         <Button
                           size="small"
@@ -290,111 +412,24 @@ export const ResourcePanel = () => {
                         />
                       </Popconfirm>
                     </div>
+                    <div
+                      className="mt-0.5 line-clamp-3 cursor-pointer text-xs break-words whitespace-pre-wrap text-slate-500"
+                      onClick={() => openNodeModal(setting.id)}
+                    >
+                      {setting.content}
+                    </div>
                   </div>
-                  <div className="mt-0.5 text-xs text-slate-400">
-                    {ref.content.length.toLocaleString()} 字
-                    {ref.originalLength !== undefined &&
-                      ref.originalLength > ref.content.length && (
-                        <span className="ml-1 text-amber-500">
-                          已截断：原 {ref.originalLength.toLocaleString()} 字 →
-                          取末尾 {ref.content.length.toLocaleString()} 字
-                        </span>
-                      )}
+                ))}
+                {settings.length === 0 && streaming?.target !== 'setting' && (
+                  <div className="py-2 text-xs text-slate-400">
+                    {kw
+                      ? '没有匹配的设定'
+                      : '暂无设定，可手动新增或用 AI 基于参考文生成'}
                   </div>
-                </div>
-              ))}
-              {refs.length === 0 && (
-                <div className="py-2 text-xs text-slate-400">
-                  暂无参考文，可在生成设定/大纲时作为参考材料勾选
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-
-          {/* 核心设定 */}
-          <div>
-            <SectionHeader
-              title={`核心设定（${settings.length}）`}
-              extra={
-                <>
-                  <Tooltip title="手动新增">
-                    <Button
-                      size="small"
-                      type="text"
-                      icon={<PlusOutlined />}
-                      onClick={() => setEditingSetting('new')}
-                    />
-                  </Tooltip>
-                  <Tooltip title="AI 生成设定（勾选参考文 + 自由要求）">
-                    <Button
-                      size="small"
-                      type="text"
-                      icon={<RobotOutlined />}
-                      onClick={() => openDrawer({ outputType: 'setting' })}
-                    />
-                  </Tooltip>
-                </>
-              }
-            />
-            <div className="space-y-1.5">
-              {streaming?.target === 'setting' && (
-                <div className="app-accent-outline app-accent-surface rounded-md border px-2.5 py-2">
-                  <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
-                    <span>设定生成中…</span>
-                    <Button
-                      size="small"
-                      type="text"
-                      danger
-                      onClick={abortGeneration}
-                    >
-                      中断
-                    </Button>
-                  </div>
-                  <div className="max-h-40 overflow-y-auto text-xs break-words whitespace-pre-wrap text-slate-600">
-                    {streaming.text || '等待响应…'}
-                  </div>
-                </div>
-              )}
-              {settings.map((setting) => (
-                <div
-                  key={setting.id}
-                  className="rounded-md border border-slate-200 bg-white px-2.5 py-2"
-                >
-                  <div className="flex items-center justify-between gap-1">
-                    <span
-                      className="app-accent-hover min-w-0 flex-1 cursor-pointer truncate text-sm"
-                      title="点击编辑"
-                      onClick={() => setEditingSetting(setting)}
-                    >
-                      {setting.title}
-                    </span>
-                    <Popconfirm
-                      title="删除该设定？"
-                      onConfirm={() => deleteArtifact(setting.id)}
-                    >
-                      <Button
-                        size="small"
-                        type="text"
-                        danger
-                        icon={<DeleteOutlined />}
-                      />
-                    </Popconfirm>
-                  </div>
-                  <div
-                    className="mt-0.5 line-clamp-3 cursor-pointer text-xs break-words whitespace-pre-wrap text-slate-500"
-                    onClick={() => setEditingSetting(setting)}
-                  >
-                    {setting.content}
-                  </div>
-                </div>
-              ))}
-              {settings.length === 0 && streaming?.target !== 'setting' && (
-                <div className="py-2 text-xs text-slate-400">
-                  暂无设定，可手动新增或用 AI 基于参考文生成
-                </div>
-              )}
-            </div>
-          </div>
+          )}
         </>
       )}
 
@@ -403,9 +438,9 @@ export const ResourcePanel = () => {
         onClose={() => setRefUploadOpen(false)}
       />
       <RefViewModal refItem={viewRef} onClose={() => setViewRef(null)} />
-      <SettingEditModal
-        editing={editingSetting}
-        onClose={() => setEditingSetting(null)}
+      <SettingCreateModal
+        open={settingCreateOpen}
+        onClose={() => setSettingCreateOpen(false)}
       />
     </div>
   )

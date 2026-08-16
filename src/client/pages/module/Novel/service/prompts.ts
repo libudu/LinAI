@@ -107,12 +107,20 @@ ${instruction ?? ''}
 }
 
 // 按指令整体修改文段（op: revise）
+const REVISE_LABELS: Record<ArtifactType, string> = {
+  ref: '参考文',
+  setting: '设定',
+  outline: '大纲',
+  content: '正文',
+  summary: '摘要',
+}
+
 export const buildReviseTask = (
   type: ArtifactType,
   content: string,
   instruction: string,
 ): string => {
-  const label = type === 'outline' ? '大纲' : '正文'
+  const label = REVISE_LABELS[type]
   return `【现有${label}】
 ${content}
 

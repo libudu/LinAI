@@ -10,9 +10,10 @@ import { streamingTargetOf } from './types'
 // 当前生成任务的中断控制器（单页单任务，由 streaming 状态保证互斥）
 let generationController: AbortController | null = null
 
-// 上下文选择抽屉的打开意图（默认勾选规则由 service/context 按产出类型计算）
-export interface DrawerRequest {
+// 「生成文段」模态框的打开意图（默认勾选规则由 service/context 按产出类型计算）
+export interface GenerateModalRequest {
   outputType: 'setting' | 'outline' | 'content'
+  /** outline 缺省时生成开始后自动新建章节；content 必传 */
   chapterId?: string
 }
 
@@ -24,16 +25,16 @@ interface NovelStore {
   loadingNovels: boolean
   loadingNovel: boolean
 
-  // 卡片折叠态（key：outline:<cid> / content:<cid> / setting:<textId>），跨会话持久化
-  collapsed: Record<string, boolean>
-  toggleCollapsed: (key: string) => void
-
-  // 流式生成状态
+  // 流式生成状态（模态框关闭后生成仍在后台继续，节点卡片显示生成中态）
   streaming: StreamingState | null
-  /** 上下文抽屉 */
-  drawer: DrawerRequest | null
-  openDrawer: (req: DrawerRequest) => void
-  closeDrawer: () => void
+  /** 「生成文段」模态框 */
+  generateModal: GenerateModalRequest | null
+  openGenerateModal: (req: GenerateModalRequest) => void
+  closeGenerateModal: () => void
+  /** 「节点」模态框（值为文段 id；打开期间画布高亮其 inputs 来源节点） */
+  nodeModalId: string | null
+  openNodeModal: (artifactId: string) => void
+  closeNodeModal: () => void
 
   // 书籍
   fetchNovels: () => Promise<void>
@@ -74,17 +75,14 @@ export const useNovelStore = create<NovelStore>()(
       currentNovel: null,
       loadingNovels: false,
       loadingNovel: false,
-      collapsed: {},
       streaming: null,
-      drawer: null,
+      generateModal: null,
+      nodeModalId: null,
 
-      toggleCollapsed: (key) =>
-        set((s) => ({
-          collapsed: { ...s.collapsed, [key]: !s.collapsed[key] },
-        })),
-
-      openDrawer: (req) => set({ drawer: req }),
-      closeDrawer: () => set({ drawer: null }),
+      openGenerateModal: (req) => set({ generateModal: req }),
+      closeGenerateModal: () => set({ generateModal: null }),
+      openNodeModal: (artifactId) => set({ nodeModalId: artifactId }),
+      closeNodeModal: () => set({ nodeModalId: null }),
 
       fetchNovels: async () => {
         set({ loadingNovels: true })
@@ -292,6 +290,7 @@ export const useNovelStore = create<NovelStore>()(
             op: req.op,
             outputType: req.outputType,
             target: streamingTargetOf(req, novel),
+            targetId: req.targetId ?? null,
             chapterId,
             text: '',
           },
@@ -334,10 +333,9 @@ export const useNovelStore = create<NovelStore>()(
     }),
     {
       name: 'novel-store',
-      // 只持久化当前书 id 与卡片折叠态；streaming / 书籍数据不持久化
+      // 只持久化当前书 id；streaming / 模态框 / 书籍数据不持久化
       partialize: (state) => ({
         currentNovelId: state.currentNovelId,
-        collapsed: state.collapsed,
       }),
     },
   ),

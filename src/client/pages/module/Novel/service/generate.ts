@@ -211,10 +211,12 @@ const persistGeneration = async (
   if (op === 'revise') {
     // 整体替换；部分结果（中断/出错）不覆盖原文段
     if (!final) return result
-    // AI 场景产生的修改：指令记入目标文段 messages（保留最近 ARTIFACT_MESSAGES_MAX 轮，超出丢弃最旧）
+    // 节点对话：指令与 AI 回复都记入目标文段 messages（点入节点可继续之前的对话；
+    // 保留最近 ARTIFACT_MESSAGES_MAX 条，超出丢弃最旧；沙箱规则见 context.ts）
     const messages = [
       ...target.messages,
       { role: 'user' as const, content: params.instruction ?? '' },
+      { role: 'assistant' as const, content: text },
     ].slice(-ARTIFACT_MESSAGES_MAX)
     await api.updateArtifact(novel.id, target.id, { content: text, messages })
     if (target.type === 'content' && target.chapterId) {
