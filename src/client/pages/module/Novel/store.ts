@@ -5,6 +5,7 @@ import * as api from './api'
 import { REF_MAX_CHARS } from './service/constants'
 import { runGeneration, type GenerateRequest } from './service/generate'
 import type {
+  ArtifactRevision,
   ChatMessage,
   Novel,
   NovelIndexItem,
@@ -59,9 +60,17 @@ interface NovelStore {
   ) => Promise<string | null>
   updateArtifact: (
     artifactId: string,
-    patch: { title?: string; content?: string; messages?: ChatMessage[] },
+    patch: {
+      title?: string
+      content?: string
+      messages?: ChatMessage[]
+      /** 内容修改的历史快照来源（缺省 'manual'）与触发指令 */
+      revision?: { source: ArtifactRevision['source']; instruction?: string }
+    },
   ) => Promise<boolean>
   deleteArtifact: (artifactId: string) => Promise<boolean>
+  /** 复制文段（手动分叉）：新 id、version=1、messages=[]、无历史 */
+  duplicateArtifact: (artifactId: string) => Promise<string | null>
 
   // 章节
   editChapterTitle: (cid: string, title: string) => Promise<boolean>
@@ -240,6 +249,36 @@ export const useNovelStore = create<NovelStore>()(
         } catch (error: any) {
           message.error(error.message || '删除失败')
           return false
+        }
+      },
+
+      // 复制文段（手动分叉）：新 id、version=1、messages=[]、无历史；inputs 溯源保留
+      duplicateArtifact: async (artifactId) => {
+        const novel = get().currentNovel
+        if (!novel) return null
+        const source = novel.artifacts.find((t) => t.id === artifactId)
+        if (!source) return null
+        try {
+          const copy = await api.createArtifact(novel.id, {
+            type: source.type,
+            chapterId: source.chapterId,
+            title: source.title ? `${source.title}（副本）` : source.title,
+            content: source.content,
+            inputs: [...source.inputs],
+            estimatedTokens: source.estimatedTokens,
+            originalLength: source.originalLength,
+          })
+          set({
+            currentNovel: {
+              ...novel,
+              artifacts: [...novel.artifacts, copy],
+            },
+          })
+          message.success('已创建副本')
+          return copy.id
+        } catch (error: any) {
+          message.error(error.message || '复制失败')
+          return null
         }
       },
 

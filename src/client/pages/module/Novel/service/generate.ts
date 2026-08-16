@@ -109,6 +109,7 @@ const persistGeneration = async (
         if (existingSummary) {
           await api.updateArtifact(novel.id, existingSummary.id, {
             content: summary.trim(),
+            revision: { source: 'generate' },
           })
         } else {
           await api.createArtifact(novel.id, {
@@ -144,7 +145,10 @@ const persistGeneration = async (
     if (params.outputType === 'outline') {
       const existing = findChapterArtifact(novel, chapter.id, 'outline')
       if (existing) {
-        await api.updateArtifact(novel.id, existing.id, { content: text })
+        await api.updateArtifact(novel.id, existing.id, {
+          content: text,
+          revision: { source: 'generate' },
+        })
       } else {
         await api.createArtifact(novel.id, {
           type: 'outline',
@@ -163,6 +167,7 @@ const persistGeneration = async (
         if (existing) {
           await api.updateArtifact(novel.id, existing.id, {
             content: text.trim(),
+            revision: { source: 'generate' },
           })
         } else {
           await api.createArtifact(novel.id, {
@@ -186,6 +191,7 @@ const persistGeneration = async (
       const updated = await api.updateArtifact(novel.id, existing.id, {
         content: text,
         inputs,
+        revision: { source: 'generate' },
       })
       contentArtifactId = updated.id
     } else {
@@ -218,7 +224,11 @@ const persistGeneration = async (
       { role: 'user' as const, content: params.instruction ?? '' },
       { role: 'assistant' as const, content: text },
     ].slice(-ARTIFACT_MESSAGES_MAX)
-    await api.updateArtifact(novel.id, target.id, { content: text, messages })
+    await api.updateArtifact(novel.id, target.id, {
+      content: text,
+      messages,
+      revision: { source: 'revise', instruction: params.instruction },
+    })
     if (target.type === 'content' && target.chapterId) {
       await regenerateSummary(target.chapterId, text, target.id)
     }
@@ -228,7 +238,10 @@ const persistGeneration = async (
   if (op === 'continue') {
     // 拼接续写；中断时保留已生成的部分
     const content = target.content + text
-    await api.updateArtifact(novel.id, target.id, { content })
+    await api.updateArtifact(novel.id, target.id, {
+      content,
+      revision: { source: 'continue', instruction: params.instruction },
+    })
     if (final && target.chapterId) {
       await regenerateSummary(target.chapterId, content, target.id)
     }
@@ -241,7 +254,11 @@ const persistGeneration = async (
     target.content.slice(0, params.range.start) +
     text +
     target.content.slice(params.range.end)
-  await api.updateArtifact(novel.id, target.id, { content })
+  await api.updateArtifact(novel.id, target.id, {
+    content,
+    // 枚举无独立 rewrite-range 来源，语义归入 revise（整体重写类）
+    revision: { source: 'revise', instruction: params.instruction },
+  })
   if (target.chapterId) {
     await regenerateSummary(target.chapterId, content, target.id)
   }

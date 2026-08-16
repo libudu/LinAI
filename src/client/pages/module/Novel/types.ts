@@ -8,6 +8,7 @@ export type {
   ArtifactEditOp,
   ArtifactOperation,
   ArtifactPatch,
+  ArtifactRevision,
   ArtifactType,
   ChatMessage,
   ContextSelection,

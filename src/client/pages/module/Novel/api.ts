@@ -4,6 +4,7 @@
 import { entityClient, mutateEntity } from '@/client/service/storage'
 import { DEFAULT_RECENT_FULL_CHAPTERS } from './service/constants'
 import type {
+  ArtifactRevision,
   ArtifactType,
   ChatMessage,
   Novel,
@@ -12,6 +13,36 @@ import type {
   NovelIndexItem,
   NovelSummary,
 } from './types'
+
+// 历史版本上限：正文 10 版，其余 20 版（整本 JSON 体积控制，超出丢弃最旧）
+const REVISION_LIMITS: Record<ArtifactType, number> = {
+  ref: 20,
+  setting: 20,
+  outline: 20,
+  content: 10,
+  summary: 20,
+}
+
+// 内容修改时把旧版本压入历史快照；source/instruction 描述触发本次修改的来源。
+// 旧数据可能缺 history 字段，这里兜底初始化（不做显式迁移）
+const pushRevision = (
+  novel: Novel,
+  artifact: NovelArtifact,
+  source: ArtifactRevision['source'],
+  instruction?: string,
+) => {
+  const history = (novel.history ??= {})
+  const list = (history[artifact.id] ??= [])
+  list.push({
+    version: artifact.version,
+    content: artifact.content,
+    source,
+    instruction,
+    createdAt: Date.now(),
+  })
+  const limit = REVISION_LIMITS[artifact.type]
+  if (list.length > limit) list.splice(0, list.length - limit)
+}
 
 const novelsClient = entityClient<Novel, NovelSummary>('novel.books')
 
@@ -58,6 +89,7 @@ export const createNovel = async (title: string): Promise<Novel> => {
     title,
     chapters: [],
     artifacts: [],
+    history: {},
     recentFullChapters: DEFAULT_RECENT_FULL_CHAPTERS,
     createdAt: now,
     updatedAt: now,
@@ -130,14 +162,22 @@ export const updateArtifact = (
     content?: string
     inputs?: string[]
     messages?: ChatMessage[]
+    /** 内容修改的历史快照来源（缺省 'manual'）与触发指令 */
+    revision?: { source: ArtifactRevision['source']; instruction?: string }
   },
 ): Promise<NovelArtifact> =>
   mutateNovel(novelId, (novel) => {
     const artifact = novel.artifacts.find((t) => t.id === artifactId)
     if (!artifact) throw new Error('[小说] 文段不存在')
     if (patch.title !== undefined) artifact.title = patch.title
-    // 任何内容修改（含手动编辑）版本号 +1
+    // 任何内容修改（含手动编辑）：旧版本压入历史快照，版本号 +1
     if (patch.content !== undefined && patch.content !== artifact.content) {
+      pushRevision(
+        novel,
+        artifact,
+        patch.revision?.source ?? 'manual',
+        patch.revision?.instruction,
+      )
       artifact.content = patch.content
       artifact.version += 1
     }
@@ -156,6 +196,8 @@ export const deleteArtifact = (
       throw new Error('[小说] 文段不存在')
     }
     novel.artifacts = novel.artifacts.filter((t) => t.id !== artifactId)
+    // 同步清理历史快照，避免孤儿数据堆积
+    if (novel.history) delete novel.history[artifactId]
   })
 
 // ---------- 章节（轻量分组容器） ----------
@@ -194,5 +236,10 @@ export const deleteChapter = (novelId: string, cid: string): Promise<void> =>
       throw new Error('[小说] 章节不存在')
     }
     novel.chapters = novel.chapters.filter((c) => c.id !== cid)
+    // 级联删除归属文段及其历史快照
+    const removed = novel.artifacts.filter((t) => t.chapterId === cid)
     novel.artifacts = novel.artifacts.filter((t) => t.chapterId !== cid)
+    if (novel.history) {
+      for (const t of removed) delete novel.history[t.id]
+    }
   })

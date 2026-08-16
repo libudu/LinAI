@@ -1,4 +1,11 @@
-import { DeleteOutlined, ReloadOutlined, SendOutlined } from '@ant-design/icons'
+import {
+  CopyOutlined,
+  DeleteOutlined,
+  DownOutlined,
+  ReloadOutlined,
+  RightOutlined,
+  SendOutlined,
+} from '@ant-design/icons'
 import {
   Button,
   Input,
@@ -9,7 +16,7 @@ import {
   Tooltip,
   message,
 } from 'antd'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ARTIFACT_TAG_COLORS,
   ARTIFACT_TYPE_LABELS,
@@ -17,11 +24,13 @@ import {
 } from '../Canvas/NodeCard'
 import { ContextTagBar } from '../components/ContextTagBar'
 import { ARTIFACT_MESSAGES_MAX } from '../service/constants'
+import { collapseSameRuns, diffLines } from '../service/lineDiff'
 import { requestPatch, shouldUsePatch } from '../service/patch'
 import { useNovelStore } from '../store'
 import type {
   ArtifactEditOp,
   ArtifactPatch,
+  ArtifactRevision,
   Novel,
   NovelArtifact,
 } from '../types'
@@ -35,6 +44,31 @@ const PATCH_OP_LABELS: Record<ArtifactEditOp['op'], string> = {
   append: '文末追加',
 }
 
+// 历史版本来源标签（rewrite-range 落盘时归入 revise）
+const REVISION_SOURCE_LABELS: Record<ArtifactRevision['source'], string> = {
+  generate: '生成',
+  revise: '整体修改',
+  patch: '局部修改',
+  continue: '续写',
+  manual: '手动',
+}
+
+const REVISION_SOURCE_COLORS: Record<ArtifactRevision['source'], string> = {
+  generate: 'geekblue',
+  revise: 'purple',
+  patch: 'cyan',
+  continue: 'green',
+  manual: 'default',
+}
+
+const formatRevisionTime = (ts: number): string =>
+  new Date(ts).toLocaleString('zh-CN', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+
 // 节点模态框内容（以 key=artifactId 强制切换节点时重新挂载，重置本地编辑态）
 const NodeModalBody = ({
   novel,
@@ -45,6 +79,7 @@ const NodeModalBody = ({
 }) => {
   const updateArtifact = useNovelStore((s) => s.updateArtifact)
   const deleteArtifact = useNovelStore((s) => s.deleteArtifact)
+  const duplicateArtifact = useNovelStore((s) => s.duplicateArtifact)
   const editChapterTitle = useNovelStore((s) => s.editChapterTitle)
   const removeChapter = useNovelStore((s) => s.removeChapter)
   const startGeneration = useNovelStore((s) => s.startGeneration)
@@ -83,6 +118,24 @@ const NodeModalBody = ({
     patch: ArtifactPatch
     newContent: string
   } | null>(null)
+
+  // 历史版本面板：折叠态 + 查看/对比的目标版本
+  const revisions = novel.history?.[artifact.id] ?? []
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [viewRevision, setViewRevision] = useState<ArtifactRevision | null>(
+    null,
+  )
+  const [diffRevision, setDiffRevision] = useState<ArtifactRevision | null>(
+    null,
+  )
+  // 行级 LCS diff（旧版本 → 当前版本），仅在选中对比目标后计算
+  const diffItems = useMemo(
+    () =>
+      diffRevision
+        ? collapseSameRuns(diffLines(diffRevision.content, artifact.content))
+        : [],
+    [diffRevision, artifact.content],
+  )
 
   // 续写 / 选段重写（仅正文节点）
   const [continueOpen, setContinueOpen] = useState(false)
@@ -181,8 +234,26 @@ const NodeModalBody = ({
     const ok = await updateArtifact(artifact.id, {
       content: newContent,
       messages,
+      revision: { source: 'patch', instruction: instr },
     })
     if (ok) setPatchPreview(null)
+  }
+
+  // 回退：旧版本成为新 current（当前内容同样压入历史，source 记 manual 并注明回退目标）
+  const handleRevert = async (rev: ArtifactRevision) => {
+    if (streaming || patchBusy) return
+    await updateArtifact(artifact.id, {
+      content: rev.content,
+      revision: {
+        source: 'manual',
+        instruction: `回退到 v${rev.version}`,
+      },
+    })
+  }
+
+  // 复制文段（手动分叉）：同类型同章节，version=1、messages=[]、无历史
+  const handleDuplicate = async () => {
+    await duplicateArtifact(artifact.id)
   }
 
   const handleContinue = () => {
@@ -440,6 +511,79 @@ const NodeModalBody = ({
         </div>
       </div>
 
+      {/* 历史版本面板：内容修改的旧快照（查看 / 与当前对比 / 回退） */}
+      {revisions.length > 0 && (
+        <div className="rounded-md border border-slate-200">
+          <div
+            className="flex cursor-pointer items-center justify-between px-3 py-1.5 select-none"
+            onClick={() => setHistoryOpen(!historyOpen)}
+          >
+            <span className="text-xs font-medium text-slate-500">
+              历史版本（{revisions.length}）
+            </span>
+            <span className="text-xs text-slate-400">
+              {historyOpen ? <DownOutlined /> : <RightOutlined />}
+            </span>
+          </div>
+          {historyOpen && (
+            <div className="max-h-56 space-y-1 overflow-y-auto border-t border-slate-100 px-3 py-2">
+              {[...revisions].reverse().map((rev) => (
+                <div
+                  key={`${rev.version}-${rev.createdAt}`}
+                  className="flex items-center gap-2 text-xs"
+                >
+                  <span className="shrink-0 font-medium text-slate-600">
+                    v{rev.version}
+                  </span>
+                  <Tag
+                    color={REVISION_SOURCE_COLORS[rev.source]}
+                    className="mr-0"
+                  >
+                    {REVISION_SOURCE_LABELS[rev.source]}
+                  </Tag>
+                  <span
+                    className="min-w-0 flex-1 truncate text-slate-400"
+                    title={rev.instruction}
+                  >
+                    {rev.instruction || '—'}
+                  </span>
+                  <span className="shrink-0 text-slate-400">
+                    {formatRevisionTime(rev.createdAt)}
+                  </span>
+                  <Button
+                    size="small"
+                    type="text"
+                    onClick={() => setViewRevision(rev)}
+                  >
+                    查看
+                  </Button>
+                  <Button
+                    size="small"
+                    type="text"
+                    onClick={() => setDiffRevision(rev)}
+                  >
+                    对比
+                  </Button>
+                  <Popconfirm
+                    title={`回退到 v${rev.version}？`}
+                    description="当前内容会先记入历史，可再回退回来"
+                    onConfirm={() => handleRevert(rev)}
+                  >
+                    <Button
+                      size="small"
+                      type="text"
+                      disabled={!!streaming || patchBusy}
+                    >
+                      回退
+                    </Button>
+                  </Popconfirm>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 摘要（仅正文节点；摘要不是画布节点，在这里维护） */}
       {artifact.type === 'content' && chapter && (
         <div className="rounded-md bg-slate-50 p-2">
@@ -526,9 +670,19 @@ const NodeModalBody = ({
         </div>
       )}
 
-      {/* 删除：仅最后一章的大纲/正文可删（沿用约束）；设定任意可删 */}
-      {(isLastChapter && isChapterArtifact) || artifact.type === 'setting' ? (
-        <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+      {/* 底部操作：复制文段（手动分叉）；删除仅最后一章的大纲/正文（沿用约束），设定任意可删 */}
+      <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+        <Tooltip title="生成内容相同的新文段（v1、无对话与历史）">
+          <Button
+            size="small"
+            icon={<CopyOutlined />}
+            onClick={handleDuplicate}
+          >
+            复制文段
+          </Button>
+        </Tooltip>
+        {((isLastChapter && isChapterArtifact) ||
+          artifact.type === 'setting') && (
           <Popconfirm
             title={`删除该${ARTIFACT_TYPE_LABELS[artifact.type]}？`}
             onConfirm={async () => {
@@ -540,22 +694,75 @@ const NodeModalBody = ({
               删除{ARTIFACT_TYPE_LABELS[artifact.type]}
             </Button>
           </Popconfirm>
-          {artifact.type === 'outline' && isLastChapter && chapter && (
-            <Popconfirm
-              title="删除本章？"
-              description="仅可删除最后一章，将同时删除其大纲、正文与摘要"
-              onConfirm={async () => {
-                const ok = await removeChapter(chapter.id)
-                if (ok) closeNodeModal()
-              }}
-            >
-              <Button size="small" danger type="primary">
-                删除本章
-              </Button>
-            </Popconfirm>
+        )}
+        {artifact.type === 'outline' && isLastChapter && chapter && (
+          <Popconfirm
+            title="删除本章？"
+            description="仅可删除最后一章，将同时删除其大纲、正文与摘要"
+            onConfirm={async () => {
+              const ok = await removeChapter(chapter.id)
+              if (ok) closeNodeModal()
+            }}
+          >
+            <Button size="small" danger type="primary">
+              删除本章
+            </Button>
+          </Popconfirm>
+        )}
+      </div>
+
+      {/* 历史版本查看 */}
+      <Modal
+        title={viewRevision ? `历史版本 v${viewRevision.version}` : ''}
+        open={!!viewRevision}
+        onCancel={() => setViewRevision(null)}
+        footer={null}
+        width={720}
+      >
+        <div className="max-h-[60vh] overflow-y-auto text-sm leading-7 break-words whitespace-pre-wrap text-slate-700">
+          {viewRevision?.content}
+        </div>
+      </Modal>
+
+      {/* 版本对比：行级 LCS diff，删除线 = 旧版本有而当前没有 */}
+      <Modal
+        title={
+          diffRevision
+            ? `版本对比：v${diffRevision.version} → 当前 v${artifact.version}`
+            : ''
+        }
+        open={!!diffRevision}
+        onCancel={() => setDiffRevision(null)}
+        footer={null}
+        width={760}
+      >
+        <div className="max-h-[60vh] overflow-y-auto rounded-md border border-slate-200 px-3 py-2">
+          {diffItems.map((item, i) =>
+            item.type === 'collapse' ? (
+              <div
+                key={i}
+                className="py-0.5 text-center text-xs text-slate-300"
+              >
+                …… 相同 {item.count} 行 ……
+              </div>
+            ) : (
+              <div
+                key={i}
+                className={`text-xs leading-6 break-words whitespace-pre-wrap ${
+                  item.type === 'del'
+                    ? 'text-slate-400 line-through'
+                    : item.type === 'add'
+                      ? 'bg-slate-50 text-slate-700'
+                      : 'text-slate-400'
+                }`}
+              >
+                {item.type === 'del' ? '− ' : item.type === 'add' ? '+ ' : '　'}
+                {item.text}
+              </div>
+            ),
           )}
         </div>
-      ) : null}
+      </Modal>
 
       {/* patch diff 预览：逐操作展示 旧文本 → 新文本，接受才落盘，放弃丢弃 */}
       <Modal

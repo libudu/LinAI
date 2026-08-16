@@ -48,9 +48,23 @@ export interface Novel {
   title: string
   chapters: NovelChapter[] // 按 createdAt 排序即章节顺序
   artifacts: NovelArtifact[]
+  // artifactId → 历史版本快照（不含当前版本，按时间升序，最新在末尾）。
+  // 全量快照 + 数量上限（见 api.ts 的 REVISION_LIMITS）；分叉不做，用「复制文段」手动达成
+  history: Record<string, ArtifactRevision[]>
   recentFullChapters: number // N：默认勾选的上限保护——历史正文超出 N 章时更早章节改挂摘要，默认 3
   createdAt: number
   updatedAt: number
+}
+
+// 历史版本快照：每次内容修改把旧版本整体压栈（小说文段本身不大，快照比 patch 链简单可靠）
+export interface ArtifactRevision {
+  version: number
+  content: string
+  // 触发本次修改的来源（该快照是被这次修改替换下去的旧版本）；
+  // rewrite-range 归入 'revise'（语义同属整体重写类）
+  source: 'generate' | 'revise' | 'patch' | 'continue' | 'manual'
+  instruction?: string // 触发本次修改的用户指令，便于回溯
+  createdAt: number
 }
 
 // 上下文勾选：生成请求的入参，与生成的文段落盘的 inputs 同构。
