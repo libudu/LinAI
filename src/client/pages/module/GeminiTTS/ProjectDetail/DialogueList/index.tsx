@@ -1,4 +1,8 @@
-import { TTSCharacter, TTSDialogue, TTSProject } from '@/server/module/tts'
+import type {
+  TTSCharacter,
+  TTSDialogue,
+  TTSProject,
+} from '@/shared/tts/project'
 import {
   DeleteOutlined,
   EditOutlined,

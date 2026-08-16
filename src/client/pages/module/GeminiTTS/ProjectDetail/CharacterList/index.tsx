@@ -1,4 +1,4 @@
-import { TTSCharacter, TTSDialogue } from '@/server/module/tts'
+import type { TTSCharacter, TTSDialogue } from '@/shared/tts/project'
 import { ExclamationCircleFilled, PlusOutlined } from '@ant-design/icons'
 import { Button, Modal } from 'antd'
 import { useRef } from 'react'

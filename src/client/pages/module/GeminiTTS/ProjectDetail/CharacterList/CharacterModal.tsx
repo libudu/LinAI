@@ -1,4 +1,4 @@
-import { TTSCharacter } from '@/server/module/tts'
+import type { TTSCharacter } from '@/shared/tts/project'
 import { PlayCircleOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { AutoComplete, Button, Card, Form, Input, message, Modal } from 'antd'

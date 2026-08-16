@@ -1,4 +1,4 @@
-import { TTSCharacter, TTSDialogue } from '@/server/module/tts'
+import type { TTSCharacter, TTSDialogue } from '@/shared/tts/project'
 import { Form, Input, Modal, Select } from 'antd'
 import { forwardRef, useImperativeHandle, useState } from 'react'
 

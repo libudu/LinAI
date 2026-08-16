@@ -2,7 +2,7 @@ import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { z } from 'zod'
-import { logger } from '../../module/utils/logger'
+import { logger } from '../../common/logger'
 
 const logApi = new Hono()
   .get(

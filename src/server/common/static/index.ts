@@ -4,6 +4,7 @@ import crypto from 'crypto'
 import fs from 'fs-extra'
 import path from 'path'
 import sharp from 'sharp'
+import { dataPath } from '../storage/data-path'
 import { storageRegistry } from '../storage/registry'
 // 注册通用存储资源（副作用）
 import '../storage/resources'
@@ -15,7 +16,7 @@ export const IMAGE_COMPRESS_QUALITY = 60
 export const THUMB_SIZE = 200
 const THUMB_COMPRESS_QUALITY = 40
 
-export const IMAGES_ROOT_DIR = path.join(process.cwd(), 'data', 'images')
+export const IMAGES_ROOT_DIR = dataPath('images')
 export const GENERATED_IMAGES_DIR = path.join(IMAGES_ROOT_DIR, 'generated')
 export const INPUT_IMAGES_DIR = path.join(IMAGES_ROOT_DIR, 'input')
 export const THUMB_IMAGES_DIR = path.join(IMAGES_ROOT_DIR, 'thumb')

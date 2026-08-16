@@ -1,5 +1,5 @@
 import type { AppType } from '@/server'
-import { TTSCharacter, TTSDialogue } from '@/server/module/tts'
+import type { TTSCharacter, TTSDialogue } from '@/shared/tts/project'
 import {
   FolderOpenOutlined,
   PlusOutlined,

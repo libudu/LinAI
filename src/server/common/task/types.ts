@@ -1,5 +1,5 @@
+import type { GptImageQuality, GptImageSize } from '@/shared/image/params'
 import type { TaskInputSnapshot } from '@/shared/image/template'
-import type { GptImageQuality, GptImageSize } from '../../module/gpt-image/enum'
 
 /**
  * 生成任务：后端拥有并流转状态的数据，前端只能读取与删除，

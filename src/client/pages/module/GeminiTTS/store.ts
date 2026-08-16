@@ -2,6 +2,7 @@ import { relayRequest } from '@/client/service/relay'
 import { settingsClient } from '@/client/service/settings'
 import type { TTSSettings } from '@/server/module/tts/settings'
 import type { InworldVoiceItem } from '@/shared/tts/inworld'
+import { message } from 'antd'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
@@ -46,6 +47,7 @@ export const useTTSStore = create<TTSStore>()(
           set({ ttsInworldApiKey: res.value.ttsInworldApiKey ?? null })
         } catch (error) {
           console.error('Failed to update tts config', error)
+          message.error('设置保存失败')
         }
       },
       voiceList: [],

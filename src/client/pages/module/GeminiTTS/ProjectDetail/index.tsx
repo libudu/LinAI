@@ -1,4 +1,4 @@
-import type { TTSProject } from '@/server/module/tts'
+import type { TTSProject } from '@/shared/tts/project'
 import { message, Tabs } from 'antd'
 import { updateProject, type TTSProjectEntity } from '../service/projects'
 import { CharacterList } from './CharacterList'

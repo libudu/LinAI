@@ -1,4 +1,4 @@
-import { TTSCharacter } from '@/server/module/tts'
+import type { TTSCharacter } from '@/shared/tts/project'
 import {
   AudioOutlined,
   DeleteOutlined,

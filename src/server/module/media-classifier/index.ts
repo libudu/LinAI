@@ -2,13 +2,10 @@ import { constants } from 'fs'
 import fs from 'fs-extra'
 import path from 'path'
 import sharp from 'sharp'
+import { dataPath } from '../../common/storage/data-path'
 import { buildThumbnailCacheKey, createMediaImageHasher } from './hash'
 
-const MEDIA_CLASSIFIER_DATA_DIR = path.join(
-  process.cwd(),
-  'data',
-  'media-classifier',
-)
+const MEDIA_CLASSIFIER_DATA_DIR = dataPath('media-classifier')
 const MEDIA_CLASSIFIER_STATE_FILE = path.join(
   MEDIA_CLASSIFIER_DATA_DIR,
   'state.json',

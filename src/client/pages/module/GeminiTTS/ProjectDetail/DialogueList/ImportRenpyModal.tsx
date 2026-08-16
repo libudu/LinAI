@@ -1,4 +1,4 @@
-import { TTSCharacter, TTSDialogue } from '@/server/module/tts'
+import type { TTSCharacter, TTSDialogue } from '@/shared/tts/project'
 import { Modal, Table } from 'antd'
 import { forwardRef, useImperativeHandle, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'

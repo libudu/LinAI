@@ -1,4 +1,4 @@
-import { TTSDialogue } from '@/server/module/tts'
+import type { TTSDialogue } from '@/shared/tts/project'
 import { DownloadOutlined } from '@ant-design/icons'
 import { Button, message, Modal, Progress } from 'antd'
 import { saveAs } from 'file-saver'

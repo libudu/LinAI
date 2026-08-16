@@ -1,5 +1,6 @@
 import { settingsClient } from '@/client/service/settings'
 import type { NovelSettings } from '@/server/module/novel/settings'
+import { message } from 'antd'
 import { create } from 'zustand'
 
 const client = settingsClient<NovelSettings>('novel')
@@ -42,6 +43,7 @@ export const useNovelConfig = create<NovelConfigState>()((set, get) => ({
       set({ ...res.value, revision: res.revision })
     } catch (error) {
       console.error('Failed to update novel config', error)
+      message.error('设置保存失败')
     }
   },
 }))

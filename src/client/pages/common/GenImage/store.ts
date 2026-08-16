@@ -1,6 +1,7 @@
 import { settingsClient } from '@/client/service/settings'
 import type { GptImageSettings } from '@/server/module/gpt-image/settings'
 import { resolveGptImageApiKey } from '@/shared/gpt-image/endpoints'
+import { message } from 'antd'
 import { create } from 'zustand'
 import type { CustomEndpoint } from './SettingModal/Endpoint/endpointPresets'
 
@@ -61,6 +62,7 @@ export const useGptImageStore = create<GptImageState>()((set, get) => {
       apply(res.value, res.revision)
     } catch (error) {
       console.error('Failed to update config', error)
+      message.error('设置保存失败')
     }
   }
 

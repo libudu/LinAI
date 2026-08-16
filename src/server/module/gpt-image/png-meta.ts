@@ -1,4 +1,4 @@
-import { logger } from '../utils/logger'
+import { logger } from '../../common/logger'
 
 // PNG 文件签名
 const PNG_SIGNATURE = Buffer.from([

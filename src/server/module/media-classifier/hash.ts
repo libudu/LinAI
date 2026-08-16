@@ -1,12 +1,9 @@
 import crypto from 'crypto'
 import fs from 'fs-extra'
 import path from 'path'
+import { dataPath } from '../../common/storage/data-path'
 
-const MEDIA_CLASSIFIER_DATA_DIR = path.join(
-  process.cwd(),
-  'data',
-  'media-classifier',
-)
+const MEDIA_CLASSIFIER_DATA_DIR = dataPath('media-classifier')
 const MEDIA_CLASSIFIER_HASH_CACHE_FILE = path.join(
   MEDIA_CLASSIFIER_DATA_DIR,
   'hash-cache.json',

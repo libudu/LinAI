@@ -5,7 +5,7 @@ import { INPUT_IMAGES_DIR } from '../../common/static'
 import { GENERATED_IMAGES_API_PATH } from '../../common/static/enum'
 import { StorageError } from '../../common/storage/errors'
 import { taskService } from '../../common/task'
-import { logger } from '../utils/logger'
+import { logger } from '../../common/logger'
 import { GPT_IMAGE_SOURCE_MODEL, GptImageQuality, GptImageSize } from './enum'
 import { calculateSize, generateGPTImage, GptImageUsage } from './generate'
 

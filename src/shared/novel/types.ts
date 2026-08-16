@@ -52,7 +52,8 @@ export interface ContextSelection {
   textIds: string[]
 }
 
-// data/novels/index.json 中的书籍索引项
+// 书籍列表项：前端列表页的展示形状（存储层为 EntityStore('novel.books') 的 summary，
+// 旧的 data/novels/index.json 已废弃）
 export interface NovelIndexItem {
   id: string
   title: string

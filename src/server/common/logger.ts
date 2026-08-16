@@ -1,8 +1,9 @@
 import { EventEmitter } from 'events'
 import fs from 'fs-extra'
 import path from 'path'
+import { dataPath } from './storage/data-path'
 
-const LOG_DIR = './data/logs'
+const LOG_DIR = dataPath('logs')
 
 export class Logger extends EventEmitter {
   private id: string
