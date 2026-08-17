@@ -13,7 +13,6 @@ import staticApi from './api/common/static'
 import storageApi from './api/common/storage'
 import taskApi from './api/common/task'
 import gptImageApi from './api/gpt-image'
-import mediaClassifierApi from './api/media-classifier'
 import styleAnalyzeApi from './api/style-analyze'
 import ttsApi from './api/tts'
 import ttsInworldApi from './api/tts/inworld'
@@ -74,7 +73,6 @@ const routes = app
   .route('/api/tts-inworld', ttsInworldApi)
   .route('/api/gptImage', gptImageApi)
   .route('/api/gptImage', yunwuTokenApi)
-  .route('/api/media-classifier', mediaClassifierApi)
   // common
   .route('/api/task', taskApi)
   .route('/api/storage', storageApi)

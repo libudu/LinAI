@@ -1,6 +1,6 @@
 # LinAI
 
-个人 AI 工具箱桌面 Web 应用：React 前端 + Hono 后端的全栈 TypeScript 项目，最终打包成内置 Node.js 运行时的 Windows 免安装压缩包分发。主要功能模块：GPT 图像生成、语音合成（TTS）、图片整理（media-classifier）、小说生成（流式）、聊天代理。
+个人 AI 工具箱桌面 Web 应用：React 前端 + Hono 后端的全栈 TypeScript 项目，最终打包成内置 Node.js 运行时的 Windows 免安装压缩包分发。主要功能模块：GPT 图像生成、语音合成（TTS）、小说生成（流式）、聊天代理。
 
 ## 开发约定（必须遵守）
 
@@ -24,7 +24,7 @@
 ## 目录结构
 
 - `src/client/`：前端
-  - `pages/module/`：功能页面（GeminiTTS、MediaClassifier、Novel、YunwuAdmin 等）
+  - `pages/module/`：功能页面（GeminiTTS、Novel、YunwuAdmin 等）
   - `pages/common/`：通用页面组件（Sidebar、GenImage 图片生成首页、Notification）
   - `routes.tsx`：路由注册表，新增页面在此登记
   - `store/global.ts`：zustand 全局状态（仅跨模块共享的少量状态）

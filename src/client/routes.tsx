@@ -2,7 +2,6 @@ import {
   AudioOutlined,
   BookOutlined,
   CloudOutlined,
-  FolderOpenOutlined,
   HighlightOutlined,
   PictureOutlined,
 } from '@ant-design/icons'
@@ -11,7 +10,6 @@ import { GenImage } from './pages/common/GenImage'
 import { openGPTImageSettingModal } from './pages/common/GenImage/SettingModal'
 import { TTS } from './pages/module/GeminiTTS'
 import { openTTSSettingModal } from './pages/module/GeminiTTS/SettingModal'
-import { MediaClassifier } from './pages/module/MediaClassifier'
 import { Novel } from './pages/module/Novel'
 import { openNovelSettingModal } from './pages/module/Novel/SettingModal'
 import { YunwuAdmin } from './pages/module/YunwuAdmin'
@@ -65,14 +63,6 @@ export const appRoutes: AppRoute[] = [
     icon: <BookOutlined />,
     onClickSetting: () => openNovelSettingModal(),
     adminOnly: true,
-  },
-  {
-    path: '/media-classifier',
-    label: '图片整理',
-    element: <MediaClassifier />,
-    key: 'media-classifier',
-    icon: <FolderOpenOutlined />,
-    hidden: true,
   },
   {
     path: '/yunwu-admin',
