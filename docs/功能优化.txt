@@ -1,11 +1,37 @@
-无效的最近图片去掉
+### 生图模型提示调整
+当前生图的时候，具体用的什么模型只能在接入点看到，而接入点又仅在侧栏展示不太明显，可能存在切换不及时导致使用了不合预期的模型生图的问题
+于是需要加强生图时使用模型型号的展示
+并且现在已有的生图按钮也有一定问题，由于可能需要生成不同画质，目前的逻辑是把1k、2k、4k的比例按钮并置
+参考：
+@src/client/pages/common/GenImage/TemplateSection/TemplateForm/index.tsx:166-194
+@src/client/pages/common/GenImage/TemplateSection/TemplateItem/TemplateItemHeader.tsx:69-95
+这样导致界面排版很丑陋
+所以需要：
+1. 不再并置按钮，仅展示一个 dropdown 按钮，把“生成1K图”文案改成“[接入点模型id] 生成”
+例如：“gpt-image-2-c 生成”、“qwen-image-3-edit 生成”
+2. hover 按钮时展示可用的分辨率按钮（万一以后要增加新的特殊的分辨率也可以拓展）
+3. @src/client/pages/common/GenImage/TemplateSection/TemplateItem/TemplateItemHeader.tsx:69-95
+按钮不再需要显示 OpenAI 图标，本来也不一定是 gpt 生图，如果图标没用了就删掉
+4. 考虑移动端，dropdown 按钮支持 hover 和 click
 
+### 图片裁剪
+上传的图片支持快速裁剪，这样就不需要另外用外置图片软件裁剪了
+@src/client/pages/common/GenImage/TemplateSection/TemplateForm/ImageUpload.tsx:269-291
+这里的上传的图片的底部 hover 时显示一个黑色半透明背景的工具栏，目前仅支持裁剪一种操作
+裁剪图标居中展示，点击后展示裁剪图片模态框，以当前图片作为原图进行裁剪编辑
+操作就是经典的裁剪图片的操作，允许拖拽四个边裁剪对应区域，包含左侧的取消，右侧的还原和确定按钮
+点击确定按钮后，对于之前上传的图片，将裁剪后的图片重新上传并替换原来的图片
+（注意顺序不要乱，可能有3张图片，编辑第2张后替换第2张）
 
+### 生图支持遮罩参数
+mask 参数
+画笔涂抹、撤销
+说明有的接入点可能不支持
+绘制的遮罩图也保存到图库中
+好像mask参考需要和原图尺寸完全一样
+看一下mask参数多图片输入是怎么弄的
 
-输入图片支持文件夹分类
-接入点配置的快捷入口不显示生图配置的标签页
-venice视觉上和普通的区分
-图片裁剪
-遮罩
-提示词优化功能拆分
-前后端文件系统优化，减去不需要预设的字段和抽象
+### 提示词优化接入点拆分
+目前是内部默认使用 gemini-3.1-lite 模型，但是云雾已经下架，其他接入点不支持这个模型
+需要新开一个提示词优化接入点的配置
+保持易用性，如果接入的是云雾或 dragon，允许快速复用已有的 apikey，模型 id 给几个默认选项也能自己配
