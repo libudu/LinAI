@@ -1,6 +1,6 @@
 import { Button, Spin } from 'antd'
 import { forwardRef, useImperativeHandle, useState } from 'react'
-import { useTemplates } from '../../hooks/useTemplates'
+import { useTemplates } from '../hooks/useTemplates'
 import { RenameFolderModal } from '../TemplateItem/RenameFolderModal'
 import { TemplateItemList } from './TemplateItemList'
 

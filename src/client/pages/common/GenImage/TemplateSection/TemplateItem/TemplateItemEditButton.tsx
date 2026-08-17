@@ -2,7 +2,7 @@ import { FlatTemplate } from '@/shared/image/template'
 import { EditOutlined } from '@ant-design/icons'
 import { Button, Form, message, Modal, Tooltip } from 'antd'
 import { useState } from 'react'
-import { useTemplates } from '../../hooks/useTemplates'
+import { useTemplates } from '../hooks/useTemplates'
 import { createTemplate, patchTemplate } from '../../service/templates'
 import { TemplateFormFields } from '../TemplateForm/TemplateFormItems'
 

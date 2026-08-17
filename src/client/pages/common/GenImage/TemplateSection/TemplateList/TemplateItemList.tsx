@@ -1,7 +1,7 @@
 import { FlatTemplate } from '@/shared/image/template'
 import { InboxOutlined } from '@ant-design/icons'
 import { message } from 'antd'
-import { useTemplates } from '../../hooks/useTemplates'
+import { useTemplates } from '../hooks/useTemplates'
 import { patchTemplate } from '../../service/templates'
 import { TemplateFolder } from '../TemplateItem/TemplateFolder'
 import { TemplateItem } from '../TemplateItem/TemplateItem'

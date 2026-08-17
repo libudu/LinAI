@@ -1,6 +1,6 @@
 import { useRequest } from 'ahooks'
 import { message } from 'antd'
-import { listTemplates } from '../service/templates'
+import { listTemplates } from '../../service/templates'
 
 export function useTemplates() {
   return useRequest(
