@@ -42,7 +42,12 @@ export function EndpointDisplay() {
     <Tooltip title={error || '点击切换接入点'} placement="bottom">
       <div
         className="flex w-full cursor-pointer flex-col gap-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-gray-500 transition-colors hover:border-slate-300 hover:bg-slate-100"
-        onClick={() => openGPTImageSettingModal({ initialTab: 'endpoint' })}
+        onClick={() =>
+          openGPTImageSettingModal({
+            initialTab: 'endpoint',
+            endpointOnly: true,
+          })
+        }
       >
         <div className="flex items-center gap-1.5">
           <span className="truncate font-medium text-gray-700">

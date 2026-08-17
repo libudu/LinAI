@@ -154,6 +154,7 @@ const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
 // 打开生图设置弹窗（多标签页：接入点 / GPTImage2 / 通用图片 / 辅助功能）
 export function openGPTImageSettingModal(options?: {
   initialTab?: string
+  endpointOnly?: boolean
   onSuccess?: (apiKey: string) => void
 }) {
   const endpointRef = createRef<EndpointSettingRef>()
@@ -184,9 +185,13 @@ export function openGPTImageSettingModal(options?: {
     },
   ]
 
+  const visibleTabs = options?.endpointOnly
+    ? tabs.filter((tab) => tab.key === 'endpoint')
+    : tabs
+
   openCommonSettingModal({
-    title: '图片生成设置',
-    tabs,
+    title: options?.endpointOnly ? '图片生成接入点配置' : '图片生成设置',
+    tabs: visibleTabs,
     initialTab: options?.initialTab,
     okText: options?.onSuccess ? '保存并继续' : '保存',
     onSuccess: (result) => options?.onSuccess?.(result as string),
