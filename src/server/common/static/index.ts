@@ -11,8 +11,8 @@ import '../storage/resources'
 import { taskService } from '../task'
 import { GENERATED_IMAGES_API_PATH, INPUT_IMAGES_API_PATH } from './enum'
 
-export const IMAGE_MAX_DIMENSION = 1600
-export const IMAGE_COMPRESS_QUALITY = 60
+export const IMAGE_MAX_DIMENSION = 2000
+export const IMAGE_COMPRESS_QUALITY = 85
 export const THUMB_SIZE = 200
 const THUMB_COMPRESS_QUALITY = 40
 

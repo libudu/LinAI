@@ -1,4 +1,3 @@
-import openaiIcon from '@/client/assets/icon/openai.svg'
 import { useLocalSetting } from '@/client/hooks/useLocalSetting'
 import type { AppType } from '@/server'
 import type { GptImageSize } from '@/server/module/gpt-image/enum'
@@ -7,10 +6,11 @@ import { DeleteOutlined, HolderOutlined } from '@ant-design/icons'
 import { Button, message, Popconfirm, Space, Tag, Tooltip } from 'antd'
 import { hc } from 'hono/client'
 import React from 'react'
-import { useTemplates } from '../hooks/useTemplates'
+import { ImageGenerateDropdown } from '../../components/ImageGenerateDropdown'
 import { deleteTemplate } from '../../service/templates'
 import { openGPTImageSettingModal } from '../../SettingModal'
 import { useGptImageStore } from '../../store'
+import { useTemplates } from '../hooks/useTemplates'
 import { TemplateEditButton } from './TemplateItemEditButton'
 
 const client = hc<AppType>('/')
@@ -65,34 +65,11 @@ export const TemplateItemGenerateButtons: React.FC<{
     doGenerate(template, size)
   }
   return (
-    <>
-      {(
-        [
-          { size: '1K', key: 'enable1K', value: '1k' },
-          { size: '2K', key: 'enable2K', value: '2k' },
-          { size: '4K', key: 'enable4K', value: '4k' },
-        ] as const
-      ).map(
-        (item) =>
-          gptImageSettings[item.key] && (
-            <Tooltip key={item.key} title={`GPTImage2 生成 ${item.size} 图`}>
-              <Button
-                className="flex items-center justify-center px-2!"
-                variant="outlined"
-                icon={
-                  <img
-                    src={openaiIcon}
-                    className="app-invert-icon h-4 w-4 opacity-70"
-                  />
-                }
-                onClick={() => handleGenerate(template, item.value)}
-              >
-                {item.size}
-              </Button>
-            </Tooltip>
-          ),
-      )}
-    </>
+    <ImageGenerateDropdown
+      onGenerate={(size) => handleGenerate(template, size)}
+      size="small"
+      className="max-w-56"
+    />
   )
 }
 

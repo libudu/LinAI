@@ -1,19 +1,17 @@
 import type { AppType } from '@/server'
-import {
-  CloseCircleFilled,
-  PictureOutlined,
-  UploadOutlined,
-} from '@ant-design/icons'
-import { Image as AntImage, Button, message, Upload } from 'antd'
+import { PictureOutlined, UploadOutlined } from '@ant-design/icons'
+import { Button, message, Upload } from 'antd'
 import { hc } from 'hono/client'
 import { useEffect, useRef } from 'react'
 import { useRecentImages } from '../hooks/useRecentImages'
 import { openGallery, type GalleryImageSelection } from './Gallery'
+import { ImageCropModal } from './ImageCrop/ImageCropModal'
+import { ImageUploadItem } from './ImageCrop/ImageUploadItem'
+import { useImageCropUpload } from './ImageCrop/useImageCropUpload'
 
 const client = hc<AppType>('/')
 
-/** gpt 图像接口最多支持 5 张参考图 */
-const MAX_IMAGES = 5
+const MAX_IMAGES = 10
 
 interface ImageUploadProps {
   value?: string[]
@@ -79,6 +77,15 @@ export function ImageUpload({
 
     return data.url as string
   }
+
+  const { cropTarget, openCrop, closeCrop, handleCropConfirm } =
+    useImageCropUpload({
+      latestValueRef,
+      uploadImageBase64,
+      handleUploadCountChange,
+      onChange,
+      addRecentImages,
+    })
 
   const blobToBase64 = (blob: Blob) =>
     new Promise<string>((resolve, reject) => {
@@ -266,32 +273,22 @@ export function ImageUpload({
       {value.length > 0 && (
         <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
           {value.map((url, index) => (
-            <div
-              key={index}
-              className="relative shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 shadow-sm"
-              style={{ width: '80px', height: '120px' }}
-            >
-              <div
-                className="absolute top-0 right-1 z-10 cursor-pointer text-xl text-red-500 drop-shadow-md transition-all"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleRemove(index)
-                }}
-              >
-                <CloseCircleFilled />
-              </div>
-              <AntImage
-                src={url}
-                alt={`preview-${index}`}
-                width={80}
-                height={120}
-                className="object-cover"
-                preview={{ src: url }}
-              />
-            </div>
+            <ImageUploadItem
+              key={`${url}-${index}`}
+              url={url}
+              index={index}
+              onRemove={handleRemove}
+              onCrop={openCrop}
+            />
           ))}
         </div>
       )}
+      <ImageCropModal
+        open={!!cropTarget}
+        src={cropTarget?.url || null}
+        onCancel={closeCrop}
+        onConfirm={handleCropConfirm}
+      />
     </div>
   )
 }

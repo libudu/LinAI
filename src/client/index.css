@@ -48,11 +48,6 @@ html[data-theme='dark'] .app-logo-text {
   filter: hue-rotate(var(--app-logo-hue-rotate, 0deg));
 }
 
-/* 暗色下反色黑色图标（如 openai.svg） */
-html[data-theme='dark'] .app-invert-icon {
-  filter: invert(1);
-}
-
 /* ---------- 全局滚动条优化 ---------- */
 @layer base {
   ::-webkit-scrollbar {

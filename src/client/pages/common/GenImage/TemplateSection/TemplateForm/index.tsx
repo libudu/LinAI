@@ -7,6 +7,7 @@ import { Button, Form, message } from 'antd'
 import { hc } from 'hono/client'
 import { useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/shallow'
+import { ImageGenerateDropdown } from '../../components/ImageGenerateDropdown'
 import { createTemplate } from '../../service/templates'
 import { openGPTImageSettingModal } from '../../SettingModal'
 import { useGptImageStore } from '../../store'
@@ -162,43 +163,22 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
           setUploadingCount={setUploadingCount}
         />
         <Form.Item className="mb-0! border-t border-slate-100 pt-4">
-          <div className="flex gap-4">
-            {gptImageSettings.enable1K && (
-              <Button
-                onClick={() => handleTrial('1k')}
+          <div className="flex flex-wrap gap-4">
+            <div className="min-w-0 flex-1">
+              <ImageGenerateDropdown
+                onGenerate={handleTrial}
                 disabled={uploadingCount > 0}
                 size="large"
-                className="grow"
-              >
-                生成1K图
-              </Button>
-            )}
-            {gptImageSettings.enable2K && (
-              <Button
-                onClick={() => handleTrial('2k')}
-                disabled={uploadingCount > 0}
-                size="large"
-                className="grow"
-              >
-                生成2K图
-              </Button>
-            )}
-            {gptImageSettings.enable4K && (
-              <Button
-                onClick={() => handleTrial('4k')}
-                disabled={uploadingCount > 0}
-                size="large"
-              >
-                生成4K图
-              </Button>
-            )}
+                block
+              />
+            </div>
             <Button
               type="primary"
               htmlType="submit"
               loading={submitting}
               disabled={uploadingCount > 0}
               block={false}
-              className="grow"
+              className="min-w-32 grow"
               size="large"
             >
               保存模板
