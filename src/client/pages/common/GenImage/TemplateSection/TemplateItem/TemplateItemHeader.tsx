@@ -55,6 +55,7 @@ export const TemplateItemGenerateButtons: React.FC<{
     if (!apiKey) {
       openGPTImageSettingModal({
         initialTab: 'endpoint',
+        initialOnly: true,
         onSuccess: () => {
           doGenerate(template, size)
         },

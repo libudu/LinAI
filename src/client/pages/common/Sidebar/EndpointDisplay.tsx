@@ -45,7 +45,7 @@ export function EndpointDisplay() {
         onClick={() =>
           openGPTImageSettingModal({
             initialTab: 'endpoint',
-            endpointOnly: true,
+            initialOnly: true,
           })
         }
       >

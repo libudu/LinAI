@@ -102,6 +102,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
     if (!apiKey) {
       openGPTImageSettingModal({
         initialTab: 'endpoint',
+        initialOnly: true,
         onSuccess: () => {
           doTrial(size)
         },

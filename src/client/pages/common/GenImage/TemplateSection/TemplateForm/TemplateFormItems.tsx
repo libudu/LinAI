@@ -15,6 +15,8 @@ import {
 } from 'antd'
 import classnames from 'classnames'
 import React, { useState } from 'react'
+import { openGPTImageSettingModal } from '../../SettingModal'
+import { useVisionStore } from '../../visionStore'
 import { FolderFormItem } from './FolderSelectInput'
 import { ImageUpload } from './ImageUpload'
 import { PromptOptimizeModal } from './PromptOptimizeModal'
@@ -76,6 +78,7 @@ function PromptFormItem({
   imageUrls: string[]
 }) {
   const [openPromptOptimizeModal, setOpenPromptOptimizeModal] = useState(false)
+  const visionApiKey = useVisionStore((state) => state.visionApiKey)
   const {
     promptOptimizeEnabled,
     appendAspectRatioEnabled,
@@ -83,6 +86,19 @@ function PromptFormItem({
     setAppendAspectRatio,
   } = useLocalSetting()
   const prompt = Form.useWatch('prompt', form) || ''
+
+  const handleOpenPromptOptimize = () => {
+    if (visionApiKey) {
+      setOpenPromptOptimizeModal(true)
+      return
+    }
+
+    openGPTImageSettingModal({
+      initialTab: 'vision-endpoint',
+      initialOnly: true,
+      onSuccess: () => setOpenPromptOptimizeModal(true),
+    })
+  }
 
   return (
     <>
@@ -119,7 +135,7 @@ function PromptFormItem({
                   size="small"
                   icon={<BulbOutlined />}
                   className="gap-1! px-0!"
-                  onClick={() => setOpenPromptOptimizeModal(true)}
+                  onClick={handleOpenPromptOptimize}
                 >
                   提示词优化
                 </Button>
