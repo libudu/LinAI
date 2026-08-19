@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import pkg from '../../package.json'
 import { useGptImageStore } from './pages/common/GenImage/store'
+import { useVisionStore } from './pages/common/GenImage/visionStore'
 import { openNotificationModal } from './pages/common/Notification'
 import { Sidebar } from './pages/common/Sidebar'
 import { appRoutes } from './routes'
@@ -16,6 +17,7 @@ function App() {
   useEffect(() => {
     useGlobalStore.getState().fetchConfig()
     useGptImageStore.getState().fetchConfig()
+    useVisionStore.getState().fetchConfig()
 
     // 检查版本号并弹出通知
     const currentVersion = pkg.version

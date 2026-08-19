@@ -1,4 +1,4 @@
-import type { StyleAnalysis } from '@/server/api/style-analyze'
+import type { StyleAnalysis } from './types'
 
 export interface DimensionDef {
   key: keyof StyleAnalysis

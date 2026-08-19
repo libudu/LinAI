@@ -4,7 +4,6 @@ import dotenv from 'dotenv'
 import { Hono } from 'hono'
 import * as path from 'path'
 import { ZodError } from 'zod'
-import chatApi from './api/chat'
 import configApi from './api/common/config'
 import logApi from './api/common/log'
 import relayApi from './api/common/relay'
@@ -13,7 +12,6 @@ import staticApi from './api/common/static'
 import storageApi from './api/common/storage'
 import taskApi from './api/common/task'
 import gptImageApi from './api/gpt-image'
-import styleAnalyzeApi from './api/style-analyze'
 import ttsApi from './api/tts'
 import ttsInworldApi from './api/tts/inworld'
 import yunwuTokenApi from './api/yunwu-token'
@@ -67,8 +65,6 @@ app.onError((err, c) => {
 
 const routes = app
   // module
-  .route('/api/chat', chatApi)
-  .route('/api/style-analyze', styleAnalyzeApi)
   .route('/api/tts', ttsApi)
   .route('/api/tts-inworld', ttsInworldApi)
   .route('/api/gptImage', gptImageApi)

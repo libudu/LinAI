@@ -1,17 +1,19 @@
-import type { AppType } from '@/server'
-import type { StyleAnalysis } from '@/server/api/style-analyze'
 import { CopyOutlined } from '@ant-design/icons'
 import type { UploadProps } from 'antd'
 import { Button, Modal, message } from 'antd'
-import { hc } from 'hono/client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  extractVisionText,
+  visionChatCompletion,
+} from '@/client/service/vision'
 import { EMPTY_ANALYSIS, STYLE_DIMENSIONS, composePrompt } from './dimensions'
 import { DimensionSection } from './DimensionSection'
 import { PreviewSection } from './PreviewSection'
 import { UploadSection } from './UploadSection'
-import { isUploadedImageUrl, readFileAsBase64 } from './utils'
-
-const client = hc<AppType>('/')
+import { parseStyleAnalysis } from './parse'
+import { STYLE_ANALYSIS_PROMPT } from './prompt'
+import type { StyleAnalysis } from './types'
+import { readFileAsBase64 } from './utils'
 
 interface StyleExtractModalProps {
   open: boolean
@@ -81,8 +83,10 @@ export function StyleExtractModal({
       const base64 = await readFileAsBase64(file)
       setUploadedPreview(base64)
 
-      const res = await client.api.static.images.upload.$post({
-        json: { image: base64 },
+      const res = await fetch('/api/static/images/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64 }),
       })
       const data = await res.json()
 
@@ -108,7 +112,7 @@ export function StyleExtractModal({
   }
 
   const handleAnalyze = async () => {
-    if (!uploadedUrl || !isUploadedImageUrl(uploadedUrl)) {
+    if (!uploadedUrl || !uploadedPreview) {
       messageApi.warning('请先上传一张图片')
       return
     }
@@ -117,18 +121,27 @@ export function StyleExtractModal({
     setAnalysisError(null)
 
     try {
-      const res = await client.api['style-analyze'].analyze.$post({
-        json: { imageUrl: uploadedUrl },
+      const data = await visionChatCompletion({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image_url',
+                image_url: { url: uploadedPreview },
+              },
+              {
+                type: 'text',
+                text: STYLE_ANALYSIS_PROMPT,
+              },
+            ],
+          },
+        ],
       })
-      const data = await res.json()
+      const content = extractVisionText(data)
+      if (!content) throw new Error('未获取到图片风格分析结果')
+      const result = parseStyleAnalysis(content)
 
-      if (!data.success) {
-        const errorMsg = 'error' in data ? String(data.error) : '解析失败'
-        throw new Error(errorMsg)
-      }
-
-      const result =
-        'data' in data ? (data.data as StyleAnalysis) : EMPTY_ANALYSIS
       setEditedValues(result)
       setSelections(new Set(STYLE_DIMENSIONS.map((d) => d.key)))
       setManualEdit(false)

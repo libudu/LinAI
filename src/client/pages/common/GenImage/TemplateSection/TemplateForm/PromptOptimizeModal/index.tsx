@@ -1,15 +1,14 @@
-import type { AppType } from '@/server'
 import { EditOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { Image as AntImage, Button, Input, Modal, message } from 'antd'
 import classNames from 'classnames'
-import { hc } from 'hono/client'
 import { useEffect, useMemo, useState } from 'react'
+import {
+  normalizeVisionImageUrl,
+  visionChatCompletion,
+} from '@/client/service/vision'
 import { PromptTemplateEditModal } from './PromptTemplateEditModal'
 
-const client = hc<AppType>('/')
-
-export const PROMPT_OPTIMIZE_MODEL = 'gemini-3.1-flash-lite'
 export const DEFAULT_PROMPT_TEMPLATE = `
 # 生图提示词优化模板
 
@@ -197,32 +196,26 @@ export function PromptOptimizeModal({
 
     setGenerating(true)
     try {
-      const res = await client.api.chat.completions.$post({
-        json: {
-          model: PROMPT_OPTIMIZE_MODEL,
-          messages: [
-            {
-              role: 'user',
-              content: [
-                ...imageUrls.map((url) => ({
-                  type: 'image_url' as const,
-                  image_url: { url },
-                })),
-                {
-                  type: 'text',
-                  text: renderedTemplate,
-                },
-              ],
-            },
-          ],
-        },
+      const normalizedImageUrls = await Promise.all(
+        imageUrls.map(normalizeVisionImageUrl),
+      )
+      const data = await visionChatCompletion({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              ...normalizedImageUrls.map((url) => ({
+                type: 'image_url' as const,
+                image_url: { url },
+              })),
+              {
+                type: 'text',
+                text: renderedTemplate,
+              },
+            ],
+          },
+        ],
       })
-
-      const data = await res.json()
-      if (!res.ok) {
-        messageApi.error(extractErrorMessage(data) || '提示词优化失败')
-        return
-      }
 
       const nextPrompt = extractOptimizedPrompt(data)
       if (!nextPrompt) {

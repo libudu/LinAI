@@ -1,6 +1,5 @@
 import { useLocalSetting } from '@/client/hooks/useLocalSetting'
 import { Switch } from 'antd'
-import { PROMPT_OPTIMIZE_MODEL } from '../TemplateSection/TemplateForm/PromptOptimizeModal'
 
 function SettingItem({
   title,
@@ -47,11 +46,7 @@ export function SideSetting() {
         description={
           <>
             <div>启用后将在提示词输入框旁显示“提示词优化”按钮</div>
-            <div>
-              使用 {PROMPT_OPTIMIZE_MODEL} 模型，
-              <span className="text-red-500">需要至少包含一个 gemini 分组</span>
-            </div>
-            <div>以带单张图估算，200次约消耗1分钱，开销可忽略</div>
+            <div>使用“视觉接入点”中单独配置的模型和 API Key</div>
           </>
         }
       />
@@ -62,10 +57,7 @@ export function SideSetting() {
         description={
           <>
             <div>启用后将在提示词输入框旁显示“图片风格提取”按钮</div>
-            <div>
-              使用 {PROMPT_OPTIMIZE_MODEL} 模型，
-              <span className="text-red-500">需要至少包含一个 gemini 分组</span>
-            </div>
+            <div>使用“视觉接入点”中单独配置的模型和 API Key</div>
           </>
         }
       />

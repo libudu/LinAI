@@ -7,6 +7,3 @@ export function readFileAsBase64(file: File): Promise<string> {
   return promise
 }
 
-export function isUploadedImageUrl(url: string): boolean {
-  return url.startsWith('/api/static/images/input/')
-}

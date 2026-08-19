@@ -1,7 +1,7 @@
-import type { StyleAnalysis } from '@/server/api/style-analyze'
 import { CheckCircleFilled } from '@ant-design/icons'
 import { Button, Input, Skeleton } from 'antd'
 import { STYLE_DIMENSIONS } from './dimensions'
+import type { StyleAnalysis } from './types'
 import { StepBadge } from './StepBadge'
 
 interface DimensionSectionProps {

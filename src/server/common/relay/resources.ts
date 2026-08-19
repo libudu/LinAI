@@ -6,3 +6,4 @@
  */
 import '../../module/novel/relay'
 import '../../module/tts/relay'
+import '../../module/vision/relay'

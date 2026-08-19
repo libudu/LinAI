@@ -100,10 +100,15 @@ class RequestRegistry {
     }
     // 每请求解析一次上下文（如模块设置），供 origin/凭据/注入体共用
     const context = def.resolveContext ? await def.resolveContext() : undefined
-    const origin = new URL(await def.resolveOrigin(context)).origin
+    const baseUrl = new URL(await def.resolveOrigin(context))
+    if (!['http:', 'https:'].includes(baseUrl.protocol)) {
+      throw new RelayError(400, '[中继] 目标 ' + id + ' 的 Base URL 协议无效')
+    }
+    // 保留 Base URL 的路径前缀（如 /v1），再拼接已通过白名单校验的逻辑路径
+    const basePath = baseUrl.pathname.replace(/\/+$/, '')
     // 防御 //host 或绝对 URL 逃逸：拼出来的 URL 必须仍属于注册 origin
-    const url = new URL(req.path, origin)
-    if (url.origin !== origin) {
+    const url = new URL(basePath + req.path, baseUrl.origin)
+    if (url.origin !== baseUrl.origin) {
       throw new RelayError(403, `[中继] 非法路径: ${req.path}`)
     }
 

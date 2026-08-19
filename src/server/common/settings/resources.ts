@@ -6,3 +6,4 @@
 import '../../module/gpt-image/settings'
 import '../../module/novel/settings'
 import '../../module/tts/settings'
+import '../../module/vision/settings'

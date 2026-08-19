@@ -13,6 +13,10 @@ import {
 } from './Endpoint/EndpointSetting'
 import { SideSetting } from './SideSetting'
 import { UploadImageSetting } from './UploadImageSetting'
+import {
+  VisionEndpointSetting,
+  type VisionEndpointSettingRef,
+} from './VisionEndpoint/VisionEndpointSetting'
 
 interface GPTImageSettingRef {
   save: () => Promise<void>
@@ -151,21 +155,28 @@ const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
   )
 })
 
-// 打开生图设置弹窗（多标签页：接入点 / GPTImage2 / 通用图片 / 辅助功能）
+// 打开图片生成设置弹窗（生图接入点 / 视觉接入点 / 图片与辅助设置）
 export function openGPTImageSettingModal(options?: {
   initialTab?: string
   endpointOnly?: boolean
   onSuccess?: (apiKey: string) => void
 }) {
   const endpointRef = createRef<EndpointSettingRef>()
+  const visionEndpointRef = createRef<VisionEndpointSettingRef>()
   const gptImageRef = createRef<GPTImageSettingRef>()
 
   const tabs: CommonSettingTab[] = [
     {
       key: 'endpoint',
-      label: '接入点配置',
+      label: '生图接入点',
       children: <EndpointSetting ref={endpointRef} />,
       onSave: () => endpointRef.current!.save(),
+    },
+    {
+      key: 'vision-endpoint',
+      label: '视觉接入点',
+      children: <VisionEndpointSetting ref={visionEndpointRef} />,
+      onSave: () => visionEndpointRef.current!.save(),
     },
     {
       key: 'gpt-image',

@@ -1,6 +1,14 @@
-### 上传图片支持画笔绘制
-有时候改图的时候需要圈出来或者涂抹掉对应的修改部位，还需要去外置编辑器做，比较麻烦
-@src/client/pages/common/GenImage/TemplateSection/TemplateForm/ImageCrop/ImageUploadItem.tsx:42-54
-在已有的裁剪图片按钮左侧增加一个涂抹图片按钮，点击后弹出一个修改框
-整体逻辑与裁剪图片类似，都是编辑，确定后保存生成一张新图上传并保存
-不过涂抹的工具项较多，需要在画布区域的右侧竖排展示（底部塞不下了）：默认颜色（红黄蓝黑白）、自选颜色（弹出色板选颜色，与 @src/client/pages/common/components/InterfaceSettingModal.tsx:67-74 类似）、撤销还原、重置按钮
+### 提示词优化接入点拆分
+目前是内部默认使用 gemini-3.1-lite 模型，但是云雾已经下架，其他接入点不支持这个模型
+需要新开一个提示词优化接入点的配置
+
+@src/client/pages/common/GenImage/SettingModal/index.tsx:164-169 原有“接入点配置”改为“生图接入点”
+新增一个“视觉接入点”的配置项tab
+
+视觉接入点中：
+整体和已有的生图接入点很像，也是提供预设项和自定义
+不过不同的是，目前预设项仅支持 DragonAPI gpt-5.6-luna 一种
+视觉接入点的 apikey 与生图无关，相同服务商就算生图里填过这里也需要再填一次
+
+src\server\module\chat\index.ts
+已有的文本补全接口目前是死绑云雾的，需要改成类似 src\server\module\novel\relay.ts 的 relay 形式提供给前端使用，保留原“基础的模型文本补全能力提供给前端，业务逻辑写在前端方便随时调整”的设计思想
