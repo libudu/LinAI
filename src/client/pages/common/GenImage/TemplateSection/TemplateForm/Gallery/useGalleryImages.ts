@@ -225,7 +225,7 @@ export function useGalleryImages(visible: boolean) {
         referencesReady
           ? images
               .filter((image) => image.isReferenced === false)
-              .map((image) => image.url)
+              .map((image) => normalizeComparableUrl(image.url))
           : [],
       ),
     [images, referencesReady],

@@ -1,6 +1,7 @@
 import { DeleteOutlined } from '@ant-design/icons'
 import { Tooltip } from 'antd'
 import { useMemo } from 'react'
+import { normalizeComparableUrl } from './useGalleryImages'
 
 interface GalleryImageGridProps {
   urls: string[]
@@ -29,7 +30,7 @@ export function GalleryImageGrid({
   }
 
   return (
-    <div className="grid max-h-[60vh] grid-cols-3 gap-4 overflow-y-auto p-2 md:grid-cols-4 lg:grid-cols-5">
+    <div className="grid max-h-[60vh] grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
       {urls.map((url) => {
         const order = selectionOrderMap.get(url)
         const selected = typeof order === 'number'
@@ -51,7 +52,7 @@ export function GalleryImageGrid({
               loading="lazy"
               onError={() => onImageError?.(url)}
             />
-            {unreferencedUrls?.has(url) && (
+            {unreferencedUrls?.has(normalizeComparableUrl(url)) && (
               <div className="absolute top-1 left-1 z-10 rounded bg-red-500 px-2 py-0.5 text-xs text-white shadow-sm">
                 无引用
               </div>

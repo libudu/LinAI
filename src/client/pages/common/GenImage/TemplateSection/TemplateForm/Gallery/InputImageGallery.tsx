@@ -56,9 +56,9 @@ export function InputImageGallery({
   }
 
   return (
-    <div className="max-h-[60vh] overflow-y-auto p-2">
+    <div className="max-h-[60vh] overflow-y-auto">
       {folders.length > 0 && (
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+        <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-5">
           {folders.map((folder) => (
             <InputImageFolder
               key={folder.folder}
