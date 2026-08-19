@@ -1,4 +1,8 @@
-import { CloseCircleFilled, ScissorOutlined } from '@ant-design/icons'
+import {
+  CloseCircleFilled,
+  HighlightOutlined,
+  ScissorOutlined,
+} from '@ant-design/icons'
 import { Image as AntImage, Button, Tooltip } from 'antd'
 
 interface ImageUploadItemProps {
@@ -6,6 +10,7 @@ interface ImageUploadItemProps {
   index: number
   onRemove: (index: number) => void
   onCrop: (target: { index: number; url: string }) => void
+  onDraw: (target: { index: number; url: string }) => void
 }
 
 export function ImageUploadItem({
@@ -13,6 +18,7 @@ export function ImageUploadItem({
   index,
   onRemove,
   onCrop,
+  onDraw,
 }: ImageUploadItemProps) {
   return (
     <div className="group relative h-[120px] w-20 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 shadow-sm">
@@ -39,6 +45,19 @@ export function ImageUploadItem({
         className="absolute right-0 bottom-0 left-0 z-10 flex justify-center bg-black/60 py-1 opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100"
         onClick={(event) => event.stopPropagation()}
       >
+        <Tooltip title="涂抹图片">
+          <Button
+            type="text"
+            size="small"
+            aria-label="涂抹图片"
+            icon={<HighlightOutlined />}
+            className="text-white! hover:bg-white/20!"
+            onClick={(event) => {
+              event.stopPropagation()
+              onDraw({ index, url })
+            }}
+          />
+        </Tooltip>
         <Tooltip title="裁剪图片">
           <Button
             type="text"

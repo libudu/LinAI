@@ -7,7 +7,8 @@ import { useRecentImages } from '../hooks/useRecentImages'
 import { openGallery, type GalleryImageSelection } from './Gallery'
 import { ImageCropModal } from './ImageCrop/ImageCropModal'
 import { ImageUploadItem } from './ImageCrop/ImageUploadItem'
-import { useImageCropUpload } from './ImageCrop/useImageCropUpload'
+import { ImageDrawModal } from './ImageDraw/ImageDrawModal'
+import { useImageEditUpload } from './ImageEdit/useImageEditUpload'
 
 const client = hc<AppType>('/')
 
@@ -78,8 +79,14 @@ export function ImageUpload({
     return data.url as string
   }
 
-  const { cropTarget, openCrop, closeCrop, handleCropConfirm } =
-    useImageCropUpload({
+  const {
+    cropTarget,
+    drawTarget,
+    openCrop,
+    openDraw,
+    closeEditor,
+    handleEditConfirm,
+  } = useImageEditUpload({
       latestValueRef,
       uploadImageBase64,
       handleUploadCountChange,
@@ -279,6 +286,7 @@ export function ImageUpload({
               index={index}
               onRemove={handleRemove}
               onCrop={openCrop}
+              onDraw={openDraw}
             />
           ))}
         </div>
@@ -286,8 +294,14 @@ export function ImageUpload({
       <ImageCropModal
         open={!!cropTarget}
         src={cropTarget?.url || null}
-        onCancel={closeCrop}
-        onConfirm={handleCropConfirm}
+        onCancel={closeEditor}
+        onConfirm={handleEditConfirm}
+      />
+      <ImageDrawModal
+        open={!!drawTarget}
+        src={drawTarget?.url || null}
+        onCancel={closeEditor}
+        onConfirm={handleEditConfirm}
       />
     </div>
   )
