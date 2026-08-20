@@ -8,18 +8,24 @@ import type { StoredItem } from '@/shared/storage/types'
  */
 
 export type TemplateRecord = FlatTemplate & {
-  /** 条目版本，更新时作为 expectedRevision 做冲突检测 */
+  /** 条目版本，仅用于展示与调试 */
   revision: number
   updatedAt: number
+  /** 集合版本，更新时作为 expectedRevision 做冲突检测 */
+  collectionRevision?: number
 }
 
 const client = collectionClient<TemplateValue>('image.templates')
 
-const flatten = (item: StoredItem<TemplateValue>): TemplateRecord => ({
+const flatten = (
+  item: StoredItem<TemplateValue>,
+  collectionRevision?: number,
+): TemplateRecord => ({
   id: item.id,
   createdAt: item.createdAt,
   revision: item.revision,
   updatedAt: item.updatedAt,
+  collectionRevision,
   ...item.value,
 })
 
@@ -38,7 +44,10 @@ export const listTemplates = async (): Promise<{
   templates: TemplateRecord[]
 }> => {
   const { revision, items } = await client.list()
-  return { revision, templates: items.map(flatten) }
+  return {
+    revision,
+    templates: items.map((item) => flatten(item, revision)),
+  }
 }
 
 export const createTemplate = (value: TemplateValue) =>
@@ -50,15 +59,15 @@ export const updateTemplate = (
   expectedRevision?: number,
 ) => client.replace(id, value, expectedRevision).then(flatten)
 
-/** 基于已有记录做部分修改：合并业务字段后整体替换（带上条目版本做冲突检测） */
+/** 基于已有记录做部分修改：合并业务字段后整体替换（带上集合版本做冲突检测） */
 export const patchTemplate = (
-  record: FlatTemplate & { revision?: number },
+  record: FlatTemplate & { collectionRevision?: number },
   patch: Partial<TemplateValue>,
 ) =>
   updateTemplate(
     record.id,
     { ...pickTemplateValue(record), ...patch },
-    record.revision,
+    record.collectionRevision,
   )
 
 export const deleteTemplate = (id: string) => client.remove(id)

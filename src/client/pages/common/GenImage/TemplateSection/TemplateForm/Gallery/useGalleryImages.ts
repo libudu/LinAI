@@ -40,8 +40,10 @@ const getComparableImageUrl = (
   return normalizedUrl.startsWith(`${apiPath}/`) ? normalizedUrl : null
 }
 
+type FetchedImage = Omit<GalleryImageItem, 'isReferenced'>
+
 export function useGalleryImages(visible: boolean) {
-  const [images, setImages] = useState<GalleryImageItem[]>([])
+  const [fetchedImages, setFetchedImages] = useState<FetchedImage[]>([])
   const [loading, setLoading] = useState(false)
   const [imagesLoaded, setImagesLoaded] = useState(false)
   const [imagesLoadSucceeded, setImagesLoadSucceeded] = useState(false)
@@ -100,7 +102,17 @@ export function useGalleryImages(visible: boolean) {
       : referencedGeneratedUrls.has(comparableUrl)
   }
 
-  const fetchImages = async (): Promise<GalleryImageItem[] | null> => {
+  // isReferenced 由 fetchedImages + 引用集合派生，避免 fetch 闭包快照与引用加载完成的时序竞态
+  const images = useMemo<GalleryImageItem[]>(
+    () =>
+      fetchedImages.map((image) => ({
+        ...image,
+        isReferenced: resolveIsReferenced(image),
+      })),
+    [fetchedImages, referencesReady, referencedInputUrls, referencedGeneratedUrls],
+  )
+
+  const fetchImages = async (): Promise<FetchedImage[] | null> => {
     setLoading(true)
     setImagesLoaded(false)
     setImagesLoadSucceeded(false)
@@ -108,13 +120,8 @@ export function useGalleryImages(visible: boolean) {
       const res = await client.api.static.images.list.$get()
       const data = await res.json()
       if (data.success) {
-        const nextImages = (
-          data.data as Array<Omit<GalleryImageItem, 'isReferenced'>>
-        ).map((image) => ({
-          ...image,
-          isReferenced: resolveIsReferenced(image),
-        }))
-        setImages(nextImages)
+        const nextImages = data.data as FetchedImage[]
+        setFetchedImages(nextImages)
         setImagesLoadSucceeded(true)
         return nextImages
       }
@@ -133,19 +140,6 @@ export function useGalleryImages(visible: boolean) {
       fetchImages()
     }
   }, [visible])
-
-  useEffect(() => {
-    if (!referencesReady) {
-      return
-    }
-
-    setImages((prev) =>
-      prev.map((image) => ({
-        ...image,
-        isReferenced: resolveIsReferenced(image),
-      })),
-    )
-  }, [referencesReady, referencedInputUrls, referencedGeneratedUrls])
 
   const imageByUrl = useMemo(
     () => new Map(images.map((image) => [image.url, image])),
