@@ -11,8 +11,11 @@ import {
   refreshEagleIndex,
 } from './api'
 
-const PAGE_SIZE = 100
+export const PAGE_SIZE = 100
 const SORT_STORAGE_KEY = 'eagle_sort'
+const SIZE_STORAGE_KEY = 'eagle_image_size'
+
+export type EagleImageSize = 'small' | 'medium' | 'large'
 
 // 排序偏好持久化（仅前端状态，不走服务端设置）
 const loadSort = (): Pick<EagleState, 'sortBy' | 'sortOrder'> => {
@@ -33,6 +36,13 @@ const loadSort = (): Pick<EagleState, 'sortBy' | 'sortOrder'> => {
   return { sortBy: 'mtime', sortOrder: 'desc' }
 }
 
+// 图片大小档位持久化（默认中档）
+const loadImageSize = (): EagleImageSize => {
+  const raw = localStorage.getItem(SIZE_STORAGE_KEY)
+  if (raw === 'small' || raw === 'medium' || raw === 'large') return raw
+  return 'medium'
+}
+
 // Eagle 图片管理页面状态：文件夹树 + 当前文件夹的资源列表（分批加载）
 interface EagleState {
   folders: EagleFolder[]
@@ -41,23 +51,27 @@ interface EagleState {
   currentFolderId: string
   items: EagleItem[]
   total: number
+  /** 当前页码（从 1 开始） */
+  page: number
   /** 「全部」分类的总数（用于目录树虚拟节点展示） */
   allTotal: number
   listLoading: boolean
-  loadingMore: boolean
   sortBy: EagleSortBy
   sortOrder: EagleSortOrder
+  /** 网格图片大小档位 */
+  imageSize: EagleImageSize
 
   init: () => Promise<void>
   selectFolder: (folderId: string) => Promise<void>
   setSort: (sortBy: EagleSortBy, sortOrder: EagleSortOrder) => Promise<void>
-  loadMore: () => Promise<void>
+  setPage: (page: number) => Promise<void>
+  setImageSize: (size: EagleImageSize) => void
   /** 触发后端增量刷新后重拉数据 */
   reload: () => Promise<void>
 }
 
 export const useEagleStore = create<EagleState>()((set, get) => {
-  const loadFirstPage = async () => {
+  const loadPage = async (page: number) => {
     const { currentFolderId, sortBy, sortOrder } = get()
     set({ listLoading: true })
     try {
@@ -65,10 +79,10 @@ export const useEagleStore = create<EagleState>()((set, get) => {
         folderId: currentFolderId || undefined,
         sortBy,
         sortOrder,
-        offset: 0,
+        offset: (page - 1) * PAGE_SIZE,
         limit: PAGE_SIZE,
       })
-      set({ items: resp.items, total: resp.total })
+      set({ items: resp.items, total: resp.total, page })
       if (!currentFolderId) set({ allTotal: resp.total })
     } finally {
       set({ listLoading: false })
@@ -91,50 +105,43 @@ export const useEagleStore = create<EagleState>()((set, get) => {
     currentFolderId: '',
     items: [],
     total: 0,
+    page: 1,
     allTotal: 0,
     listLoading: false,
-    loadingMore: false,
+    imageSize: loadImageSize(),
     ...loadSort(),
 
     init: async () => {
-      await Promise.all([loadFolders(), loadFirstPage()])
+      await Promise.all([loadFolders(), loadPage(1)])
     },
 
     selectFolder: async (folderId) => {
       if (folderId === get().currentFolderId) return
-      set({ currentFolderId: folderId, items: [], total: 0 })
-      await loadFirstPage()
+      set({ currentFolderId: folderId, items: [], total: 0, page: 1 })
+      await loadPage(1)
     },
 
     setSort: async (sortBy, sortOrder) => {
       localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify({ sortBy, sortOrder }))
-      set({ sortBy, sortOrder, items: [], total: 0 })
-      await loadFirstPage()
+      set({ sortBy, sortOrder, items: [], total: 0, page: 1 })
+      await loadPage(1)
     },
 
-    loadMore: async () => {
-      const { items, total, loadingMore, listLoading } = get()
-      if (loadingMore || listLoading || items.length >= total) return
-      set({ loadingMore: true })
-      try {
-        const { currentFolderId, sortBy, sortOrder } = get()
-        const resp = await fetchEagleItems({
-          folderId: currentFolderId || undefined,
-          sortBy,
-          sortOrder,
-          offset: items.length,
-          limit: PAGE_SIZE,
-        })
-        set({ items: [...get().items, ...resp.items], total: resp.total })
-      } finally {
-        set({ loadingMore: false })
-      }
+    setPage: async (page) => {
+      const { page: currentPage, listLoading } = get()
+      if (listLoading || page === currentPage || page < 1) return
+      await loadPage(page)
+    },
+
+    setImageSize: (size) => {
+      localStorage.setItem(SIZE_STORAGE_KEY, size)
+      set({ imageSize: size })
     },
 
     reload: async () => {
       await refreshEagleIndex()
-      set({ items: [], total: 0 })
-      await Promise.all([loadFolders(), loadFirstPage()])
+      set({ items: [], total: 0, page: 1 })
+      await Promise.all([loadFolders(), loadPage(1)])
     },
   }
 })

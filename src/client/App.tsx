@@ -47,7 +47,8 @@ function App() {
             } as CSSProperties
           }
         >
-          <main className="mx-auto max-w-6xl space-y-4 p-3 sm:p-6">
+          {/* main 默认布局（居中限宽 + 内边距）收敛到逐路由包裹，fullBleed 路由贴边自理 */}
+          <main>
             <Routes>
               {appRoutes
                 .filter(
@@ -57,7 +58,15 @@ function App() {
                   <Route
                     key={route.key}
                     path={route.path}
-                    element={route.element}
+                    element={
+                      route.fullBleed ? (
+                        route.element
+                      ) : (
+                        <div className="mx-auto max-w-6xl space-y-4 p-3 sm:p-6">
+                          {route.element}
+                        </div>
+                      )
+                    }
                   />
                 ))}
             </Routes>

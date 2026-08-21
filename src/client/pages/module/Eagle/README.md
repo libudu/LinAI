@@ -16,12 +16,12 @@ src/server/module/eagle/
 src/server/api/eagle.ts                  # Hono 子路由，挂在 /api/eagle
 
 src/client/pages/module/Eagle/           # 本目录
-├── index.tsx                            # 页面入口：左右分栏布局 + 未配置引导页
+├── index.tsx                            # 页面入口：左右分栏布局 + 未配置引导页（移动端隐藏左侧目录树）
 ├── api.ts                               # /api/eagle/* fetch 封装 + 文件 URL 辅助
-├── store.ts                             # zustand：文件夹树/列表/排序/分批加载
-├── FolderTree.tsx                       # 左侧 antd Tree（默认全展开，节点带图片数）
-├── ResourceGrid.tsx                     # 右侧网格 + 无限滚动 + 图片预览 + 视频 Modal
-├── Toolbar.tsx                          # 排序 Select + 刷新按钮 + 总数
+├── store.ts                             # zustand：文件夹树/列表/排序/分页/图片大小档位
+├── FolderTree.tsx                       # 左侧 antd Tree（展开状态持久化 localStorage，节点带文件夹图标与图片数）
+├── ResourceGrid.tsx                     # 右侧网格 + 分页 + 图片预览 + 视频 Modal
+├── Toolbar.tsx                          # 排序 Select + 图片大小 Segmented + 刷新按钮 + 移动端「切换文件夹」抽屉
 └── SettingModal/
     ├── index.tsx                        # 库路径配置弹窗（openEagleSettingModal）
     └── useEagleConfig.ts                # 配置 zustand store（/api/settings/eagle）
@@ -75,11 +75,12 @@ src/client/pages/module/Eagle/           # 本目录
 ## 前端数据流
 
 1. `index.tsx` 挂载 → `fetchEagleConfig()` → 有 `libraryPath` 才 `store.init()`，否则显示「去配置」引导
-2. `store.init()` 并行拉 `/folders` + 第一页 `/items`（每批 100）
-3. 切换文件夹 / 排序 → 清空列表重拉第一页；排序偏好持久化在 localStorage `eagle_sort`
-4. `ResourceGrid` 底部哨兵（IntersectionObserver，提前 400px）触发 `loadMore()` 追加批次
+2. `store.init()` 并行拉 `/folders` + 第一页 `/items`（每页 100）
+3. 切换文件夹 / 排序 / 翻页 → 重拉对应页；排序偏好与图片大小档位分别持久化在 localStorage `eagle_sort` / `eagle_image_size`
+4. `ResourceGrid` 底部 antd `Pagination` 翻页（移动端 simple 模式），翻页后网格滚动回顶部
 5. 预览：图片进 `Image.PreviewGroup`（items 只含非视频）；视频点击开 Modal 内 `<video>`（依赖 file 接口的 Range 支持）
 6. 设置弹窗保存库路径后调用 `store.reload()`（= POST /refresh + 重拉数据）
+7. 目录树展开/收起状态持久化在 localStorage `eagle_folder_expanded`（无记录时默认全展开）；移动端（`usePlatform().isMobile`）不渲染左侧栏，由工具栏「切换文件夹」按钮开抽屉展示同一棵 `FolderTree`
 
 ## 样式约定
 

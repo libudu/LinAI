@@ -1,0 +1,15 @@
+// 文件夹树大号节点：加大行高、字号与节点间距
+.eagle-folder-tree {
+  .ant-tree-treenode {
+    margin-bottom: 0;
+  }
+
+  .ant-tree-switcher,
+  .ant-tree-node-content-wrapper {
+    line-height: 36px;
+  }
+
+  .ant-tree-node-content-wrapper {
+    font-size: 16px;
+  }
+}

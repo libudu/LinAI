@@ -31,6 +31,8 @@ export interface AppRoute {
   adminOnly?: boolean
   /** 置灰展示（开发中），不注册路由 */
   disabled?: boolean
+  /** 贴边布局：去掉 main 默认的居中宽度与内边距，由页面自行控制边距 */
+  fullBleed?: boolean
 }
 
 export const appRoutes: AppRoute[] = [
@@ -74,6 +76,7 @@ export const appRoutes: AppRoute[] = [
     key: 'eagle',
     icon: <FolderOpenOutlined />,
     onClickSetting: () => openEagleSettingModal(),
+    fullBleed: true,
   },
   {
     path: '/yunwu-admin',

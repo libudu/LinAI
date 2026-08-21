@@ -1,12 +1,18 @@
-import { ReloadOutlined } from '@ant-design/icons'
-import { Button, Select, Space, message } from 'antd'
+import { usePlatform } from '@/client/hooks/usePlatform'
+import { FolderOutlined, ReloadOutlined } from '@ant-design/icons'
+import { Button, Drawer, Segmented, Select, Space, message } from 'antd'
 import { useState } from 'react'
+import { FolderTree } from './FolderTree'
 import { useEagleStore } from './store'
+import type { EagleImageSize } from './store'
 
-// 资源列表顶部操作区：排序选项 + 刷新按钮
+// 资源列表顶部操作区：排序选项 + 图片大小档位 + 刷新按钮；移动端提供文件夹抽屉入口
 export function Toolbar() {
-  const { sortBy, sortOrder, setSort, reload, total } = useEagleStore()
+  const { sortBy, sortOrder, setSort, reload, total, imageSize, setImageSize } =
+    useEagleStore()
+  const { isMobile } = usePlatform()
   const [refreshing, setRefreshing] = useState(false)
+  const [folderDrawerOpen, setFolderDrawerOpen] = useState(false)
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -22,8 +28,16 @@ export function Toolbar() {
   }
 
   return (
-    <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2 dark:border-slate-700">
-      <Space>
+    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-slate-200 px-4 py-2 dark:border-slate-700">
+      <Space wrap>
+        {isMobile && (
+          <Button
+            icon={<FolderOutlined />}
+            onClick={() => setFolderDrawerOpen(true)}
+          >
+            切换文件夹
+          </Button>
+        )}
         <Select
           value={`${sortBy}_${sortOrder}`}
           style={{ width: 160 }}
@@ -41,6 +55,15 @@ export function Toolbar() {
             { value: 'size_asc', label: '文件大小 小→大' },
           ]}
         />
+        <Segmented<EagleImageSize>
+          value={imageSize}
+          onChange={setImageSize}
+          options={[
+            { value: 'small', label: '小' },
+            { value: 'medium', label: '中' },
+            { value: 'large', label: '大' },
+          ]}
+        />
         <Button
           icon={<ReloadOutlined />}
           loading={refreshing}
@@ -50,6 +73,17 @@ export function Toolbar() {
         </Button>
       </Space>
       <span className="text-sm text-slate-400">共 {total} 项</span>
+
+      <Drawer
+        title="文件夹"
+        placement="left"
+        open={folderDrawerOpen}
+        onClose={() => setFolderDrawerOpen(false)}
+        width={280}
+        styles={{ body: { padding: 0 } }}
+      >
+        <FolderTree onSelected={() => setFolderDrawerOpen(false)} />
+      </Drawer>
     </div>
   )
 }

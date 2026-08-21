@@ -1,3 +1,4 @@
+import { usePlatform } from '@/client/hooks/usePlatform'
 import { Button, Empty } from 'antd'
 import { useEffect } from 'react'
 import { FolderTree } from './FolderTree'
@@ -7,10 +8,11 @@ import { useEagleConfig } from './SettingModal/useEagleConfig'
 import { useEagleStore } from './store'
 import { Toolbar } from './Toolbar'
 
-// Eagle 图片管理：左侧文件夹目录树 + 右侧资源网格
+// Eagle 图片管理：左侧文件夹目录树 + 右侧资源网格（移动端目录树改由工具栏抽屉进入）
 export function Eagle() {
   const { libraryPath, fetchEagleConfig } = useEagleConfig()
   const init = useEagleStore((s) => s.init)
+  const { isMobile } = usePlatform()
 
   useEffect(() => {
     fetchEagleConfig().then(() => {
@@ -34,12 +36,16 @@ export function Eagle() {
   }
 
   return (
-    // 主容器是自适应高度，这里用视口高度减去 main 的垂直内边距，让左右栏内部滚动
-    <div className="flex h-[calc(100dvh-1.5rem)] overflow-hidden sm:h-[calc(100dvh-3rem)]">
-      <div className="w-60 shrink-0 border-r border-slate-200 dark:border-slate-700">
-        <FolderTree />
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col">
+    // 主容器贴边拉满（路由配了 fullBleed）：视口高度即容器高度，让左右栏内部滚动；
+    // md 以下还有全局 sticky 顶栏（h-10 内容 + py-2.5 + 1px 边框 = 61px），不减去会多出一条外层滚动条
+    <div className="flex h-[calc(100dvh-61px)] overflow-hidden md:h-dvh">
+      {!isMobile && (
+        <div className="w-60 shrink-0 border-r border-slate-200 dark:border-slate-700">
+          <FolderTree />
+        </div>
+      )}
+      {/* 资源列表区：原 main 的外围边距移到这里 */}
+      <div className="flex min-w-0 flex-1 flex-col p-3 pb-0 sm:p-6 sm:pb-0">
         <Toolbar />
         <ResourceGrid />
       </div>
