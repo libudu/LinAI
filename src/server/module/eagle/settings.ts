@@ -1,9 +1,14 @@
+import { VISION_ENDPOINT_PRESET_INFOS } from '@/shared/vision/endpoints'
 import { z } from 'zod'
 import {
   asLegacyRecord,
   settingsRegistry,
 } from '../../common/settings/registry'
 import { dataPath } from '../../common/storage/data-path'
+import {
+  visionSettingsSchema,
+  type VisionSettings,
+} from '../vision/settings'
 
 // Eagle 图片管理模块设置：注册式存储，落盘 data/eagle/config.json
 export const eagleSettingsSchema = z.object({
@@ -31,3 +36,25 @@ settingsRegistry.register<EagleSettings>('eagle', {
 /** 服务端内部读取（合并默认值） */
 export const getEagleSettings = async (): Promise<EagleSettings> =>
   (await settingsRegistry.get<EagleSettings>('eagle')).value
+
+// Eagle 视觉接入点设置：与图片生成的 vision 配置互相独立，落盘 data/eagle/vision.json
+export type EagleVisionSettings = VisionSettings
+
+const DEFAULT_EAGLE_VISION_ENDPOINT = VISION_ENDPOINT_PRESET_INFOS[0]
+
+const DEFAULT_EAGLE_VISION_SETTINGS: EagleVisionSettings = {
+  visionBaseUrl: DEFAULT_EAGLE_VISION_ENDPOINT.baseUrl,
+  visionModelId: DEFAULT_EAGLE_VISION_ENDPOINT.modelId,
+  visionCustomEndpoints: [],
+  visionPresetApiKeys: {},
+}
+
+settingsRegistry.register<EagleVisionSettings>('eagle-vision', {
+  file: dataPath('eagle', 'vision.json'),
+  defaults: DEFAULT_EAGLE_VISION_SETTINGS,
+  schema: visionSettingsSchema,
+})
+
+/** 服务端内部读取（合并默认值） */
+export const getEagleVisionSettings = async (): Promise<EagleVisionSettings> =>
+  (await settingsRegistry.get<EagleVisionSettings>('eagle-vision')).value

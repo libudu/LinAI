@@ -3,8 +3,10 @@ import { FolderOpenOutlined, FolderOutlined } from '@ant-design/icons'
 import type { TreeDataNode } from 'antd'
 import { Tree } from 'antd'
 import { useMemo, useState } from 'react'
+import { useEagleStore } from '../store'
 import './FolderTree.scss'
-import { useEagleStore } from './store'
+import { FolderContextMenu } from './FolderContextMenu'
+import { EditFolderModal } from './EditFolderModal'
 
 const EXPANDED_STORAGE_KEY = 'eagle_folder_expanded'
 
@@ -16,11 +18,18 @@ const renderTitle = (name: string, count: number) => (
   </span>
 )
 
-const toTreeData = (folders: EagleFolder[]): TreeDataNode[] =>
+const toTreeData = (
+  folders: EagleFolder[],
+  onEdit: (folder: EagleFolder) => void,
+): TreeDataNode[] =>
   folders.map((folder) => ({
     key: folder.id,
-    title: renderTitle(folder.name, folder.totalCount),
-    children: toTreeData(folder.children),
+    title: (
+      <FolderContextMenu folder={folder} onEdit={onEdit}>
+        {renderTitle(folder.name, folder.totalCount)}
+      </FolderContextMenu>
+    ),
+    children: toTreeData(folder.children, onEdit),
   }))
 
 // 收集全部文件夹 key（首次无本地记录时默认全展开）
@@ -43,18 +52,26 @@ const loadExpandedKeys = (): string[] | null => {
 }
 
 // 左侧文件夹目录树：贴边拉满，展开状态持久化到 localStorage，节点带文件夹图标与图片数
+// 右键节点弹出菜单（编辑名称/描述，写回 Eagle 库 metadata.json）
 export function FolderTree({ onSelected }: { onSelected?: () => void }) {
-  const { folders, foldersLoading, currentFolderId, selectFolder, allTotal } =
-    useEagleStore()
+  const {
+    folders,
+    foldersLoading,
+    currentFolderId,
+    selectFolder,
+    allTotal,
+    refreshFolders,
+  } = useEagleStore()
   // null = 尚无本地记录，回退为全展开
   const [storedKeys, setStoredKeys] = useState<string[] | null>(
     loadExpandedKeys,
   )
+  const [editingFolder, setEditingFolder] = useState<EagleFolder | null>(null)
 
   const treeData = useMemo<TreeDataNode[]>(
     () => [
       { key: '', title: renderTitle('全部', allTotal), children: undefined },
-      ...toTreeData(folders),
+      ...toTreeData(folders, setEditingFolder),
     ],
     [folders, allTotal],
   )
@@ -88,6 +105,12 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
       {foldersLoading && (
         <div className="pt-2 text-center text-xs text-slate-400">加载中…</div>
       )}
+
+      <EditFolderModal
+        folder={editingFolder}
+        onClose={() => setEditingFolder(null)}
+        onSaved={refreshFolders}
+      />
     </div>
   )
 }

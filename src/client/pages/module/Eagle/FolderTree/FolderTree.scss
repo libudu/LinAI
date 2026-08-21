@@ -1,0 +1,24 @@
+// 文件夹树大号节点：加大行高、字号与节点间距
+.eagle-folder-tree {
+  .ant-tree-treenode {
+    margin-bottom: 0;
+  }
+
+  .ant-tree-switcher,
+  .ant-tree-node-content-wrapper {
+    line-height: 36px;
+  }
+
+  .ant-tree-node-content-wrapper {
+    // 基线对齐还原行内布局下图标底边贴文字基线的视觉效果，center 会让图标略微下沉
+    display: flex;
+    align-items: baseline;
+    font-size: 16px;
+
+    // 标题占满节点剩余宽度，让右键菜单触发区覆盖整行 hover 变灰区域
+    .ant-tree-title {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+}

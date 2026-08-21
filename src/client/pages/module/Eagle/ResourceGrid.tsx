@@ -11,13 +11,22 @@ import { PAGE_SIZE, useEagleStore } from './store'
 const GRID_COLS: Record<EagleImageSize, string> = {
   small: 'grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6',
   medium: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5',
-  large: 'grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+  large: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+}
+
+/** 格式化文件大小，如 0.1MB / 256KB */
+const formatFileSize = (bytes: number) => {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)}MB`
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)}KB`
+  return `${bytes}B`
 }
 
 // 右侧资源网格：固定大小格子 + object-cover 缩略图，底部分页翻页
 export function ResourceGrid() {
   const { items, total, listLoading, page, setPage, imageSize } =
     useEagleStore()
+  const showFileName = useEagleStore((s) => s.showFileName)
+  const showFileSize = useEagleStore((s) => s.showFileSize)
   const { isMobile } = usePlatform()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -72,6 +81,20 @@ export function ResourceGrid() {
                   className="h-full w-full object-cover"
                   loading="lazy"
                 />
+                {(showFileName || showFileSize) && (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/55 px-1 py-0.5 text-center text-[11px] leading-4 text-white">
+                    {showFileName && (
+                      <div className="truncate">
+                        {item.name}.{item.ext}
+                      </div>
+                    )}
+                    {showFileSize && (
+                      <div className="truncate">
+                        {formatFileSize(item.size)}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {item.isVideo && (
                   <div className="absolute right-1 bottom-1 rounded bg-black/60 px-1.5 py-0.5 text-white">
                     <PlayCircleOutlined />

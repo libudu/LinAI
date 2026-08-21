@@ -39,6 +39,18 @@ export const refreshEagleIndex = async (): Promise<void> => {
   await apiRequest<null>('/api/eagle/refresh', { method: 'POST' })
 }
 
+// 编辑文件夹名称/描述
+export const updateEagleFolder = async (
+  id: string,
+  patch: { name: string; description: string },
+): Promise<void> => {
+  await apiRequest<null>(`/api/eagle/folders/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+}
+
 export const eagleThumbnailUrl = (id: string) =>
   `/api/eagle/items/${id}/thumbnail`
 

@@ -3,6 +3,8 @@
 export interface EagleFolder {
   id: string
   name: string
+  /** 文件夹描述（Eagle 库 metadata.json 中的 description 字段） */
+  description: string
   children: EagleFolder[]
   /** 直接包含的资源数 */
   count: number

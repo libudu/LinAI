@@ -1,5 +1,7 @@
 import fs from 'fs-extra'
 import { Hono } from 'hono'
+import { zValidator } from '@hono/zod-validator'
+import { z } from 'zod'
 import { Readable } from 'node:stream'
 import path from 'path'
 import sharp from 'sharp'
@@ -13,6 +15,7 @@ import {
   getItems,
   isVideoExt,
   refreshIndex,
+  updateFolder,
 } from '../module/eagle/library'
 
 const eagleApi = new Hono()
@@ -77,6 +80,27 @@ eagleApi.post('/refresh', async (c) => {
   await refreshIndex()
   return c.json({ success: true as const, data: null })
 })
+
+// 编辑文件夹名称/描述（写回库根 metadata.json，模块对库唯一的写操作）
+eagleApi.put(
+  '/folders/:id',
+  zValidator(
+    'json',
+    z.object({
+      name: z.string().trim().min(1),
+      description: z.string().max(2000).default(''),
+    }),
+  ),
+  async (c) => {
+    const id = c.req.param('id')
+    const body = c.req.valid('json')
+    const ok = await updateFolder(id, body)
+    if (!ok) {
+      return c.json({ success: false as const, error: '文件夹不存在' }, 404)
+    }
+    return c.json({ success: true as const, data: null })
+  },
+)
 
 // 缩略图：优先库内 _thumbnail.png，缺失时图片用 sharp 生成缓存，视频回退占位 SVG
 eagleApi.get('/items/:id/thumbnail', async (c) => {

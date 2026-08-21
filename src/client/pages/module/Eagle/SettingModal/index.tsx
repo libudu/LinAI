@@ -1,8 +1,15 @@
 import { Form, Input, message } from 'antd'
 import { createRef, forwardRef, useEffect, useImperativeHandle } from 'react'
-import { openCommonSettingModal } from '../../../common/components/SettingModal'
+import {
+  openCommonSettingModal,
+  type CommonSettingTab,
+} from '../../../common/components/SettingModal'
 import { useEagleStore } from '../store'
 import { useEagleConfig } from './useEagleConfig'
+import {
+  VisionEndpointSetting,
+  type VisionEndpointSettingRef,
+} from './VisionEndpointSetting'
 
 interface EagleSettingRef {
   save: () => Promise<void>
@@ -43,18 +50,39 @@ const EagleSetting = forwardRef<EagleSettingRef>((_props, ref) => {
   )
 })
 
-// 打开 Eagle 图片管理设置弹窗
-export function openEagleSettingModal() {
+// 打开 Eagle 图片管理设置弹窗（资源库 / 视觉接入点，两者配置互相独立）
+export function openEagleSettingModal(options?: {
+  initialTab?: string
+  initialOnly?: boolean
+  onSuccess?: (apiKey: string) => void
+}) {
   const eagleRef = createRef<EagleSettingRef>()
+  const visionEndpointRef = createRef<VisionEndpointSettingRef>()
+
+  const tabs: CommonSettingTab[] = [
+    {
+      key: 'eagle',
+      label: '资源库',
+      children: <EagleSetting ref={eagleRef} />,
+      onSave: () => eagleRef.current!.save(),
+    },
+    {
+      key: 'vision-endpoint',
+      label: '视觉接入点',
+      children: <VisionEndpointSetting ref={visionEndpointRef} />,
+      onSave: () => visionEndpointRef.current!.save(),
+    },
+  ]
+
+  const initialTabItem =
+    tabs.find((tab) => tab.key === options?.initialTab) ?? tabs[0]
+  const visibleTabs = options?.initialOnly ? [initialTabItem] : tabs
+
   openCommonSettingModal({
-    title: 'Eagle 图片管理设置',
-    tabs: [
-      {
-        key: 'eagle',
-        label: '资源库',
-        children: <EagleSetting ref={eagleRef} />,
-        onSave: () => eagleRef.current!.save(),
-      },
-    ],
+    title: options?.initialOnly ? initialTabItem.label : 'Eagle 图片管理设置',
+    tabs: visibleTabs,
+    initialTab: options?.initialTab,
+    okText: options?.onSuccess ? '保存并继续' : '保存',
+    onSuccess: (result) => options?.onSuccess?.(result as string),
   })
 }

@@ -24,6 +24,7 @@ import { getEagleSettings } from './settings'
 interface EagleRawFolder {
   id: string
   name: string
+  description?: string
   children?: EagleRawFolder[]
 }
 
@@ -370,12 +371,52 @@ const buildFolderTree = (
     return {
       id: folder.id,
       name: folder.name,
+      description: folder.description ?? '',
       children,
       count,
       totalCount:
         count + children.reduce((sum, child) => sum + child.totalCount, 0),
     }
   })
+
+/** 在原始文件夹树中按 id 查找节点 */
+const findRawFolder = (
+  raw: EagleRawFolder[],
+  id: string,
+): EagleRawFolder | null => {
+  for (const folder of raw) {
+    if (folder.id === id) return folder
+    const hit = findRawFolder(folder.children ?? [], id)
+    if (hit) return hit
+  }
+  return null
+}
+
+/**
+ * 编辑文件夹名称/描述（写回库根 metadata.json，原子写入，保留其他字段）。
+ * 这是本模块对库目录唯一的写操作。返回 false 表示文件夹不存在。
+ */
+export const updateFolder = async (
+  id: string,
+  patch: { name: string; description: string },
+): Promise<boolean> => {
+  const index = await ensureIndex()
+  if (!index) return false
+  const metaPath = path.join(index.libraryPath, 'metadata.json')
+  const rawLibrary = (await fs.readJson(metaPath)) as {
+    folders?: EagleRawFolder[]
+  }
+  const target = findRawFolder(rawLibrary.folders ?? [], id)
+  if (!target) return false
+  target.name = patch.name
+  target.description = patch.description
+  const tmp = `${metaPath}.tmp`
+  await fs.writeJson(tmp, rawLibrary)
+  await fs.move(tmp, metaPath, { overwrite: true })
+  // 同步内存中的文件夹树（fs.watch 也会触发增量校验，这里立即生效）
+  index.folders = rawLibrary.folders ?? []
+  return true
+}
 
 export const getFolderTree = async (): Promise<EagleFolder[]> => {
   const index = await ensureIndex()

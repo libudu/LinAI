@@ -14,8 +14,29 @@ import {
 export const PAGE_SIZE = 100
 const SORT_STORAGE_KEY = 'eagle_sort'
 const SIZE_STORAGE_KEY = 'eagle_image_size'
+const DISPLAY_STORAGE_KEY = 'eagle_display_options'
 
 export type EagleImageSize = 'small' | 'medium' | 'large'
+
+// 网格展示选项（展示文件名 / 展示文件大小）持久化，默认均不勾选
+const loadDisplayOptions = (): Pick<
+  EagleState,
+  'showFileName' | 'showFileSize'
+> => {
+  try {
+    const raw = localStorage.getItem(DISPLAY_STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      return {
+        showFileName: parsed.showFileName === true,
+        showFileSize: parsed.showFileSize === true,
+      }
+    }
+  } catch {
+    // 忽略损坏的本地缓存
+  }
+  return { showFileName: false, showFileSize: false }
+}
 
 // 排序偏好持久化（仅前端状态，不走服务端设置）
 const loadSort = (): Pick<EagleState, 'sortBy' | 'sortOrder'> => {
@@ -60,14 +81,22 @@ interface EagleState {
   sortOrder: EagleSortOrder
   /** 网格图片大小档位 */
   imageSize: EagleImageSize
+  /** 在格子底部展示文件名 */
+  showFileName: boolean
+  /** 在格子底部展示文件大小 */
+  showFileSize: boolean
 
   init: () => Promise<void>
   selectFolder: (folderId: string) => Promise<void>
   setSort: (sortBy: EagleSortBy, sortOrder: EagleSortOrder) => Promise<void>
   setPage: (page: number) => Promise<void>
   setImageSize: (size: EagleImageSize) => void
+  setShowFileName: (show: boolean) => void
+  setShowFileSize: (show: boolean) => void
   /** 触发后端增量刷新后重拉数据 */
   reload: () => Promise<void>
+  /** 仅重拉文件夹树（编辑文件夹后调用） */
+  refreshFolders: () => Promise<void>
 }
 
 export const useEagleStore = create<EagleState>()((set, get) => {
@@ -110,6 +139,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
     listLoading: false,
     imageSize: loadImageSize(),
     ...loadSort(),
+    ...loadDisplayOptions(),
 
     init: async () => {
       await Promise.all([loadFolders(), loadPage(1)])
@@ -138,10 +168,34 @@ export const useEagleStore = create<EagleState>()((set, get) => {
       set({ imageSize: size })
     },
 
+    setShowFileName: (show) => {
+      set((state) => {
+        localStorage.setItem(
+          DISPLAY_STORAGE_KEY,
+          JSON.stringify({ showFileName: show, showFileSize: state.showFileSize }),
+        )
+        return { showFileName: show }
+      })
+    },
+
+    setShowFileSize: (show) => {
+      set((state) => {
+        localStorage.setItem(
+          DISPLAY_STORAGE_KEY,
+          JSON.stringify({ showFileName: state.showFileName, showFileSize: show }),
+        )
+        return { showFileSize: show }
+      })
+    },
+
     reload: async () => {
       await refreshEagleIndex()
       set({ items: [], total: 0, page: 1 })
       await Promise.all([loadFolders(), loadPage(1)])
+    },
+
+    refreshFolders: async () => {
+      await loadFolders()
     },
   }
 })

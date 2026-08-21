@@ -1,6 +1,6 @@
 # Eagle 图片管理模块
 
-只读浏览 Eagle 资源库（`.library` 目录）中的图片 / gif / 视频：左侧文件夹目录树，右侧网格资源列表，支持排序、刷新、大图预览与视频播放。**模块对库目录零写入**，所有自身数据（配置、索引缓存、缩略图回退缓存）落在 `data/eagle/` 下。
+只读浏览 Eagle 资源库（`.library` 目录）中的图片 / gif / 视频：左侧文件夹目录树，右侧网格资源列表，支持排序、刷新、大图预览与视频播放。除文件夹名称/描述编辑（`PUT /folders/:id`，写回库根 metadata.json）外**模块对库目录零写入**，所有自身数据（配置、索引缓存、缩略图回退缓存）落在 `data/eagle/` 下。
 
 > 需求与方案文档：`docs/Eagle图片管理模块.txt`、`docs/Eagle图片管理模块-实现方案.md`、`docs/Eagle资源库.txt`（库结构说明）。修改本模块后请同步更新本文档。
 
@@ -10,21 +10,24 @@
 src/shared/eagle/types.ts                # 前后端共享类型（EagleFolder / EagleItem / 排序类型）
 
 src/server/module/eagle/
-├── settings.ts                          # 注册式设置：libraryPath，落盘 data/eagle/config.json
-└── library.ts                           # 核心：内存索引（扫描/增量校验/fs.watch/查询）
+├── settings.ts                          # 注册式设置：eagle（libraryPath，落盘 data/eagle/config.json）与 eagle-vision（视觉接入点，落盘 data/eagle/vision.json，与图片生成的 vision 配置互相独立）
+└── library.ts                           # 核心：内存索引（扫描/增量校验/fs.watch/查询）+ updateFolder 文件夹编辑
 
 src/server/api/eagle.ts                  # Hono 子路由，挂在 /api/eagle
 
 src/client/pages/module/Eagle/           # 本目录
-├── index.tsx                            # 页面入口：左右分栏布局 + 未配置引导页（移动端隐藏左侧目录树）
+├── index.tsx                            # 页面入口：左右分栏布局 + 未配置引导页（移动端隐藏左侧目录树），挂载时拉取 eagle 与 eagle-vision 配置
 ├── api.ts                               # /api/eagle/* fetch 封装 + 文件 URL 辅助
-├── store.ts                             # zustand：文件夹树/列表/排序/分页/图片大小档位
-├── FolderTree.tsx                       # 左侧 antd Tree（展开状态持久化 localStorage，节点带文件夹图标与图片数）
-├── ResourceGrid.tsx                     # 右侧网格 + 分页 + 图片预览 + 视频 Modal
-├── Toolbar.tsx                          # 排序 Select + 图片大小 Segmented + 刷新按钮 + 移动端「切换文件夹」抽屉
+├── store.ts                             # zustand：文件夹树/列表/排序/分页/图片大小档位/展示选项（文件名/文件大小）
+├── FolderTree.tsx                       # 左侧 antd Tree（展开状态持久化 localStorage，节点带文件夹图标与图片数）；右键菜单「编辑」改名称/描述
+├── ResourceGrid.tsx                     # 右侧网格 + 分页 + 图片预览 + 视频 Modal，可按需在格子底部叠加文件名/文件大小
+├── OrganizeModal.tsx                    # 「图片整理」弹窗空壳（依赖视觉接入点配置，具体功能待实现）
+├── Toolbar.tsx                          # 「展示选项」下拉面板（排序/图片大小/文件名/文件大小）+ 刷新 + 「图片整理」按钮 + 移动端「切换文件夹」抽屉
 └── SettingModal/
-    ├── index.tsx                        # 库路径配置弹窗（openEagleSettingModal）
-    └── useEagleConfig.ts                # 配置 zustand store（/api/settings/eagle）
+    ├── index.tsx                        # 设置弹窗（openEagleSettingModal）：资源库 / 视觉接入点两个标签页
+    ├── useEagleConfig.ts                # 资源库配置 zustand store（/api/settings/eagle）
+    ├── useEagleVisionConfig.ts          # 视觉接入点 zustand store（/api/settings/eagle-vision，独立 keychain）
+    └── VisionEndpointSetting.tsx        # 视觉接入点薄封装，绑定公共组件 common/components/VisionEndpoint
 ```
 
 注册点：
@@ -58,13 +61,14 @@ src/client/pages/module/Eagle/           # 本目录
 
 ## API（/api/eagle）
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/folders` | 文件夹树，`count` 直接包含数 / `totalCount` 含子孙累计 |
-| GET | `/items?folderId&sortBy&sortOrder&offset&limit` | 服务端排序分页；`sortBy=mtime\|size`，`limit` 上限 500；缺省 folderId = 全部 |
-| POST | `/refresh` | 触发增量校验（库路径变化时重建索引） |
-| GET | `/items/:id/thumbnail` | 优先库内 `_thumbnail.png` → 缺失时图片用 sharp 生成 200px webp 缓存到 `data/eagle/thumb/` → 视频回退占位 SVG |
-| GET | `/items/:id/file` | 原文件流式返回，支持 Range（206），视频可拖进度条 |
+| 方法 | 路径                                            | 说明                                                                                                         |
+| ---- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| GET  | `/folders`                                      | 文件夹树，`count` 直接包含数 / `totalCount` 含子孙累计                                                       |
+| PUT  | `/folders/:id`                                  | 编辑文件夹名称/描述（body `{ name, description }`），写回库根 metadata.json，是模块对库唯一的写操作          |
+| GET  | `/items?folderId&sortBy&sortOrder&offset&limit` | 服务端排序分页；`sortBy=mtime\|size`，`limit` 上限 500；缺省 folderId = 全部                                 |
+| POST | `/refresh`                                      | 触发增量校验（库路径变化时重建索引）                                                                         |
+| GET  | `/items/:id/thumbnail`                          | 优先库内 `_thumbnail.png` → 缺失时图片用 sharp 生成 200px webp 缓存到 `data/eagle/thumb/` → 视频回退占位 SVG |
+| GET  | `/items/:id/file`                               | 原文件流式返回，支持 Range（206），视频可拖进度条                                                            |
 
 约定：
 
@@ -76,11 +80,12 @@ src/client/pages/module/Eagle/           # 本目录
 
 1. `index.tsx` 挂载 → `fetchEagleConfig()` → 有 `libraryPath` 才 `store.init()`，否则显示「去配置」引导
 2. `store.init()` 并行拉 `/folders` + 第一页 `/items`（每页 100）
-3. 切换文件夹 / 排序 / 翻页 → 重拉对应页；排序偏好与图片大小档位分别持久化在 localStorage `eagle_sort` / `eagle_image_size`
+3. 切换文件夹 / 排序 / 翻页 → 重拉对应页；排序偏好、图片大小档位、展示选项（文件名/文件大小）分别持久化在 localStorage `eagle_sort` / `eagle_image_size` / `eagle_display_options`
 4. `ResourceGrid` 底部 antd `Pagination` 翻页（移动端 simple 模式），翻页后网格滚动回顶部
 5. 预览：图片进 `Image.PreviewGroup`（items 只含非视频）；视频点击开 Modal 内 `<video>`（依赖 file 接口的 Range 支持）
-6. 设置弹窗保存库路径后调用 `store.reload()`（= POST /refresh + 重拉数据）
+6. 设置弹窗保存库路径后调用 `store.reload()`（= POST /refresh + 重拉数据）；视觉接入点标签页挂载时拉取 `eagle-vision` 配置
 7. 目录树展开/收起状态持久化在 localStorage `eagle_folder_expanded`（无记录时默认全展开）；移动端（`usePlatform().isMobile`）不渲染左侧栏，由工具栏「切换文件夹」按钮开抽屉展示同一棵 `FolderTree`
+8. 目录树右键节点 →「编辑」弹窗改文件夹名称/描述，保存后仅重拉文件夹树（`refreshFolders`）；「图片整理」按钮先校验 `eagle-vision` 的生效密钥，未配置时以 initialOnly 模式弹设置引导，保存后继续打开整理弹窗
 
 ## 样式约定
 

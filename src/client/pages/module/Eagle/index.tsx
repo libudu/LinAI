@@ -5,23 +5,26 @@ import { FolderTree } from './FolderTree'
 import { ResourceGrid } from './ResourceGrid'
 import { openEagleSettingModal } from './SettingModal'
 import { useEagleConfig } from './SettingModal/useEagleConfig'
+import { useEagleVisionConfig } from './SettingModal/useEagleVisionConfig'
 import { useEagleStore } from './store'
 import { Toolbar } from './Toolbar'
 
 // Eagle 图片管理：左侧文件夹目录树 + 右侧资源网格（移动端目录树改由工具栏抽屉进入）
 export function Eagle() {
   const { libraryPath, fetchEagleConfig } = useEagleConfig()
+  const fetchVisionConfig = useEagleVisionConfig((s) => s.fetchConfig)
   const init = useEagleStore((s) => s.init)
   const { isMobile } = usePlatform()
 
   useEffect(() => {
+    fetchVisionConfig()
     fetchEagleConfig().then(() => {
       // 配置拉取后再决定是否加载索引（未配置库路径时由引导页接管）
       if (useEagleConfig.getState().libraryPath) {
         init()
       }
     })
-  }, [fetchEagleConfig, init])
+  }, [fetchEagleConfig, fetchVisionConfig, init])
 
   if (!libraryPath) {
     return (
