@@ -2,12 +2,15 @@ import {
   AudioOutlined,
   BookOutlined,
   CloudOutlined,
+  FolderOpenOutlined,
   HighlightOutlined,
   PictureOutlined,
 } from '@ant-design/icons'
 import type { ReactNode } from 'react'
 import { GenImage } from './pages/common/GenImage'
 import { openGPTImageSettingModal } from './pages/common/GenImage/SettingModal'
+import { Eagle } from './pages/module/Eagle'
+import { openEagleSettingModal } from './pages/module/Eagle/SettingModal'
 import { TTS } from './pages/module/GeminiTTS'
 import { openTTSSettingModal } from './pages/module/GeminiTTS/SettingModal'
 import { Novel } from './pages/module/Novel'
@@ -63,6 +66,14 @@ export const appRoutes: AppRoute[] = [
     icon: <BookOutlined />,
     onClickSetting: () => openNovelSettingModal(),
     adminOnly: true,
+  },
+  {
+    path: '/eagle',
+    label: 'Eagle 图片管理',
+    element: <Eagle />,
+    key: 'eagle',
+    icon: <FolderOpenOutlined />,
+    onClickSetting: () => openEagleSettingModal(),
   },
   {
     path: '/yunwu-admin',
