@@ -16,12 +16,19 @@ interface OrganizeState {
   refresh: () => Promise<void>
 }
 
+let refreshSequence = 0
+
 const refreshStatus = async (): Promise<void> => {
+  const sequence = ++refreshSequence
   try {
     const status = await fetchOrganizeStatus()
+    // SSE 事件可能密集触发并发请求，只允许最后发起的请求更新状态，
+    // 避免较旧响应晚到后把 confirming 覆盖回 running/paused。
+    if (sequence !== refreshSequence) return
     useOrganizeStore.setState({ status, loaded: true })
   } catch (error) {
     console.error('拉取图片整理任务状态失败', error)
+    if (sequence !== refreshSequence) return
     useOrganizeStore.setState({ loaded: true })
   }
 }

@@ -4,7 +4,7 @@ import type {
   OrganizeTaskView,
 } from '@/shared/eagle/organize'
 import { Button, Modal, Progress, message } from 'antd'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { eagleThumbnailUrl } from '../api'
 import {
   clearOrganizeTask,
@@ -45,13 +45,19 @@ export function StepRunning() {
   const [task, setTask] = useState<OrganizeTaskView | null>(null)
   const [queue, setQueue] = useState<OrganizeQueueResp | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
+  const refreshSequenceRef = useRef(0)
 
   const refreshTask = useCallback(() => {
+    const sequence = ++refreshSequenceRef.current
     fetchOrganizeTask()
-      .then(setTask)
+      .then((nextTask) => {
+        if (sequence === refreshSequenceRef.current) setTask(nextTask)
+      })
       .catch((error) => console.error('拉取图片整理任务详情失败', error))
     fetchOrganizeQueue(QUEUE_PREVIEW_LIMIT)
-      .then(setQueue)
+      .then((nextQueue) => {
+        if (sequence === refreshSequenceRef.current) setQueue(nextQueue)
+      })
       .catch((error) => console.error('拉取图片整理队列预览失败', error))
   }, [])
 
@@ -67,8 +73,9 @@ export function StepRunning() {
   const phase = status?.phase
   const total = task?.total ?? 0
   const executed = task?.executed ?? 0
-  const remaining = status?.remaining ?? total - executed
-  const pendingConfirm = status?.pendingConfirm ?? task?.pendingConfirm ?? 0
+  // 一组进度数字必须来自同一次 task 快照；status 是独立请求，只负责阶段路由。
+  const remaining = Math.max(0, total - executed)
+  const pendingConfirm = task?.pendingConfirm ?? 0
   const successCount = task?.successCount ?? 0
   const failedCount = task?.failedCount ?? 0
   const percent = total > 0 ? Math.round((executed / total) * 100) : 0

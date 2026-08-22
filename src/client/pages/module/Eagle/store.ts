@@ -11,6 +11,7 @@ export const PAGE_SIZE = 100
 const SORT_STORAGE_KEY = 'eagle_sort'
 const SIZE_STORAGE_KEY = 'eagle_image_size'
 const DISPLAY_STORAGE_KEY = 'eagle_display_options'
+const SELECTED_FOLDER_STORAGE_KEY = 'eagle_selected_folder'
 
 export type EagleImageSize = 'small' | 'medium' | 'large'
 
@@ -63,6 +64,20 @@ const loadImageSize = (): EagleImageSize => {
   const raw = localStorage.getItem(SIZE_STORAGE_KEY)
   if (raw === 'small' || raw === 'medium' || raw === 'large') return raw
   return 'medium'
+}
+
+const loadSelectedFolderId = () =>
+  localStorage.getItem(SELECTED_FOLDER_STORAGE_KEY) ?? ''
+
+const hasFolder = (folders: EagleFolder[], folderId: string): boolean =>
+  folders.some(
+    (folder) =>
+      folder.id === folderId || hasFolder(folder.children, folderId),
+  )
+
+const persistSelectedFolderId = (folderId: string) => {
+  if (folderId) localStorage.setItem(SELECTED_FOLDER_STORAGE_KEY, folderId)
+  else localStorage.removeItem(SELECTED_FOLDER_STORAGE_KEY)
 }
 
 // Eagle 图片管理页面状态：文件夹树 + 当前文件夹的资源列表（分批加载）
@@ -145,6 +160,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
     try {
       const folders = await fetchEagleFolders()
       set({ folders })
+      return folders
     } finally {
       set({ foldersLoading: false })
     }
@@ -153,7 +169,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
   return {
     folders: [],
     foldersLoading: false,
-    currentFolderId: '',
+    currentFolderId: loadSelectedFolderId(),
     items: [],
     total: 0,
     page: 1,
@@ -164,11 +180,18 @@ export const useEagleStore = create<EagleState>()((set, get) => {
     ...loadViewOptions(),
 
     init: async () => {
-      await Promise.all([loadFolders(), loadPage(1)])
+      const folders = await loadFolders()
+      const currentFolderId = get().currentFolderId
+      if (currentFolderId && !hasFolder(folders, currentFolderId)) {
+        persistSelectedFolderId('')
+        set({ currentFolderId: '' })
+      }
+      await loadPage(1)
     },
 
     selectFolder: async (folderId) => {
       if (folderId === get().currentFolderId) return
+      persistSelectedFolderId(folderId)
       set({ currentFolderId: folderId, items: [], total: 0, page: 1 })
       await loadPage(1)
     },

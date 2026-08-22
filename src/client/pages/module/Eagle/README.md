@@ -34,7 +34,7 @@ src/client/pages/module/Eagle/           # 本目录
 │   ├── StepRunning.tsx                  # 步骤 2：执行状态/进度（已执行/总数、成功/失败）/暂停继续/清空；滚动队列表展示前 20 条执行中、待处理或失败条目（缩略图/状态/信息），完成无误的项过滤，完成后弹窗壳自动切步骤 3
 │   ├── StepConfirm.tsx                  # 步骤 3：结果确认——顶部待确认缩略图条（点击选中）+ 左大图右信息面板（状态/当前标题/建议标题/目标文件夹/低质/失败原因）+ 底部不处理(红)/重新执行/确认（不含标题）/确认，操作后自动选中下一张
 │   ├── api.ts                           # /api/eagle/organize/* 封装
-│   └── store.ts                         # zustand：轻量 status + SSE 订阅（eagle.organize），Toolbar 徽标与弹窗共用
+│   └── store.ts                         # zustand：轻量 status + SSE 订阅（eagle.organize），Toolbar 徽标与弹窗共用；并发刷新只接纳最新请求，避免旧响应覆盖新阶段
 ├── Toolbar.tsx                          # 「展示选项」下拉面板（排序/图片大小/文件名/文件大小）+ 刷新 + 「图片整理」按钮（Badge：队列剩余数/待确认红点）+ 移动端「切换文件夹」抽屉
 └── SettingModal/
     ├── index.tsx                        # 设置弹窗（openEagleSettingModal）：资源库 / 视觉接入点两个标签页
@@ -112,7 +112,7 @@ src/client/pages/module/Eagle/           # 本目录
 6. 设置弹窗保存库路径后调用 `store.reload()`（= POST /refresh + 重拉数据）；视觉接入点标签页挂载时拉取 `eagle-vision` 配置
 7. 目录树展开/收起状态持久化在 localStorage `eagle_folder_expanded`（无记录时默认全展开）；移动端（`usePlatform().isMobile`）不渲染左侧栏，由工具栏「切换文件夹」按钮开抽屉展示同一棵 `FolderTree`
 8. 目录树右键节点 →「编辑」弹窗改文件夹名称/描述，保存后仅重拉文件夹树（`refreshFolders`）；「图片整理」按钮先校验 `eagle-vision` 的生效密钥，未配置时以 initialOnly 模式弹设置引导，保存后继续打开整理弹窗
-9. 图片整理（阶段三完成）：`Organize/store.ts` 订阅 SSE（`/api/storage/events?resources=eagle.organize`）驱动徽标与弹窗阶段路由——队列未完成显示剩余数（点击进步骤 2 不能新建）、有待确认显示小红点（点击只显示结果确认）。任务持久化在 `data/eagle/organize/`（task.json + items/），服务重启时 running 任务自动转为 paused（原因 restart），重启前 in-flight 未落盘的项恢复后重新执行。步骤 1 可指定队列并发数（1~10，默认 5）；服务端执行器按该值推进队列，视觉判定经 `eagle.vision` 中继，压缩在内存中完成不落盘。步骤 2 的滚动列表预览前 20 条执行中、待处理和失败项目（缩略图 / 状态 / 信息）；成功项目进入结果确认步骤不再显示，失败项目显示错误信息。清空操作会取消 in-flight 请求、丢弃任务与结果，并回到步骤 1。单图失败仍会暂停派发。结果确认步骤：确认/不处理后待确认计数减一（全部处理完 phase → done），确认经 `updateItem` 写库（移动文件夹、可选改标题并重命名原文件），写库后发布 `eagle.library` 变更，Eagle 页面订阅该资源（`index.tsx`）刷新文件夹树与当前页；重新执行把单图状态置回 pending、phase 拉回 running（弹窗切回步骤 2）
+9. 图片整理（阶段三完成）：`Organize/store.ts` 订阅 SSE（`/api/storage/events?resources=eagle.organize`）驱动徽标与弹窗阶段路由，并以请求序号丢弃晚到的旧状态响应，避免完成后被旧 `running` 状态卡回步骤 2；步骤 2 的进度数字统一取同一次 task 快照，避免混用独立接口响应显示出矛盾计数。队列未完成显示剩余数（点击进步骤 2 不能新建）、有待确认显示小红点（点击只显示结果确认）。任务持久化在 `data/eagle/organize/`（task.json + items/），服务重启时 running 任务自动转为 paused（原因 restart），重启前 in-flight 未落盘的项恢复后重新执行。步骤 1 可指定队列并发数（1~10，默认 5）；服务端执行器按该值推进队列，视觉判定经 `eagle.vision` 中继，压缩在内存中完成不落盘。步骤 2 的滚动列表预览前 20 条执行中、待处理和失败项目（缩略图 / 状态 / 信息）；成功项目进入结果确认步骤不再显示，失败项目显示错误信息。清空操作会取消 in-flight 请求、丢弃任务与结果，并回到步骤 1。单图失败仍会暂停派发。结果确认步骤：确认/不处理后待确认计数减一（全部处理完 phase → done），确认经 `updateItem` 写库（移动文件夹、可选改标题并重命名原文件），写库后发布 `eagle.library` 变更，Eagle 页面订阅该资源（`index.tsx`）刷新文件夹树与当前页；重新执行把单图状态置回 pending、phase 拉回 running（弹窗切回步骤 2）
 
 ## 样式约定
 

@@ -65,6 +65,22 @@ const toTreeData = (
 const collectKeys = (folders: EagleFolder[]): string[] =>
   folders.flatMap((folder) => [folder.id, ...collectKeys(folder.children)])
 
+const findAncestorKeys = (
+  folders: EagleFolder[],
+  folderId: string,
+  ancestors: string[] = [],
+): string[] | null => {
+  for (const folder of folders) {
+    if (folder.id === folderId) return ancestors
+    const found = findAncestorKeys(folder.children, folderId, [
+      ...ancestors,
+      folder.id,
+    ])
+    if (found) return found
+  }
+  return null
+}
+
 // 读取旧版 localStorage 记录（仅用于向后端迁移一次），无记录返回 null
 const loadLegacyExpandedKeys = (): string[] | null => {
   try {
@@ -98,7 +114,10 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
   } = useEagleStore()
   // null = 尚无记录（未加载到或从未保存），回退为全展开
   const [storedKeys, setStoredKeys] = useState<string[] | null>(null)
+  const [expandedStateLoaded, setExpandedStateLoaded] = useState(false)
   const [editingFolder, setEditingFolder] = useState<EagleFolder | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const initialSelectionRevealedRef = useRef(false)
   // 后端文档版本，PUT 时带上做冲突检测；undefined = 尚未加载
   const revisionRef = useRef<number | undefined>(undefined)
   // 用户在加载完成前手动展开/收起时，放弃应用后端拉回的旧状态
@@ -150,11 +169,49 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
       }
       if (!cancelled && keys !== null && !interactedRef.current)
         setStoredKeys(keys)
+      if (!cancelled) setExpandedStateLoaded(true)
     })()
     return () => {
       cancelled = true
     }
   }, [])
+
+  // 文件夹与展开状态就绪后，确保历史选中项可见并滚动到其位置
+  useEffect(() => {
+    if (
+      initialSelectionRevealedRef.current ||
+      foldersLoading ||
+      !expandedStateLoaded ||
+      !currentFolderId
+    )
+      return
+
+    const ancestorKeys = findAncestorKeys(folders, currentFolderId)
+    if (!ancestorKeys) return
+    initialSelectionRevealedRef.current = true
+    setStoredKeys((current) =>
+      current === null
+        ? null
+        : [...new Set([...current, ...ancestorKeys])],
+    )
+
+    requestAnimationFrame(() => {
+      const container = scrollContainerRef.current
+      const selected = container?.querySelector<HTMLElement>(
+        '.ant-tree-node-selected',
+      )
+      if (!container || !selected) return
+      const containerRect = container.getBoundingClientRect()
+      const selectedRect = selected.getBoundingClientRect()
+      container.scrollTo({
+        top:
+          container.scrollTop +
+          selectedRect.top -
+          containerRect.top -
+          (container.clientHeight - selectedRect.height) / 2,
+      })
+    })
+  }, [currentFolderId, expandedStateLoaded, folders, foldersLoading])
 
   const handleExpand = (keys: React.Key[]) => {
     const next = keys.map(String)
@@ -184,7 +241,10 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
           <Button icon={<SettingOutlined />} type="text" />
         </Dropdown>
       </div>
-      <div className="eagle-folder-tree min-h-0 flex-1 overflow-y-auto py-1">
+      <div
+        ref={scrollContainerRef}
+        className="eagle-folder-tree min-h-0 flex-1 overflow-y-auto py-1"
+      >
         <Tree
           treeData={treeData}
           expandedKeys={expandedKeys}

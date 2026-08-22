@@ -38,6 +38,7 @@ export function Toolbar() {
     setShowFileName,
     showFileSize,
     setShowFileSize,
+    currentFolderId,
   } = useEagleStore()
   const { isMobile } = usePlatform()
   const visionApiKey = useEagleVisionConfig((s) => s.visionApiKey)
@@ -156,15 +157,17 @@ export function Toolbar() {
         </Button>
       </Space>
 
-      <Badge count={badgeCount} size="small" dot={badgeDot}>
-        <Button
-          type="primary"
-          icon={<AppstoreOutlined />}
-          onClick={handleOpenOrganize}
-        >
-          图片整理
-        </Button>
-      </Badge>
+      {currentFolderId && (
+        <Badge count={badgeCount} size="small" dot={badgeDot}>
+          <Button
+            type="primary"
+            icon={<AppstoreOutlined />}
+            onClick={handleOpenOrganize}
+          >
+            图片整理
+          </Button>
+        </Badge>
+      )}
 
       <Drawer
         title="文件夹"
