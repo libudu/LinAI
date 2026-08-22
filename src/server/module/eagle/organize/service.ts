@@ -14,6 +14,7 @@ import { changeBus } from '../../../common/storage/change-bus'
 import {
   folderExists,
   getClassifiableItems,
+  getFolderPaths,
   getFolderStandards,
   getItemEntry,
   updateItem,
@@ -270,7 +271,8 @@ class OrganizeService {
     const record = await organizeRepository.getItem(itemId)
     if (!record) return null
     const entry = await getItemEntry(itemId)
-    return { ...record, itemName: entry?.name ?? null }
+    const itemFolderPaths = await getFolderPaths(entry?.folders ?? [])
+    return { ...record, itemName: entry?.name ?? null, itemFolderPaths }
   }
 
   /**

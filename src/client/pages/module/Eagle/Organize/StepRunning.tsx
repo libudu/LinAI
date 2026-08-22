@@ -161,12 +161,6 @@ export function StepRunning() {
       </div>
 
       {/* 队列预览：左缩略图 / 中状态 / 右信息（失败原因），仅展示前 20 条 */}
-      <div className="flex items-center justify-between text-xs text-slate-400">
-        <span>处理队列（未完成 {queueTotal} 条）</span>
-        {queueTotal > queueItems.length && (
-          <span>仅展示前 {QUEUE_PREVIEW_LIMIT} 条</span>
-        )}
-      </div>
       <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
         {queueItems.length === 0 ? (
           <div className="py-8 text-center text-xs text-slate-400">

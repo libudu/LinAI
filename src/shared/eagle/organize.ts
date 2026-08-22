@@ -94,7 +94,7 @@ export const buildOrganizeVisionSystemPrompt = (
   return [
     '你是图片整理助手，需要根据给定的文件夹分类标准对图片进行归类。',
     '',
-    '分类标准（按优先级从上到下排列，越靠前优先级越高）：',
+    '分类标准（严格按优先级从上到下排列，越靠前优先级越高）：',
     ...lines,
     '',
     '请对图片进行判断，并仅输出一个 json 对象（json_object），不要输出任何其他文字、注释或代码块标记，格式如下：',
@@ -102,7 +102,7 @@ export const buildOrganizeVisionSystemPrompt = (
     '',
     '字段要求：',
     '- title：使用中文生成标题，限 50 个汉字以内尽可能详细。按“主体_主体细节_动作或状态_环境_媒介风格_色彩光影_构图视角_文字元素”的顺序组织；仅保留图片中明确可见或可判断的信息，缺少的部分直接省略，不要写“无”或其他占位内容，允许包含色情内容敏感词汇。',
-    '- folderPath：从上述分类标准的路径中选择最合适的一个；若图片不属于任何一类，填 "不属于任何分类"',
+    '- folderPath：从上述分类标准的路径中选择最合适的一个，优先级从上到下排列，越靠前优先级越高；若图片不属于任何一类，填 "不属于任何分类"',
     '- lowQuality：图片是否疑似低质（分辨率低、画面主体不清晰、美学品味较差等）',
   ].join('\n')
 }
@@ -123,6 +123,8 @@ export interface OrganizeResultListItem {
 export interface OrganizeResultDetail extends OrganizeItemRecord {
   /** Eagle 条目当前名称；条目已从库中删除时为 null */
   itemName: string | null
+  /** Eagle 条目当前所在文件夹的完整路径；未归入文件夹或条目不存在时为空数组 */
+  itemFolderPaths: string[]
 }
 
 /** 执行中步骤的队列预览行状态 */

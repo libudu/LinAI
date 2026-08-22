@@ -20,15 +20,70 @@ import { useEagleStore } from '../store'
 import { createOrganizeTask, fetchOrganizePrepare } from './api'
 import { refreshOrganizeStatus } from './store'
 
+const ORGANIZE_OPTIONS_STORAGE_KEY = 'eagle_organize_options'
+const ORGANIZE_COUNT_DEFAULT = 100
+
+interface OrganizeOptions {
+  count: number
+  compress: boolean
+  concurrency: number
+}
+
+const loadOrganizeOptions = (): OrganizeOptions => {
+  const defaults: OrganizeOptions = {
+    count: ORGANIZE_COUNT_DEFAULT,
+    compress: true,
+    concurrency: ORGANIZE_CONCURRENCY_DEFAULT,
+  }
+
+  try {
+    const raw = localStorage.getItem(ORGANIZE_OPTIONS_STORAGE_KEY)
+    if (!raw) return defaults
+
+    const parsed = JSON.parse(raw) as Partial<OrganizeOptions>
+    return {
+      count:
+        typeof parsed.count === 'number' &&
+        Number.isInteger(parsed.count) &&
+        parsed.count > 0
+          ? parsed.count
+          : defaults.count,
+      compress:
+        typeof parsed.compress === 'boolean'
+          ? parsed.compress
+          : defaults.compress,
+      concurrency:
+        typeof parsed.concurrency === 'number' &&
+        Number.isInteger(parsed.concurrency)
+          ? Math.min(
+              ORGANIZE_CONCURRENCY_MAX,
+              Math.max(ORGANIZE_CONCURRENCY_MIN, parsed.concurrency),
+            )
+          : defaults.concurrency,
+    }
+  } catch {
+    return defaults
+  }
+}
+
+const persistOrganizeOptions = (options: OrganizeOptions) => {
+  try {
+    localStorage.setItem(ORGANIZE_OPTIONS_STORAGE_KEY, JSON.stringify(options))
+  } catch {
+    // 忽略浏览器禁用存储或存储空间不足，不影响任务创建
+  }
+}
+
 // 步骤 1 分类文件夹划定：有描述的文件夹即分类标准（顺序即优先级），
 // 设置处理数量与压缩选项，确定后创建任务进入队列
 export function StepClassify({ onClose }: { onClose: () => void }) {
   const { currentFolderId, sortBy, sortOrder } = useEagleStore()
+  const [initialOptions] = useState(loadOrganizeOptions)
   const [prepare, setPrepare] = useState<OrganizePrepareResp | null>(null)
   const [loading, setLoading] = useState(true)
   const [count, setCount] = useState<number | null>(null)
-  const [compress, setCompress] = useState(true)
-  const [concurrency, setConcurrency] = useState(ORGANIZE_CONCURRENCY_DEFAULT)
+  const [compress, setCompress] = useState(initialOptions.compress)
+  const [concurrency, setConcurrency] = useState(initialOptions.concurrency)
   const [creating, setCreating] = useState(false)
   const [promptOpen, setPromptOpen] = useState(false)
 
@@ -43,7 +98,11 @@ export function StepClassify({ onClose }: { onClose: () => void }) {
       .then((data) => {
         if (cancelled) return
         setPrepare(data)
-        setCount(data.imageCount)
+        setCount(
+          data.imageCount > 0
+            ? Math.min(loadOrganizeOptions().count, data.imageCount)
+            : null,
+        )
       })
       .catch((error) => {
         console.error('获取图片整理准备数据失败', error)
@@ -59,6 +118,15 @@ export function StepClassify({ onClose }: { onClose: () => void }) {
 
   const standards = prepare?.standards ?? []
   const imageCount = prepare?.imageCount ?? 0
+
+  const saveOptions = (next: Partial<OrganizeOptions>) => {
+    persistOrganizeOptions({
+      count: count ?? ORGANIZE_COUNT_DEFAULT,
+      compress,
+      concurrency,
+      ...next,
+    })
+  }
 
   const handleCreate = async () => {
     if (!count) return
@@ -136,7 +204,14 @@ export function StepClassify({ onClose }: { onClose: () => void }) {
             max={Math.max(imageCount, 1)}
             value={count}
             disabled={imageCount === 0}
-            onChange={(value) => setCount(value && value > 0 ? value : 1)}
+            onChange={(value) => {
+              const nextCount = Math.min(
+                imageCount,
+                value && value > 0 ? value : 1,
+              )
+              setCount(nextCount)
+              saveOptions({ count: nextCount })
+            }}
           />
           <span className="text-xs text-slate-400">
             / 共 {imageCount} 张可处理图片
@@ -148,9 +223,19 @@ export function StepClassify({ onClose }: { onClose: () => void }) {
             min={ORGANIZE_CONCURRENCY_MIN}
             max={ORGANIZE_CONCURRENCY_MAX}
             value={concurrency}
-            onChange={(value) =>
-              setConcurrency(value && value >= 1 ? value : ORGANIZE_CONCURRENCY_DEFAULT)
-            }
+            onChange={(value) => {
+              const nextConcurrency = Math.min(
+                ORGANIZE_CONCURRENCY_MAX,
+                Math.max(
+                  ORGANIZE_CONCURRENCY_MIN,
+                  value && value >= 1
+                    ? value
+                    : ORGANIZE_CONCURRENCY_DEFAULT,
+                ),
+              )
+              setConcurrency(nextConcurrency)
+              saveOptions({ concurrency: nextConcurrency })
+            }}
           />
           <span className="text-xs text-slate-400">
             同时处理的图片数（{ORGANIZE_CONCURRENCY_MIN}~
@@ -159,9 +244,13 @@ export function StepClassify({ onClose }: { onClose: () => void }) {
         </div>
         <Checkbox
           checked={compress}
-          onChange={(e) => setCompress(e.target.checked)}
+          onChange={(e) => {
+            const nextCompress = e.target.checked
+            setCompress(nextCompress)
+            saveOptions({ compress: nextCompress })
+          }}
         >
-          输入图片压缩
+          输入图片压缩节省 token
         </Checkbox>
       </div>
 

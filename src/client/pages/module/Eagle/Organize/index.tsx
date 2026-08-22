@@ -1,4 +1,6 @@
 import { Modal, Spin } from 'antd'
+import { useEffect } from 'react'
+import { setEagleLibraryRefreshSuspended } from '../store'
 import { StepClassify } from './StepClassify'
 import { StepConfirm } from './StepConfirm'
 import { StepRunning } from './StepRunning'
@@ -15,6 +17,18 @@ export function OrganizeModal({
 }) {
   const { status, loaded } = useOrganizeStatus()
   const phase = status?.phase
+
+  useEffect(() => {
+    setEagleLibraryRefreshSuspended(open && phase !== 'done').catch((error) =>
+      console.error('刷新 Eagle 列表失败', error),
+    )
+  }, [open, phase])
+
+  useEffect(() => {
+    return () => {
+      void setEagleLibraryRefreshSuspended(false)
+    }
+  }, [])
 
   return (
     <Modal

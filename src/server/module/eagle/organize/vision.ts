@@ -133,7 +133,6 @@ export const judgeItem = async (
             ],
           },
         ],
-        reasoning_effort: 'none',
         response_format: { type: 'json_object' },
         stream: false,
       },

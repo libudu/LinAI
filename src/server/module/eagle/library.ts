@@ -658,6 +658,30 @@ export const getItemEntry = async (
   return index?.items.get(id) ?? null
 }
 
+/** 按文件夹 ID 解析完整路径，保留传入 ID 的顺序并忽略已删除的文件夹。 */
+export const getFolderPaths = async (
+  folderIds: string[],
+): Promise<string[]> => {
+  const index = await ensureIndex()
+  if (!index || folderIds.length === 0) return []
+
+  const paths = new Map<string, string>()
+  const walk = (folders: EagleRawFolder[], parentPath: string) => {
+    for (const folder of folders) {
+      const folderPath = parentPath
+        ? `${parentPath}/${folder.name}`
+        : folder.name
+      paths.set(folder.id, folderPath)
+      walk(folder.children ?? [], folderPath)
+    }
+  }
+  walk(index.folders, '')
+  return folderIds.flatMap((id) => {
+    const folderPath = paths.get(id)
+    return folderPath ? [folderPath] : []
+  })
+}
+
 /** 原文件绝对路径（路径由索引查出，不拼接用户输入） */
 export const getItemFilePath = async (id: string): Promise<string | null> => {
   const entry = await getItemEntry(id)

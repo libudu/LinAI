@@ -6,7 +6,7 @@ import { ResourceGrid } from './ResourceGrid'
 import { openEagleSettingModal } from './SettingModal'
 import { useEagleConfig } from './SettingModal/useEagleConfig'
 import { useEagleVisionConfig } from './SettingModal/useEagleVisionConfig'
-import { useEagleStore } from './store'
+import { requestEagleLibraryRefresh, useEagleStore } from './store'
 import { Toolbar } from './Toolbar'
 
 // Eagle 图片管理：左侧文件夹目录树 + 右侧资源网格（移动端目录树改由工具栏抽屉进入）
@@ -31,9 +31,7 @@ export function Eagle() {
     if (!libraryPath) return
     const es = new EventSource('/api/storage/events?resources=eagle.library')
     es.addEventListener('change', () => {
-      useEagleStore
-        .getState()
-        .refreshCurrentPage()
+      requestEagleLibraryRefresh()
         .catch((error) => console.error('刷新 Eagle 列表失败', error))
     })
     es.onerror = (error) => console.error('Eagle 库变更 SSE 连接错误', error)

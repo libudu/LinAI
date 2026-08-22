@@ -2,7 +2,7 @@ import type {
   OrganizeResultDetail,
   OrganizeResultListItem,
 } from '@/shared/eagle/organize'
-import { Button, Empty, Spin, Tag, message } from 'antd'
+import { Button, Checkbox, Empty, Spin, Tag, message } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { eagleFileUrl, eagleThumbnailUrl } from '../api'
 import {
@@ -12,19 +12,20 @@ import {
   retryOrganizeResult,
   skipOrganizeResult,
 } from './api'
-import { refreshOrganizeStatus, useOrganizeStatus } from './store'
 
 // 步骤 3 结果确认：顶部待确认缩略图条（点击选中）+ 左大图右信息面板 +
-// 底部操作（不处理 / 重新执行 / 确认（不含标题）/ 确认）；
+// 底部操作（不处理 / 重新执行 / 确认），建议标题由每张图片自己的勾选项控制；
 // 确认与不处理后自动选中下一张，重新执行会把任务拉回执行中（弹窗切步骤 2）
 export function StepConfirm() {
-  const { status } = useOrganizeStatus()
   const [results, setResults] = useState<OrganizeResultListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<OrganizeResultDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
+  const [titleDisabledIds, setTitleDisabledIds] = useState<Set<string>>(
+    () => new Set(),
+  )
 
   // 待确认 = success + failed：按状态分别拉取（避免把已确认/跳过的结果也拉回来），
   // 按完成时间正序展示（接口列表为倒序）
@@ -42,7 +43,7 @@ export function StepConfirm() {
     return pending
   }, [])
 
-  // 挂载与每次 SSE 变更（status 引用变化）后重拉列表，选中项失效时回退到第一张
+  // 仅在挂载时拉取一次；确认操作成功后在本地移除，避免每次 SSE 都重拉两份列表。
   useEffect(() => {
     let cancelled = false
     setLoading(true)
@@ -65,7 +66,7 @@ export function StepConfirm() {
     return () => {
       cancelled = true
     }
-  }, [refreshResults, status])
+  }, [refreshResults])
 
   // 选中项变化时拉取详情
   useEffect(() => {
@@ -93,15 +94,15 @@ export function StepConfirm() {
 
   const runAction = async (fn: (itemId: string) => Promise<void>) => {
     if (!selectedId || actionLoading) return
-    // 操作后自动选中下一张（最后一张则回退到剩余第一张）
+    // 操作后本地移除当前项并自动选中下一张，任务阶段由 SSE 更新。
     const index = results.findIndex((r) => r.itemId === selectedId)
-    const nextId = results[index + 1]?.itemId ?? null
+    const remaining = results.filter((r) => r.itemId !== selectedId)
+    const nextId = remaining[index]?.itemId ?? remaining[0]?.itemId ?? null
     setActionLoading(true)
     try {
       await fn(selectedId)
+      setResults(remaining)
       setSelectedId(nextId)
-      // SSE 也会触发重拉，这里主动刷一次让界面立即切换
-      await refreshOrganizeStatus()
     } catch (error) {
       message.error(error instanceof Error ? error.message : '操作失败')
     } finally {
@@ -126,6 +127,7 @@ export function StepConfirm() {
   }
 
   const canConfirm = detail?.status === 'success'
+  const withTitle = selectedId ? !titleDisabledIds.has(selectedId) : true
 
   return (
     <div className="flex flex-col gap-3">
@@ -198,7 +200,37 @@ export function StepConfirm() {
                 <>
                   <div>
                     <div className="mb-1 text-xs text-slate-400">建议标题</div>
-                    <div className="break-all">{detail.title}</div>
+                    <Checkbox
+                      className="items-start"
+                      checked={withTitle}
+                      onChange={(event) => {
+                        if (!selectedId) return
+                        setTitleDisabledIds((current) => {
+                          const next = new Set(current)
+                          if (event.target.checked) next.delete(selectedId)
+                          else next.add(selectedId)
+                          return next
+                        })
+                      }}
+                    >
+                      <span
+                        className={`break-all transition-colors ${
+                          withTitle
+                            ? ''
+                            : 'text-slate-400 dark:text-slate-500'
+                        }`}
+                      >
+                        {detail.title}
+                      </span>
+                    </Checkbox>
+                  </div>
+                  <div>
+                    <div className="mb-1 text-xs text-slate-400">原文件夹</div>
+                    <div className="break-all">
+                      {detail.itemFolderPaths.length > 0
+                        ? detail.itemFolderPaths.join('、')
+                        : '（未归入文件夹）'}
+                    </div>
                   </div>
                   <div>
                     <div className="mb-1 text-xs text-slate-400">
@@ -245,17 +277,12 @@ export function StepConfirm() {
             重新执行
           </Button>
           <Button
-            loading={actionLoading}
-            disabled={!selectedId || !canConfirm}
-            onClick={() => runAction((id) => confirmOrganizeResult(id, false))}
-          >
-            确认（不含标题）
-          </Button>
-          <Button
             type="primary"
             loading={actionLoading}
             disabled={!selectedId || !canConfirm}
-            onClick={() => runAction((id) => confirmOrganizeResult(id, true))}
+            onClick={() =>
+              runAction((id) => confirmOrganizeResult(id, withTitle))
+            }
           >
             确认
           </Button>

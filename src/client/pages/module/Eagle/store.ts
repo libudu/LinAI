@@ -13,6 +13,9 @@ const SIZE_STORAGE_KEY = 'eagle_image_size'
 const DISPLAY_STORAGE_KEY = 'eagle_display_options'
 const SELECTED_FOLDER_STORAGE_KEY = 'eagle_selected_folder'
 
+let libraryRefreshSuspended = false
+let libraryRefreshPending = false
+
 export type EagleImageSize = 'small' | 'medium' | 'large'
 
 // 纯前端视觉选项（展示文件名 / 展示文件大小 / 展示文件夹描述）持久化，默认均不勾选
@@ -254,3 +257,24 @@ export const useEagleStore = create<EagleState>()((set, get) => {
     },
   }
 })
+
+/**
+ * 响应 eagle.library 变更：整理弹窗打开时只记脏，避免刷新被遮挡的列表；
+ * 弹窗关闭后由 setEagleLibraryRefreshSuspended 合并执行一次。
+ */
+export const requestEagleLibraryRefresh = async (): Promise<void> => {
+  if (libraryRefreshSuspended) {
+    libraryRefreshPending = true
+    return
+  }
+  await useEagleStore.getState().refreshCurrentPage()
+}
+
+export const setEagleLibraryRefreshSuspended = async (
+  suspended: boolean,
+): Promise<void> => {
+  libraryRefreshSuspended = suspended
+  if (suspended || !libraryRefreshPending) return
+  libraryRefreshPending = false
+  await useEagleStore.getState().refreshCurrentPage()
+}
