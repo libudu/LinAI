@@ -15,7 +15,7 @@ export type OrganizeItemStatus =
   | 'skipped' // 用户选择「不处理」
   | 'confirmed' // 已确认（改文件夹；是否同时修改标题由确认操作参数决定，不区分状态）
 
-/** 分类标准快照（创建任务时固化，顺序即优先级，从上到下） */
+/** 分类标准快照（创建任务时固化，顺序即优先级，从上到下；子目录排在父目录之前，父目录作大类兜底） */
 export interface OrganizeFolderStandard {
   folderId: string
   /** 展示与 AI 返回匹配用完整路径，如 "插画/风景" */

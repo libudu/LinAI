@@ -9,6 +9,18 @@
     line-height: 36px;
   }
 
+  .ant-tree-switcher {
+    // 节点带描述时是两行，antd 会把 switcher 拉伸撑满整行后垂直居中导致箭头偏下，
+    // 改为顶对齐，让箭头始终对齐首行（36px 行高的名称行）中心
+    align-items: flex-start;
+    margin-inline-end: 0;
+
+    // hover 灰块（::before）默认按 antd 的 24px 行高贴顶，下移 (36-24)/2 对齐名称行中心
+    &::before {
+      top: 6px;
+    }
+  }
+
   .ant-tree-node-content-wrapper {
     // 基线对齐还原行内布局下图标底边贴文字基线的视觉效果，center 会让图标略微下沉
     display: flex;

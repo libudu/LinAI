@@ -37,6 +37,20 @@ settingsRegistry.register<EagleSettings>('eagle', {
 export const getEagleSettings = async (): Promise<EagleSettings> =>
   (await settingsRegistry.get<EagleSettings>('eagle')).value
 
+// Eagle 目录树展开状态：前端消费的 UI 偏好，借注册式设置落盘到后端，data/eagle/folder-tree.json
+export const eagleFolderTreeSchema = z.object({
+  /** 展开的文件夹 id 列表；null 表示从未记录（首次进入默认全展开） */
+  expandedFolderIds: z.array(z.string()).nullable(),
+})
+
+export type EagleFolderTreeSettings = z.infer<typeof eagleFolderTreeSchema>
+
+settingsRegistry.register<EagleFolderTreeSettings>('eagle-folder-tree', {
+  file: dataPath('eagle', 'folder-tree.json'),
+  defaults: { expandedFolderIds: null },
+  schema: eagleFolderTreeSchema,
+})
+
 // Eagle 视觉接入点设置：与图片生成的 vision 配置互相独立，落盘 data/eagle/vision.json
 export type EagleVisionSettings = VisionSettings
 

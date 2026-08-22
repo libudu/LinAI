@@ -590,7 +590,8 @@ export const getItems = async (
 
 /**
  * 图片整理用：有描述的文件夹 → 分类标准。
- * 按原文件夹顺序先序遍历（与 Eagle 界面自上而下的展示一致），顺序即优先级
+ * 按原文件夹顺序遍历，但子目录先于父目录压入（后序）：子目录更具体是小类，
+ * 父目录更宽泛是大类，放在其后作为"不属于任何小类但属于大类"的兜底，顺序即优先级
  */
 export const getFolderStandards = async (): Promise<
   OrganizeFolderStandard[]
@@ -603,6 +604,7 @@ export const getFolderStandards = async (): Promise<
       const folderPath = parentPath
         ? `${parentPath}/${folder.name}`
         : folder.name
+      walk(folder.children ?? [], folderPath)
       if (folder.description && folder.description.trim()) {
         standards.push({
           folderId: folder.id,
@@ -611,7 +613,6 @@ export const getFolderStandards = async (): Promise<
           description: folder.description,
         })
       }
-      walk(folder.children ?? [], folderPath)
     }
   }
   walk(index.folders, '')

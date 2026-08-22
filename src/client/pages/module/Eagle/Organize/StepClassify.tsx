@@ -3,7 +3,15 @@ import {
   ORGANIZE_VISION_USER_TEXT,
   buildOrganizeVisionSystemPrompt,
 } from '@/shared/eagle/organize'
-import { Button, Checkbox, Empty, InputNumber, Modal, Spin, message } from 'antd'
+import {
+  Button,
+  Checkbox,
+  Empty,
+  InputNumber,
+  Modal,
+  Spin,
+  message,
+} from 'antd'
 import { useEffect, useState } from 'react'
 import { useEagleStore } from '../store'
 import { createOrganizeTask, fetchOrganizePrepare } from './api'
@@ -133,7 +141,7 @@ export function StepClassify({ onClose }: { onClose: () => void }) {
           checked={compress}
           onChange={(e) => setCompress(e.target.checked)}
         >
-          上传前压缩图片（不改动本地文件）
+          输入图片压缩
         </Checkbox>
       </div>
 

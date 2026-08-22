@@ -1,4 +1,6 @@
+import { settingsClient } from '@/client/service/settings'
 import type { EagleFolder } from '@/shared/eagle/types'
+import type { EagleFolderTreeSettings } from '@/server/module/eagle/settings'
 import {
   FolderOpenOutlined,
   FolderOutlined,
@@ -6,13 +8,15 @@ import {
 } from '@ant-design/icons'
 import type { TreeDataNode } from 'antd'
 import { Button, Checkbox, Dropdown, Tree } from 'antd'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useEagleStore } from '../store'
 import { EditFolderModal } from './EditFolderModal'
 import { FolderContextMenu } from './FolderContextMenu'
 import './FolderTree.scss'
 
 const EXPANDED_STORAGE_KEY = 'eagle_folder_expanded'
+const folderTreeClient =
+  settingsClient<EagleFolderTreeSettings>('eagle-folder-tree')
 
 // 节点标题：名称 + 灰色图片数（含子孙累计），开启展示时在名称下方加一行浅灰描述（单行超长省略）
 const renderTitle = (
@@ -61,8 +65,8 @@ const toTreeData = (
 const collectKeys = (folders: EagleFolder[]): string[] =>
   folders.flatMap((folder) => [folder.id, ...collectKeys(folder.children)])
 
-// 读取本地记录的展开状态，无记录返回 null（表示走默认全展开）
-const loadExpandedKeys = (): string[] | null => {
+// 读取旧版 localStorage 记录（仅用于向后端迁移一次），无记录返回 null
+const loadLegacyExpandedKeys = (): string[] | null => {
   try {
     const raw = localStorage.getItem(EXPANDED_STORAGE_KEY)
     if (raw) {
@@ -76,7 +80,8 @@ const loadExpandedKeys = (): string[] | null => {
   return null
 }
 
-// 左侧文件夹目录树：贴边拉满，展开状态持久化到 localStorage，节点带文件夹图标与图片数
+// 左侧文件夹目录树：贴边拉满，展开状态持久化到后端设置（data/eagle/folder-tree.json），
+// 节点带文件夹图标与图片数
 // 顶部固定一个视图设置齿轮（不随目录树滚动，当前仅「显示文件夹描述」），
 // 开启「显示文件夹描述」后节点名称下方展示浅灰描述（单行省略）
 // 右键节点弹出菜单（编辑名称/描述，写回 Eagle 库 metadata.json）
@@ -91,11 +96,13 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
     showFolderDescription,
     setShowFolderDescription,
   } = useEagleStore()
-  // null = 尚无本地记录，回退为全展开
-  const [storedKeys, setStoredKeys] = useState<string[] | null>(
-    loadExpandedKeys,
-  )
+  // null = 尚无记录（未加载到或从未保存），回退为全展开
+  const [storedKeys, setStoredKeys] = useState<string[] | null>(null)
   const [editingFolder, setEditingFolder] = useState<EagleFolder | null>(null)
+  // 后端文档版本，PUT 时带上做冲突检测；undefined = 尚未加载
+  const revisionRef = useRef<number | undefined>(undefined)
+  // 用户在加载完成前手动展开/收起时，放弃应用后端拉回的旧状态
+  const interactedRef = useRef(false)
 
   const treeData = useMemo<TreeDataNode[]>(
     () => [
@@ -108,10 +115,52 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
   const allKeys = useMemo(() => collectKeys(folders), [folders])
   const expandedKeys = storedKeys ?? allKeys
 
+  const saveExpanded = async (keys: string[]) => {
+    try {
+      const res = await folderTreeClient.put(
+        { expandedFolderIds: keys },
+        revisionRef.current,
+      )
+      revisionRef.current = res.revision
+    } catch (error) {
+      console.error('Failed to save folder tree expanded state', error)
+    }
+  }
+
+  // 初始加载：读取后端记录的展开状态；后端无记录时迁移旧 localStorage 缓存（若有）
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      let keys: string[] | null = null
+      try {
+        const res = await folderTreeClient.get()
+        if (cancelled) return
+        revisionRef.current = res.revision
+        keys = res.value.expandedFolderIds
+      } catch (error) {
+        console.error('Failed to load folder tree expanded state', error)
+      }
+      if (keys === null) {
+        const legacy = loadLegacyExpandedKeys()
+        if (legacy) {
+          keys = legacy
+          localStorage.removeItem(EXPANDED_STORAGE_KEY)
+          void saveExpanded(legacy)
+        }
+      }
+      if (!cancelled && keys !== null && !interactedRef.current)
+        setStoredKeys(keys)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const handleExpand = (keys: React.Key[]) => {
     const next = keys.map(String)
+    interactedRef.current = true
     setStoredKeys(next)
-    localStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify(next))
+    void saveExpanded(next)
   }
 
   return (
