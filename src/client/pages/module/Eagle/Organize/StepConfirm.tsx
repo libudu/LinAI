@@ -282,7 +282,10 @@ export function StepConfirm() {
             <Image
               key={selectedId}
               src={eagleThumbnailUrl(selectedId)}
-              className="max-h-full max-w-full object-contain"
+              classNames={{
+                root: 'h-full w-full',
+                image: 'h-full! w-full! object-contain!',
+              }}
               preview={{ src: eagleFileUrl(selectedId) }}
             />
           )}
@@ -313,7 +316,6 @@ export function StepConfirm() {
                       </div>
                       {folderPaths.length > 0 ? (
                         <Radio.Group
-                          className="flex flex-col gap-1"
                           value={selectedFolderPath}
                           onChange={(event) => {
                             if (!selectedId) return
@@ -326,7 +328,7 @@ export function StepConfirm() {
                           {folderPaths.map((folderPath) => (
                             <div key={folderPath}>
                               <Radio value={folderPath}>
-                                <span className="font-bold break-all">
+                                <span className="text-base font-bold break-all">
                                   {folderPath}
                                 </span>
                               </Radio>
