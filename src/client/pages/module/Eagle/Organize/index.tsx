@@ -36,7 +36,7 @@ export function OrganizeModal({
       open={open}
       onCancel={onClose}
       footer={null}
-      width={920}
+      width={800}
       centered
       destroyOnHidden
     >

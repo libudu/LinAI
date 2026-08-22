@@ -71,6 +71,20 @@ export const resumeOrganizeTask = async (): Promise<void> => {
   })
 }
 
+// 将全部失败项移到队首并恢复执行
+export const retryFailedOrganizeItems = async (): Promise<void> => {
+  await apiRequest<null>('/api/eagle/organize/task/retry-failed', {
+    method: 'POST',
+  })
+}
+
+// 过滤未处理与失败项，仅用成功结果进入分类确认
+export const classifySuccessfulOrganizeItems = async (): Promise<void> => {
+  await apiRequest<null>('/api/eagle/organize/task/classify-successful', {
+    method: 'POST',
+  })
+}
+
 // 强制清空任务：中断 in-flight 请求，丢弃任务与结果，回到第一步
 export const clearOrganizeTask = async (): Promise<void> => {
   await apiRequest<null>('/api/eagle/organize/task/clear', {

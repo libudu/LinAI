@@ -10,7 +10,7 @@ import { judgeItem } from './vision'
 
 /**
  * 整理队列执行器：按队列顺序以任务指定的并发数派发视觉判定。
- * - 单图失败（含上游错误 / 非 JSON / 不属于任何分类）立即停止派发，in-flight 请求继续完成并落盘
+ * - 单图失败累计达到 3 次后停止派发，in-flight 请求继续完成并落盘
  * - 全部执行过一遍后 phase → confirming（有待确认）/ done（无待确认）
  * - 由 service 在任务创建 / 恢复时 kick；用户暂停与失败停止都只停派发
  * - 强制清空（abort）：epoch 递增 + AbortController 中断 in-flight 上游请求，
@@ -18,6 +18,7 @@ import { judgeItem } from './vision'
  * 队列推进在服务端后台进行，不依赖前端在线。
  */
 class OrganizeExecutor {
+  private static readonly ERROR_PAUSE_THRESHOLD = 3
   /** runQueue 是否在执行中（kick 的幂等依据） */
   private active = false
   /** 停止派发标记（用户暂停 / 单图失败 / 结果落盘异常 / 强制清空） */
@@ -55,6 +56,11 @@ class OrganizeExecutor {
   /** 停止派发新请求，正在发送的请求不受影响；任务状态由 service / 执行器落盘 */
   stop(): void {
     this.stopping = true
+  }
+
+  /** 等待当前轮次的 in-flight 请求全部落盘，供暂停状态下调整队列使用 */
+  async waitForIdle(): Promise<void> {
+    await this.runPromise
   }
 
   /**
@@ -137,7 +143,7 @@ class OrganizeExecutor {
     await this.finalize(itemsAfter)
   }
 
-  /** 执行单个条目：判定 → 落盘结果 → 更新任务计数；判定失败同时暂停派发 */
+  /** 执行单个条目：判定 → 落盘结果 → 更新任务计数；累计 3 次失败后暂停派发 */
   private async processItem(
     itemId: string,
     options: {
@@ -173,7 +179,7 @@ class OrganizeExecutor {
     // 强制清空（epoch 已变）后丢弃过期结果，不再落盘
     if (options.epoch !== this.epoch) return
     await organizeRepository.saveItem(record)
-    await organizeRepository.mutateTask((task) => {
+    const updated = await organizeRepository.mutateTask((task) => {
       const next = {
         ...task,
         executed: task.executed + 1,
@@ -183,13 +189,19 @@ class OrganizeExecutor {
         successCount: task.successCount + (record.status === 'success' ? 1 : 0),
         failedCount: task.failedCount + (record.status === 'failed' ? 1 : 0),
       }
-      if (record.status === 'failed' && next.phase === 'running') {
+      if (
+        record.status === 'failed' &&
+        next.failedCount >= OrganizeExecutor.ERROR_PAUSE_THRESHOLD &&
+        next.phase === 'running'
+      ) {
         next.phase = 'paused'
         next.pausedReason = 'error'
       }
       return next
     })
-    if (record.status === 'failed') this.stopping = true
+    if (record.status === 'failed' && updated?.phase === 'paused') {
+      this.stopping = true
+    }
     changeBus.publish({ resource: ORGANIZE_RESOURCE })
   }
 

@@ -14,11 +14,13 @@ import { Button, Modal, message } from 'antd'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { eagleThumbnailUrl } from '../api'
 import {
+  classifySuccessfulOrganizeItems,
   clearOrganizeTask,
   fetchOrganizeQueue,
   fetchOrganizeTask,
   pauseOrganizeTask,
   resumeOrganizeTask,
+  retryFailedOrganizeItems,
 } from './api'
 import { refreshOrganizeStatus, useOrganizeStatus } from './store'
 
@@ -93,6 +95,18 @@ export function StepRunning() {
       } else {
         await resumeOrganizeTask()
       }
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '操作失败')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handlePausedAction = async (action: () => Promise<void>) => {
+    setActionLoading(true)
+    try {
+      await action()
+      await refreshOrganizeStatus()
     } catch (error) {
       message.error(error instanceof Error ? error.message : '操作失败')
     } finally {
@@ -254,11 +268,15 @@ export function StepRunning() {
       <div className="flex items-center justify-between gap-4">
         {phase === 'running' ? (
           <div className="text-xs text-slate-400">
-            任务在后台执行，可以关闭此窗口；全部执行完成后将进入结果确认。
+            <div>
+              任务在后台执行，可以关闭此窗口；全部执行完成后将进入结果确认。
+            </div>
+            <div>累计 3 次错误后，队列会自动暂停。</div>
           </div>
         ) : (
           <div className="text-xs text-slate-400">
-            点击「继续」恢复执行；正在发送中的请求不会被中断。
+            <div>点击「继续」恢复执行；正在发送中的请求不会被中断。</div>
+            <div>累计 3 次错误后，队列会自动暂停。</div>
           </div>
         )}
 
@@ -266,6 +284,24 @@ export function StepRunning() {
           <Button danger onClick={handleClear}>
             清空
           </Button>
+          {phase === 'paused' && (
+            <Button
+              loading={actionLoading}
+              onClick={() => handlePausedAction(retryFailedOrganizeItems)}
+            >
+              重试所有错误
+            </Button>
+          )}
+          {phase === 'paused' && successCount > 0 && (
+            <Button
+              loading={actionLoading}
+              onClick={() =>
+                handlePausedAction(classifySuccessfulOrganizeItems)
+              }
+            >
+              直接分类
+            </Button>
+          )}
           <Button loading={actionLoading} onClick={handleToggle}>
             {phase === 'running' ? '暂停' : '继续'}
           </Button>

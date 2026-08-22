@@ -196,6 +196,122 @@ class OrganizeService {
     return true
   }
 
+  /** 暂停状态下把全部失败项移到队首并重置为待处理，然后恢复执行 */
+  async retryFailedItems(): Promise<OrganizeActionResult> {
+    await this.ready
+    const current = await organizeRepository.getTask()
+    if (!current || current.phase !== 'paused') {
+      return { ok: false, status: 409, error: '任务当前不在暂停状态' }
+    }
+
+    organizeExecutor.stop()
+    await organizeExecutor.waitForIdle()
+    const task = await organizeRepository.getTask()
+    if (!task || task.phase !== 'paused') {
+      return { ok: false, status: 409, error: '任务当前不在暂停状态' }
+    }
+    const items = await organizeRepository.listItems()
+    const failedIds = new Set(
+      items
+        .filter((item) => item.status === 'failed')
+        .map((item) => item.itemId),
+    )
+
+    for (const itemId of failedIds) {
+      const record = await organizeRepository.getItem(itemId)
+      if (!record || record.status !== 'failed') continue
+      await organizeRepository.saveItem({
+        ...record,
+        status: 'pending',
+        updatedAt: Date.now(),
+      })
+    }
+
+    const retryIds = task.itemIds.filter((itemId) => failedIds.has(itemId))
+    const updated = await organizeRepository.mutateTask((latest) =>
+      latest.phase === 'paused'
+        ? {
+            ...latest,
+            phase: 'running',
+            pausedReason: null,
+            itemIds: [
+              ...retryIds,
+              ...latest.itemIds.filter((itemId) => !failedIds.has(itemId)),
+            ],
+            executed: Math.max(0, latest.executed - retryIds.length),
+            pendingConfirm: Math.max(
+              0,
+              latest.pendingConfirm - retryIds.length,
+            ),
+            failedCount: Math.max(0, latest.failedCount - retryIds.length),
+          }
+        : null,
+    )
+    if (!updated) {
+      return { ok: false, status: 409, error: '任务当前不在暂停状态' }
+    }
+    this.publishChange()
+    organizeExecutor.kick()
+    return { ok: true }
+  }
+
+  /** 暂停状态下丢弃未处理与失败项，只保留成功结果进入分类确认 */
+  async classifySuccessfulItems(): Promise<OrganizeActionResult> {
+    await this.ready
+    const current = await organizeRepository.getTask()
+    if (!current || current.phase !== 'paused') {
+      return { ok: false, status: 409, error: '任务当前不在暂停状态' }
+    }
+
+    organizeExecutor.stop()
+    await organizeExecutor.waitForIdle()
+    const task = await organizeRepository.getTask()
+    if (!task || task.phase !== 'paused') {
+      return { ok: false, status: 409, error: '任务当前不在暂停状态' }
+    }
+    const items = await organizeRepository.listItems()
+    const statusById = new Map(
+      items.map((item) => [item.itemId, item.status]),
+    )
+    const successIds = task.itemIds.filter(
+      (itemId) => statusById.get(itemId) === 'success',
+    )
+    if (successIds.length === 0) {
+      return { ok: false, status: 409, error: '当前没有成功执行的图片' }
+    }
+
+    for (const item of items) {
+      if (item.status !== 'failed') continue
+      const record = await organizeRepository.getItem(item.itemId)
+      if (!record || record.status !== 'failed') continue
+      await organizeRepository.saveItem({
+        ...record,
+        status: 'skipped',
+        updatedAt: Date.now(),
+      })
+    }
+
+    const updated = await organizeRepository.mutateTask((latest) =>
+      latest.phase === 'paused'
+        ? {
+            ...latest,
+            phase: 'confirming',
+            pausedReason: null,
+            itemIds: successIds,
+            executed: successIds.length,
+            pendingConfirm: successIds.length,
+            successCount: successIds.length,
+            failedCount: 0,
+          }
+        : null,
+    )
+    if (!updated) {
+      return { ok: false, status: 409, error: '任务当前不在暂停状态' }
+    }
+    this.publishChange()
+    return { ok: true }
+  }
+
   /**
    * 强制清空任务（步骤 2 红色按钮）：中断 in-flight 请求、丢弃任务与全部结果。
    * 先等执行器收尾再删数据，保证不会有过期结果在删除后落盘

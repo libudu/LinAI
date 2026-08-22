@@ -292,6 +292,30 @@ eagleApi.post('/organize/task/resume', async (c) => {
   return c.json({ success: true as const, data: null })
 })
 
+// 暂停后批量重试失败项：移到队首并恢复执行
+eagleApi.post('/organize/task/retry-failed', async (c) => {
+  const result = await organizeService.retryFailedItems()
+  if (!result.ok) {
+    return c.json(
+      { success: false as const, error: result.error },
+      result.status,
+    )
+  }
+  return c.json({ success: true as const, data: null })
+})
+
+// 暂停后直接分类：过滤未处理与失败项，仅用成功结果进入确认步骤
+eagleApi.post('/organize/task/classify-successful', async (c) => {
+  const result = await organizeService.classifySuccessfulItems()
+  if (!result.ok) {
+    return c.json(
+      { success: false as const, error: result.error },
+      result.status,
+    )
+  }
+  return c.json({ success: true as const, data: null })
+})
+
 // 强制清空任务：中断 in-flight 请求，丢弃任务与全部结果，回到第一步
 eagleApi.post('/organize/task/clear', async (c) => {
   await organizeService.clearTask()

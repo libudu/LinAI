@@ -163,7 +163,7 @@ export function StepConfirm() {
       </div>
 
       {/* 中部：左大图 + 右信息面板 */}
-      <div className="grid grid-cols-[minmax(0,1fr)_248px] gap-3">
+      <div className="grid grid-cols-[minmax(0,1fr)_280px] gap-3">
         <div className="flex h-80 items-center justify-center overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800/60">
           {selectedId && (
             <img
@@ -190,53 +190,55 @@ export function StepConfirm() {
                   <Tag color="red">判定失败</Tag>
                 )}
               </div>
-              <div>
-                <div className="mb-1 text-xs text-slate-400">当前标题</div>
-                <div className="break-all">
-                  {detail.itemName ?? '（条目已不在库中）'}
-                </div>
-              </div>
               {detail.status === 'success' ? (
                 <>
-                  <div>
-                    <div className="mb-1 text-xs text-slate-400">建议标题</div>
-                    <Checkbox
-                      className="items-start"
-                      checked={withTitle}
-                      onChange={(event) => {
-                        if (!selectedId) return
-                        setTitleDisabledIds((current) => {
-                          const next = new Set(current)
-                          if (event.target.checked) next.delete(selectedId)
-                          else next.add(selectedId)
-                          return next
-                        })
-                      }}
-                    >
-                      <span
-                        className={`break-all transition-colors ${
-                          withTitle
-                            ? ''
-                            : 'text-slate-400 dark:text-slate-500'
-                        }`}
+                  <div className="flex flex-col gap-2">
+                    <div>
+                      <div className="text-xs text-slate-400">调整到文件夹</div>
+                      <div className="font-bold break-all">
+                        {detail.folderPath}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-400">原文件夹</div>
+                      <div className="break-all">
+                        {detail.itemFolderPaths.length > 0
+                          ? detail.itemFolderPaths.join('、')
+                          : '（未归入文件夹）'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-400">当前标题</div>
+                      <div className="break-all">
+                        {detail.itemName ?? '（条目已不在库中）'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-400">建议标题</div>
+                      <Checkbox
+                        className="items-start"
+                        checked={withTitle}
+                        onChange={(event) => {
+                          if (!selectedId) return
+                          setTitleDisabledIds((current) => {
+                            const next = new Set(current)
+                            if (event.target.checked) next.delete(selectedId)
+                            else next.add(selectedId)
+                            return next
+                          })
+                        }}
                       >
-                        {detail.title}
-                      </span>
-                    </Checkbox>
-                  </div>
-                  <div>
-                    <div className="mb-1 text-xs text-slate-400">原文件夹</div>
-                    <div className="break-all">
-                      {detail.itemFolderPaths.length > 0
-                        ? detail.itemFolderPaths.join('、')
-                        : '（未归入文件夹）'}
+                        <span
+                          className={`break-all transition-colors ${
+                            withTitle
+                              ? ''
+                              : 'text-slate-400 dark:text-slate-500'
+                          }`}
+                        >
+                          {detail.title}
+                        </span>
+                      </Checkbox>
                     </div>
-                  </div>
-                  <div>
-                    <div className="mb-1 text-xs text-slate-400">
-                      调整到文件夹
-                    </div>
-                    <div className="break-all">{detail.folderPath}</div>
                   </div>
                   {detail.lowQuality && (
                     <div className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-600 dark:bg-amber-500/10 dark:text-amber-400">
@@ -246,7 +248,7 @@ export function StepConfirm() {
                 </>
               ) : (
                 <div>
-                  <div className="mb-1 text-xs text-slate-400">失败原因</div>
+                  <div className="text-xs text-slate-400">失败原因</div>
                   <div className="break-all text-red-500">{detail.error}</div>
                   <div className="mt-2 text-xs text-slate-400">
                     判定失败的结果没有目标文件夹，可重新执行或不处理
