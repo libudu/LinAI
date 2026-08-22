@@ -26,6 +26,20 @@ export function Eagle() {
     })
   }, [fetchEagleConfig, fetchVisionConfig, init])
 
+  // 整理确认等写库操作发布 eagle.library 变更，订阅后刷新文件夹树与当前页
+  useEffect(() => {
+    if (!libraryPath) return
+    const es = new EventSource('/api/storage/events?resources=eagle.library')
+    es.addEventListener('change', () => {
+      useEagleStore
+        .getState()
+        .refreshCurrentPage()
+        .catch((error) => console.error('刷新 Eagle 列表失败', error))
+    })
+    es.onerror = (error) => console.error('Eagle 库变更 SSE 连接错误', error)
+    return () => es.close()
+  }, [libraryPath])
+
   if (!libraryPath) {
     return (
       <div className="flex h-full items-center justify-center">

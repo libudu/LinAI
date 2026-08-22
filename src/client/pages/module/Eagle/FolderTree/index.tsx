@@ -4,9 +4,9 @@ import type { TreeDataNode } from 'antd'
 import { Tree } from 'antd'
 import { useMemo, useState } from 'react'
 import { useEagleStore } from '../store'
-import './FolderTree.scss'
-import { FolderContextMenu } from './FolderContextMenu'
 import { EditFolderModal } from './EditFolderModal'
+import { FolderContextMenu } from './FolderContextMenu'
+import './FolderTree.scss'
 
 const EXPANDED_STORAGE_KEY = 'eagle_folder_expanded'
 

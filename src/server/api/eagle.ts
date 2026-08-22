@@ -1,11 +1,12 @@
+import type { OrganizeItemStatus } from '@/shared/eagle/organize'
+import type { EagleSortBy, EagleSortOrder } from '@/shared/eagle/types'
+import { zValidator } from '@hono/zod-validator'
 import fs from 'fs-extra'
 import { Hono } from 'hono'
-import { zValidator } from '@hono/zod-validator'
-import { z } from 'zod'
 import { Readable } from 'node:stream'
 import path from 'path'
 import sharp from 'sharp'
-import type { EagleSortBy, EagleSortOrder } from '@/shared/eagle/types'
+import { z } from 'zod'
 import { dataPath } from '../common/storage/data-path'
 import {
   getFolderTree,
@@ -17,6 +18,7 @@ import {
   refreshIndex,
   updateFolder,
 } from '../module/eagle/library'
+import { organizeService } from '../module/eagle/organize/service'
 
 const eagleApi = new Hono()
 
@@ -49,8 +51,10 @@ const itemCacheHeaders = (etag: number) => ({
   ETag: `"${etag}"`,
 })
 
-const notModified = (c: { req: { header: (n: string) => string | undefined } }, etag: number) =>
-  c.req.header('if-none-match') === `"${etag}"`
+const notModified = (
+  c: { req: { header: (n: string) => string | undefined } },
+  etag: number,
+) => c.req.header('if-none-match') === `"${etag}"`
 
 // 文件夹树（含每文件夹图片数）
 eagleApi.get('/folders', async (c) => {
@@ -106,7 +110,8 @@ eagleApi.put(
 eagleApi.get('/items/:id/thumbnail', async (c) => {
   const id = c.req.param('id')
   const entry = await getItemEntry(id)
-  if (!entry) return c.json({ success: false as const, error: '条目不存在' }, 404)
+  if (!entry)
+    return c.json({ success: false as const, error: '条目不存在' }, 404)
   if (notModified(c, entry.lastModified)) return c.body(null, 304)
 
   const libraryThumb = await getItemThumbnailPath(id)
@@ -129,7 +134,8 @@ eagleApi.get('/items/:id/thumbnail', async (c) => {
 
   // 图片：sharp 生成 200px webp，缓存到 data/eagle/thumb/（库只读，不写库内）
   const filePath = await getItemFilePath(id)
-  if (!filePath) return c.json({ success: false as const, error: '文件不存在' }, 404)
+  if (!filePath)
+    return c.json({ success: false as const, error: '文件不存在' }, 404)
   const thumbPath = path.join(THUMB_DIR, `${id}.webp`)
   try {
     if (!(await fs.pathExists(thumbPath))) {
@@ -154,7 +160,8 @@ eagleApi.get('/items/:id/thumbnail', async (c) => {
 eagleApi.get('/items/:id/file', async (c) => {
   const id = c.req.param('id')
   const entry = await getItemEntry(id)
-  if (!entry) return c.json({ success: false as const, error: '条目不存在' }, 404)
+  if (!entry)
+    return c.json({ success: false as const, error: '条目不存在' }, 404)
   const filePath = await getItemFilePath(id)
   if (!filePath || !(await fs.pathExists(filePath))) {
     return c.json({ success: false as const, error: '文件不存在' }, 404)
@@ -167,7 +174,9 @@ eagleApi.get('/items/:id/file', async (c) => {
     const match = /^bytes=(\d*)-(\d*)$/.exec(range)
     if (match) {
       const start = match[1] ? parseInt(match[1], 10) : 0
-      const end = match[2] ? Math.min(parseInt(match[2], 10), size - 1) : size - 1
+      const end = match[2]
+        ? Math.min(parseInt(match[2], 10), size - 1)
+        : size - 1
       if (start >= size || start > end) {
         return c.body(null, 416, { 'Content-Range': `bytes */${size}` })
       }
@@ -186,9 +195,7 @@ eagleApi.get('/items/:id/file', async (c) => {
     }
   }
 
-  const stream = Readable.toWeb(
-    fs.createReadStream(filePath),
-  ) as ReadableStream
+  const stream = Readable.toWeb(fs.createReadStream(filePath)) as ReadableStream
   return new Response(stream, {
     status: 200,
     headers: {
@@ -198,6 +205,156 @@ eagleApi.get('/items/:id/file', async (c) => {
       ...itemCacheHeaders(entry.lastModified),
     },
   })
+})
+
+// ---------- 图片整理（organize）：任务生命周期与结果读取 ----------
+
+// 步骤 1 准备数据：分类标准列表 + 当前范围内可处理图片数（已排除 gif/视频）
+eagleApi.get('/organize/prepare', async (c) => {
+  const sortBy: EagleSortBy =
+    c.req.query('sortBy') === 'size' ? 'size' : 'mtime'
+  const sortOrder: EagleSortOrder =
+    c.req.query('sortOrder') === 'asc' ? 'asc' : 'desc'
+  const data = await organizeService.prepare({
+    folderId: c.req.query('folderId') || undefined,
+    sortBy,
+    sortOrder,
+  })
+  return c.json({ success: true as const, data })
+})
+
+// 徽标轮询用轻量状态；无任务返回 null
+eagleApi.get('/organize/status', async (c) => {
+  const data = await organizeService.getStatus()
+  return c.json({ success: true as const, data })
+})
+
+// 任务详情（含分类标准快照与进度计数）
+eagleApi.get('/organize/task', async (c) => {
+  const data = await organizeService.getTask()
+  return c.json({ success: true as const, data })
+})
+
+// 创建任务：固化分类标准快照，把对应数量的图片加入队列
+eagleApi.post(
+  '/organize/task',
+  zValidator(
+    'json',
+    z.object({
+      folderId: z.string().min(1).optional(),
+      sortBy: z.enum(['mtime', 'size']),
+      sortOrder: z.enum(['asc', 'desc']),
+      count: z.number().int().min(1),
+      compress: z.boolean(),
+    }),
+  ),
+  async (c) => {
+    const body = c.req.valid('json')
+    const result = await organizeService.createTask(body)
+    if (!result.ok) {
+      return c.json(
+        { success: false as const, error: result.error },
+        result.status,
+      )
+    }
+    return c.json({ success: true as const, data: result.task })
+  },
+)
+
+// 用户暂停：停止派发新请求，正在发送的请求不受影响
+eagleApi.post('/organize/task/pause', async (c) => {
+  const ok = await organizeService.pauseTask()
+  if (!ok) {
+    return c.json({ success: false as const, error: '任务当前不在执行中' }, 409)
+  }
+  return c.json({ success: true as const, data: null })
+})
+
+eagleApi.post('/organize/task/resume', async (c) => {
+  const ok = await organizeService.resumeTask()
+  if (!ok) {
+    return c.json(
+      { success: false as const, error: '任务当前不在暂停状态' },
+      409,
+    )
+  }
+  return c.json({ success: true as const, data: null })
+})
+
+// 结果列表（可按状态过滤，如 status=success / failed 表示待确认；
+// 可选 offset/limit 分页，缺省全量；列表按完成时间倒序）
+eagleApi.get('/organize/results', async (c) => {
+  const statusParam = c.req.query('status')
+  const knownStatuses: OrganizeItemStatus[] = [
+    'pending',
+    'success',
+    'failed',
+    'skipped',
+    'confirmed',
+  ]
+  const status = knownStatuses.includes(statusParam as OrganizeItemStatus)
+    ? (statusParam as OrganizeItemStatus)
+    : undefined
+  const offset = Number.parseInt(c.req.query('offset') ?? '', 10)
+  const limit = Number.parseInt(c.req.query('limit') ?? '', 10)
+  const data = await organizeService.listResults(status, {
+    offset: Number.isFinite(offset) ? Math.max(0, offset) : undefined,
+    limit: Number.isFinite(limit) ? Math.max(0, limit) : undefined,
+  })
+  return c.json({ success: true as const, data })
+})
+
+// 单图结果详情（附条目当前名称，供确认页对比建议标题）
+eagleApi.get('/organize/results/:itemId', async (c) => {
+  const itemId = c.req.param('itemId')
+  const data = await organizeService.getResult(itemId)
+  if (!data) {
+    return c.json({ success: false as const, error: '结果不存在' }, 404)
+  }
+  return c.json({ success: true as const, data })
+})
+
+// 确认结果：移入目标文件夹（withTitle 决定是否同时修改标题），写 Eagle 库
+eagleApi.post(
+  '/organize/results/:itemId/confirm',
+  zValidator('json', z.object({ withTitle: z.boolean() })),
+  async (c) => {
+    const result = await organizeService.confirmItem(
+      c.req.param('itemId'),
+      c.req.valid('json').withTitle,
+    )
+    if (!result.ok) {
+      return c.json(
+        { success: false as const, error: result.error },
+        result.status,
+      )
+    }
+    return c.json({ success: true as const, data: null })
+  },
+)
+
+// 不处理：不做任何修改，标记为 skipped
+eagleApi.post('/organize/results/:itemId/skip', async (c) => {
+  const result = await organizeService.skipItem(c.req.param('itemId'))
+  if (!result.ok) {
+    return c.json(
+      { success: false as const, error: result.error },
+      result.status,
+    )
+  }
+  return c.json({ success: true as const, data: null })
+})
+
+// 重新执行单图：仅该图重新入队判定，phase 拉回 running
+eagleApi.post('/organize/results/:itemId/retry', async (c) => {
+  const result = await organizeService.retryItem(c.req.param('itemId'))
+  if (!result.ok) {
+    return c.json(
+      { success: false as const, error: result.error },
+      result.status,
+    )
+  }
+  return c.json({ success: true as const, data: null })
 })
 
 export default eagleApi

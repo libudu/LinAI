@@ -4,6 +4,7 @@
  * 新增允许代理的外部服务时，在所属模块新建/编辑 relay.ts 并在此加一行导入；
  * 带文件副作用或业务预处理的请求不进中继。
  */
+import '../../module/eagle/relay'
 import '../../module/novel/relay'
 import '../../module/tts/relay'
 import '../../module/vision/relay'

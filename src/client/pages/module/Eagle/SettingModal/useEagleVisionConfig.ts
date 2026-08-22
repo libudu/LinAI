@@ -19,60 +19,61 @@ interface EagleVisionConfigState extends EagleVisionSettings {
   setPresetApiKeys: (keys: Record<string, string>) => Promise<void>
 }
 
-export const useEagleVisionConfig = create<EagleVisionConfigState>()(
-  (set, get) => {
-    const apply = (value: EagleVisionSettings, revision: number) => {
-      set({
-        ...value,
-        revision,
-        visionApiKey: resolveVisionApiKey(value),
-      })
-    }
+export const useEagleVisionConfig = create<EagleVisionConfigState>()((
+  set,
+  get,
+) => {
+  const apply = (value: EagleVisionSettings, revision: number) => {
+    set({
+      ...value,
+      revision,
+      visionApiKey: resolveVisionApiKey(value),
+    })
+  }
 
-    const putConfig = async (
-      patch: Partial<
-        Pick<
-          EagleVisionConfigState,
-          | 'visionBaseUrl'
-          | 'visionModelId'
-          | 'visionCustomEndpoints'
-          | 'visionPresetApiKeys'
-        >
-      >,
-    ) => {
-      const state = get()
-      const next: EagleVisionSettings = {
-        visionBaseUrl: state.visionBaseUrl,
-        visionModelId: state.visionModelId,
-        visionCustomEndpoints: state.visionCustomEndpoints,
-        visionPresetApiKeys: state.visionPresetApiKeys,
-        ...patch,
+  const putConfig = async (
+    patch: Partial<
+      Pick<
+        EagleVisionConfigState,
+        | 'visionBaseUrl'
+        | 'visionModelId'
+        | 'visionCustomEndpoints'
+        | 'visionPresetApiKeys'
+      >
+    >,
+  ) => {
+    const state = get()
+    const next: EagleVisionSettings = {
+      visionBaseUrl: state.visionBaseUrl,
+      visionModelId: state.visionModelId,
+      visionCustomEndpoints: state.visionCustomEndpoints,
+      visionPresetApiKeys: state.visionPresetApiKeys,
+      ...patch,
+    }
+    const result = await client.put(next, state.revision)
+    apply(result.value, result.revision)
+  }
+
+  return {
+    visionApiKey: null,
+    visionBaseUrl: '',
+    visionModelId: '',
+    visionCustomEndpoints: [],
+    visionPresetApiKeys: {},
+    revision: 0,
+    fetchConfig: async () => {
+      try {
+        const result = await client.get()
+        apply(result.value, result.revision)
+      } catch (error) {
+        console.error('Failed to fetch eagle vision config', error)
+        message.error('视觉接入点设置加载失败')
       }
-      const result = await client.put(next, state.revision)
-      apply(result.value, result.revision)
-    }
-
-    return {
-      visionApiKey: null,
-      visionBaseUrl: '',
-      visionModelId: '',
-      visionCustomEndpoints: [],
-      visionPresetApiKeys: {},
-      revision: 0,
-      fetchConfig: async () => {
-        try {
-          const result = await client.get()
-          apply(result.value, result.revision)
-        } catch (error) {
-          console.error('Failed to fetch eagle vision config', error)
-          message.error('视觉接入点设置加载失败')
-        }
-      },
-      setEndpoint: (baseUrl, modelId) =>
-        putConfig({ visionBaseUrl: baseUrl, visionModelId: modelId }),
-      setCustomEndpoints: (endpoints) =>
-        putConfig({ visionCustomEndpoints: endpoints }),
-      setPresetApiKeys: (keys) => putConfig({ visionPresetApiKeys: keys }),
-    }
-  },
-)
+    },
+    setEndpoint: (baseUrl, modelId) =>
+      putConfig({ visionBaseUrl: baseUrl, visionModelId: modelId }),
+    setCustomEndpoints: (endpoints) =>
+      putConfig({ visionCustomEndpoints: endpoints }),
+    setPresetApiKeys: (keys) => putConfig({ visionPresetApiKeys: keys }),
+  }
+})

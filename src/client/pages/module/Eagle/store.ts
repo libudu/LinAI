@@ -5,11 +5,7 @@ import type {
   EagleSortOrder,
 } from '@/shared/eagle/types'
 import { create } from 'zustand'
-import {
-  fetchEagleFolders,
-  fetchEagleItems,
-  refreshEagleIndex,
-} from './api'
+import { fetchEagleFolders, fetchEagleItems, refreshEagleIndex } from './api'
 
 export const PAGE_SIZE = 100
 const SORT_STORAGE_KEY = 'eagle_sort'
@@ -97,6 +93,8 @@ interface EagleState {
   reload: () => Promise<void>
   /** 仅重拉文件夹树（编辑文件夹后调用） */
   refreshFolders: () => Promise<void>
+  /** 重拉文件夹树与当前页（整理确认等写库操作后由 SSE 触发，索引已在服务端更新） */
+  refreshCurrentPage: () => Promise<void>
 }
 
 export const useEagleStore = create<EagleState>()((set, get) => {
@@ -152,7 +150,10 @@ export const useEagleStore = create<EagleState>()((set, get) => {
     },
 
     setSort: async (sortBy, sortOrder) => {
-      localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify({ sortBy, sortOrder }))
+      localStorage.setItem(
+        SORT_STORAGE_KEY,
+        JSON.stringify({ sortBy, sortOrder }),
+      )
       set({ sortBy, sortOrder, items: [], total: 0, page: 1 })
       await loadPage(1)
     },
@@ -172,7 +173,10 @@ export const useEagleStore = create<EagleState>()((set, get) => {
       set((state) => {
         localStorage.setItem(
           DISPLAY_STORAGE_KEY,
-          JSON.stringify({ showFileName: show, showFileSize: state.showFileSize }),
+          JSON.stringify({
+            showFileName: show,
+            showFileSize: state.showFileSize,
+          }),
         )
         return { showFileName: show }
       })
@@ -182,7 +186,10 @@ export const useEagleStore = create<EagleState>()((set, get) => {
       set((state) => {
         localStorage.setItem(
           DISPLAY_STORAGE_KEY,
-          JSON.stringify({ showFileName: state.showFileName, showFileSize: show }),
+          JSON.stringify({
+            showFileName: state.showFileName,
+            showFileSize: show,
+          }),
         )
         return { showFileSize: show }
       })
@@ -196,6 +203,12 @@ export const useEagleStore = create<EagleState>()((set, get) => {
 
     refreshFolders: async () => {
       await loadFolders()
+    },
+
+    refreshCurrentPage: async () => {
+      await Promise.all([loadFolders(), loadPage(get().page)])
+      // 条目被移出当前文件夹后当前页可能被清空，回到第一页
+      if (get().items.length === 0 && get().page > 1) await loadPage(1)
     },
   }
 })

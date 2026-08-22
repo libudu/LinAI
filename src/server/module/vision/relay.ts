@@ -13,10 +13,7 @@ requestRegistry.register<VisionEndpoint>('vision.openai', {
   maxBodyLength: 20 * 1024 * 1024,
   injectCredential: (headers, endpoint) => {
     if (!endpoint.apiKey) {
-      throw new RelayError(
-        400,
-        '[配置] 请先在设置中配置视觉接入点的 API Key',
-      )
+      throw new RelayError(400, '[配置] 请先在设置中配置视觉接入点的 API Key')
     }
     headers.Authorization = `Bearer ${endpoint.apiKey}`
   },

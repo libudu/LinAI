@@ -6,6 +6,7 @@ import {
   SettingOutlined,
 } from '@ant-design/icons'
 import {
+  Badge,
   Button,
   Checkbox,
   Drawer,
@@ -17,7 +18,8 @@ import {
 } from 'antd'
 import { useState } from 'react'
 import { FolderTree } from './FolderTree'
-import { OrganizeModal } from './OrganizeModal'
+import { OrganizeModal } from './Organize'
+import { useOrganizeStatus } from './Organize/store'
 import { openEagleSettingModal } from './SettingModal'
 import { useEagleVisionConfig } from './SettingModal/useEagleVisionConfig'
 import type { EagleImageSize } from './store'
@@ -39,9 +41,19 @@ export function Toolbar() {
   } = useEagleStore()
   const { isMobile } = usePlatform()
   const visionApiKey = useEagleVisionConfig((s) => s.visionApiKey)
+  const { status: organizeStatus } = useOrganizeStatus()
   const [refreshing, setRefreshing] = useState(false)
   const [folderDrawerOpen, setFolderDrawerOpen] = useState(false)
   const [organizeOpen, setOrganizeOpen] = useState(false)
+
+  // 徽标：队列未完成时显示剩余任务数；全部执行完有待确认时显示小红点
+  const organizePhase = organizeStatus?.phase
+  const badgeCount =
+    organizeStatus &&
+    (organizePhase === 'running' || organizePhase === 'paused')
+      ? organizeStatus.remaining
+      : 0
+  const badgeDot = organizePhase === 'confirming'
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -144,13 +156,15 @@ export function Toolbar() {
         </Button>
       </Space>
 
-      <Button
-        type="primary"
-        icon={<AppstoreOutlined />}
-        onClick={handleOpenOrganize}
-      >
-        图片整理
-      </Button>
+      <Badge count={badgeCount} size="small" dot={badgeDot}>
+        <Button
+          type="primary"
+          icon={<AppstoreOutlined />}
+          onClick={handleOpenOrganize}
+        >
+          图片整理
+        </Button>
+      </Badge>
 
       <Drawer
         title="文件夹"

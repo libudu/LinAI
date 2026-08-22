@@ -1,11 +1,13 @@
-import fs from 'fs-extra'
-import path from 'path'
+import type { OrganizeFolderStandard } from '@/shared/eagle/organize'
 import type {
   EagleFolder,
   EagleItem,
   EagleSortBy,
   EagleSortOrder,
 } from '@/shared/eagle/types'
+import fs from 'fs-extra'
+import path from 'path'
+import { changeBus } from '../../common/storage/change-bus'
 import { dataPath } from '../../common/storage/data-path'
 import { getEagleSettings } from './settings'
 
@@ -73,6 +75,10 @@ const SCAN_CONCURRENCY = 32
 
 const CACHE_FILE = dataPath('eagle', 'index.json')
 
+/** 库内容变更（updateItem 写库后发布），前端订阅后刷新文件夹树与列表 */
+export const EAGLE_LIBRARY_RESOURCE = 'eagle.library'
+changeBus.register(EAGLE_LIBRARY_RESOURCE)
+
 interface EagleIndexState {
   libraryPath: string
   folders: EagleRawFolder[]
@@ -124,15 +130,15 @@ const buildIndexEntry = async (
   }
   const ext = (meta.ext || '').toLowerCase()
   const fileName =
-    files.find((f) => f.toLowerCase() === `${meta.name}.${ext}`.toLowerCase()) ??
     files.find(
-      (f) =>
-        f.toLowerCase().endsWith(`.${ext}`) && !f.includes('_thumbnail'),
+      (f) => f.toLowerCase() === `${meta.name}.${ext}`.toLowerCase(),
+    ) ??
+    files.find(
+      (f) => f.toLowerCase().endsWith(`.${ext}`) && !f.includes('_thumbnail'),
     ) ??
     null
   if (!fileName) return null
-  const thumbnailName =
-    files.find((f) => f.includes('_thumbnail')) ?? null
+  const thumbnailName = files.find((f) => f.includes('_thumbnail')) ?? null
   return {
     id: meta.id,
     name: meta.name,
@@ -418,6 +424,146 @@ export const updateFolder = async (
   return true
 }
 
+export interface UpdateItemPatch {
+  /** 新标题（同时重命名 .info 内原文件与缩略图）；缺省不改名 */
+  name?: string
+  /** 目标文件夹 id（替换 folders，移出原文件夹）；缺省不改动 */
+  folderId?: string
+}
+
+/** 条目名即文件名：去掉 Windows 文件名非法字符与首尾空白/点号，限制长度 */
+const sanitizeItemName = (name: string): string =>
+  name
+    .replace(/[\\/:*?"<>|\r\n\t]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[\s.]+$/, '')
+    .slice(0, 120)
+    .trim()
+
+/**
+ * 编辑条目（图片整理确认动作）：改标题（含重命名 .info 内原文件/缩略图）与所属文件夹。
+ * 同步链路：条目 metadata.json → 库根 mtime.json → 内存索引 + 缓存 → change bus。
+ * 返回 false 表示条目不存在；重命名冲突超过 99 个同名时抛错。
+ */
+export const updateItem = async (
+  id: string,
+  patch: UpdateItemPatch,
+): Promise<boolean> => {
+  if (!ITEM_ID_PATTERN.test(id)) return false
+  const index = await ensureIndex()
+  if (!index) return false
+  const entry = index.items.get(id)
+  if (!entry) return false
+  const meta = await readItemMeta(index.libraryPath, id)
+  if (!meta) return false
+
+  // 计算最终条目名（AI 建议标题可能含非法字符，清理后为空则保持原名）
+  let targetName = meta.name
+  if (patch.name !== undefined) {
+    const sanitized = sanitizeItemName(patch.name)
+    if (sanitized) targetName = sanitized
+  }
+
+  const infoDir = path.join(imagesDir(index.libraryPath), `${id}.info`)
+  const oldFileName = entry.fileName
+  const oldFilePath = path.join(infoDir, oldFileName)
+  // 原文件 stat（改名 move 不改内容 mtime，条目 mtime 字段保持不变）
+  let fileStat: fs.Stats | null = null
+  try {
+    fileStat = await fs.stat(oldFilePath)
+  } catch {
+    // 原文件缺失仍允许改元数据
+  }
+
+  let fileName = oldFileName
+  let thumbnailName = entry.thumbnailName
+  if (targetName !== meta.name) {
+    // 同名冲突时文件名追加序号，条目名同步（Eagle 用条目名定位原文件）
+    for (let suffix = 0; ; suffix++) {
+      const candidate = suffix === 0 ? targetName : `${targetName} (${suffix})`
+      const candidateFile = `${candidate}.${entry.ext}`
+      // 仅大小写差异时 pathExists 会命中旧文件本身，视为可改名
+      const isOldItself =
+        candidateFile.toLowerCase() === oldFileName.toLowerCase()
+      if (
+        isOldItself ||
+        !(await fs.pathExists(path.join(infoDir, candidateFile)))
+      ) {
+        targetName = candidate
+        fileName = candidateFile
+        break
+      }
+      if (suffix >= 99)
+        throw new Error(`重命名冲突：${targetName}.${entry.ext} 已存在`)
+    }
+    await fs.move(oldFilePath, path.join(infoDir, fileName), {
+      overwrite: true,
+    })
+    // Eagle 缩略图命名跟随条目名（<name>_thumbnail.<ext>），匹配旧名时同步重命名
+    if (thumbnailName) {
+      const thumbExt = path.extname(thumbnailName)
+      const oldThumbBase = path.basename(thumbnailName, thumbExt)
+      if (
+        oldThumbBase.toLowerCase() === `${meta.name}_thumbnail`.toLowerCase()
+      ) {
+        const newThumb = `${targetName}_thumbnail${thumbExt}`
+        const newThumbPath = path.join(infoDir, newThumb)
+        if (
+          newThumb.toLowerCase() !== thumbnailName.toLowerCase() &&
+          !(await fs.pathExists(newThumbPath))
+        ) {
+          await fs.move(path.join(infoDir, thumbnailName), newThumbPath)
+          thumbnailName = newThumb
+        }
+      }
+    }
+  }
+
+  const lastModified = Date.now()
+  const folders = patch.folderId !== undefined ? [patch.folderId] : meta.folders
+  const nextMeta: EagleRawItemMeta = {
+    ...meta,
+    name: targetName,
+    folders,
+    lastModified,
+    mtime: fileStat ? Math.round(fileStat.mtimeMs) : meta.mtime,
+  }
+  const metaPath = path.join(infoDir, 'metadata.json')
+  const metaTmp = `${metaPath}.tmp`
+  await fs.writeJson(metaTmp, nextMeta)
+  await fs.move(metaTmp, metaPath, { overwrite: true })
+
+  // 同步库根 mtime.json（自身增量校验与 Eagle 行为一致）；文件本不存在时不重建
+  const mtimePath = path.join(index.libraryPath, 'mtime.json')
+  if (await fs.pathExists(mtimePath)) {
+    let mtimeMap: Record<string, number> = {}
+    try {
+      mtimeMap = await fs.readJson(mtimePath)
+    } catch {
+      // 损坏则仅保留本次条目（增量校验对缺失条目信任缓存）
+    }
+    mtimeMap[id] = lastModified
+    const mtimeTmp = `${mtimePath}.tmp`
+    await fs.writeJson(mtimeTmp, mtimeMap)
+    await fs.move(mtimeTmp, mtimePath, { overwrite: true })
+  }
+
+  // 内存索引与缓存同步（fs.watch 也会触发一次增量校验，这里先立即生效）
+  index.items.set(id, {
+    ...entry,
+    name: targetName,
+    fileName,
+    thumbnailName,
+    folders: folders ?? [],
+    mtime: nextMeta.mtime,
+    lastModified,
+  })
+  await persistCache()
+  changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
+  return true
+}
+
 export const getFolderTree = async (): Promise<EagleFolder[]> => {
   const index = await ensureIndex()
   if (!index) return []
@@ -440,6 +586,66 @@ export const getItems = async (
     total: list.length,
     items: list.slice(offset, offset + limit).map(toEagleItem),
   }
+}
+
+/**
+ * 图片整理用：有描述的文件夹 → 分类标准。
+ * 按原文件夹顺序先序遍历（与 Eagle 界面自上而下的展示一致），顺序即优先级
+ */
+export const getFolderStandards = async (): Promise<
+  OrganizeFolderStandard[]
+> => {
+  const index = await ensureIndex()
+  if (!index) return []
+  const standards: OrganizeFolderStandard[] = []
+  const walk = (folders: EagleRawFolder[], parentPath: string) => {
+    for (const folder of folders) {
+      const folderPath = parentPath
+        ? `${parentPath}/${folder.name}`
+        : folder.name
+      if (folder.description && folder.description.trim()) {
+        standards.push({
+          folderId: folder.id,
+          folderPath,
+          name: folder.name,
+          description: folder.description,
+        })
+      }
+      walk(folder.children ?? [], folderPath)
+    }
+  }
+  walk(index.folders, '')
+  return standards
+}
+
+/** 图片整理用：校验文件夹当前仍存在于库中（按 id，改名不影响），写库前防御快照失效 */
+export const folderExists = async (folderId: string): Promise<boolean> => {
+  const index = await ensureIndex()
+  if (!index) return false
+  const walk = (folders: EagleRawFolder[]): boolean =>
+    folders.some(
+      (folder) => folder.id === folderId || walk(folder.children ?? []),
+    )
+  return walk(index.folders)
+}
+
+/** 图片整理用：可处理图片（排除 gif / 视频），排序后返回 id 队列与总数 */
+export const getClassifiableItems = async (params: {
+  folderId?: string
+  sortBy: EagleSortBy
+  sortOrder: EagleSortOrder
+}): Promise<{ total: number; itemIds: string[] }> => {
+  const index = await ensureIndex()
+  if (!index) return { total: 0, itemIds: [] }
+  let list = [...index.items.values()].filter(
+    (item) => !VIDEO_EXTS.has(item.ext) && item.ext !== 'gif',
+  )
+  if (params.folderId) {
+    list = list.filter((item) => item.folders.includes(params.folderId!))
+  }
+  const direction = params.sortOrder === 'asc' ? 1 : -1
+  list.sort((a, b) => (a[params.sortBy] - b[params.sortBy]) * direction)
+  return { total: list.length, itemIds: list.map((item) => item.id) }
 }
 
 /** 供 API 层查询索引条目（含 id 格式校验） */

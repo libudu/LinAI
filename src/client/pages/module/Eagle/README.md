@@ -1,8 +1,8 @@
 # Eagle 图片管理模块
 
-只读浏览 Eagle 资源库（`.library` 目录）中的图片 / gif / 视频：左侧文件夹目录树，右侧网格资源列表，支持排序、刷新、大图预览与视频播放。除文件夹名称/描述编辑（`PUT /folders/:id`，写回库根 metadata.json）外**模块对库目录零写入**，所有自身数据（配置、索引缓存、缩略图回退缓存）落在 `data/eagle/` 下。
+只读浏览 Eagle 资源库（`.library` 目录）中的图片 / gif / 视频：左侧文件夹目录树，右侧网格资源列表，支持排序、刷新、大图预览与视频播放。对库目录有两个写操作：文件夹名称/描述编辑（`PUT /folders/:id`，写回库根 metadata.json）与图片整理确认的条目更新（`updateItem`，改条目 metadata.json 的 name/folders 并同步 mtime.json 与索引）。其余所有自身数据（配置、索引缓存、缩略图回退缓存、图片整理任务）落在 `data/eagle/` 下。
 
-> 需求与方案文档：`docs/Eagle图片管理模块.txt`、`docs/Eagle图片管理模块-实现方案.md`、`docs/Eagle资源库.txt`（库结构说明）。修改本模块后请同步更新本文档。
+> 需求与方案文档：`docs/Eagle图片管理模块.txt`、`docs/Eagle图片管理模块-实现方案.md`、`docs/Eagle资源库.txt`（库结构说明）、`docs/Eagle/Eagle数据编辑和图片整理功能.txt` 及其实现方案 `docs/Eagle/Eagle数据编辑和图片整理功能-实现方案.md`（图片整理三步流程，分阶段实施，每阶段完成后需同步更新两份文档）。修改本模块后请同步更新本文档。
 
 ## 文件结构
 
@@ -10,8 +10,15 @@
 src/shared/eagle/types.ts                # 前后端共享类型（EagleFolder / EagleItem / 排序类型）
 
 src/server/module/eagle/
-├── settings.ts                          # 注册式设置：eagle（libraryPath，落盘 data/eagle/config.json）与 eagle-vision（视觉接入点，落盘 data/eagle/vision.json，与图片生成的 vision 配置互相独立）
-└── library.ts                           # 核心：内存索引（扫描/增量校验/fs.watch/查询）+ updateFolder 文件夹编辑
+├── settings.ts                          # 注册式设置：eagle（libraryPath，落盘 data/eagle/config.json）与 eagle-vision（视觉接入点，落盘 data/eagle/vision.json，与图片生成的 vision 配置互相独立），含 getEagleVisionEndpoint() 生效接入点
+├── relay.ts                             # 注册 relay 目标 eagle.vision（POST /chat/completions，非流式），供整理执行器服务端直接调用
+├── library.ts                           # 核心：内存索引（扫描/增量校验/fs.watch/查询）+ updateFolder 文件夹编辑 + updateItem 条目更新（改名/移动文件夹，同步 mtime.json 与索引后发布 eagle.library 变更）+ 图片整理查询（分类标准 getFolderStandards / 可处理图片 getClassifiableItems）
+└── organize/                            # 图片整理（阶段三完成：任务基建 + 5 并发队列执行 + 结果确认写库）
+    ├── constants.ts                     # 模块自有常量：变更资源 ID、执行并发数（5）、视觉上传压缩参数（与 common/static 的同名常量分开定义）
+    ├── storage.ts                       # 私有持久化：任务 DocumentStore（task.json，含队列 itemIds 与进度计数）+ 结果 EntityStore（items/<itemId>.json，执行完成时才落盘），落盘 data/eagle/organize/，不注册通用存储；mutateTask 提供任务文档的串行读改写（service 与 executor 共用单例）
+    ├── service.ts                       # OrganizeService 单例：prepare/创建/暂停/恢复/结果读取 + 确认（confirmItem 写库）/不处理（skipItem）/重新执行（retryItem，phase 拉回 running）+ 启动恢复（running→paused/restart），变更发布到 change bus 的 eagle.organize；创建/恢复/重新执行时 kick 执行器
+    ├── executor.ts                      # 队列执行器：5 并发按序派发（跳过已完成项，支持「重新执行」在中途挖洞），单图失败或落盘异常即暂停派发（in-flight 不中断），全部执行完 → confirming/done；每张图完成发布变更
+    └── vision.ts                        # 单图视觉判定：sharp 内存压缩（不落盘）→ 组装分类标准 prompt → requestRegistry.execute('eagle.vision') → 严格 JSON 解析（zod）+ folderPath 匹配校验，失败抛错由执行器记为 failed
 
 src/server/api/eagle.ts                  # Hono 子路由，挂在 /api/eagle
 
@@ -21,8 +28,14 @@ src/client/pages/module/Eagle/           # 本目录
 ├── store.ts                             # zustand：文件夹树/列表/排序/分页/图片大小档位/展示选项（文件名/文件大小）
 ├── FolderTree.tsx                       # 左侧 antd Tree（展开状态持久化 localStorage，节点带文件夹图标与图片数）；右键菜单「编辑」改名称/描述
 ├── ResourceGrid.tsx                     # 右侧网格 + 分页 + 图片预览 + 视频 Modal，可按需在格子底部叠加文件名/文件大小
-├── OrganizeModal.tsx                    # 「图片整理」弹窗空壳（依赖视觉接入点配置，具体功能待实现）
-├── Toolbar.tsx                          # 「展示选项」下拉面板（排序/图片大小/文件名/文件大小）+ 刷新 + 「图片整理」按钮 + 移动端「切换文件夹」抽屉
+├── Organize/                            # 「图片整理」弹窗（三步流程，依赖视觉接入点配置）
+│   ├── index.tsx                        # Modal 壳：按任务阶段路由步骤（running/paused→执行中，confirming→结果确认，done/无任务→分类划定）
+│   ├── StepClassify.tsx                 # 步骤 1：分类标准列表（有描述的文件夹，顺序即优先级）+ 处理数量 + 压缩选项，确定后创建任务
+│   ├── StepRunning.tsx                  # 步骤 2：执行状态/进度（已执行/总数、成功/失败）/暂停继续/最近失败原因，完成后弹窗壳自动切步骤 3
+│   ├── StepConfirm.tsx                  # 步骤 3：结果确认——顶部待确认缩略图条（点击选中）+ 左大图右信息面板（状态/当前标题/建议标题/目标文件夹/低质/失败原因）+ 底部不处理(红)/重新执行/确认（不含标题）/确认，操作后自动选中下一张
+│   ├── api.ts                           # /api/eagle/organize/* 封装
+│   └── store.ts                         # zustand：轻量 status + SSE 订阅（eagle.organize），Toolbar 徽标与弹窗共用
+├── Toolbar.tsx                          # 「展示选项」下拉面板（排序/图片大小/文件名/文件大小）+ 刷新 + 「图片整理」按钮（Badge：队列剩余数/待确认红点）+ 移动端「切换文件夹」抽屉
 └── SettingModal/
     ├── index.tsx                        # 设置弹窗（openEagleSettingModal）：资源库 / 视觉接入点两个标签页
     ├── useEagleConfig.ts                # 资源库配置 zustand store（/api/settings/eagle）
@@ -35,6 +48,8 @@ src/client/pages/module/Eagle/           # 本目录
 - 路由/侧栏：`src/client/routes.tsx` 中 `path: '/eagle'` 一项（侧栏自动出现，设置按钮挂 `onClickSetting`）
 - 后端路由：`src/server/index.ts` 链式 `.route('/api/eagle', eagleApi)`
 - 设置汇总：`src/server/common/settings/resources.ts` 副作用导入 `module/eagle/settings`
+- 中继汇总：`src/server/common/relay/resources.ts` 副作用导入 `module/eagle/relay`（目标 eagle.vision，整理执行器服务端直连）
+- 变更资源：`eagle.organize`（整理任务/结果，service 注册）、`eagle.library`（library.ts 注册，`updateItem` 写库后发布，前端订阅刷新列表）
 
 ## Eagle 库结构（只读依赖）
 
@@ -61,14 +76,23 @@ src/client/pages/module/Eagle/           # 本目录
 
 ## API（/api/eagle）
 
-| 方法 | 路径                                            | 说明                                                                                                         |
-| ---- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| GET  | `/folders`                                      | 文件夹树，`count` 直接包含数 / `totalCount` 含子孙累计                                                       |
-| PUT  | `/folders/:id`                                  | 编辑文件夹名称/描述（body `{ name, description }`），写回库根 metadata.json，是模块对库唯一的写操作          |
-| GET  | `/items?folderId&sortBy&sortOrder&offset&limit` | 服务端排序分页；`sortBy=mtime\|size`，`limit` 上限 500；缺省 folderId = 全部                                 |
-| POST | `/refresh`                                      | 触发增量校验（库路径变化时重建索引）                                                                         |
-| GET  | `/items/:id/thumbnail`                          | 优先库内 `_thumbnail.png` → 缺失时图片用 sharp 生成 200px webp 缓存到 `data/eagle/thumb/` → 视频回退占位 SVG |
-| GET  | `/items/:id/file`                               | 原文件流式返回，支持 Range（206），视频可拖进度条                                                            |
+| 方法 | 路径                                                                 | 说明                                                                                                                                                    |
+| ---- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET  | `/folders`                                                           | 文件夹树，`count` 直接包含数 / `totalCount` 含子孙累计                                                                                                  |
+| PUT  | `/folders/:id`                                                       | 编辑文件夹名称/描述（body `{ name, description }`），写回库根 metadata.json（另一个写操作是整理确认的 `updateItem`）                                    |
+| GET  | `/items?folderId&sortBy&sortOrder&offset&limit`                      | 服务端排序分页；`sortBy=mtime\|size`，`limit` 上限 500；缺省 folderId = 全部                                                                            |
+| POST | `/refresh`                                                           | 触发增量校验（库路径变化时重建索引）                                                                                                                    |
+| GET  | `/items/:id/thumbnail`                                               | 优先库内 `_thumbnail.png` → 缺失时图片用 sharp 生成 200px webp 缓存到 `data/eagle/thumb/` → 视频回退占位 SVG                                            |
+| GET  | `/items/:id/file`                                                    | 原文件流式返回，支持 Range（206），视频可拖进度条                                                                                                       |
+| GET  | `/organize/prepare?folderId&sortBy&sortOrder`                        | 图片整理步骤 1 数据：分类标准列表（有描述的文件夹，先序遍历=优先级从上到下）+ 当前范围内可处理图片数（排除 gif/视频）                                   |
+| GET  | `/organize/status`                                                   | 图片整理轻量状态（phase/remaining/pendingConfirm/pausedReason），无任务返回 null，供按钮徽标轮询                                                        |
+| GET  | `/organize/task`                                                     | 图片整理任务详情（分类标准快照 + 进度计数，不含队列明细）                                                                                               |
+| POST | `/organize/task`                                                     | 创建整理任务 `{ folderId?, sortBy, sortOrder, count, compress }`；已有未完成任务 409；创建前清空旧结果                                                  |
+| POST | `/organize/task/pause` `/organize/task/resume`                       | 用户暂停（停止派发，in-flight 不受影响）/ 恢复执行，状态不符 409                                                                                        |
+| GET  | `/organize/results?status=&offset=&limit=`                           | 整理结果列表（按状态过滤，可选 offset/limit 分页缺省全量，按 updatedAt 倒序，摘要不含正文）                                                             |
+| GET  | `/organize/results/:itemId`                                          | 单图结果详情（附条目当前名称 `itemName`，`status` 取值见 `src/shared/eagle/organize.ts`）                                                               |
+| POST | `/organize/results/:itemId/confirm`                                  | 确认结果 `{ withTitle }`：经 `updateItem` 移入目标文件夹（可选改标题）后状态 → confirmed；仅 success 可确认，状态不符 409；目标文件夹已从库中删除时 409 |
+| POST | `/organize/results/:itemId/skip` / `/organize/results/:itemId/retry` | 不处理（状态 → skipped）/ 重新执行单图（状态 → pending、phase → running，仅该图入队）                                                                   |
 
 约定：
 
@@ -86,6 +110,7 @@ src/client/pages/module/Eagle/           # 本目录
 6. 设置弹窗保存库路径后调用 `store.reload()`（= POST /refresh + 重拉数据）；视觉接入点标签页挂载时拉取 `eagle-vision` 配置
 7. 目录树展开/收起状态持久化在 localStorage `eagle_folder_expanded`（无记录时默认全展开）；移动端（`usePlatform().isMobile`）不渲染左侧栏，由工具栏「切换文件夹」按钮开抽屉展示同一棵 `FolderTree`
 8. 目录树右键节点 →「编辑」弹窗改文件夹名称/描述，保存后仅重拉文件夹树（`refreshFolders`）；「图片整理」按钮先校验 `eagle-vision` 的生效密钥，未配置时以 initialOnly 模式弹设置引导，保存后继续打开整理弹窗
+9. 图片整理（阶段三完成）：`Organize/store.ts` 订阅 SSE（`/api/storage/events?resources=eagle.organize`）驱动徽标与弹窗阶段路由——队列未完成显示剩余数（点击进步骤 2 不能新建）、有待确认显示小红点（点击只显示结果确认）。任务持久化在 `data/eagle/organize/`（task.json + items/），服务重启时 running 任务自动转为 paused（原因 restart），重启前 in-flight 未落盘的项恢复后重新执行。队列由服务端执行器 5 并发推进（视觉判定经 `eagle.vision` 中继，压缩在内存中完成不落盘），单图失败即暂停派发并在步骤 2 展示最近失败原因。结果确认步骤：确认/不处理后待确认计数减一（全部处理完 phase → done），确认经 `updateItem` 写库（移动文件夹、可选改标题并重命名原文件），写库后发布 `eagle.library` 变更，Eagle 页面订阅该资源（`index.tsx`）刷新文件夹树与当前页；重新执行把单图状态置回 pending、phase 拉回 running（弹窗切回步骤 2）
 
 ## 样式约定
 
@@ -98,5 +123,5 @@ src/client/pages/module/Eagle/           # 本目录
 - **加列表字段**：改 `src/shared/eagle/types.ts` 的 `EagleItem` + `library.ts` 的 `toEagleItem`；若需持久化到索引缓存，同步改 `EagleItemIndex` 和 `buildIndexEntry`（旧缓存缺字段时要有默认值兜底，或考虑清缓存逻辑）
 - **加排序维度**：扩展 `EagleSortBy` + `getItems` 排序逻辑 + `Toolbar` 选项（注意 localStorage 里旧值要能正常解析）
 - **加 API**：`api/eagle.ts` 内新增，保持信封结构和 id 校验；前端在 `api.ts` 加封装
-- **不要**引入对库目录的写操作；不要复用 `common/static` 的 `serveImage`（整读 Buffer 不支持 Range）
+- **写库操作**仅限 `library.ts` 的 `updateFolder` / `updateItem`（都要同步内存索引并原子写回，`updateItem` 还需同步 mtime.json 与原文件重命名）；不要在其他地方直接写库目录；不要复用 `common/static` 的 `serveImage`（整读 Buffer 不支持 Range）
 - 改完跑 `npx tsc --noEmit`，然后更新本文档
