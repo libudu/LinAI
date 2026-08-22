@@ -1,4 +1,8 @@
 import type { OrganizeFolderStandard } from '@/shared/eagle/organize'
+import {
+  ORGANIZE_VISION_USER_TEXT,
+  buildOrganizeVisionSystemPrompt,
+} from '@/shared/eagle/organize'
 import fs from 'fs-extra'
 import sharp from 'sharp'
 import { z } from 'zod'
@@ -34,27 +38,6 @@ const MIME_BY_EXT: Record<string, string> = {
   webp: 'image/webp',
   bmp: 'image/bmp',
   svg: 'image/svg+xml',
-}
-
-const buildSystemPrompt = (standards: OrganizeFolderStandard[]): string => {
-  const lines = standards.map(
-    (standard, index) =>
-      `${index + 1}. ${standard.folderPath}：${standard.description}`,
-  )
-  return [
-    '你是图片整理助手，需要根据给定的文件夹分类标准对图片进行归类。',
-    '',
-    '分类标准（按优先级从上到下排列，越靠前优先级越高）：',
-    ...lines,
-    '',
-    '请对图片进行判断，并仅输出一个 JSON 对象，不要输出任何其他文字、注释或代码块标记，格式如下：',
-    '{"title": "图片标题", "folderPath": "分类文件夹路径", "lowQuality": false}',
-    '',
-    '字段要求：',
-    '- title：概括图片内容的简短标题（使用图片内容对应的语言，通常为中文）',
-    '- folderPath：从上述分类标准的路径中选择最合适的一个；若图片不属于任何一类，填 "不属于任何分类"',
-    '- lowQuality：图片是否疑似低质（分辨率低、画面主体不清晰、美学品味较差等）',
-  ].join('\n')
 }
 
 /** 读取图片并转为 data URL；勾选压缩时在内存中缩放转 webp（不落盘） */
@@ -131,14 +114,14 @@ export const judgeItem = async (
     path: '/chat/completions',
     body: {
       messages: [
-        { role: 'system', content: buildSystemPrompt(options.standards) },
+        {
+          role: 'system',
+          content: buildOrganizeVisionSystemPrompt(options.standards),
+        },
         {
           role: 'user',
           content: [
-            {
-              type: 'text',
-              text: '请判断这张图片的标题、所属分类文件夹与是否疑似低质。',
-            },
+            { type: 'text', text: ORGANIZE_VISION_USER_TEXT },
             { type: 'image_url', image_url: { url: dataUrl } },
           ],
         },

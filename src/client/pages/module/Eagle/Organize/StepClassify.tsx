@@ -1,5 +1,9 @@
 import type { OrganizePrepareResp } from '@/shared/eagle/organize'
-import { Button, Checkbox, Empty, InputNumber, Spin, message } from 'antd'
+import {
+  ORGANIZE_VISION_USER_TEXT,
+  buildOrganizeVisionSystemPrompt,
+} from '@/shared/eagle/organize'
+import { Button, Checkbox, Empty, InputNumber, Modal, Spin, message } from 'antd'
 import { useEffect, useState } from 'react'
 import { useEagleStore } from '../store'
 import { createOrganizeTask, fetchOrganizePrepare } from './api'
@@ -14,6 +18,7 @@ export function StepClassify({ onClose }: { onClose: () => void }) {
   const [count, setCount] = useState<number | null>(null)
   const [compress, setCompress] = useState(true)
   const [creating, setCreating] = useState(false)
+  const [promptOpen, setPromptOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -132,17 +137,52 @@ export function StepClassify({ onClose }: { onClose: () => void }) {
         </Checkbox>
       </div>
 
-      <div className="flex justify-end gap-2 border-t border-slate-200 pt-3 dark:border-slate-700">
-        <Button onClick={onClose}>取消</Button>
+      <div className="flex items-center justify-between border-t border-slate-200 pt-3 dark:border-slate-700">
         <Button
-          type="primary"
-          loading={creating}
-          disabled={standards.length === 0 || imageCount === 0 || !count}
-          onClick={handleCreate}
+          disabled={standards.length === 0}
+          onClick={() => setPromptOpen(true)}
         >
-          确定
+          预览提示词
         </Button>
+        <div className="flex gap-2">
+          <Button onClick={onClose}>取消</Button>
+          <Button
+            type="primary"
+            loading={creating}
+            disabled={standards.length === 0 || imageCount === 0 || !count}
+            onClick={handleCreate}
+          >
+            确定
+          </Button>
+        </div>
       </div>
+
+      <Modal
+        open={promptOpen}
+        title="将要发送的提示词"
+        width={640}
+        footer={null}
+        onCancel={() => setPromptOpen(false)}
+      >
+        <div className="flex flex-col gap-3">
+          <div className="text-xs text-slate-500 dark:text-slate-400">
+            每张图片都会按下面的内容调用视觉模型：system 提示词相同，user
+            消息的文本部分固定、图片紧随其后上传。
+          </div>
+          <div>
+            <div className="mb-1 text-xs font-medium">System</div>
+            <pre className="max-h-80 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs whitespace-pre-wrap dark:border-slate-700 dark:bg-slate-800/60">
+              {buildOrganizeVisionSystemPrompt(standards)}
+            </pre>
+          </div>
+          <div>
+            <div className="mb-1 text-xs font-medium">User（文本部分）</div>
+            <pre className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs whitespace-pre-wrap dark:border-slate-700 dark:bg-slate-800/60">
+              {ORGANIZE_VISION_USER_TEXT}
+            </pre>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

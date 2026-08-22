@@ -14,10 +14,10 @@ const DISPLAY_STORAGE_KEY = 'eagle_display_options'
 
 export type EagleImageSize = 'small' | 'medium' | 'large'
 
-// 网格展示选项（展示文件名 / 展示文件大小）持久化，默认均不勾选
-const loadDisplayOptions = (): Pick<
+// 纯前端视觉选项（展示文件名 / 展示文件大小 / 展示文件夹描述）持久化，默认均不勾选
+const loadViewOptions = (): Pick<
   EagleState,
-  'showFileName' | 'showFileSize'
+  'showFileName' | 'showFileSize' | 'showFolderDescription'
 > => {
   try {
     const raw = localStorage.getItem(DISPLAY_STORAGE_KEY)
@@ -26,12 +26,17 @@ const loadDisplayOptions = (): Pick<
       return {
         showFileName: parsed.showFileName === true,
         showFileSize: parsed.showFileSize === true,
+        showFolderDescription: parsed.showFolderDescription === true,
       }
     }
   } catch {
     // 忽略损坏的本地缓存
   }
-  return { showFileName: false, showFileSize: false }
+  return {
+    showFileName: false,
+    showFileSize: false,
+    showFolderDescription: false,
+  }
 }
 
 // 排序偏好持久化（仅前端状态，不走服务端设置）
@@ -81,6 +86,8 @@ interface EagleState {
   showFileName: boolean
   /** 在格子底部展示文件大小 */
   showFileSize: boolean
+  /** 在文件夹树节点名称下方展示描述 */
+  showFolderDescription: boolean
 
   init: () => Promise<void>
   selectFolder: (folderId: string) => Promise<void>
@@ -89,12 +96,29 @@ interface EagleState {
   setImageSize: (size: EagleImageSize) => void
   setShowFileName: (show: boolean) => void
   setShowFileSize: (show: boolean) => void
+  setShowFolderDescription: (show: boolean) => void
   /** 触发后端增量刷新后重拉数据 */
   reload: () => Promise<void>
   /** 仅重拉文件夹树（编辑文件夹后调用） */
   refreshFolders: () => Promise<void>
   /** 重拉文件夹树与当前页（整理确认等写库操作后由 SSE 触发，索引已在服务端更新） */
   refreshCurrentPage: () => Promise<void>
+}
+
+// 视觉选项整体落盘，供各 setter 复用
+const persistViewOptions = (state: {
+  showFileName: boolean
+  showFileSize: boolean
+  showFolderDescription: boolean
+}) => {
+  localStorage.setItem(
+    DISPLAY_STORAGE_KEY,
+    JSON.stringify({
+      showFileName: state.showFileName,
+      showFileSize: state.showFileSize,
+      showFolderDescription: state.showFolderDescription,
+    }),
+  )
 }
 
 export const useEagleStore = create<EagleState>()((set, get) => {
@@ -137,7 +161,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
     listLoading: false,
     imageSize: loadImageSize(),
     ...loadSort(),
-    ...loadDisplayOptions(),
+    ...loadViewOptions(),
 
     init: async () => {
       await Promise.all([loadFolders(), loadPage(1)])
@@ -171,27 +195,22 @@ export const useEagleStore = create<EagleState>()((set, get) => {
 
     setShowFileName: (show) => {
       set((state) => {
-        localStorage.setItem(
-          DISPLAY_STORAGE_KEY,
-          JSON.stringify({
-            showFileName: show,
-            showFileSize: state.showFileSize,
-          }),
-        )
+        persistViewOptions({ ...state, showFileName: show })
         return { showFileName: show }
       })
     },
 
     setShowFileSize: (show) => {
       set((state) => {
-        localStorage.setItem(
-          DISPLAY_STORAGE_KEY,
-          JSON.stringify({
-            showFileName: state.showFileName,
-            showFileSize: show,
-          }),
-        )
+        persistViewOptions({ ...state, showFileSize: show })
         return { showFileSize: show }
+      })
+    },
+
+    setShowFolderDescription: (show) => {
+      set((state) => {
+        persistViewOptions({ ...state, showFolderDescription: show })
+        return { showFolderDescription: show }
       })
     },
 

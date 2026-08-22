@@ -1,7 +1,11 @@
 import type { EagleFolder } from '@/shared/eagle/types'
-import { FolderOpenOutlined, FolderOutlined } from '@ant-design/icons'
+import {
+  FolderOpenOutlined,
+  FolderOutlined,
+  SettingOutlined,
+} from '@ant-design/icons'
 import type { TreeDataNode } from 'antd'
-import { Tree } from 'antd'
+import { Button, Checkbox, Dropdown, Tree } from 'antd'
 import { useMemo, useState } from 'react'
 import { useEagleStore } from '../store'
 import { EditFolderModal } from './EditFolderModal'
@@ -10,26 +14,47 @@ import './FolderTree.scss'
 
 const EXPANDED_STORAGE_KEY = 'eagle_folder_expanded'
 
-// 节点标题：名称 + 灰色图片数（含子孙累计）
-const renderTitle = (name: string, count: number) => (
-  <span className="inline-flex items-baseline gap-1">
-    {name}
-    <span className="text-sm text-slate-400">({count})</span>
+// 节点标题：名称 + 灰色图片数（含子孙累计），开启展示时在名称下方加一行浅灰描述（单行超长省略）
+const renderTitle = (
+  name: string,
+  count: number,
+  description?: string,
+  showDescription?: boolean,
+) => (
+  <span className="flex min-w-0 flex-col items-start">
+    <span className="inline-flex items-baseline gap-1">
+      {name}
+      <span className="text-sm text-slate-400">({count})</span>
+    </span>
+    {showDescription && description ? (
+      <span
+        className="relative -top-1 line-clamp-1 w-full text-xs leading-none text-slate-400"
+        title={description}
+      >
+        {description}
+      </span>
+    ) : null}
   </span>
 )
 
 const toTreeData = (
   folders: EagleFolder[],
   onEdit: (folder: EagleFolder) => void,
+  showDescription: boolean,
 ): TreeDataNode[] =>
   folders.map((folder) => ({
     key: folder.id,
     title: (
       <FolderContextMenu folder={folder} onEdit={onEdit}>
-        {renderTitle(folder.name, folder.totalCount)}
+        {renderTitle(
+          folder.name,
+          folder.totalCount,
+          folder.description,
+          showDescription,
+        )}
       </FolderContextMenu>
     ),
-    children: toTreeData(folder.children, onEdit),
+    children: toTreeData(folder.children, onEdit, showDescription),
   }))
 
 // 收集全部文件夹 key（首次无本地记录时默认全展开）
@@ -52,6 +77,8 @@ const loadExpandedKeys = (): string[] | null => {
 }
 
 // 左侧文件夹目录树：贴边拉满，展开状态持久化到 localStorage，节点带文件夹图标与图片数
+// 顶部固定一个视图设置齿轮（不随目录树滚动，当前仅「显示文件夹描述」），
+// 开启「显示文件夹描述」后节点名称下方展示浅灰描述（单行省略）
 // 右键节点弹出菜单（编辑名称/描述，写回 Eagle 库 metadata.json）
 export function FolderTree({ onSelected }: { onSelected?: () => void }) {
   const {
@@ -61,6 +88,8 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
     selectFolder,
     allTotal,
     refreshFolders,
+    showFolderDescription,
+    setShowFolderDescription,
   } = useEagleStore()
   // null = 尚无本地记录，回退为全展开
   const [storedKeys, setStoredKeys] = useState<string[] | null>(
@@ -71,9 +100,9 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
   const treeData = useMemo<TreeDataNode[]>(
     () => [
       { key: '', title: renderTitle('全部', allTotal), children: undefined },
-      ...toTreeData(folders, setEditingFolder),
+      ...toTreeData(folders, setEditingFolder, showFolderDescription),
     ],
-    [folders, allTotal],
+    [folders, allTotal, showFolderDescription],
   )
 
   const allKeys = useMemo(() => collectKeys(folders), [folders])
@@ -86,25 +115,46 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
   }
 
   return (
-    <div className="eagle-folder-tree h-full overflow-y-auto py-1">
-      <Tree
-        treeData={treeData}
-        expandedKeys={expandedKeys}
-        onExpand={handleExpand}
-        selectedKeys={[currentFolderId]}
-        onSelect={(keys) => {
-          selectFolder((keys[0] as string) ?? '')
-          onSelected?.()
-        }}
-        showIcon
-        icon={({ expanded }) =>
-          expanded ? <FolderOpenOutlined /> : <FolderOutlined />
-        }
-        blockNode
-      />
-      {foldersLoading && (
-        <div className="pt-2 text-center text-xs text-slate-400">加载中…</div>
-      )}
+    <div className="flex h-full flex-col">
+      {/* 顶部固定工具行：视图设置齿轮不随目录树滚动 */}
+      <div className="flex justify-end border-b border-slate-200 px-2 py-1 dark:border-slate-700">
+        <Dropdown
+          trigger={['click']}
+          menu={{ items: [] }}
+          dropdownRender={() => (
+            <div className="w-44 rounded-lg border border-slate-200 bg-white p-3 shadow-lg dark:border-slate-700 dark:bg-slate-800">
+              <Checkbox
+                checked={showFolderDescription}
+                onChange={(e) => setShowFolderDescription(e.target.checked)}
+              >
+                显示文件夹描述
+              </Checkbox>
+            </div>
+          )}
+        >
+          <Button icon={<SettingOutlined />} type="text" />
+        </Dropdown>
+      </div>
+      <div className="eagle-folder-tree min-h-0 flex-1 overflow-y-auto py-1">
+        <Tree
+          treeData={treeData}
+          expandedKeys={expandedKeys}
+          onExpand={handleExpand}
+          selectedKeys={[currentFolderId]}
+          onSelect={(keys) => {
+            selectFolder((keys[0] as string) ?? '')
+            onSelected?.()
+          }}
+          showIcon
+          icon={({ expanded }) =>
+            expanded ? <FolderOpenOutlined /> : <FolderOutlined />
+          }
+          blockNode
+        />
+        {foldersLoading && (
+          <div className="pt-2 text-center text-xs text-slate-400">加载中…</div>
+        )}
+      </div>
 
       <EditFolderModal
         folder={editingFolder}
