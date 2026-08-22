@@ -59,8 +59,7 @@ export const useVisionStore = create<VisionState>()((set, get) => {
       putConfig({ visionBaseUrl: baseUrl, visionModelId: modelId }),
     setVisionCustomEndpoints: (endpoints) =>
       putConfig({ visionCustomEndpoints: endpoints }),
-    setVisionPresetApiKeys: (keys) =>
-      putConfig({ visionPresetApiKeys: keys }),
+    setVisionPresetApiKeys: (keys) => putConfig({ visionPresetApiKeys: keys }),
     fetchConfig: async () => {
       try {
         const result = await client.get()

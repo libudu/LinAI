@@ -147,12 +147,15 @@ export const VisionEndpointSetting = forwardRef<
         nextModelId = values.modelId.trim()
         const title = values.title.trim()
         const existingIndex = customEndpoints.findIndex(
-          (item) => item.baseUrl === nextBaseUrl && item.modelId === nextModelId,
+          (item) =>
+            item.baseUrl === nextBaseUrl && item.modelId === nextModelId,
         )
         const nextEndpoints =
           existingIndex >= 0
             ? customEndpoints.map((item, index) =>
-                index === existingIndex ? { ...item, title, apiKey: key } : item,
+                index === existingIndex
+                  ? { ...item, title, apiKey: key }
+                  : item,
               )
             : [
                 ...customEndpoints,

@@ -61,7 +61,7 @@ export function GalleryImageGrid({
               <Tooltip title="从最近使用中移除，但不会删除文件">
                 <button
                   type="button"
-                  className="pointer-events-none cursor-pointer absolute top-1 right-1 z-20 flex h-7 w-7 items-center justify-center rounded-md bg-white/90 text-slate-500 opacity-0 shadow-sm transition-all group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 hover:text-red-500"
+                  className="pointer-events-none absolute top-1 right-1 z-20 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md bg-white/90 text-slate-500 opacity-0 shadow-sm transition-all group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 hover:text-red-500"
                   onClick={(event) => {
                     event.stopPropagation()
                     onRemove(url)

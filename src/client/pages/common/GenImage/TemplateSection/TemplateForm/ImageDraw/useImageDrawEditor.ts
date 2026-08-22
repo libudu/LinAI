@@ -1,5 +1,11 @@
 import { message } from 'antd'
-import { useEffect, useRef, useState, type PointerEvent, type SyntheticEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+  type SyntheticEvent,
+} from 'react'
 import {
   drawStroke,
   exportDrawnImage,
@@ -24,7 +30,11 @@ function isInsideCanvas(canvas: HTMLCanvasElement, x: number, y: number) {
   return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
 }
 
-export function useImageDrawEditor({ open, src, onConfirm }: UseImageDrawEditorOptions) {
+export function useImageDrawEditor({
+  open,
+  src,
+  onConfirm,
+}: UseImageDrawEditorOptions) {
   const imageRef = useRef<HTMLImageElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -51,7 +61,11 @@ export function useImageDrawEditor({ open, src, onConfirm }: UseImageDrawEditorO
   const [strokes, setStrokes] = useState<DrawStroke[]>([])
   const [historyIndex, setHistoryIndex] = useState(0)
   const [zoom, setZoom] = useState(1)
-  const [preview, setPreview] = useState<BrushPreview>({ visible: false, x: 0, y: 0 })
+  const [preview, setPreview] = useState<BrushPreview>({
+    visible: false,
+    x: 0,
+    y: 0,
+  })
 
   const resetEditorState = () => {
     activePointerRef.current = null
@@ -124,12 +138,17 @@ export function useImageDrawEditor({ open, src, onConfirm }: UseImageDrawEditorO
     try {
       redrawStrokes(canvas, strokes.slice(0, historyIndex))
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : '无法创建图片绘制画布')
+      setLoadError(
+        error instanceof Error ? error.message : '无法创建图片绘制画布',
+      )
     }
   }, [historyIndex, imageSize, strokes])
 
   const updatePreview = (
-    event: Pick<PointerEvent<HTMLCanvasElement>, 'clientX' | 'clientY' | 'pointerType'>,
+    event: Pick<
+      PointerEvent<HTMLCanvasElement>,
+      'clientX' | 'clientY' | 'pointerType'
+    >,
   ) => {
     lastPointerRef.current = {
       clientX: event.clientX,
@@ -152,7 +171,8 @@ export function useImageDrawEditor({ open, src, onConfirm }: UseImageDrawEditorO
   const finishStroke = (pointerId: number) => {
     if (activePointerRef.current !== pointerId) return
     const canvas = canvasRef.current
-    if (canvas?.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId)
+    if (canvas?.hasPointerCapture(pointerId))
+      canvas.releasePointerCapture(pointerId)
     const stroke = currentStrokeRef.current
     if (stroke) {
       const nextStrokes = [...strokeBaseRef.current, stroke]
@@ -276,7 +296,8 @@ export function useImageDrawEditor({ open, src, onConfirm }: UseImageDrawEditorO
       const clientY = event.clientY
       zoomRef.current = nextZoom
       setZoom(nextZoom)
-      if (zoomFrameRef.current !== null) cancelAnimationFrame(zoomFrameRef.current)
+      if (zoomFrameRef.current !== null)
+        cancelAnimationFrame(zoomFrameRef.current)
       zoomFrameRef.current = requestAnimationFrame(() => {
         const viewport = viewportRef.current
         const newRect = canvas.getBoundingClientRect()
@@ -318,9 +339,15 @@ export function useImageDrawEditor({ open, src, onConfirm }: UseImageDrawEditorO
     }
     const availableWidth = Math.max(1, viewport.clientWidth - 32)
     const availableHeight = Math.max(1, viewport.clientHeight - 32)
-    const scale = Math.min(availableWidth / naturalWidth, availableHeight / naturalHeight)
+    const scale = Math.min(
+      availableWidth / naturalWidth,
+      availableHeight / naturalHeight,
+    )
     setImageSize({ width: naturalWidth, height: naturalHeight })
-    setBaseDisplaySize({ width: naturalWidth * scale, height: naturalHeight * scale })
+    setBaseDisplaySize({
+      width: naturalWidth * scale,
+      height: naturalHeight * scale,
+    })
     setLoading(false)
   }
 
@@ -335,7 +362,10 @@ export function useImageDrawEditor({ open, src, onConfirm }: UseImageDrawEditorO
     setSubmitting(true)
     setPreview((current) => ({ ...current, visible: false }))
     try {
-      const dataUrl = await exportDrawnImage(image, strokes.slice(0, historyIndex))
+      const dataUrl = await exportDrawnImage(
+        image,
+        strokes.slice(0, historyIndex),
+      )
       await onConfirm(dataUrl)
     } catch (error) {
       message.error(error instanceof Error ? error.message : '图片涂抹失败')
@@ -345,7 +375,10 @@ export function useImageDrawEditor({ open, src, onConfirm }: UseImageDrawEditorO
   }
 
   const displaySize = baseDisplaySize
-    ? { width: baseDisplaySize.width * zoom, height: baseDisplaySize.height * zoom }
+    ? {
+        width: baseDisplaySize.width * zoom,
+        height: baseDisplaySize.height * zoom,
+      }
     : null
   const canUndo = historyIndex > 0
 

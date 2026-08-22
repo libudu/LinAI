@@ -16,12 +16,27 @@ export function getCanvasPoint(
 ): DrawPoint {
   const rect = canvas.getBoundingClientRect()
   return {
-    x: Math.max(0, Math.min(canvas.width, (clientX - rect.left) * (canvas.width / rect.width))),
-    y: Math.max(0, Math.min(canvas.height, (clientY - rect.top) * (canvas.height / rect.height))),
+    x: Math.max(
+      0,
+      Math.min(
+        canvas.width,
+        (clientX - rect.left) * (canvas.width / rect.width),
+      ),
+    ),
+    y: Math.max(
+      0,
+      Math.min(
+        canvas.height,
+        (clientY - rect.top) * (canvas.height / rect.height),
+      ),
+    ),
   }
 }
 
-export function drawStroke(context: CanvasRenderingContext2D, stroke: DrawStroke) {
+export function drawStroke(
+  context: CanvasRenderingContext2D,
+  stroke: DrawStroke,
+) {
   const firstPoint = stroke.points[0]
   if (!firstPoint) return
   context.save()
@@ -46,7 +61,10 @@ export function drawStroke(context: CanvasRenderingContext2D, stroke: DrawStroke
   context.restore()
 }
 
-export function redrawStrokes(canvas: HTMLCanvasElement, strokes: DrawStroke[]) {
+export function redrawStrokes(
+  canvas: HTMLCanvasElement,
+  strokes: DrawStroke[],
+) {
   const context = canvas.getContext('2d')
   if (!context) throw new Error('无法创建图片绘制画布')
   context.clearRect(0, 0, canvas.width, canvas.height)
@@ -68,7 +86,10 @@ function canvasToDataUrl(canvas: HTMLCanvasElement) {
   })
 }
 
-export async function exportDrawnImage(image: HTMLImageElement, strokes: DrawStroke[]) {
+export async function exportDrawnImage(
+  image: HTMLImageElement,
+  strokes: DrawStroke[],
+) {
   const canvas = document.createElement('canvas')
   canvas.width = image.naturalWidth
   canvas.height = image.naturalHeight

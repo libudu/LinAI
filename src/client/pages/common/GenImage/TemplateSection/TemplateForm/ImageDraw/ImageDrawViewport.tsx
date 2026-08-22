@@ -1,5 +1,10 @@
 import { Alert, Spin } from 'antd'
-import type { CSSProperties, PointerEvent, RefObject, SyntheticEvent } from 'react'
+import type {
+  CSSProperties,
+  PointerEvent,
+  RefObject,
+  SyntheticEvent,
+} from 'react'
 
 export interface ImageSize {
   width: number
@@ -70,7 +75,10 @@ export function ImageDrawViewport({
         </div>
       ) : objectUrl ? (
         <div className="flex h-max min-h-full w-max min-w-full items-center justify-center p-4">
-          <div className="relative shrink-0 overflow-hidden" style={displaySize || undefined}>
+          <div
+            className="relative shrink-0 overflow-hidden"
+            style={displaySize || undefined}
+          >
             <img
               ref={imageRef}
               src={objectUrl}
@@ -87,7 +95,7 @@ export function ImageDrawViewport({
                 width={imageSize.width}
                 height={imageSize.height}
                 aria-label="图片涂抹画布"
-                className="absolute inset-0 touch-none cursor-none"
+                className="absolute inset-0 cursor-none touch-none"
                 style={{ width: displaySize.width, height: displaySize.height }}
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}

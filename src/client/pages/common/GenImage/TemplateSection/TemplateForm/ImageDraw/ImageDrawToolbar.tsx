@@ -65,7 +65,9 @@ export function ImageDrawToolbar({
           >
             {color === preset.color && (
               <CheckOutlined
-                className={preset.color === '#ffffff' ? 'text-slate-700' : 'text-white'}
+                className={
+                  preset.color === '#ffffff' ? 'text-slate-700' : 'text-white'
+                }
               />
             )}
           </button>

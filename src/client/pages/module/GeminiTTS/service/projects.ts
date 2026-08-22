@@ -1,8 +1,8 @@
 // TTS 项目数据访问层：项目走通用实体接口（tts.projects），
 // 角色/对白/备注的增删改全部在前端完成，每次修改整体读改写并携带 expectedRevision
 import { entityClient, mutateEntity } from '@/client/service/storage'
-import type { TTSProject, TTSSummary } from '@/shared/tts/project'
 import type { StoredEntity } from '@/shared/storage/types'
+import type { TTSProject, TTSSummary } from '@/shared/tts/project'
 
 const projectsClient = entityClient<TTSProject, TTSSummary>('tts.projects')
 

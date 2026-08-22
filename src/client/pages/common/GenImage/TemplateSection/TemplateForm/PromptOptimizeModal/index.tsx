@@ -1,12 +1,12 @@
+import {
+  normalizeVisionImageUrl,
+  visionChatCompletion,
+} from '@/client/service/vision'
 import { EditOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { Image as AntImage, Button, Input, Modal, message } from 'antd'
 import classNames from 'classnames'
 import { useEffect, useMemo, useState } from 'react'
-import {
-  normalizeVisionImageUrl,
-  visionChatCompletion,
-} from '@/client/service/vision'
 import { PromptTemplateEditModal } from './PromptTemplateEditModal'
 
 export const DEFAULT_PROMPT_TEMPLATE = `

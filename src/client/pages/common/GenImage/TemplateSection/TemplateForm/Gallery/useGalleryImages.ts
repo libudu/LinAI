@@ -109,7 +109,12 @@ export function useGalleryImages(visible: boolean) {
         ...image,
         isReferenced: resolveIsReferenced(image),
       })),
-    [fetchedImages, referencesReady, referencedInputUrls, referencedGeneratedUrls],
+    [
+      fetchedImages,
+      referencesReady,
+      referencedInputUrls,
+      referencedGeneratedUrls,
+    ],
   )
 
   const fetchImages = async (): Promise<FetchedImage[] | null> => {

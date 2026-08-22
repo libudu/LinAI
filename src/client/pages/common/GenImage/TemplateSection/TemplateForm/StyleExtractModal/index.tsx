@@ -1,18 +1,18 @@
-import { CopyOutlined } from '@ant-design/icons'
-import type { UploadProps } from 'antd'
-import { Button, Modal, message } from 'antd'
-import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   extractVisionText,
   visionChatCompletion,
 } from '@/client/service/vision'
+import { CopyOutlined } from '@ant-design/icons'
+import type { UploadProps } from 'antd'
+import { Button, Modal, message } from 'antd'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { EMPTY_ANALYSIS, STYLE_DIMENSIONS, composePrompt } from './dimensions'
 import { DimensionSection } from './DimensionSection'
-import { PreviewSection } from './PreviewSection'
-import { UploadSection } from './UploadSection'
 import { parseStyleAnalysis } from './parse'
+import { PreviewSection } from './PreviewSection'
 import { STYLE_ANALYSIS_PROMPT } from './prompt'
 import type { StyleAnalysis } from './types'
+import { UploadSection } from './UploadSection'
 import { readFileAsBase64 } from './utils'
 
 interface StyleExtractModalProps {

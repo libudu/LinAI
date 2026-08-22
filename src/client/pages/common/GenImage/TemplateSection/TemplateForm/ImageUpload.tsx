@@ -87,12 +87,12 @@ export function ImageUpload({
     closeEditor,
     handleEditConfirm,
   } = useImageEditUpload({
-      latestValueRef,
-      uploadImageBase64,
-      handleUploadCountChange,
-      onChange,
-      addRecentImages,
-    })
+    latestValueRef,
+    uploadImageBase64,
+    handleUploadCountChange,
+    onChange,
+    addRecentImages,
+  })
 
   const blobToBase64 = (blob: Blob) =>
     new Promise<string>((resolve, reject) => {

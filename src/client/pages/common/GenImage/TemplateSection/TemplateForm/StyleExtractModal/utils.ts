@@ -6,4 +6,3 @@ export function readFileAsBase64(file: File): Promise<string> {
   reader.readAsDataURL(file)
   return promise
 }
-
