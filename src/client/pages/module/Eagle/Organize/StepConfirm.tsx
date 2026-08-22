@@ -6,6 +6,7 @@ import { Button, Checkbox, Empty, Image, Radio, Spin, Tag, message } from 'antd'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { eagleFileUrl, eagleThumbnailUrl } from '../api'
 import {
+  clearOrganizeResultClassification,
   confirmOrganizeResult,
   fetchOrganizeResult,
   fetchOrganizeResults,
@@ -14,8 +15,8 @@ import {
 } from './api'
 
 // 步骤 3 结果确认：顶部待确认缩略图条（点击选中）+ 左大图右信息面板 +
-// 底部操作（不处理 / 重新执行 / 确认），建议标题由每张图片自己的勾选项控制；
-// 确认与不处理后自动选中下一张，重新执行会把任务拉回执行中（弹窗切步骤 2）
+// 底部操作（清除分类手动处理 / 不处理 / 重新执行 / 确认），建议标题由每张图片自己的勾选项控制；
+// 完成当前结果后自动选中下一张，重新执行会把任务拉回执行中（弹窗切步骤 2）
 export function StepConfirm() {
   const [results, setResults] = useState<OrganizeResultListItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -201,12 +202,18 @@ export function StepConfirm() {
       if (
         target instanceof HTMLElement &&
         (target.isContentEditable ||
-          ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          (target instanceof HTMLInputElement &&
+            !['radio', 'checkbox'].includes(target.type)))
       ) {
         return
       }
 
       if (event.key.toLowerCase() === 'a') {
+        event.preventDefault()
+        void runAction(clearOrganizeResultClassification)
+      } else if (event.key.toLowerCase() === 's') {
         event.preventDefault()
         void runAction(skipOrganizeResult)
       } else if (event.key.toLowerCase() === 'd') {
@@ -393,16 +400,24 @@ export function StepConfirm() {
         </div>
       </div>
 
-      {/* 底部操作：不处理（红）/ 重新执行 / 确认（不含标题）/ 确认 */}
+      {/* 底部操作：清除分类 / 不处理/ 重新执行 / 确认 */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3 dark:border-slate-700">
-        <Button
-          danger
-          loading={actionLoading}
-          disabled={!selectedId}
-          onClick={() => runAction(skipOrganizeResult)}
-        >
-          不处理(A)
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            loading={actionLoading}
+            disabled={!selectedId}
+            onClick={() => runAction(clearOrganizeResultClassification)}
+          >
+            清除分类手动处理(A)
+          </Button>
+          <Button
+            loading={actionLoading}
+            disabled={!selectedId}
+            onClick={() => runAction(skipOrganizeResult)}
+          >
+            不处理(S)
+          </Button>
+        </div>
         <div className="flex flex-wrap gap-2">
           <Button
             loading={actionLoading}

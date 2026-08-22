@@ -439,13 +439,35 @@ class OrganizeService {
       }
     }
     const updated = await updateItem(itemId, {
-      folderId: standard.folderId,
+      folderIds: [standard.folderId],
       name: withTitle ? record.title : undefined,
     })
     if (!updated) return { ok: false, status: 404, error: 'Eagle 条目不存在' }
     await organizeRepository.saveItem({
       ...record,
       status: 'confirmed',
+      updatedAt: Date.now(),
+    })
+    await this.settleAfterDecision()
+    this.publishChange()
+    return { ok: true }
+  }
+
+  /** 清除全部文件夹归属并结束该结果，留给用户在「未分类」中手动处理 */
+  async clearItemClassification(
+    itemId: string,
+  ): Promise<OrganizeActionResult> {
+    await this.ready
+    const record = await organizeRepository.getItem(itemId)
+    if (!record) return { ok: false, status: 404, error: '结果不存在' }
+    if (record.status !== 'success' && record.status !== 'failed') {
+      return { ok: false, status: 409, error: '该结果当前不需要确认' }
+    }
+    const updated = await updateItem(itemId, { folderIds: [] })
+    if (!updated) return { ok: false, status: 404, error: 'Eagle 条目不存在' }
+    await organizeRepository.saveItem({
+      ...record,
+      status: 'skipped',
       updatedAt: Date.now(),
     })
     await this.settleAfterDecision()

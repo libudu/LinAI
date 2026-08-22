@@ -1,5 +1,8 @@
 import { settingsClient } from '@/client/service/settings'
-import type { EagleFolder } from '@/shared/eagle/types'
+import {
+  EAGLE_UNCLASSIFIED_FOLDER_ID,
+  type EagleFolder,
+} from '@/shared/eagle/types'
 import type { EagleFolderTreeSettings } from '@/server/module/eagle/settings'
 import { FolderOpenOutlined, FolderOutlined } from '@ant-design/icons'
 import type { TreeDataNode } from 'antd'
@@ -103,6 +106,7 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
     currentFolderId,
     selectFolder,
     allTotal,
+    unclassifiedTotal,
     refreshFolders,
     showFolderDescription,
   } = useEagleStore()
@@ -120,9 +124,14 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
   const treeData = useMemo<TreeDataNode[]>(
     () => [
       { key: '', title: renderTitle('全部', allTotal), children: undefined },
+      {
+        key: EAGLE_UNCLASSIFIED_FOLDER_ID,
+        title: renderTitle('未分类', unclassifiedTotal),
+        children: undefined,
+      },
       ...toTreeData(folders, setEditingFolder, showFolderDescription),
     ],
-    [folders, allTotal, showFolderDescription],
+    [folders, allTotal, showFolderDescription, unclassifiedTotal],
   )
 
   const allKeys = useMemo(() => collectKeys(folders), [folders])

@@ -399,6 +399,23 @@ eagleApi.post('/organize/results/:itemId/skip', async (c) => {
   return c.json({ success: true as const, data: null })
 })
 
+// 清除分类后手动处理：清空 Eagle 文件夹归属，标记为 skipped
+eagleApi.post(
+  '/organize/results/:itemId/clear-classification',
+  async (c) => {
+    const result = await organizeService.clearItemClassification(
+      c.req.param('itemId'),
+    )
+    if (!result.ok) {
+      return c.json(
+        { success: false as const, error: result.error },
+        result.status,
+      )
+    }
+    return c.json({ success: true as const, data: null })
+  },
+)
+
 // 重新执行单图：仅该图重新入队判定，phase 拉回 running
 eagleApi.post('/organize/results/:itemId/retry', async (c) => {
   const result = await organizeService.retryItem(c.req.param('itemId'))

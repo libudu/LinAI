@@ -1,9 +1,10 @@
 import type { OrganizeFolderStandard } from '@/shared/eagle/organize'
-import type {
-  EagleFolder,
-  EagleItem,
-  EagleSortBy,
-  EagleSortOrder,
+import {
+  EAGLE_UNCLASSIFIED_FOLDER_ID,
+  type EagleFolder,
+  type EagleItem,
+  type EagleSortBy,
+  type EagleSortOrder,
 } from '@/shared/eagle/types'
 import fs from 'fs-extra'
 import path from 'path'
@@ -427,8 +428,8 @@ export const updateFolder = async (
 export interface UpdateItemPatch {
   /** 新标题（同时重命名 .info 内原文件与缩略图）；缺省不改名 */
   name?: string
-  /** 目标文件夹 id（替换 folders，移出原文件夹）；缺省不改动 */
-  folderId?: string
+  /** 目标文件夹 id 列表（替换 folders，可传空数组清除分类）；缺省不改动 */
+  folderIds?: string[]
 }
 
 /** 条目名即文件名：去掉 Windows 文件名非法字符与首尾空白/点号，限制长度 */
@@ -521,7 +522,7 @@ export const updateItem = async (
   }
 
   const lastModified = Date.now()
-  const folders = patch.folderId !== undefined ? [patch.folderId] : meta.folders
+  const folders = patch.folderIds ?? meta.folders
   const nextMeta: EagleRawItemMeta = {
     ...meta,
     name: targetName,
@@ -577,7 +578,9 @@ export const getItems = async (
   if (!index) return { total: 0, items: [] }
   const { folderId, sortBy, sortOrder, offset, limit } = params
   let list = [...index.items.values()]
-  if (folderId) {
+  if (folderId === EAGLE_UNCLASSIFIED_FOLDER_ID) {
+    list = list.filter((item) => item.folders.length === 0)
+  } else if (folderId) {
     list = list.filter((item) => item.folders.includes(folderId))
   }
   const direction = sortOrder === 'asc' ? 1 : -1
@@ -641,7 +644,9 @@ export const getClassifiableItems = async (params: {
   let list = [...index.items.values()].filter(
     (item) => !VIDEO_EXTS.has(item.ext) && item.ext !== 'gif',
   )
-  if (params.folderId) {
+  if (params.folderId === EAGLE_UNCLASSIFIED_FOLDER_ID) {
+    list = list.filter((item) => item.folders.length === 0)
+  } else if (params.folderId) {
     list = list.filter((item) => item.folders.includes(params.folderId!))
   }
   const direction = params.sortOrder === 'asc' ? 1 : -1

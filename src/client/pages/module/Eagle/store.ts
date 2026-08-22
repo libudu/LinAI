@@ -4,6 +4,7 @@ import type {
   EagleSortBy,
   EagleSortOrder,
 } from '@/shared/eagle/types'
+import { EAGLE_UNCLASSIFIED_FOLDER_ID } from '@/shared/eagle/types'
 import { create } from 'zustand'
 import { fetchEagleFolders, fetchEagleItems, refreshEagleIndex } from './api'
 
@@ -73,6 +74,7 @@ const loadSelectedFolderId = () =>
   localStorage.getItem(SELECTED_FOLDER_STORAGE_KEY) ?? ''
 
 const hasFolder = (folders: EagleFolder[], folderId: string): boolean =>
+  folderId === EAGLE_UNCLASSIFIED_FOLDER_ID ||
   folders.some(
     (folder) =>
       folder.id === folderId || hasFolder(folder.children, folderId),
@@ -95,6 +97,8 @@ interface EagleState {
   page: number
   /** 「全部」分类的总数（用于目录树虚拟节点展示） */
   allTotal: number
+  /** 「未分类」虚拟文件夹的资源数 */
+  unclassifiedTotal: number
   listLoading: boolean
   sortBy: EagleSortBy
   sortOrder: EagleSortOrder
@@ -161,8 +165,28 @@ export const useEagleStore = create<EagleState>()((set, get) => {
   const loadFolders = async () => {
     set({ foldersLoading: true })
     try {
-      const folders = await fetchEagleFolders()
-      set({ folders })
+      const { sortBy, sortOrder } = get()
+      const [folders, all, unclassified] = await Promise.all([
+        fetchEagleFolders(),
+        fetchEagleItems({
+          sortBy,
+          sortOrder,
+          offset: 0,
+          limit: 1,
+        }),
+        fetchEagleItems({
+          folderId: EAGLE_UNCLASSIFIED_FOLDER_ID,
+          sortBy,
+          sortOrder,
+          offset: 0,
+          limit: 1,
+        }),
+      ])
+      set({
+        folders,
+        allTotal: all.total,
+        unclassifiedTotal: unclassified.total,
+      })
       return folders
     } finally {
       set({ foldersLoading: false })
@@ -177,6 +201,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
     total: 0,
     page: 1,
     allTotal: 0,
+    unclassifiedTotal: 0,
     listLoading: false,
     imageSize: loadImageSize(),
     ...loadSort(),

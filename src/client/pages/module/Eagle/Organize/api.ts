@@ -144,6 +144,16 @@ export const skipOrganizeResult = async (itemId: string): Promise<void> => {
   })
 }
 
+// 清空条目的全部文件夹归属，留到「未分类」中手动处理
+export const clearOrganizeResultClassification = async (
+  itemId: string,
+): Promise<void> => {
+  await apiRequest<null>(
+    `/api/eagle/organize/results/${itemId}/clear-classification`,
+    { method: 'POST' },
+  )
+}
+
 // 重新执行单图判定
 export const retryOrganizeResult = async (itemId: string): Promise<void> => {
   await apiRequest<null>(`/api/eagle/organize/results/${itemId}/retry`, {
