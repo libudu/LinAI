@@ -99,7 +99,12 @@ const stripCodeFence = (text: string): string => {
 
 export const judgeItem = async (
   itemId: string,
-  options: { compress: boolean; standards: OrganizeFolderStandard[] },
+  options: {
+    compress: boolean
+    standards: OrganizeFolderStandard[]
+    /** 强制清空任务时中断上游请求 */
+    signal?: AbortSignal
+  },
 ): Promise<VisionJudgeOutcome> => {
   const entry = await getItemEntry(itemId)
   if (!entry) throw new Error('条目不存在或已从库中删除')
@@ -110,26 +115,31 @@ export const judgeItem = async (
 
   const dataUrl = await loadImageDataUrl(filePath, entry.ext, options.compress)
 
-  const response = await requestRegistry.execute('eagle.vision', {
-    path: '/chat/completions',
-    body: {
-      messages: [
-        {
-          role: 'system',
-          content: buildOrganizeVisionSystemPrompt(options.standards),
-        },
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: ORGANIZE_VISION_USER_TEXT },
-            { type: 'image_url', image_url: { url: dataUrl } },
-          ],
-        },
-      ],
-      response_format: { type: 'json_object' },
-      stream: false,
+  const response = await requestRegistry.execute(
+    'eagle.vision',
+    {
+      path: '/chat/completions',
+      body: {
+        messages: [
+          {
+            role: 'system',
+            content: buildOrganizeVisionSystemPrompt(options.standards),
+          },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: ORGANIZE_VISION_USER_TEXT },
+              { type: 'image_url', image_url: { url: dataUrl } },
+            ],
+          },
+        ],
+        reasoning_effort: 'none',
+        response_format: { type: 'json_object' },
+        stream: false,
+      },
     },
-  })
+    options.signal,
+  )
 
   const responseText = await response.text()
   if (!response.ok) {

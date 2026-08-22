@@ -3,6 +3,7 @@ import type {
   OrganizeItemRecord,
   OrganizeItemSummary,
 } from '@/shared/eagle/organize'
+import { ORGANIZE_CONCURRENCY_DEFAULT } from '@/shared/eagle/organize'
 import { dataPath } from '../../../common/storage/data-path'
 import { DocumentStore } from '../../../common/storage/document-store'
 import { EntityStore } from '../../../common/storage/entity-store'
@@ -26,6 +27,8 @@ export interface OrganizeTaskRecord {
   phase: 'running' | 'paused' | 'confirming' | 'done'
   pausedReason: 'user' | 'error' | 'restart' | null
   compress: boolean
+  /** 队列执行并发数（创建任务时用户指定；旧任务文档可能缺失，读取时兜底默认值） */
+  concurrency: number
   createdAt: number
   standards: OrganizeFolderStandard[]
   /** 处理队列：按创建时排序的图片 id */
@@ -58,16 +61,22 @@ export class OrganizeRepository {
     const doc = await this.taskStore.get()
     const task = doc.value
     if (!task) return null
-    // 阶段一遗留的任务文档没有 successCount / failedCount
+    // 阶段一遗留的任务文档没有 successCount / failedCount / concurrency
     return {
       ...task,
       successCount: task.successCount ?? 0,
       failedCount: task.failedCount ?? 0,
+      concurrency: task.concurrency ?? ORGANIZE_CONCURRENCY_DEFAULT,
     }
   }
 
   async saveTask(task: OrganizeTaskRecord): Promise<void> {
     await this.taskStore.replace(task)
+  }
+
+  /** 强制清空：删除任务文档（之后的 getTask 返回 null），结果实体由 clearItems 清理 */
+  async deleteTask(): Promise<void> {
+    await this.taskStore.remove()
   }
 
   /**

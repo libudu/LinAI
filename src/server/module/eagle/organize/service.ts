@@ -1,6 +1,9 @@
 import type {
   OrganizeItemStatus,
   OrganizePrepareResp,
+  OrganizeQueueItem,
+  OrganizeQueueItemState,
+  OrganizeQueueResp,
   OrganizeResultDetail,
   OrganizeResultListItem,
   OrganizeStatus,
@@ -34,6 +37,8 @@ export interface OrganizePrepareParams {
 export interface OrganizeCreateTaskParams extends OrganizePrepareParams {
   count: number
   compress: boolean
+  /** 队列执行并发数（1~10，创建时固化到任务） */
+  concurrency: number
 }
 
 export type CreateTaskResult =
@@ -49,6 +54,7 @@ const toTaskView = (record: OrganizeTaskRecord): OrganizeTaskView => ({
   phase: record.phase,
   pausedReason: record.pausedReason,
   compress: record.compress,
+  concurrency: record.concurrency,
   createdAt: record.createdAt,
   standards: record.standards,
   total: record.itemIds.length,
@@ -145,6 +151,7 @@ class OrganizeService {
       phase: 'running',
       pausedReason: null,
       compress: params.compress,
+      concurrency: params.concurrency,
       createdAt: Date.now(),
       standards,
       itemIds: itemIds.slice(0, Math.min(params.count, total)),
@@ -186,6 +193,62 @@ class OrganizeService {
     this.publishChange()
     organizeExecutor.kick()
     return true
+  }
+
+  /**
+   * 强制清空任务（步骤 2 红色按钮）：中断 in-flight 请求、丢弃任务与全部结果。
+   * 先等执行器收尾再删数据，保证不会有过期结果在删除后落盘
+   */
+  async clearTask(): Promise<void> {
+    await this.ready
+    await organizeExecutor.abort()
+    await organizeRepository.deleteTask()
+    await organizeRepository.clearItems()
+    this.publishChange()
+  }
+
+  /**
+   * 执行中步骤的队列预览：按队列顺序返回执行中（执行器 in-flight）/ 待处理 /
+   * 失败（附失败原因）的条目摘要；完成无误的项不返回（由结果确认步骤处理）。
+   * total 为未完成总条数，items 截取前 limit 行
+   */
+  async getQueue(limit: number): Promise<OrganizeQueueResp> {
+    await this.ready
+    const task = await organizeRepository.getTask()
+    if (!task) return { items: [], total: 0 }
+    const results = await organizeRepository.listItems()
+    const statusById = new Map(results.map((item) => [item.itemId, item.status]))
+    const inFlight = new Set(organizeExecutor.getInFlightItemIds())
+
+    const items: OrganizeQueueItem[] = []
+    let total = 0
+    for (const itemId of task.itemIds) {
+      let state: OrganizeQueueItemState
+      if (inFlight.has(itemId)) {
+        state = 'processing'
+      } else {
+        const status = statusById.get(itemId)
+        if (!status || status === 'pending') {
+          state = 'pending'
+        } else if (status === 'failed') {
+          state = 'failed'
+        } else {
+          // success / skipped / confirmed：完成无误，交给结果确认步骤
+          continue
+        }
+      }
+      total++
+      if (items.length >= limit) continue
+      // 失败详情与条目名称只对要展示的行读取
+      const error =
+        state === 'failed'
+          ? ((await organizeRepository.getItem(itemId))?.error ??
+            '未知失败原因')
+          : undefined
+      const entry = await getItemEntry(itemId)
+      items.push({ itemId, itemName: entry?.name ?? null, state, error })
+    }
+    return { items, total }
   }
 
   async listResults(

@@ -2,6 +2,7 @@ import { apiRequest } from '@/client/service/storage'
 import type {
   OrganizeItemStatus,
   OrganizePrepareResp,
+  OrganizeQueueResp,
   OrganizeResultDetail,
   OrganizeResultListItem,
   OrganizeStatus,
@@ -46,7 +47,11 @@ export const fetchOrganizeTask = async (): Promise<OrganizeTaskView | null> => {
 }
 
 export const createOrganizeTask = async (
-  params: OrganizeSortParams & { count: number; compress: boolean },
+  params: OrganizeSortParams & {
+    count: number
+    compress: boolean
+    concurrency: number
+  },
 ): Promise<void> => {
   await apiRequest<OrganizeTaskView>('/api/eagle/organize/task', {
     method: 'POST',
@@ -64,6 +69,23 @@ export const resumeOrganizeTask = async (): Promise<void> => {
   await apiRequest<null>('/api/eagle/organize/task/resume', {
     method: 'POST',
   })
+}
+
+// 强制清空任务：中断 in-flight 请求，丢弃任务与结果，回到第一步
+export const clearOrganizeTask = async (): Promise<void> => {
+  await apiRequest<null>('/api/eagle/organize/task/clear', {
+    method: 'POST',
+  })
+}
+
+// 执行中步骤的队列预览：执行中/待处理/失败条目（失败附原因）
+export const fetchOrganizeQueue = async (
+  limit = 20,
+): Promise<OrganizeQueueResp> => {
+  const json = await apiRequest<OrganizeQueueResp>(
+    `/api/eagle/organize/queue?limit=${limit}`,
+  )
+  return json.data
 }
 
 export const fetchOrganizeResults = async (

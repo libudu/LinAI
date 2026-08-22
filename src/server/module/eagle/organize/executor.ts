@@ -4,33 +4,52 @@ import type {
   OrganizeItemStatus,
 } from '@/shared/eagle/organize'
 import { changeBus } from '../../../common/storage/change-bus'
-import { EXECUTOR_CONCURRENCY, ORGANIZE_RESOURCE } from './constants'
+import { ORGANIZE_RESOURCE } from './constants'
 import { organizeRepository } from './storage'
 import { judgeItem } from './vision'
 
 /**
- * 整理队列执行器：按队列顺序以 5 并发派发视觉判定。
+ * 整理队列执行器：按队列顺序以任务指定的并发数派发视觉判定。
  * - 单图失败（含上游错误 / 非 JSON / 不属于任何分类）立即停止派发，in-flight 请求继续完成并落盘
  * - 全部执行过一遍后 phase → confirming（有待确认）/ done（无待确认）
  * - 由 service 在任务创建 / 恢复时 kick；用户暂停与失败停止都只停派发
+ * - 强制清空（abort）：epoch 递增 + AbortController 中断 in-flight 上游请求，
+ *   过期轮次的结果不再落盘，也不会在收尾时重启队列
  * 队列推进在服务端后台进行，不依赖前端在线。
  */
 class OrganizeExecutor {
   /** runQueue 是否在执行中（kick 的幂等依据） */
   private active = false
-  /** 停止派发标记（用户暂停 / 单图失败 / 结果落盘异常） */
+  /** 停止派发标记（用户暂停 / 单图失败 / 结果落盘异常 / 强制清空） */
   private stopping = false
+  /** 执行轮次标识：kick 与 abort 各递增一次，用于丢弃过期轮次的结果与收尾 */
+  private epoch = 0
+  /** 当前轮次的中断控制器（清空任务时中断 in-flight 上游请求） */
+  private abortController: AbortController | null = null
+  /** 当前轮次的执行 Promise（abort 时等待 in-flight 收尾） */
+  private runPromise: Promise<void> | null = null
+  /** 正在执行视觉判定的条目（队列预览展示用） */
+  private readonly inFlight = new Set<string>()
 
   /** 开始（或继续）执行队列；已在执行时仅清除停止标记 */
   kick(): void {
-    this.stopping = false
-    if (this.active) return
+    if (this.active) {
+      this.stopping = false
+      return
+    }
     this.active = true
-    this.runQueue()
+    this.stopping = false
+    const epoch = ++this.epoch
+    const controller = new AbortController()
+    this.abortController = controller
+    const promise = this.runQueue(epoch, controller.signal)
       .catch((error) => console.error('[Eagle] 图片整理队列执行异常', error))
       .finally(() => {
         this.active = false
+        if (this.abortController === controller) this.abortController = null
+        if (this.runPromise === promise) this.runPromise = null
       })
+    this.runPromise = promise
   }
 
   /** 停止派发新请求，正在发送的请求不受影响；任务状态由 service / 执行器落盘 */
@@ -38,10 +57,26 @@ class OrganizeExecutor {
     this.stopping = true
   }
 
-  private async runQueue(): Promise<void> {
+  /**
+   * 强制清空：停止派发并中断 in-flight 上游请求，等待当前轮次完全收尾
+   * （过期轮次的结果被丢弃），之后由 service 删除任务与结果
+   */
+  async abort(): Promise<void> {
+    this.stopping = true
+    this.epoch++
+    this.abortController?.abort()
+    await this.runPromise
+  }
+
+  /** 队列预览用：正在执行视觉判定的条目 id 快照 */
+  getInFlightItemIds(): string[] {
+    return [...this.inFlight]
+  }
+
+  private async runQueue(epoch: number, signal: AbortSignal): Promise<void> {
     const task = await organizeRepository.getTask()
     if (!task || task.phase !== 'running') return
-    const { itemIds, standards, compress } = task
+    const { itemIds, standards, compress, concurrency } = task
 
     // 恢复场景：跳过已有结果且非 pending 的前缀，得到下一个待派发位置。
     // 派发严格按序，已完成的结果实体必然构成前缀（in-flight 未落盘的项会被重新执行）
@@ -55,27 +90,34 @@ class OrganizeExecutor {
     while (cursor < itemIds.length && done.has(itemIds[cursor])) cursor++
 
     const lanes = Array.from(
-      { length: Math.min(EXECUTOR_CONCURRENCY, itemIds.length - cursor) },
+      { length: Math.min(concurrency, itemIds.length - cursor) },
       async () => {
         for (;;) {
           if (this.stopping) return
           const index = cursor++
           if (index >= itemIds.length) return
+          const itemId = itemIds[index]
           // 「重新执行」会在已完成的前缀中间挖出 pending 项，其后已完成的项直接跳过
-          if (done.has(itemIds[index])) continue
+          if (done.has(itemId)) continue
+          this.inFlight.add(itemId)
           try {
-            await this.processItem(itemIds[index], { compress, standards })
+            await this.processItem(itemId, { compress, standards, epoch, signal })
           } catch (error) {
             // 结果落盘等基础设施异常：暂停队列，避免计数与实体脱节
             console.error('[Eagle] 图片整理结果落盘失败，队列暂停', error)
             this.stopping = true
             await this.pauseAs('error')
             return
+          } finally {
+            this.inFlight.delete(itemId)
           }
         }
       },
     )
     await Promise.all(lanes)
+
+    // 强制清空后的过期轮次：不收尾、不重启队列
+    if (epoch !== this.epoch) return
 
     // 派发结束：任务仍在 running 说明队列可能「排空期间被恢复」（kick 幂等返回）。
     // 是否重拉以实体状态为准（存在 pending 或未落盘项）而非 executed 计数——
@@ -90,7 +132,7 @@ class OrganizeExecutor {
     )
     if (latest.itemIds.some((id) => !settled.has(id))) {
       this.stopping = false
-      return this.runQueue()
+      return this.runQueue(epoch, signal)
     }
     await this.finalize(itemsAfter)
   }
@@ -98,7 +140,12 @@ class OrganizeExecutor {
   /** 执行单个条目：判定 → 落盘结果 → 更新任务计数；判定失败同时暂停派发 */
   private async processItem(
     itemId: string,
-    options: { compress: boolean; standards: OrganizeFolderStandard[] },
+    options: {
+      compress: boolean
+      standards: OrganizeFolderStandard[]
+      epoch: number
+      signal: AbortSignal
+    },
   ): Promise<void> {
     const previous = await organizeRepository.getItem(itemId)
     const attempts = (previous?.attempts ?? 0) + 1
@@ -123,6 +170,8 @@ class OrganizeExecutor {
         updatedAt: Date.now(),
       }
     }
+    // 强制清空（epoch 已变）后丢弃过期结果，不再落盘
+    if (options.epoch !== this.epoch) return
     await organizeRepository.saveItem(record)
     await organizeRepository.mutateTask((task) => {
       const next = {

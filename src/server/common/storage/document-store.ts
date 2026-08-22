@@ -1,4 +1,5 @@
 import type { StoredDocument } from '@/shared/storage/types'
+import fs from 'fs/promises'
 import { StorageError } from './errors'
 import { readJsonFile, writeJsonFile } from './json-file'
 import { resourceLock } from './resource-lock'
@@ -108,4 +109,14 @@ export class DocumentStore<T = unknown> {
       return structuredClone(next)
     })
   }
+
+  /**
+   * 删除文档文件（连同 .bak 备份）；文件不存在时静默成功，
+   * 之后的 get 回到 revision 0 的空信封。不触发 onChange（当前无删除通知需求）
+   */
+  readonly remove = (): Promise<void> =>
+    resourceLock.run(this.file, async () => {
+      await fs.rm(this.file, { force: true })
+      await fs.rm(`${this.file}.bak`, { force: true })
+    })
 }

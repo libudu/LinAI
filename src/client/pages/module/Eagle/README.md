@@ -13,12 +13,12 @@ src/server/module/eagle/
 ├── settings.ts                          # 注册式设置：eagle（libraryPath，落盘 data/eagle/config.json）与 eagle-vision（视觉接入点，落盘 data/eagle/vision.json，与图片生成的 vision 配置互相独立），含 getEagleVisionEndpoint() 生效接入点
 ├── relay.ts                             # 注册 relay 目标 eagle.vision（POST /chat/completions，非流式），供整理执行器服务端直接调用
 ├── library.ts                           # 核心：内存索引（扫描/增量校验/fs.watch/查询）+ updateFolder 文件夹编辑 + updateItem 条目更新（改名/移动文件夹，同步 mtime.json 与索引后发布 eagle.library 变更）+ 图片整理查询（分类标准 getFolderStandards / 可处理图片 getClassifiableItems）
-└── organize/                            # 图片整理（阶段三完成：任务基建 + 5 并发队列执行 + 结果确认写库）
-    ├── constants.ts                     # 模块自有常量：变更资源 ID、执行并发数（5）、视觉上传压缩参数（与 common/static 的同名常量分开定义）
+└── organize/                            # 图片整理（阶段三完成：任务基建 + 用户指定并发的队列执行 + 结果确认写库）
+    ├── constants.ts                     # 模块自有常量：变更资源 ID、视觉上传压缩参数（与 common/static 的同名常量分开定义）
     ├── storage.ts                       # 私有持久化：任务 DocumentStore（task.json，含队列 itemIds 与进度计数）+ 结果 EntityStore（items/<itemId>.json，执行完成时才落盘），落盘 data/eagle/organize/，不注册通用存储；mutateTask 提供任务文档的串行读改写（service 与 executor 共用单例）
-    ├── service.ts                       # OrganizeService 单例：prepare/创建/暂停/恢复/结果读取 + 确认（confirmItem 写库）/不处理（skipItem）/重新执行（retryItem，phase 拉回 running）+ 启动恢复（running→paused/restart），变更发布到 change bus 的 eagle.organize；创建/恢复/重新执行时 kick 执行器
-    ├── executor.ts                      # 队列执行器：5 并发按序派发（跳过已完成项，支持「重新执行」在中途挖洞），单图失败或落盘异常即暂停派发（in-flight 不中断），全部执行完 → confirming/done；每张图完成发布变更
-    └── vision.ts                        # 单图视觉判定：sharp 内存压缩（不落盘）→ 组装分类标准 prompt → requestRegistry.execute('eagle.vision') → 严格 JSON 解析（zod）+ folderPath 匹配校验，失败抛错由执行器记为 failed
+    ├── service.ts                       # OrganizeService 单例：prepare/创建/暂停/恢复/清空/队列预览/结果读取 + 确认（confirmItem 写库）/不处理（skipItem）/重新执行（retryItem，phase 拉回 running）+ 启动恢复（running→paused/restart），变更发布到 change bus 的 eagle.organize；创建/恢复/重新执行时 kick 执行器
+    ├── executor.ts                      # 队列执行器：任务指定并发（1~10，默认 5）按序派发，支持中断 in-flight 请求的强制清空；跳过已完成项，支持「重新执行」在中途挖洞；单图失败或落盘异常即暂停派发，全部执行完 → confirming/done；每张图完成发布变更
+    └── vision.ts                        # 单图视觉判定：sharp 内存压缩（不落盘）→ 组装分类标准 prompt → requestRegistry.execute('eagle.vision') → 严格 JSON 解析（zod）+ folderPath 匹配校验，支持 AbortSignal，失败抛错由执行器记为 failed
 
 src/server/api/eagle.ts                  # Hono 子路由，挂在 /api/eagle
 
@@ -30,8 +30,8 @@ src/client/pages/module/Eagle/           # 本目录
 ├── ResourceGrid.tsx                     # 右侧网格 + 分页 + 图片预览 + 视频 Modal，可按需在格子底部叠加文件名/文件大小
 ├── Organize/                            # 「图片整理」弹窗（三步流程，依赖视觉接入点配置）
 │   ├── index.tsx                        # Modal 壳：按任务阶段路由步骤（running/paused→执行中，confirming→结果确认，done/无任务→分类划定）
-│   ├── StepClassify.tsx                 # 步骤 1：分类标准列表（有描述的文件夹，顺序即优先级）+ 处理数量 + 压缩选项，确定后创建任务
-│   ├── StepRunning.tsx                  # 步骤 2：执行状态/进度（已执行/总数、成功/失败）/暂停继续/最近失败原因，完成后弹窗壳自动切步骤 3
+│   ├── StepClassify.tsx                 # 步骤 1：分类标准列表（有描述的文件夹，顺序即优先级）+ 处理数量 + 并发数（1~10，默认 5）+ 压缩选项，确定后创建任务
+│   ├── StepRunning.tsx                  # 步骤 2：执行状态/进度（已执行/总数、成功/失败）/暂停继续/清空；滚动队列表展示前 20 条执行中、待处理或失败条目（缩略图/状态/信息），完成无误的项过滤，完成后弹窗壳自动切步骤 3
 │   ├── StepConfirm.tsx                  # 步骤 3：结果确认——顶部待确认缩略图条（点击选中）+ 左大图右信息面板（状态/当前标题/建议标题/目标文件夹/低质/失败原因）+ 底部不处理(红)/重新执行/确认（不含标题）/确认，操作后自动选中下一张
 │   ├── api.ts                           # /api/eagle/organize/* 封装
 │   └── store.ts                         # zustand：轻量 status + SSE 订阅（eagle.organize），Toolbar 徽标与弹窗共用
@@ -87,8 +87,10 @@ src/client/pages/module/Eagle/           # 本目录
 | GET  | `/organize/prepare?folderId&sortBy&sortOrder`                        | 图片整理步骤 1 数据：分类标准列表（有描述的文件夹，先序遍历=优先级从上到下）+ 当前范围内可处理图片数（排除 gif/视频）                                   |
 | GET  | `/organize/status`                                                   | 图片整理轻量状态（phase/remaining/pendingConfirm/pausedReason），无任务返回 null，供按钮徽标轮询                                                        |
 | GET  | `/organize/task`                                                     | 图片整理任务详情（分类标准快照 + 进度计数，不含队列明细）                                                                                               |
-| POST | `/organize/task`                                                     | 创建整理任务 `{ folderId?, sortBy, sortOrder, count, compress }`；已有未完成任务 409；创建前清空旧结果                                                  |
+| POST | `/organize/task`                                                     | 创建整理任务 `{ folderId?, sortBy, sortOrder, count, compress, concurrency? }`；并发范围 1~10，默认 5；已有未完成任务 409；创建前清空旧结果            |
 | POST | `/organize/task/pause` `/organize/task/resume`                       | 用户暂停（停止派发，in-flight 不受影响）/ 恢复执行，状态不符 409                                                                                        |
+| POST | `/organize/task/clear`                                               | 强制停止所有请求、丢弃当前任务与结果；弹窗回到步骤 1                                                                                                      |
+| GET  | `/organize/queue?limit=20`                                          | 执行中队列预览：仅返回执行中、待处理与失败条目；成功项过滤，失败项含错误信息，limit 上限 50                                                              |
 | GET  | `/organize/results?status=&offset=&limit=`                           | 整理结果列表（按状态过滤，可选 offset/limit 分页缺省全量，按 updatedAt 倒序，摘要不含正文）                                                             |
 | GET  | `/organize/results/:itemId`                                          | 单图结果详情（附条目当前名称 `itemName`，`status` 取值见 `src/shared/eagle/organize.ts`）                                                               |
 | POST | `/organize/results/:itemId/confirm`                                  | 确认结果 `{ withTitle }`：经 `updateItem` 移入目标文件夹（可选改标题）后状态 → confirmed；仅 success 可确认，状态不符 409；目标文件夹已从库中删除时 409 |
@@ -110,7 +112,7 @@ src/client/pages/module/Eagle/           # 本目录
 6. 设置弹窗保存库路径后调用 `store.reload()`（= POST /refresh + 重拉数据）；视觉接入点标签页挂载时拉取 `eagle-vision` 配置
 7. 目录树展开/收起状态持久化在 localStorage `eagle_folder_expanded`（无记录时默认全展开）；移动端（`usePlatform().isMobile`）不渲染左侧栏，由工具栏「切换文件夹」按钮开抽屉展示同一棵 `FolderTree`
 8. 目录树右键节点 →「编辑」弹窗改文件夹名称/描述，保存后仅重拉文件夹树（`refreshFolders`）；「图片整理」按钮先校验 `eagle-vision` 的生效密钥，未配置时以 initialOnly 模式弹设置引导，保存后继续打开整理弹窗
-9. 图片整理（阶段三完成）：`Organize/store.ts` 订阅 SSE（`/api/storage/events?resources=eagle.organize`）驱动徽标与弹窗阶段路由——队列未完成显示剩余数（点击进步骤 2 不能新建）、有待确认显示小红点（点击只显示结果确认）。任务持久化在 `data/eagle/organize/`（task.json + items/），服务重启时 running 任务自动转为 paused（原因 restart），重启前 in-flight 未落盘的项恢复后重新执行。队列由服务端执行器 5 并发推进（视觉判定经 `eagle.vision` 中继，压缩在内存中完成不落盘），单图失败即暂停派发并在步骤 2 展示最近失败原因。结果确认步骤：确认/不处理后待确认计数减一（全部处理完 phase → done），确认经 `updateItem` 写库（移动文件夹、可选改标题并重命名原文件），写库后发布 `eagle.library` 变更，Eagle 页面订阅该资源（`index.tsx`）刷新文件夹树与当前页；重新执行把单图状态置回 pending、phase 拉回 running（弹窗切回步骤 2）
+9. 图片整理（阶段三完成）：`Organize/store.ts` 订阅 SSE（`/api/storage/events?resources=eagle.organize`）驱动徽标与弹窗阶段路由——队列未完成显示剩余数（点击进步骤 2 不能新建）、有待确认显示小红点（点击只显示结果确认）。任务持久化在 `data/eagle/organize/`（task.json + items/），服务重启时 running 任务自动转为 paused（原因 restart），重启前 in-flight 未落盘的项恢复后重新执行。步骤 1 可指定队列并发数（1~10，默认 5）；服务端执行器按该值推进队列，视觉判定经 `eagle.vision` 中继，压缩在内存中完成不落盘。步骤 2 的滚动列表预览前 20 条执行中、待处理和失败项目（缩略图 / 状态 / 信息）；成功项目进入结果确认步骤不再显示，失败项目显示错误信息。清空操作会取消 in-flight 请求、丢弃任务与结果，并回到步骤 1。单图失败仍会暂停派发。结果确认步骤：确认/不处理后待确认计数减一（全部处理完 phase → done），确认经 `updateItem` 写库（移动文件夹、可选改标题并重命名原文件），写库后发布 `eagle.library` 变更，Eagle 页面订阅该资源（`index.tsx`）刷新文件夹树与当前页；重新执行把单图状态置回 pending、phase 拉回 running（弹窗切回步骤 2）
 
 ## 样式约定
 

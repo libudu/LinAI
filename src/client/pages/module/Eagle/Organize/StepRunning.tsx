@@ -1,14 +1,19 @@
-import type { OrganizeTaskView } from '@/shared/eagle/organize'
-import { Button, Progress, message } from 'antd'
+import type {
+  OrganizeQueueItem,
+  OrganizeQueueResp,
+  OrganizeTaskView,
+} from '@/shared/eagle/organize'
+import { Button, Modal, Progress, message } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
+import { eagleThumbnailUrl } from '../api'
 import {
-  fetchOrganizeResult,
-  fetchOrganizeResults,
+  clearOrganizeTask,
+  fetchOrganizeQueue,
   fetchOrganizeTask,
   pauseOrganizeTask,
   resumeOrganizeTask,
 } from './api'
-import { useOrganizeStatus } from './store'
+import { refreshOrganizeStatus, useOrganizeStatus } from './store'
 
 const PAUSED_REASON_TEXT: Record<string, string> = {
   user: '已手动暂停',
@@ -16,51 +21,48 @@ const PAUSED_REASON_TEXT: Record<string, string> = {
   restart: '服务重启，任务已暂停',
 }
 
-// 步骤 2 执行中任务：总处理状态 + 进度（已执行/总数、成功/失败）+ 暂停/继续 + 最近失败原因；
+/** 队列预览展示条数 */
+const QUEUE_PREVIEW_LIMIT = 20
+
+const QUEUE_STATE_TEXT: Record<OrganizeQueueItem['state'], string> = {
+  processing: '执行中',
+  pending: '等待中',
+  failed: '失败',
+}
+
+const QUEUE_STATE_CLASS: Record<OrganizeQueueItem['state'], string> = {
+  processing: 'text-sky-500',
+  pending: 'text-slate-400',
+  failed: 'text-red-500',
+}
+
+// 步骤 2 执行中任务：总处理状态 + 进度（已执行/总数、成功/失败）+ 暂停/继续 +
+// 队列预览（缩略图 / 状态 / 失败原因，完成无误的项过滤掉、进入下一步处理）+
+// 右上角红色「清空」按钮（强制停止所有请求、丢弃结果并回到第一步）；
 // 队列在服务端后台推进（SSE 通知刷新），全部执行完后由弹窗壳自动切到步骤 3
 export function StepRunning() {
   const { status } = useOrganizeStatus()
   const [task, setTask] = useState<OrganizeTaskView | null>(null)
-  const [latestFailure, setLatestFailure] = useState<string | null>(null)
+  const [queue, setQueue] = useState<OrganizeQueueResp | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
 
   const refreshTask = useCallback(() => {
     fetchOrganizeTask()
       .then(setTask)
       .catch((error) => console.error('拉取图片整理任务详情失败', error))
+    fetchOrganizeQueue(QUEUE_PREVIEW_LIMIT)
+      .then(setQueue)
+      .catch((error) => console.error('拉取图片整理队列预览失败', error))
   }, [])
 
   useEffect(() => {
     refreshTask()
   }, [refreshTask])
 
-  // status 由 SSE 变更触发更新，变化后同步刷新任务详情
+  // status 由 SSE 变更触发更新，变化后同步刷新任务详情与队列预览
   useEffect(() => {
     refreshTask()
   }, [status, refreshTask])
-
-  // 失败计数变化时拉取最近一条失败结果的原因（limit=1 只取最新，列表按 updatedAt 倒序）
-  const failedCount = task?.failedCount ?? 0
-  useEffect(() => {
-    let cancelled = false
-    if (failedCount <= 0) {
-      setLatestFailure(null)
-      return
-    }
-    fetchOrganizeResults('failed', { limit: 1 })
-      .then((results) => {
-        const latest = results[0]
-        if (!latest) return null
-        return fetchOrganizeResult(latest.itemId)
-      })
-      .then((detail) => {
-        if (!cancelled) setLatestFailure(detail?.error ?? null)
-      })
-      .catch((error) => console.error('拉取图片整理失败原因失败', error))
-    return () => {
-      cancelled = true
-    }
-  }, [failedCount])
 
   const phase = status?.phase
   const total = task?.total ?? 0
@@ -68,6 +70,7 @@ export function StepRunning() {
   const remaining = status?.remaining ?? total - executed
   const pendingConfirm = status?.pendingConfirm ?? task?.pendingConfirm ?? 0
   const successCount = task?.successCount ?? 0
+  const failedCount = task?.failedCount ?? 0
   const percent = total > 0 ? Math.round((executed / total) * 100) : 0
 
   const handleToggle = async () => {
@@ -85,6 +88,29 @@ export function StepRunning() {
     }
   }
 
+  // 强制清空：中断所有请求（含正在发送的）、丢弃当前结果，SSE 刷新后弹窗回到第一步
+  const handleClear = () => {
+    Modal.confirm({
+      title: '清空整理任务？',
+      content: '将强制停止所有请求并丢弃当前结果，之后回到第一步重新开始。',
+      okText: '清空',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await clearOrganizeTask()
+          await refreshOrganizeStatus()
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : '清空任务失败')
+          throw error
+        }
+      },
+    })
+  }
+
+  const queueItems = queue?.items ?? []
+  const queueTotal = queue?.total ?? 0
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -99,9 +125,14 @@ export function StepRunning() {
             </span>
           )}
         </div>
-        <Button loading={actionLoading} onClick={handleToggle}>
-          {phase === 'running' ? '暂停' : '继续'}
-        </Button>
+        <div className="flex gap-2">
+          <Button loading={actionLoading} onClick={handleToggle}>
+            {phase === 'running' ? '暂停' : '继续'}
+          </Button>
+          <Button danger onClick={handleClear}>
+            清空
+          </Button>
+        </div>
       </div>
 
       <Progress
@@ -122,15 +153,55 @@ export function StepRunning() {
         <span>待确认 {pendingConfirm} 张</span>
       </div>
 
-      {latestFailure && (
-        <div
-          className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-500 dark:bg-red-500/10"
-          title={latestFailure}
-        >
-          <span className="font-medium">最近失败：</span>
-          <span className="line-clamp-2">{latestFailure}</span>
-        </div>
-      )}
+      {/* 队列预览：左缩略图 / 中状态 / 右信息（失败原因），仅展示前 20 条 */}
+      <div className="flex items-center justify-between text-xs text-slate-400">
+        <span>处理队列（未完成 {queueTotal} 条）</span>
+        {queueTotal > queueItems.length && (
+          <span>仅展示前 {QUEUE_PREVIEW_LIMIT} 条</span>
+        )}
+      </div>
+      <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
+        {queueItems.length === 0 ? (
+          <div className="py-8 text-center text-xs text-slate-400">
+            没有执行中或待处理的条目
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100 dark:divide-slate-700/60">
+            {queueItems.map((item) => (
+              <div
+                key={item.itemId}
+                className="flex items-center gap-3 px-3 py-2"
+              >
+                <img
+                  src={eagleThumbnailUrl(item.itemId)}
+                  alt=""
+                  loading="lazy"
+                  className="h-10 w-10 shrink-0 rounded object-cover"
+                />
+                <span
+                  className={`w-14 shrink-0 text-xs font-medium ${QUEUE_STATE_CLASS[item.state]}`}
+                >
+                  {QUEUE_STATE_TEXT[item.state]}
+                </span>
+                <span
+                  className={`min-w-0 flex-1 truncate text-xs ${
+                    item.state === 'failed'
+                      ? 'text-red-500'
+                      : 'text-slate-500 dark:text-slate-400'
+                  }`}
+                  title={
+                    item.state === 'failed'
+                      ? item.error
+                      : (item.itemName ?? undefined)
+                  }
+                >
+                  {item.state === 'failed' ? item.error : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {phase === 'running' ? (
         <div className="text-xs text-slate-400">

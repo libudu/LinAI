@@ -1,5 +1,10 @@
 import type { OrganizeItemStatus } from '@/shared/eagle/organize'
 import type { EagleSortBy, EagleSortOrder } from '@/shared/eagle/types'
+import {
+  ORGANIZE_CONCURRENCY_DEFAULT,
+  ORGANIZE_CONCURRENCY_MAX,
+  ORGANIZE_CONCURRENCY_MIN,
+} from '@/shared/eagle/organize'
 import { zValidator } from '@hono/zod-validator'
 import fs from 'fs-extra'
 import { Hono } from 'hono'
@@ -246,6 +251,12 @@ eagleApi.post(
       sortOrder: z.enum(['asc', 'desc']),
       count: z.number().int().min(1),
       compress: z.boolean(),
+      concurrency: z
+        .number()
+        .int()
+        .min(ORGANIZE_CONCURRENCY_MIN)
+        .max(ORGANIZE_CONCURRENCY_MAX)
+        .default(ORGANIZE_CONCURRENCY_DEFAULT),
     }),
   ),
   async (c) => {
@@ -279,6 +290,20 @@ eagleApi.post('/organize/task/resume', async (c) => {
     )
   }
   return c.json({ success: true as const, data: null })
+})
+
+// 强制清空任务：中断 in-flight 请求，丢弃任务与全部结果，回到第一步
+eagleApi.post('/organize/task/clear', async (c) => {
+  await organizeService.clearTask()
+  return c.json({ success: true as const, data: null })
+})
+
+// 执行中步骤的队列预览：执行中/待处理/失败条目（失败附原因），完成无误的项不返回；
+// limit 缺省 20（上限 50），返回 total 用于「仅展示前 N 条」提示
+eagleApi.get('/organize/queue', async (c) => {
+  const limit = Math.min(50, Math.max(1, Number(c.req.query('limit')) || 20))
+  const data = await organizeService.getQueue(limit)
+  return c.json({ success: true as const, data })
 })
 
 // 结果列表（可按状态过滤，如 status=success / failed 表示待确认；

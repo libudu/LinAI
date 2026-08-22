@@ -1,5 +1,8 @@
 import type { OrganizePrepareResp } from '@/shared/eagle/organize'
 import {
+  ORGANIZE_CONCURRENCY_DEFAULT,
+  ORGANIZE_CONCURRENCY_MAX,
+  ORGANIZE_CONCURRENCY_MIN,
   ORGANIZE_VISION_USER_TEXT,
   buildOrganizeVisionSystemPrompt,
 } from '@/shared/eagle/organize'
@@ -25,6 +28,7 @@ export function StepClassify({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true)
   const [count, setCount] = useState<number | null>(null)
   const [compress, setCompress] = useState(true)
+  const [concurrency, setConcurrency] = useState(ORGANIZE_CONCURRENCY_DEFAULT)
   const [creating, setCreating] = useState(false)
   const [promptOpen, setPromptOpen] = useState(false)
 
@@ -66,6 +70,7 @@ export function StepClassify({ onClose }: { onClose: () => void }) {
         sortOrder,
         count,
         compress,
+        concurrency,
       })
       message.success('任务已创建，开始处理队列')
       // SSE 也会触发刷新，这里主动拉一次让步骤立即切换
@@ -135,6 +140,21 @@ export function StepClassify({ onClose }: { onClose: () => void }) {
           />
           <span className="text-xs text-slate-400">
             / 共 {imageCount} 张可处理图片
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm">并发数</span>
+          <InputNumber
+            min={ORGANIZE_CONCURRENCY_MIN}
+            max={ORGANIZE_CONCURRENCY_MAX}
+            value={concurrency}
+            onChange={(value) =>
+              setConcurrency(value && value >= 1 ? value : ORGANIZE_CONCURRENCY_DEFAULT)
+            }
+          />
+          <span className="text-xs text-slate-400">
+            同时处理的图片数（{ORGANIZE_CONCURRENCY_MIN}~
+            {ORGANIZE_CONCURRENCY_MAX}）
           </span>
         </div>
         <Checkbox
