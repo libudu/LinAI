@@ -363,14 +363,19 @@ eagleApi.get('/organize/results/:itemId', async (c) => {
   return c.json({ success: true as const, data })
 })
 
-// 确认结果：移入目标文件夹（withTitle 决定是否同时修改标题），写 Eagle 库
+// 确认结果：移入选中的候选文件夹（withTitle 决定是否同时修改标题），写 Eagle 库
 eagleApi.post(
   '/organize/results/:itemId/confirm',
-  zValidator('json', z.object({ withTitle: z.boolean() })),
+  zValidator(
+    'json',
+    z.object({ folderPath: z.string().min(1), withTitle: z.boolean() }),
+  ),
   async (c) => {
+    const body = c.req.valid('json')
     const result = await organizeService.confirmItem(
       c.req.param('itemId'),
-      c.req.valid('json').withTitle,
+      body.folderPath,
+      body.withTitle,
     )
     if (!result.ok) {
       return c.json(

@@ -162,7 +162,7 @@ class OrganizeExecutor {
         itemId,
         status: 'success',
         title: outcome.title,
-        folderPath: outcome.folderPath,
+        folderPaths: outcome.folderPaths,
         lowQuality: outcome.lowQuality,
         attempts,
         updatedAt: Date.now(),

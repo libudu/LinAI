@@ -2,7 +2,7 @@ import type {
   OrganizeResultDetail,
   OrganizeResultListItem,
 } from '@/shared/eagle/organize'
-import { Button, Checkbox, Empty, Spin, Tag, message } from 'antd'
+import { Button, Checkbox, Empty, Radio, Spin, Tag, message } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { eagleFileUrl, eagleThumbnailUrl } from '../api'
 import {
@@ -26,6 +26,9 @@ export function StepConfirm() {
   const [titleDisabledIds, setTitleDisabledIds] = useState<Set<string>>(
     () => new Set(),
   )
+  const [selectedFolders, setSelectedFolders] = useState<
+    Record<string, string>
+  >({})
 
   // 待确认 = success + failed：按状态分别拉取（避免把已确认/跳过的结果也拉回来），
   // 按完成时间正序展示（接口列表为倒序）
@@ -126,7 +129,11 @@ export function StepConfirm() {
     )
   }
 
-  const canConfirm = detail?.status === 'success'
+  const folderPaths = detail?.folderPaths ?? []
+  const selectedFolderPath = selectedId
+    ? (selectedFolders[selectedId] ?? folderPaths[0] ?? null)
+    : null
+  const canConfirm = detail?.status === 'success' && !!selectedFolderPath
   const withTitle = selectedId ? !titleDisabledIds.has(selectedId) : true
 
   return (
@@ -194,10 +201,34 @@ export function StepConfirm() {
                 <>
                   <div className="flex flex-col gap-2">
                     <div>
-                      <div className="text-xs text-slate-400">调整到文件夹</div>
-                      <div className="font-bold break-all">
-                        {detail.folderPath}
+                      <div className="mb-1 text-xs text-slate-400">
+                        选择目标文件夹
                       </div>
+                      {folderPaths.length > 0 ? (
+                        <Radio.Group
+                          className="flex flex-col gap-1"
+                          value={selectedFolderPath}
+                          onChange={(event) => {
+                            if (!selectedId) return
+                            setSelectedFolders((current) => ({
+                              ...current,
+                              [selectedId]: event.target.value,
+                            }))
+                          }}
+                        >
+                          {folderPaths.map((folderPath) => (
+                            <Radio key={folderPath} value={folderPath}>
+                              <span className="font-bold break-all">
+                                {folderPath}
+                              </span>
+                            </Radio>
+                          ))}
+                        </Radio.Group>
+                      ) : (
+                        <div className="text-slate-500 dark:text-slate-400">
+                          不属于任何已知分类
+                        </div>
+                      )}
                     </div>
                     <div>
                       <div className="text-xs text-slate-400">原文件夹</div>
@@ -283,7 +314,10 @@ export function StepConfirm() {
             loading={actionLoading}
             disabled={!selectedId || !canConfirm}
             onClick={() =>
-              runAction((id) => confirmOrganizeResult(id, withTitle))
+              selectedFolderPath &&
+              runAction((id) =>
+                confirmOrganizeResult(id, selectedFolderPath, withTitle),
+              )
             }
           >
             确认

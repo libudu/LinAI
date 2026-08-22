@@ -15,19 +15,19 @@ import {
 
 /**
  * 单图视觉判定：压缩（内存中，不落盘）→ 组装 prompt → 经 eagle.vision 中继调用
- * → 严格 JSON 解析（zod）+ folderPath 匹配校验。
+ * → 严格 JSON 解析（zod）+ folderPaths 匹配校验。
  * 任何一步失败都抛 Error，由执行器记为 failed（含失败原因）。
  */
 
 export interface VisionJudgeOutcome {
   title: string
-  folderPath: string
+  folderPaths: string[]
   lowQuality: boolean
 }
 
 const judgeResponseSchema = z.object({
   title: z.string().min(1).max(200),
-  folderPath: z.string(),
+  folderPaths: z.array(z.string().min(1)).max(3),
   lowQuality: z.boolean(),
 })
 
@@ -174,12 +174,18 @@ export const judgeItem = async (
     throw new Error('视觉返回的 JSON 结构不符合要求')
   }
   if (
-    !options.standards.some(
-      (standard) => standard.folderPath === validated.data.folderPath,
-    )
+    new Set(validated.data.folderPaths).size !==
+    validated.data.folderPaths.length
   ) {
+    throw new Error('判定的候选文件夹存在重复项')
+  }
+  const unknownPath = validated.data.folderPaths.find(
+    (folderPath) =>
+      !options.standards.some((standard) => standard.folderPath === folderPath),
+  )
+  if (unknownPath) {
     throw new Error(
-      `判定的文件夹不在分类标准中：${validated.data.folderPath || '（空）'}`,
+      `判定的文件夹不在分类标准中：${unknownPath}`,
     )
   }
   return validated.data

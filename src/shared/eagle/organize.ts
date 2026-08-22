@@ -11,7 +11,7 @@ export type OrganizePhase =
 export type OrganizeItemStatus =
   | 'pending'
   | 'success' // 判定成功，待确认
-  | 'failed' // 判定失败，待确认（上游错误 / 非 JSON / 不属于任何分类）
+  | 'failed' // 判定失败，待确认（上游错误 / 非 JSON / 响应结构或分类路径非法）
   | 'skipped' // 用户选择「不处理」
   | 'confirmed' // 已确认（改文件夹；是否同时修改标题由确认操作参数决定，不区分状态）
 
@@ -69,7 +69,9 @@ export interface OrganizeItemRecord {
   status: OrganizeItemStatus
   /** AI 建议标题（success 时有值） */
   title?: string
-  /** AI 判定目标文件夹（success 时有值） */
+  /** AI 判定的候选目标文件夹，按推荐顺序排列，最多 3 个（success 时有值；空数组表示不属于任何已知分类） */
+  folderPaths?: string[]
+  /** 旧版结果的单个目标文件夹，仅用于兼容已有落盘数据 */
   folderPath?: string
   /** 疑似低质（success 时有值） */
   lowQuality?: boolean
@@ -81,7 +83,7 @@ export interface OrganizeItemRecord {
 
 /** 视觉判定 user 消息文本（system 提示词之外的固定内容，图片以 image_url 跟随其后） */
 export const ORGANIZE_VISION_USER_TEXT =
-  '请判断这张图片的标题、所属分类文件夹与是否疑似低质，并仅返回一个 json 对象。'
+  '请判断这张图片的标题、至多三个候选分类文件夹与是否疑似低质，并仅返回一个 json 对象。'
 
 /** 视觉判定 system 提示词：服务端发送与前端预览共用同一份实现 */
 export const buildOrganizeVisionSystemPrompt = (
@@ -98,11 +100,11 @@ export const buildOrganizeVisionSystemPrompt = (
     ...lines,
     '',
     '请对图片进行判断，并仅输出一个 json 对象（json_object），不要输出任何其他文字、注释或代码块标记，格式如下：',
-    '{"title": "图片标题", "folderPath": "分类文件夹路径", "lowQuality": false}',
+    '{"title": "图片标题", "folderPaths": ["首选分类文件夹路径", "次选分类文件夹路径"], "lowQuality": false}',
     '',
     '字段要求：',
     '- title：使用中文生成标题，限 50 个汉字以内尽可能详细。按“主体_主体细节_动作或状态_环境_媒介风格_色彩光影_构图视角_文字元素”的顺序组织；仅保留图片中明确可见或可判断的信息，缺少的部分直接省略，不要写“无”或其他占位内容，允许包含色情内容敏感词汇。',
-    '- folderPath：从上述分类标准的路径中选择最合适的一个，优先级从上到下排列，越靠前优先级越高；若图片不属于任何一类，填 "不属于任何分类"',
+    '- folderPaths：从上述分类标准的路径中选择 0～3 个合适的候选项，按推荐程度从高到低排列且不得重复；分类适配程度相近时，优先选择分类标准中更靠前的路径；若图片不属于任何已知分类，返回空数组 []，不要虚构路径或返回“不属于任何分类”',
     '- lowQuality：图片是否疑似低质（分辨率低、画面主体不清晰、美学品味较差等）',
   ].join('\n')
 }

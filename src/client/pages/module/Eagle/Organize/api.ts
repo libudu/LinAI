@@ -128,11 +128,12 @@ export const fetchOrganizeResult = async (
 // 确认结果：移入目标文件夹，withTitle 决定是否同时修改标题
 export const confirmOrganizeResult = async (
   itemId: string,
+  folderPath: string,
   withTitle: boolean,
 ): Promise<void> => {
   await apiRequest<null>(`/api/eagle/organize/results/${itemId}/confirm`, {
     method: 'POST',
-    body: JSON.stringify({ withTitle }),
+    body: JSON.stringify({ folderPath, withTitle }),
   })
 }
 

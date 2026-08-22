@@ -388,15 +388,22 @@ class OrganizeService {
     if (!record) return null
     const entry = await getItemEntry(itemId)
     const itemFolderPaths = await getFolderPaths(entry?.folders ?? [])
-    return { ...record, itemName: entry?.name ?? null, itemFolderPaths }
+    return {
+      ...record,
+      folderPaths:
+        record.folderPaths ?? (record.folderPath ? [record.folderPath] : []),
+      itemName: entry?.name ?? null,
+      itemFolderPaths,
+    }
   }
 
   /**
    * 确认结果：写 Eagle 库（移入目标文件夹，withTitle 决定是否同时改标题），状态 → confirmed。
-   * 仅判定成功的结果有目标文件夹可写
+   * 仅判定成功且至少有一个候选文件夹的结果可确认
    */
   async confirmItem(
     itemId: string,
+    folderPath: string,
     withTitle: boolean,
   ): Promise<OrganizeActionResult> {
     await this.ready
@@ -405,10 +412,17 @@ class OrganizeService {
     if (record.status !== 'success') {
       return { ok: false, status: 409, error: '仅判定成功的结果可以确认' }
     }
+    const candidates =
+      record.folderPaths ?? (record.folderPath ? [record.folderPath] : [])
+    if (!candidates.includes(folderPath)) {
+      return {
+        ok: false,
+        status: 409,
+        error: '所选文件夹不在该图片的候选分类中',
+      }
+    }
     const task = await organizeRepository.getTask()
-    const standard = task?.standards.find(
-      (s) => s.folderPath === record.folderPath,
-    )
+    const standard = task?.standards.find((s) => s.folderPath === folderPath)
     if (!standard) {
       return {
         ok: false,
