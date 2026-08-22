@@ -19,6 +19,7 @@ import { judgeItem } from './vision'
  */
 class OrganizeExecutor {
   private static readonly ERROR_PAUSE_THRESHOLD = 3
+  private static readonly REQUEST_INTERVAL_MS = 1_000
   /** runQueue 是否在执行中（kick 的幂等依据） */
   private active = false
   /** 停止派发标记（用户暂停 / 单图失败 / 结果落盘异常 / 强制清空） */
@@ -31,6 +32,10 @@ class OrganizeExecutor {
   private runPromise: Promise<void> | null = null
   /** 正在执行视觉判定的条目（队列预览展示用） */
   private readonly inFlight = new Set<string>()
+  /** 全部并发 lane 共用的派发闸门，保证相邻视觉请求不会同时发起 */
+  private dispatchGate: Promise<void> = Promise.resolve()
+  /** 最近一次视觉请求开始执行的时间 */
+  private lastDispatchAt = 0
 
   /** 开始（或继续）执行队列；已在执行时仅清除停止标记 */
   kick(): void {
@@ -105,6 +110,8 @@ class OrganizeExecutor {
           const itemId = itemIds[index]
           // 「重新执行」会在已完成的前缀中间挖出 pending 项，其后已完成的项直接跳过
           if (done.has(itemId)) continue
+          const canDispatch = await this.waitForDispatch(epoch, signal)
+          if (!canDispatch) return
           this.inFlight.add(itemId)
           try {
             await this.processItem(itemId, { compress, standards, epoch, signal })
@@ -141,6 +148,46 @@ class OrganizeExecutor {
       return this.runQueue(epoch, signal)
     }
     await this.finalize(itemsAfter)
+  }
+
+  /** 串行分配请求启动时隙，使全局相邻两次派发至少间隔 1 秒 */
+  private async waitForDispatch(
+    epoch: number,
+    signal: AbortSignal,
+  ): Promise<boolean> {
+    let release = () => {}
+    const previous = this.dispatchGate
+    this.dispatchGate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await previous
+    try {
+      if (this.stopping || epoch !== this.epoch || signal.aborted) return false
+      const delay = Math.max(
+        0,
+        this.lastDispatchAt + OrganizeExecutor.REQUEST_INTERVAL_MS - Date.now(),
+      )
+      if (delay > 0) await this.waitForDelay(delay, signal)
+      if (this.stopping || epoch !== this.epoch || signal.aborted) return false
+      this.lastDispatchAt = Date.now()
+      return true
+    } finally {
+      release()
+    }
+  }
+
+  /** 强制清空时提前结束尚未取得派发时隙的等待 */
+  private waitForDelay(delay: number, signal: AbortSignal): Promise<void> {
+    return new Promise((resolve) => {
+      const finish = () => {
+        clearTimeout(timeout)
+        signal.removeEventListener('abort', finish)
+        resolve()
+      }
+      const timeout = setTimeout(finish, delay)
+      signal.addEventListener('abort', finish, { once: true })
+      if (signal.aborted) finish()
+    })
   }
 
   /** 执行单个条目：判定 → 落盘结果 → 更新任务计数；累计 3 次失败后暂停派发 */

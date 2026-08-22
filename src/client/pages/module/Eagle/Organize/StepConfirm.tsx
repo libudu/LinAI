@@ -2,8 +2,8 @@ import type {
   OrganizeResultDetail,
   OrganizeResultListItem,
 } from '@/shared/eagle/organize'
-import { Button, Checkbox, Empty, Radio, Spin, Tag, message } from 'antd'
-import { useCallback, useEffect, useState } from 'react'
+import { Button, Checkbox, Empty, Image, Radio, Spin, Tag, message } from 'antd'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { eagleFileUrl, eagleThumbnailUrl } from '../api'
 import {
   confirmOrganizeResult,
@@ -23,6 +23,8 @@ export function StepConfirm() {
   const [detail, setDetail] = useState<OrganizeResultDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
+  const resultsRef = useRef<OrganizeResultListItem[]>([])
+  const confirmingIdsRef = useRef(new Set<string>())
   const [titleDisabledIds, setTitleDisabledIds] = useState<Set<string>>(
     () => new Set(),
   )
@@ -42,6 +44,7 @@ export function StepConfirm() {
     const pending = [...succeeded, ...failed].sort(
       (a, b) => a.updatedAt - b.updatedAt,
     )
+    resultsRef.current = pending
     setResults(pending)
     return pending
   }, [])
@@ -95,23 +98,126 @@ export function StepConfirm() {
     }
   }, [selectedId])
 
-  const runAction = async (fn: (itemId: string) => Promise<void>) => {
-    if (!selectedId || actionLoading) return
-    // 操作后本地移除当前项并自动选中下一张，任务阶段由 SSE 更新。
-    const index = results.findIndex((r) => r.itemId === selectedId)
-    const remaining = results.filter((r) => r.itemId !== selectedId)
+  const folderPaths = detail?.folderPaths ?? []
+  const selectedFolderPath = selectedId
+    ? (selectedFolders[selectedId] ?? folderPaths[0] ?? null)
+    : null
+  const canConfirm = detail?.status === 'success' && !!selectedFolderPath
+  const withTitle = selectedId ? !titleDisabledIds.has(selectedId) : true
+
+  const runAction = useCallback(
+    async (fn: (itemId: string) => Promise<void>) => {
+      if (!selectedId || actionLoading) return
+      // 操作后本地移除当前项并自动选中下一张，任务阶段由 SSE 更新。
+      const itemId = selectedId
+      setActionLoading(true)
+      try {
+        await fn(itemId)
+        const current = resultsRef.current
+        const index = current.findIndex((result) => result.itemId === itemId)
+        const remaining = current.filter((result) => result.itemId !== itemId)
+        const nextId = remaining[index]?.itemId ?? remaining[0]?.itemId ?? null
+        resultsRef.current = remaining
+        setResults(remaining)
+        setSelectedId(nextId)
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : '操作失败')
+      } finally {
+        setActionLoading(false)
+      }
+    },
+    [actionLoading, selectedId],
+  )
+
+  const runConfirm = useCallback(async () => {
+    if (
+      !selectedId ||
+      !selectedFolderPath ||
+      !canConfirm ||
+      actionLoading ||
+      confirmingIdsRef.current.has(selectedId)
+    ) {
+      return
+    }
+
+    const itemId = selectedId
+    const item = results.find((result) => result.itemId === itemId)
+    if (!item) return
+
+    const index = results.findIndex((result) => result.itemId === itemId)
+    const remaining = results.filter((result) => result.itemId !== itemId)
     const nextId = remaining[index]?.itemId ?? remaining[0]?.itemId ?? null
-    setActionLoading(true)
-    try {
-      await fn(selectedId)
+    const isLast = remaining.length === 0
+    confirmingIdsRef.current.add(itemId)
+
+    // 非最后一张立即切换，确认请求留在后台执行，不阻塞继续处理。
+    if (isLast) {
+      setActionLoading(true)
+    } else {
+      resultsRef.current = remaining
       setResults(remaining)
       setSelectedId(nextId)
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '操作失败')
-    } finally {
-      setActionLoading(false)
     }
-  }
+
+    try {
+      await confirmOrganizeResult(itemId, selectedFolderPath, withTitle)
+      if (isLast) {
+        const current = resultsRef.current.filter(
+          (result) => result.itemId !== itemId,
+        )
+        resultsRef.current = current
+        setResults(current)
+        setSelectedId(current[0]?.itemId ?? null)
+      }
+    } catch (error) {
+      if (!isLast) {
+        const current = resultsRef.current
+        if (!current.some((result) => result.itemId === itemId)) {
+          const restored = [...current]
+          restored.splice(Math.min(index, restored.length), 0, item)
+          resultsRef.current = restored
+          setResults(restored)
+          setSelectedId((current) => current ?? itemId)
+        }
+      }
+      message.error(error instanceof Error ? error.message : '确认失败')
+    } finally {
+      confirmingIdsRef.current.delete(itemId)
+      if (isLast) setActionLoading(false)
+    }
+  }, [
+    actionLoading,
+    canConfirm,
+    results,
+    selectedFolderPath,
+    selectedId,
+    withTitle,
+  ])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return
+      const target = event.target
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+      ) {
+        return
+      }
+
+      if (event.key.toLowerCase() === 'a') {
+        event.preventDefault()
+        void runAction(skipOrganizeResult)
+      } else if (event.key.toLowerCase() === 'd') {
+        event.preventDefault()
+        void runConfirm()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [runAction, runConfirm])
 
   if (loading && results.length === 0) {
     return (
@@ -128,13 +234,6 @@ export function StepConfirm() {
       </div>
     )
   }
-
-  const folderPaths = detail?.folderPaths ?? []
-  const selectedFolderPath = selectedId
-    ? (selectedFolders[selectedId] ?? folderPaths[0] ?? null)
-    : null
-  const canConfirm = detail?.status === 'success' && !!selectedFolderPath
-  const withTitle = selectedId ? !titleDisabledIds.has(selectedId) : true
 
   return (
     <div className="flex flex-col gap-3">
@@ -170,13 +269,14 @@ export function StepConfirm() {
       </div>
 
       {/* 中部：左大图 + 右信息面板 */}
-      <div className="grid grid-cols-[minmax(0,1fr)_280px] gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <div className="flex h-80 items-center justify-center overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800/60">
           {selectedId && (
-            <img
+            <Image
               key={selectedId}
-              src={eagleFileUrl(selectedId)}
+              src={eagleThumbnailUrl(selectedId)}
               className="max-h-full max-w-full object-contain"
+              preview={{ src: eagleFileUrl(selectedId) }}
             />
           )}
         </div>
@@ -217,11 +317,13 @@ export function StepConfirm() {
                           }}
                         >
                           {folderPaths.map((folderPath) => (
-                            <Radio key={folderPath} value={folderPath}>
-                              <span className="font-bold break-all">
-                                {folderPath}
-                              </span>
-                            </Radio>
+                            <div key={folderPath}>
+                              <Radio value={folderPath}>
+                                <span className="font-bold break-all">
+                                  {folderPath}
+                                </span>
+                              </Radio>
+                            </div>
                           ))}
                         </Radio.Group>
                       ) : (
@@ -229,20 +331,6 @@ export function StepConfirm() {
                           不属于任何已知分类
                         </div>
                       )}
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-400">原文件夹</div>
-                      <div className="break-all">
-                        {detail.itemFolderPaths.length > 0
-                          ? detail.itemFolderPaths.join('、')
-                          : '（未归入文件夹）'}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-400">当前标题</div>
-                      <div className="break-all">
-                        {detail.itemName ?? '（条目已不在库中）'}
-                      </div>
                     </div>
                     <div>
                       <div className="text-xs text-slate-400">建议标题</div>
@@ -269,6 +357,20 @@ export function StepConfirm() {
                           {detail.title}
                         </span>
                       </Checkbox>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-400">原文件夹</div>
+                      <div className="break-all">
+                        {detail.itemFolderPaths.length > 0
+                          ? detail.itemFolderPaths.join('、')
+                          : '（未归入文件夹）'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-400">原标题</div>
+                      <div className="break-all">
+                        {detail.itemName ?? '（条目已不在库中）'}
+                      </div>
                     </div>
                   </div>
                   {detail.lowQuality && (
@@ -299,7 +401,7 @@ export function StepConfirm() {
           disabled={!selectedId}
           onClick={() => runAction(skipOrganizeResult)}
         >
-          不处理
+          不处理(A)
         </Button>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -313,14 +415,9 @@ export function StepConfirm() {
             type="primary"
             loading={actionLoading}
             disabled={!selectedId || !canConfirm}
-            onClick={() =>
-              selectedFolderPath &&
-              runAction((id) =>
-                confirmOrganizeResult(id, selectedFolderPath, withTitle),
-              )
-            }
+            onClick={() => void runConfirm()}
           >
-            确认
+            确认(D)
           </Button>
         </div>
       </div>

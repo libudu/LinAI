@@ -17,7 +17,7 @@ src/server/module/eagle/
     ├── constants.ts                     # 模块自有常量：变更资源 ID、视觉上传压缩参数（与 common/static 的同名常量分开定义）
     ├── storage.ts                       # 私有持久化：任务 DocumentStore（task.json，含队列 itemIds 与进度计数）+ 结果 EntityStore（items/<itemId>.json，执行完成时才落盘），落盘 data/eagle/organize/，不注册通用存储；mutateTask 提供任务文档的串行读改写（service 与 executor 共用单例）
     ├── service.ts                       # OrganizeService 单例：prepare/创建/暂停/恢复/清空/队列预览/结果读取 + 确认（confirmItem 写库）/不处理（skipItem）/重新执行（retryItem，phase 拉回 running）+ 启动恢复（running→paused/restart），变更发布到 change bus 的 eagle.organize；创建/恢复/重新执行时 kick 执行器
-    ├── executor.ts                      # 队列执行器：任务指定并发（1~10，默认 5）按序派发，支持中断 in-flight 请求的强制清空；跳过已完成项，支持「重新执行」在中途挖洞；累计 3 次单图失败后暂停派发（落盘异常仍立即暂停），全部执行完 → confirming/done；每张图完成发布变更
+    ├── executor.ts                      # 队列执行器：任务指定并发（1~10，默认 5）按序派发，全局相邻请求至少间隔 1 秒，支持中断 in-flight 请求的强制清空；跳过已完成项，支持「重新执行」在中途挖洞；累计 3 次单图失败后暂停派发（落盘异常仍立即暂停），全部执行完 → confirming/done；每张图完成发布变更
     └── vision.ts                        # 单图视觉判定：sharp 内存压缩（不落盘）→ 组装分类标准 prompt → requestRegistry.execute('eagle.vision') → 严格 JSON 解析（zod）+ 0～3 个 folderPaths 匹配校验，支持 AbortSignal，失败抛错由执行器记为 failed
 
 src/server/api/eagle.ts                  # Hono 子路由，挂在 /api/eagle
@@ -114,7 +114,7 @@ src/client/pages/module/Eagle/           # 本目录
 6. 设置弹窗保存库路径后调用 `store.reload()`（= POST /refresh + 重拉数据）；视觉接入点标签页挂载时拉取 `eagle-vision` 配置
 7. 目录树展开/收起状态持久化在 localStorage `eagle_folder_expanded`（无记录时默认全展开）；移动端（`usePlatform().isMobile`）不渲染左侧栏，由工具栏「切换文件夹」按钮开抽屉展示同一棵 `FolderTree`
 8. 目录树右键节点 →「编辑」弹窗改文件夹名称/描述，保存后仅重拉文件夹树（`refreshFolders`）；「图片整理」按钮先校验 `eagle-vision` 的生效密钥，未配置时以 initialOnly 模式弹设置引导，保存后继续打开整理弹窗
-9. 图片整理（阶段三完成）：`Organize/store.ts` 订阅 SSE（`/api/storage/events?resources=eagle.organize`）驱动徽标与弹窗阶段路由，并以请求序号丢弃晚到的旧状态响应，避免完成后被旧 `running` 状态卡回步骤 2；步骤 2 的进度数字统一取同一次 task 快照，避免混用独立接口响应显示出矛盾计数。队列未完成显示剩余数（点击进步骤 2 不能新建）、有待确认显示小红点（点击只显示结果确认）。任务持久化在 `data/eagle/organize/`（task.json + items/），服务重启时 running 任务自动转为 paused（原因 restart），重启前 in-flight 未落盘的项恢复后重新执行。步骤 1 可指定队列并发数（1~10，默认 5）；服务端执行器按该值推进队列，视觉判定经 `eagle.vision` 中继，压缩在内存中完成不落盘。步骤 2 的滚动列表预览前 20 条执行中、待处理和失败项目（缩略图 / 状态 / 信息）；成功项目进入结果确认步骤不再显示，失败项目显示错误信息。清空操作会取消 in-flight 请求、丢弃任务与结果，并回到步骤 1。任务累计出现 3 个单图失败结果后暂停派发，暂停时可把全部失败项重置后移到队首继续执行；已有成功结果时也可过滤未处理与失败项，直接进入结果确认。视觉响应为按推荐程度排列的 0～3 个候选文件夹，空数组表示不属于任何已知分类。结果确认步骤默认选择首个候选，用户可切换后确认；确认/不处理后待确认计数减一（全部处理完 phase → done），确认请求携带所选候选路径并经 `updateItem` 写库（移动文件夹、可选改标题并重命名原文件），写库后发布 `eagle.library` 变更，Eagle 页面订阅该资源（`index.tsx`）刷新文件夹树与当前页；重新执行把单图状态置回 pending、phase 拉回 running（弹窗切回步骤 2）
+9. 图片整理（阶段三完成）：`Organize/store.ts` 订阅 SSE（`/api/storage/events?resources=eagle.organize`）驱动徽标与弹窗阶段路由，并以请求序号丢弃晚到的旧状态响应，避免完成后被旧 `running` 状态卡回步骤 2；步骤 2 的进度数字统一取同一次 task 快照，避免混用独立接口响应显示出矛盾计数。队列未完成显示剩余数（点击进步骤 2 不能新建）、有待确认显示小红点（点击只显示结果确认）。任务持久化在 `data/eagle/organize/`（task.json + items/），服务重启时 running 任务自动转为 paused（原因 restart），重启前 in-flight 未落盘的项恢复后重新执行。步骤 1 可指定队列并发数（1~10，默认 5）；服务端执行器按该值推进队列，但所有并发 lane 共用派发闸门，全局相邻两次视觉请求至少间隔 1 秒；视觉判定经 `eagle.vision` 中继，压缩在内存中完成不落盘。步骤 2 的滚动列表预览前 20 条执行中、待处理和失败项目（缩略图 / 状态 / 信息）；成功项目进入结果确认步骤不再显示，失败项目显示错误信息。清空操作会取消 in-flight 请求、丢弃任务与结果，并回到步骤 1。任务累计出现 3 个单图失败结果后暂停派发，暂停时可把全部失败项重置后移到队首继续执行；已有成功结果时也可过滤未处理与失败项，直接进入结果确认。视觉响应为按推荐程度排列的 0～3 个候选文件夹，空数组表示不属于任何已知分类。结果确认步骤默认选择首个候选，用户可切换后确认；确认/不处理后待确认计数减一（全部处理完 phase → done），确认请求携带所选候选路径并经 `updateItem` 写库（移动文件夹、可选改标题并重命名原文件），写库后发布 `eagle.library` 变更，Eagle 页面订阅该资源（`index.tsx`）刷新文件夹树与当前页；重新执行把单图状态置回 pending、phase 拉回 running（弹窗切回步骤 2）
 
 ## 图片整理维护约束
 
