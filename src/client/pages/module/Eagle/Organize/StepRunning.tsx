@@ -3,7 +3,14 @@ import type {
   OrganizeQueueResp,
   OrganizeTaskView,
 } from '@/shared/eagle/organize'
-import { Button, Modal, Progress, message } from 'antd'
+import {
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  CloseCircleOutlined,
+  DashboardOutlined,
+  ThunderboltOutlined,
+} from '@ant-design/icons'
+import { Button, Modal, message } from 'antd'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { eagleThumbnailUrl } from '../api'
 import {
@@ -38,7 +45,7 @@ const QUEUE_STATE_CLASS: Record<OrganizeQueueItem['state'], string> = {
 
 // 步骤 2 执行中任务：总处理状态 + 进度（已执行/总数、成功/失败）+ 暂停/继续 +
 // 队列预览（缩略图 / 状态 / 失败原因，完成无误的项过滤掉、进入下一步处理）+
-// 右上角红色「清空」按钮（强制停止所有请求、丢弃结果并回到第一步）；
+// 右下角红色「清空」按钮（强制停止所有请求、丢弃结果并回到第一步）；
 // 队列在服务端后台推进（SSE 通知刷新），全部执行完后由弹窗壳自动切到步骤 3
 export function StepRunning() {
   const { status } = useOrganizeStatus()
@@ -74,11 +81,9 @@ export function StepRunning() {
   const total = task?.total ?? 0
   const executed = task?.executed ?? 0
   // 一组进度数字必须来自同一次 task 快照；status 是独立请求，只负责阶段路由。
-  const remaining = Math.max(0, total - executed)
   const pendingConfirm = task?.pendingConfirm ?? 0
   const successCount = task?.successCount ?? 0
   const failedCount = task?.failedCount ?? 0
-  const percent = total > 0 ? Math.round((executed / total) * 100) : 0
 
   const handleToggle = async () => {
     setActionLoading(true)
@@ -116,48 +121,90 @@ export function StepRunning() {
   }
 
   const queueItems = queue?.items ?? []
-  const queueTotal = queue?.total ?? 0
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <span className="text-base font-medium">
-            {phase === 'running' ? '执行中' : '已暂停'}
-          </span>
-          {phase === 'paused' && status?.pausedReason && (
-            <span className="ml-2 text-sm text-amber-500">
-              {PAUSED_REASON_TEXT[status.pausedReason] ??
-                PAUSED_REASON_TEXT.user}
-            </span>
-          )}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        <div className="flex items-center gap-2.5 rounded-lg border border-violet-100 bg-violet-50/70 px-3 py-2 dark:border-violet-900/60 dark:bg-violet-950/30">
+          <div className="flex w-6 shrink-0 items-center justify-center text-xl text-violet-600 dark:text-violet-400">
+            <DashboardOutlined />
+          </div>
+          <div className="min-w-0">
+            <div
+              className={`truncate text-base font-semibold ${phase === 'running' ? 'text-violet-600 dark:text-violet-400' : 'text-amber-600 dark:text-amber-400'}`}
+              title={
+                phase === 'paused' && status?.pausedReason
+                  ? (PAUSED_REASON_TEXT[status.pausedReason] ??
+                    PAUSED_REASON_TEXT.user)
+                  : undefined
+              }
+            >
+              {phase === 'running' ? '执行中' : '已暂停'}
+            </div>
+            {phase === 'paused' && status?.pausedReason && (
+              <div className="truncate text-xs text-amber-500">
+                {PAUSED_REASON_TEXT[status.pausedReason] ??
+                  PAUSED_REASON_TEXT.user}
+              </div>
+            )}
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button loading={actionLoading} onClick={handleToggle}>
-            {phase === 'running' ? '暂停' : '继续'}
-          </Button>
-          <Button danger onClick={handleClear}>
-            清空
-          </Button>
+        <div className="flex items-center gap-2.5 rounded-lg border border-sky-100 bg-sky-50/70 px-3 py-2 dark:border-sky-900/60 dark:bg-sky-950/30">
+          <div className="flex w-6 shrink-0 items-center justify-center text-xl text-sky-600 dark:text-sky-400">
+            <ThunderboltOutlined />
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              已执行
+            </div>
+            <div className="truncate text-base font-semibold text-slate-800 dark:text-slate-100">
+              {executed}
+              <span className="ml-1 text-xs font-normal text-slate-400">
+                / {total}
+              </span>
+            </div>
+          </div>
         </div>
-      </div>
-
-      <Progress
-        percent={percent}
-        status={phase === 'paused' ? 'normal' : 'active'}
-      />
-
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
-        <span>
-          已执行 {executed} / {total}（剩余 {remaining}）
-        </span>
-        <span>
-          成功 <span className="text-emerald-500">{successCount}</span>
-        </span>
-        <span>
-          失败 <span className="text-red-500">{failedCount}</span>
-        </span>
-        <span>待确认 {pendingConfirm} 张</span>
+        <div className="flex items-center gap-2.5 rounded-lg border border-emerald-100 bg-emerald-50/70 px-3 py-2 dark:border-emerald-900/60 dark:bg-emerald-950/30">
+          <div className="flex w-6 shrink-0 items-center justify-center text-xl text-emerald-600 dark:text-emerald-400">
+            <CheckCircleOutlined />
+          </div>
+          <div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              成功
+            </div>
+            <div className="text-base font-semibold text-emerald-600 dark:text-emerald-400">
+              {successCount}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2.5 rounded-lg border border-red-100 bg-red-50/70 px-3 py-2 dark:border-red-900/60 dark:bg-red-950/30">
+          <div className="flex w-6 shrink-0 items-center justify-center text-xl text-red-600 dark:text-red-400">
+            <CloseCircleOutlined />
+          </div>
+          <div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              失败
+            </div>
+            <div className="text-base font-semibold text-red-600 dark:text-red-400">
+              {failedCount}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2.5 rounded-lg border border-amber-100 bg-amber-50/70 px-3 py-2 dark:border-amber-900/60 dark:bg-amber-950/30">
+          <div className="flex w-6 shrink-0 items-center justify-center text-xl text-amber-600 dark:text-amber-400">
+            <ClockCircleOutlined />
+          </div>
+          <div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              待确认
+            </div>
+            <div className="text-base font-semibold text-amber-600 dark:text-amber-400">
+              {pendingConfirm}
+              <span className="ml-1 text-xs font-normal">张</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* 队列预览：左缩略图 / 中状态 / 右信息（失败原因），仅展示前 20 条 */}
@@ -204,15 +251,26 @@ export function StepRunning() {
         )}
       </div>
 
-      {phase === 'running' ? (
-        <div className="text-xs text-slate-400">
-          任务在后台执行，可以关闭此窗口；全部执行完成后将进入结果确认。
+      <div className="flex items-center justify-between gap-4">
+        {phase === 'running' ? (
+          <div className="text-xs text-slate-400">
+            任务在后台执行，可以关闭此窗口；全部执行完成后将进入结果确认。
+          </div>
+        ) : (
+          <div className="text-xs text-slate-400">
+            点击「继续」恢复执行；正在发送中的请求不会被中断。
+          </div>
+        )}
+
+        <div className="flex shrink-0 gap-2">
+          <Button danger onClick={handleClear}>
+            清空
+          </Button>
+          <Button loading={actionLoading} onClick={handleToggle}>
+            {phase === 'running' ? '暂停' : '继续'}
+          </Button>
         </div>
-      ) : (
-        <div className="text-xs text-slate-400">
-          点击「继续」恢复执行；正在发送中的请求不会被中断。
-        </div>
-      )}
+      </div>
     </div>
   )
 }

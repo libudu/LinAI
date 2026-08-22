@@ -25,7 +25,7 @@ import { useEagleVisionConfig } from './SettingModal/useEagleVisionConfig'
 import type { EagleImageSize } from './store'
 import { useEagleStore } from './store'
 
-// 资源列表顶部操作区：「展示选项」下拉面板（排序/图片大小/文件名/文件大小）+ 刷新按钮 +「图片整理」入口；移动端提供文件夹抽屉入口
+// 资源列表顶部操作区：「展示选项」下拉面板（排序/图片大小/文件名/文件大小/文件夹描述）+ 刷新按钮 +「图片整理」入口；移动端提供文件夹抽屉入口
 export function Toolbar() {
   const {
     sortBy,
@@ -38,6 +38,8 @@ export function Toolbar() {
     setShowFileName,
     showFileSize,
     setShowFileSize,
+    showFolderDescription,
+    setShowFolderDescription,
     currentFolderId,
   } = useEagleStore()
   const { isMobile } = usePlatform()
@@ -130,6 +132,12 @@ export function Toolbar() {
                 ]}
               />
               <div className="mt-3 flex flex-col gap-1">
+                <Checkbox
+                  checked={showFolderDescription}
+                  onChange={(e) => setShowFolderDescription(e.target.checked)}
+                >
+                  显示文件夹描述
+                </Checkbox>
                 <Checkbox
                   checked={showFileName}
                   onChange={(e) => setShowFileName(e.target.checked)}
