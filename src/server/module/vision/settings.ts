@@ -43,9 +43,30 @@ export const getVisionSettings = async (): Promise<VisionSettings> =>
 
 export const getVisionEndpoint = async () => {
   const settings = await getVisionSettings()
+  const preset = VISION_ENDPOINT_PRESET_INFOS.find(
+    (item) =>
+      item.baseUrl === settings.visionBaseUrl &&
+      item.modelId === settings.visionModelId,
+  )
+  const custom = settings.visionCustomEndpoints.find(
+    (item) =>
+      item.baseUrl === settings.visionBaseUrl &&
+      item.modelId === settings.visionModelId &&
+      Boolean(item.title?.trim()),
+  )
+  const baseUrl = preset
+    ? preset.baseUrl
+    : custom
+      ? custom.baseUrl
+      : DEFAULT_ENDPOINT.baseUrl
+  const modelId = preset
+    ? preset.modelId
+    : custom
+      ? custom.modelId
+      : DEFAULT_ENDPOINT.modelId
   return {
-    baseUrl: settings.visionBaseUrl || DEFAULT_ENDPOINT.baseUrl,
-    modelId: settings.visionModelId || DEFAULT_ENDPOINT.modelId,
+    baseUrl,
+    modelId,
     apiKey: resolveVisionApiKey(settings),
   }
 }

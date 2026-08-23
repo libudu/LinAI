@@ -44,7 +44,9 @@ export const resolveVisionApiKey = (
   const custom = settings.visionCustomEndpoints.find(
     (item) =>
       item.baseUrl === settings.visionBaseUrl &&
-      item.modelId === settings.visionModelId,
+      item.modelId === settings.visionModelId &&
+      Boolean(item.title?.trim()),
   )
-  return custom?.apiKey || null
+  if (custom?.apiKey) return custom.apiKey
+  return null
 }

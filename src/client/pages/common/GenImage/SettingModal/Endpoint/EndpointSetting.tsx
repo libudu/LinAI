@@ -43,32 +43,52 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
   )
 
   useEffect(() => {
-    // 根据已保存的 baseUrl/modelId 反推下拉选中项：优先匹配预设，其次已保存的自定义接入点，否则视为新增自定义
+    // 根据已保存的 baseUrl/modelId 反推下拉选中项：优先匹配预设，其次已保存的自定义接入点（必须有标题），
+    // 否则（如旧预设被废弃后的残留配置）直接丢弃该结果，回退到默认预设并显示让用户填写的状态
     const matchedPreset = ENDPOINT_PRESETS.find(
       (p) => p.baseUrl === gptImageBaseUrl && p.modelId === gptImageModelId,
     )
     const matchedCustom = gptImageCustomEndpoints.find(
-      (c) => c.baseUrl === gptImageBaseUrl && c.modelId === gptImageModelId,
+      (c) =>
+        c.baseUrl === gptImageBaseUrl &&
+        c.modelId === gptImageModelId &&
+        Boolean(c.title?.trim()),
     )
-    const endpointValue = !gptImageBaseUrl
-      ? presetValue(ENDPOINT_PRESETS[0].label)
-      : matchedPreset
-        ? presetValue(matchedPreset.label)
-        : matchedCustom
-          ? customValue(matchedCustom.id)
-          : NEW_CUSTOM_VALUE
-    form.setFieldsValue({
-      apiKey: gptImageApiKey || '',
-      endpoint: endpointValue,
-      title: matchedCustom?.title ?? '',
-      baseUrl: gptImageBaseUrl || '',
-      modelId: gptImageModelId || '',
-    })
+
+    if (matchedPreset) {
+      form.setFieldsValue({
+        apiKey:
+          gptImagePresetApiKeys[matchedPreset.label] ?? gptImageApiKey ?? '',
+        endpoint: presetValue(matchedPreset.label),
+        title: '',
+        baseUrl: matchedPreset.baseUrl,
+        modelId: matchedPreset.modelId,
+      })
+    } else if (matchedCustom) {
+      form.setFieldsValue({
+        apiKey: matchedCustom.apiKey ?? gptImageApiKey ?? '',
+        endpoint: customValue(matchedCustom.id),
+        title: matchedCustom.title,
+        baseUrl: matchedCustom.baseUrl,
+        modelId: matchedCustom.modelId,
+      })
+    } else {
+      // 既不是预设也不是有标题的自定义接入点（如旧预设已丢弃）：丢弃结果，默认选择第一个预设让用户填写
+      const defaultPreset = ENDPOINT_PRESETS[0]
+      form.setFieldsValue({
+        apiKey: gptImagePresetApiKeys[defaultPreset.label] ?? '',
+        endpoint: presetValue(defaultPreset.label),
+        title: '',
+        baseUrl: defaultPreset.baseUrl,
+        modelId: defaultPreset.modelId,
+      })
+    }
   }, [
     gptImageApiKey,
     gptImageBaseUrl,
     gptImageModelId,
     gptImageCustomEndpoints,
+    gptImagePresetApiKeys,
     form,
   ])
 
@@ -86,6 +106,9 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
     const preset = ENDPOINT_PRESETS.find((p) => presetValue(p.label) === value)
     if (preset) {
       form.setFieldsValue({
+        title: '',
+        baseUrl: preset.baseUrl,
+        modelId: preset.modelId,
         apiKey: gptImagePresetApiKeys[preset.label] ?? '',
       })
       return
@@ -145,7 +168,9 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
                 i === existingIndex ? { ...c, title, apiKey } : c,
               )
             : [
-                ...gptImageCustomEndpoints,
+                ...gptImageCustomEndpoints.filter((c) =>
+                  Boolean(c.title?.trim()),
+                ),
                 { id: generateId(), title, baseUrl, modelId, apiKey },
               ]
         await setGptImageCustomEndpoints(nextCustomEndpoints)
@@ -158,9 +183,13 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
         const title = values.title.trim()
         // 保存时同步更新该自定义接入点的标题、baseUrl、modelId 与 API Key
         await setGptImageCustomEndpoints(
-          gptImageCustomEndpoints.map((c) =>
-            c.id === custom.id ? { ...c, title, baseUrl, modelId, apiKey } : c,
-          ),
+          gptImageCustomEndpoints
+            .filter((c) => c.id === custom.id || Boolean(c.title?.trim()))
+            .map((c) =>
+              c.id === custom.id
+                ? { ...c, title, baseUrl, modelId, apiKey }
+                : c,
+            ),
         )
       } else {
         const preset = ENDPOINT_PRESETS.find(
@@ -234,10 +263,12 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
                 label: p.label,
                 value: presetValue(p.label),
               })),
-              ...gptImageCustomEndpoints.map((c) => ({
-                label: c.title,
-                value: customValue(c.id),
-              })),
+              ...gptImageCustomEndpoints
+                .filter((c) => Boolean(c.title?.trim()))
+                .map((c) => ({
+                  label: c.title,
+                  value: customValue(c.id),
+                })),
               { label: '新增自定义接入点', value: NEW_CUSTOM_VALUE },
             ]}
           />

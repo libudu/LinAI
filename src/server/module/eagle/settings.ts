@@ -76,9 +76,30 @@ export const getEagleVisionSettings = async (): Promise<EagleVisionSettings> =>
 /** 服务端内部读取当前生效的视觉接入点（镜像 vision/settings 的 getVisionEndpoint） */
 export const getEagleVisionEndpoint = async () => {
   const settings = await getEagleVisionSettings()
+  const preset = VISION_ENDPOINT_PRESET_INFOS.find(
+    (item) =>
+      item.baseUrl === settings.visionBaseUrl &&
+      item.modelId === settings.visionModelId,
+  )
+  const custom = settings.visionCustomEndpoints.find(
+    (item) =>
+      item.baseUrl === settings.visionBaseUrl &&
+      item.modelId === settings.visionModelId &&
+      Boolean(item.title?.trim()),
+  )
+  const baseUrl = preset
+    ? preset.baseUrl
+    : custom
+      ? custom.baseUrl
+      : DEFAULT_EAGLE_VISION_ENDPOINT.baseUrl
+  const modelId = preset
+    ? preset.modelId
+    : custom
+      ? custom.modelId
+      : DEFAULT_EAGLE_VISION_ENDPOINT.modelId
   return {
-    baseUrl: settings.visionBaseUrl || DEFAULT_EAGLE_VISION_ENDPOINT.baseUrl,
-    modelId: settings.visionModelId || DEFAULT_EAGLE_VISION_ENDPOINT.modelId,
+    baseUrl,
+    modelId,
     apiKey: resolveVisionApiKey(settings),
   }
 }

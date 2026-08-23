@@ -82,12 +82,28 @@ export const getYunwuApiKey = async (): Promise<string | null> => {
   return decryptApiKey(resolveGptImageApiKey(await getGptImageSettings()) || '')
 }
 
-// 获取 GPT 图像接入点，未配置时回退到默认值
+// 获取 GPT 图像接入点，未配置或失效时回退到默认值
 export const getGptImageEndpoint = async () => {
   const settings = await getGptImageSettings()
-  const baseUrl =
-    settings.gptImageBaseUrl || DEFAULT_GPT_IMAGE_SETTINGS.gptImageBaseUrl!
-  const modelId =
-    settings.gptImageModelId || DEFAULT_GPT_IMAGE_SETTINGS.gptImageModelId!
-  return { baseUrl, modelId }
+  const preset = ENDPOINT_PRESET_INFOS.find(
+    (p) =>
+      p.baseUrl === settings.gptImageBaseUrl &&
+      p.modelId === settings.gptImageModelId,
+  )
+  const custom = settings.gptImageCustomEndpoints.find(
+    (c) =>
+      c.baseUrl === settings.gptImageBaseUrl &&
+      c.modelId === settings.gptImageModelId &&
+      Boolean(c.title?.trim()),
+  )
+  if (preset) {
+    return { baseUrl: preset.baseUrl, modelId: preset.modelId }
+  }
+  if (custom) {
+    return { baseUrl: custom.baseUrl, modelId: custom.modelId }
+  }
+  return {
+    baseUrl: DEFAULT_GPT_IMAGE_SETTINGS.gptImageBaseUrl!,
+    modelId: DEFAULT_GPT_IMAGE_SETTINGS.gptImageModelId!,
+  }
 }

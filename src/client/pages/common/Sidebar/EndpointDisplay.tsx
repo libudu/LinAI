@@ -21,10 +21,13 @@ export function EndpointDisplay() {
     )
     if (preset) return preset.label
     const custom = gptImageCustomEndpoints.find(
-      (c) => c.baseUrl === gptImageBaseUrl && c.modelId === gptImageModelId,
+      (c) =>
+        c.baseUrl === gptImageBaseUrl &&
+        c.modelId === gptImageModelId &&
+        Boolean(c.title?.trim()),
     )
-    if (custom) return custom.title
-    return gptImageModelId || gptImageBaseUrl || '未配置'
+    if (custom?.title) return custom.title.trim()
+    return '未配置'
   }, [gptImageBaseUrl, gptImageModelId, gptImageCustomEndpoints])
 
   // 当前接入点的积分比例与货币单位：仅预设可配置，自定义接入点与未匹配时按默认处理

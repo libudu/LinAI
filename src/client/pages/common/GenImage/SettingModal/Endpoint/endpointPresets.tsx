@@ -21,27 +21,28 @@ export interface EndpointPreset extends EndpointPresetInfo {
 
 // 各预设的界面说明，key 为预设 label
 const PRESET_REMARKS: Record<string, ReactNode> = {
-  '云雾 gpt-image-2-c': (
+  'openlux gpt-image-2-c': (
     <div>
       <div>
         官网：
-        <a href="https://api.oljjio.xyz" target="_blank">
-          https://api.oljjio.xyz/
+        <a href="https://openlux.ai" target="_blank">
+          https://openlux.ai/
         </a>
       </div>
-      <div>无论1k、2k、4k，均固定计费 0.075r 一张</div>
-      <div>需要 GPT绘图 分组</div>
+      <div>无论1k、2k、4k，均固定计费</div>
+      <div>Gpt-image-1 分组 $0.00882（约0.06r）一张</div>
+      <div>Gpt-image-2 分组 $0.0110（约0.075r）一张</div>
     </div>
   ),
-  '云雾 gpt-image-2': (
+  'openlux gpt-image-2': (
     <div>
       <div>
         官网：
-        <a href="https://api.oljjio.xyz" target="_blank">
-          https://api.oljjio.xyz/
+        <a href="https://openlux.ai" target="_blank">
+          https://openlux.ai/
         </a>
       </div>
-      <div>截止 26-08-01 以前，除了8倍优质官转分组外其他均不可用</div>
+      <div>按量计费</div>
     </div>
   ),
   'DragonAPI gpt-image-2': (

@@ -70,24 +70,39 @@ export const VisionEndpointSetting = forwardRef<
       (item) => item.baseUrl === baseUrl && item.modelId === modelId,
     )
     const matchedCustom = customEndpoints.find(
-      (item) => item.baseUrl === baseUrl && item.modelId === modelId,
+      (item) =>
+        item.baseUrl === baseUrl &&
+        item.modelId === modelId &&
+        Boolean(item.title?.trim()),
     )
-    const endpointValue = !baseUrl
-      ? presetValue(VISION_ENDPOINT_PRESETS[0].label)
-      : matchedPreset
-        ? presetValue(matchedPreset.label)
-        : matchedCustom
-          ? customValue(matchedCustom.id)
-          : NEW_CUSTOM_VALUE
 
-    form.setFieldsValue({
-      endpoint: endpointValue,
-      title: matchedCustom?.title ?? '',
-      baseUrl,
-      modelId,
-      apiKey: apiKey || '',
-    })
-  }, [form, apiKey, baseUrl, customEndpoints, modelId])
+    if (matchedPreset) {
+      form.setFieldsValue({
+        endpoint: presetValue(matchedPreset.label),
+        title: '',
+        baseUrl: matchedPreset.baseUrl,
+        modelId: matchedPreset.modelId,
+        apiKey: presetApiKeys[matchedPreset.label] ?? apiKey ?? '',
+      })
+    } else if (matchedCustom) {
+      form.setFieldsValue({
+        endpoint: customValue(matchedCustom.id),
+        title: matchedCustom.title,
+        baseUrl: matchedCustom.baseUrl,
+        modelId: matchedCustom.modelId,
+        apiKey: matchedCustom.apiKey ?? apiKey ?? '',
+      })
+    } else {
+      const defaultPreset = VISION_ENDPOINT_PRESETS[0]
+      form.setFieldsValue({
+        endpoint: presetValue(defaultPreset.label),
+        title: '',
+        baseUrl: defaultPreset.baseUrl,
+        modelId: defaultPreset.modelId,
+        apiKey: presetApiKeys[defaultPreset.label] ?? '',
+      })
+    }
+  }, [form, apiKey, baseUrl, customEndpoints, modelId, presetApiKeys])
 
   const handleEndpointChange = (value: string) => {
     if (value === NEW_CUSTOM_VALUE) {
@@ -105,6 +120,9 @@ export const VisionEndpointSetting = forwardRef<
     )
     if (preset) {
       form.setFieldsValue({
+        title: '',
+        baseUrl: preset.baseUrl,
+        modelId: preset.modelId,
         apiKey: presetApiKeys[preset.label] ?? '',
       })
       return
@@ -158,7 +176,9 @@ export const VisionEndpointSetting = forwardRef<
                   : item,
               )
             : [
-                ...customEndpoints,
+                ...customEndpoints.filter((item) =>
+                  Boolean(item.title?.trim()),
+                ),
                 {
                   id: generateId(),
                   title,
@@ -176,17 +196,21 @@ export const VisionEndpointSetting = forwardRef<
         nextModelId = values.modelId.trim()
         const title = values.title.trim()
         await setCustomEndpoints(
-          customEndpoints.map((item) =>
-            item.id === custom.id
-              ? {
-                  ...item,
-                  title,
-                  baseUrl: nextBaseUrl,
-                  modelId: nextModelId,
-                  apiKey: key,
-                }
-              : item,
-          ),
+          customEndpoints
+            .filter(
+              (item) => item.id === custom.id || Boolean(item.title?.trim()),
+            )
+            .map((item) =>
+              item.id === custom.id
+                ? {
+                    ...item,
+                    title,
+                    baseUrl: nextBaseUrl,
+                    modelId: nextModelId,
+                    apiKey: key,
+                  }
+                : item,
+            ),
         )
       } else {
         const preset = VISION_ENDPOINT_PRESETS.find(
@@ -252,10 +276,12 @@ export const VisionEndpointSetting = forwardRef<
                 label: item.label,
                 value: presetValue(item.label),
               })),
-              ...customEndpoints.map((item) => ({
-                label: item.title,
-                value: customValue(item.id),
-              })),
+              ...customEndpoints
+                .filter((item) => Boolean(item.title?.trim()))
+                .map((item) => ({
+                  label: item.title,
+                  value: customValue(item.id),
+                })),
               { label: '新增自定义接入点', value: NEW_CUSTOM_VALUE },
             ]}
           />
