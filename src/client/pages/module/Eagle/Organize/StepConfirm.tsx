@@ -2,16 +2,7 @@ import type {
   OrganizeResultDetail,
   OrganizeResultListItem,
 } from '@/shared/eagle/organize'
-import {
-  Button,
-  Checkbox,
-  Empty,
-  Image,
-  Radio,
-  Spin,
-  Tag,
-  message,
-} from 'antd'
+import { Button, Checkbox, Empty, Image, Radio, Spin, Tag, message } from 'antd'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { eagleFileUrl, eagleThumbnailUrl } from '../api'
 import {
@@ -234,7 +225,7 @@ export function StepConfirm({
 
   if (loading && results.length === 0) {
     return (
-      <div className="flex h-72 items-center justify-center">
+      <div className="flex flex-1 items-center justify-center">
         <Spin />
       </div>
     )
@@ -242,7 +233,7 @@ export function StepConfirm({
 
   if (results.length === 0) {
     return (
-      <div className="flex h-72 flex-col items-center justify-center gap-3">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3">
         <Empty description="暂无待确认结果" />
         {onSwitchToRunning && (
           <Button type="link" size="small" onClick={onSwitchToRunning}>
@@ -254,16 +245,9 @@ export function StepConfirm({
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="text-sm text-slate-500 dark:text-slate-400">
-        剩余 <strong className="font-semibold text-slate-700 dark:text-slate-200">{results.length}</strong> 张待确认
-        <span className="ml-2 text-xs text-slate-400">
-          （快捷键：A 清除分类、S 不处理、D 确认分类）
-        </span>
-      </div>
-
+    <div className="flex h-full flex-col gap-3">
       {/* 顶部待确认缩略图条 */}
-      <div className="flex gap-2 overflow-x-auto rounded-lg border border-slate-200 p-2 dark:border-slate-700">
+      <div className="flex shrink-0 gap-2 overflow-x-auto rounded-lg border border-slate-200 p-2 dark:border-slate-700">
         {results.map((result) => (
           <button
             key={result.itemId}
@@ -285,21 +269,21 @@ export function StepConfirm({
       </div>
 
       {/* 中部：左大图 + 右信息面板 */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="flex h-80 items-center justify-center overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800/60">
+      <div className="grid min-h-0 flex-1 grid-cols-2 gap-3">
+        <div className="flex h-full items-center justify-center overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800/60">
           {selectedId && (
             <Image
               key={selectedId}
               src={eagleThumbnailUrl(selectedId)}
               classNames={{
-                root: 'h-full w-full',
-                image: 'h-full! w-full! object-contain!',
+                root: 'h-full w-full flex items-center justify-center',
+                image: 'max-h-full max-w-full object-contain!',
               }}
               preview={{ src: eagleFileUrl(selectedId) }}
             />
           )}
         </div>
-        <div className="flex h-80 flex-col gap-3 overflow-y-auto rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700">
+        <div className="flex h-full flex-col gap-3 overflow-y-auto rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700">
           {detailLoading || !detail ? (
             <div className="flex flex-1 items-center justify-center">
               <Spin />
@@ -362,9 +346,7 @@ export function StepConfirm({
                   >
                     <span
                       className={`break-all transition-colors ${
-                        withTitle
-                          ? ''
-                          : 'text-slate-400 dark:text-slate-500'
+                        withTitle ? '' : 'text-slate-400 dark:text-slate-500'
                       }`}
                     >
                       {detail.title}
@@ -398,7 +380,7 @@ export function StepConfirm({
       </div>
 
       {/* 底部操作：清除分类 / 不处理 / 重新执行 / 确认 */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3 dark:border-slate-700">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3 dark:border-slate-700">
         <div className="flex flex-wrap gap-2">
           <Button
             loading={actionLoading}

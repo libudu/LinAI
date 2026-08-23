@@ -114,7 +114,12 @@ class OrganizeExecutor {
           if (!canDispatch) return
           this.inFlight.add(itemId)
           try {
-            await this.processItem(itemId, { compress, standards, epoch, signal })
+            await this.processItem(itemId, {
+              compress,
+              standards,
+              epoch,
+              signal,
+            })
           } catch (error) {
             // 结果落盘等基础设施异常：暂停队列，避免计数与实体脱节
             console.error('[Eagle] 图片整理结果落盘失败，队列暂停', error)

@@ -158,18 +158,6 @@ export const StepNavBar: React.FC<StepNavBarProps> = ({
           >
             03 待确认
           </span>
-          {pendingConfirm > 0 && (
-            <Badge
-              count={pendingConfirm}
-              overflowCount={999}
-              style={{
-                backgroundColor: '#f59e0b',
-                fontSize: '11px',
-                height: '18px',
-                lineHeight: '18px',
-              }}
-            />
-          )}
         </div>
         <div className="text-xs text-slate-500 dark:text-slate-400">
           {isStepConfirmDisabled ? '暂无待确认' : `${pendingConfirm} 张待查验`}

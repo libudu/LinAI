@@ -184,9 +184,7 @@ export const judgeItem = async (
       !options.standards.some((standard) => standard.folderPath === folderPath),
   )
   if (unknownPath) {
-    throw new Error(
-      `判定的文件夹不在分类标准中：${unknownPath}`,
-    )
+    throw new Error(`判定的文件夹不在分类标准中：${unknownPath}`)
   }
   return validated.data
 }

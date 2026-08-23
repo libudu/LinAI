@@ -92,20 +92,28 @@ export function OrganizeModal({
       width={880}
       centered
       destroyOnHidden
+      styles={{
+        body: {
+          height: 620,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        },
+      }}
     >
       {!loaded ? (
-        <div className="flex h-56 items-center justify-center">
+        <div className="flex flex-1 items-center justify-center">
           <Spin />
         </div>
       ) : (
-        <div className="flex min-h-[420px] gap-4 pt-1">
+        <div className="flex h-full gap-4 pt-1">
           <StepNavBar
             currentStep={currentStep}
             onChange={setCurrentStep}
             status={status}
             task={task}
           />
-          <div className="min-w-0 flex-1">
+          <div className="flex h-full min-w-0 flex-1 flex-col">
             {currentStep === 'classify' && (
               <StepClassify
                 onClose={onClose}

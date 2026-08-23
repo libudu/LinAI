@@ -31,8 +31,9 @@ export function Eagle() {
     if (!libraryPath) return
     const es = new EventSource('/api/storage/events?resources=eagle.library')
     es.addEventListener('change', () => {
-      requestEagleLibraryRefresh()
-        .catch((error) => console.error('刷新 Eagle 列表失败', error))
+      requestEagleLibraryRefresh().catch((error) =>
+        console.error('刷新 Eagle 列表失败', error),
+      )
     })
     es.onerror = (error) => console.error('Eagle 库变更 SSE 连接错误', error)
     return () => es.close()

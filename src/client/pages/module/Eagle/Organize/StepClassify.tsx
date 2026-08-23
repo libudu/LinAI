@@ -6,7 +6,6 @@ import {
   ORGANIZE_VISION_USER_TEXT,
   buildOrganizeVisionSystemPrompt,
 } from '@/shared/eagle/organize'
-import { InfoCircleOutlined } from '@ant-design/icons'
 import {
   Button,
   Checkbox,
@@ -102,7 +101,6 @@ export function StepClassify({
   const isLocked = !!prepare?.lockedFolderName
   const availableCount = prepare?.availableCount ?? 0
   const imageCount = prepare?.imageCount ?? 0
-  const enqueuedCount = prepare?.enqueuedCount ?? 0
   const standards = prepare?.standards ?? []
 
   const loadPrepareData = () => {
@@ -117,7 +115,9 @@ export function StepClassify({
         if (cancelled) return
         setPrepare(data)
         const isCurrentlyLocked = !!data.lockedFolderName
-        const maxAvailable = isCurrentlyLocked ? data.availableCount : data.imageCount
+        const maxAvailable = isCurrentlyLocked
+          ? data.availableCount
+          : data.imageCount
         setCount(
           maxAvailable > 0
             ? Math.min(loadOrganizeOptions().count, maxAvailable)
@@ -191,59 +191,44 @@ export function StepClassify({
 
   if (loading) {
     return (
-      <div className="flex h-56 items-center justify-center">
+      <div className="flex flex-1 items-center justify-center">
         <Spin />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      {isLocked ? (
-        <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50/80 px-3 py-2 text-xs text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300">
-          <InfoCircleOutlined className="text-sm" />
-          <span>
-            当前任务已锁定文件夹：<strong className="font-semibold">{prepare?.lockedFolderName}</strong>
-            ，已加入队列 <strong className="font-semibold">{enqueuedCount}</strong> 张，
-            剩余 <strong className="font-semibold">{availableCount}</strong> 张未入队。
-          </span>
-        </div>
-      ) : (
-        <div className="text-sm text-slate-500 dark:text-slate-400">
-          将以下有描述的文件夹作为分类标准（从上到下优先级递减），对当前范围内的图片执行
-          AI 分类；gif 动图与视频不会处理。
-        </div>
-      )}
-
-      {standards.length === 0 ? (
-        <Empty
-          className="py-8"
-          description="没有包含描述的文件夹，请先在文件夹右键「编辑」中填写描述作为分类标准"
-        />
-      ) : (
-        <div className="max-h-60 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200 dark:divide-slate-700/60 dark:border-slate-700">
-          {standards.map((standard, index) => (
-            <div
-              key={standard.folderId}
-              className="flex items-center gap-3 px-3 py-2"
-              title={`${standard.folderPath}：${standard.description}`}
-            >
-              <span className="w-6 shrink-0 text-right text-xs text-slate-400">
-                {index + 1}
-              </span>
-              <span
-                className="w-44 shrink-0 truncate text-sm font-medium"
-                title={standard.folderPath}
+    <div className="flex h-full flex-col gap-4">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+        {standards.length === 0 ? (
+          <div className="flex flex-1 items-center justify-center p-6">
+            <Empty description="没有包含描述的文件夹，请先在文件夹右键「编辑」中填写描述作为分类标准" />
+          </div>
+        ) : (
+          <div className="flex-1 divide-y divide-slate-100 overflow-y-auto dark:divide-slate-700/60">
+            {standards.map((standard, index) => (
+              <div
+                key={standard.folderId}
+                className="flex items-center gap-3 px-3 py-2"
+                title={`${standard.folderPath}：${standard.description}`}
               >
-                {standard.name}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-sm text-slate-500 dark:text-slate-400">
-                {standard.description}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+                <span className="w-6 shrink-0 text-right text-xs text-slate-400">
+                  {index + 1}
+                </span>
+                <span
+                  className="w-44 shrink-0 truncate text-sm font-medium"
+                  title={standard.folderPath}
+                >
+                  {standard.name}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-sm text-slate-500 dark:text-slate-400">
+                  {standard.description}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {isLocked ? (
         <div className="flex flex-col gap-3">
@@ -306,9 +291,7 @@ export function StepClassify({
                   ORGANIZE_CONCURRENCY_MAX,
                   Math.max(
                     ORGANIZE_CONCURRENCY_MIN,
-                    value && value >= 1
-                      ? value
-                      : ORGANIZE_CONCURRENCY_DEFAULT,
+                    value && value >= 1 ? value : ORGANIZE_CONCURRENCY_DEFAULT,
                   ),
                 )
                 setConcurrency(nextConcurrency)
@@ -316,7 +299,8 @@ export function StepClassify({
               }}
             />
             <span className="text-xs text-slate-400">
-              同时处理数（{ORGANIZE_CONCURRENCY_MIN}~{ORGANIZE_CONCURRENCY_MAX}）
+              同时处理数（{ORGANIZE_CONCURRENCY_MIN}~{ORGANIZE_CONCURRENCY_MAX}
+              ）
             </span>
           </div>
           <Checkbox
@@ -332,7 +316,7 @@ export function StepClassify({
         </div>
       )}
 
-      <div className="flex items-center justify-between border-t border-slate-200 pt-3 dark:border-slate-700">
+      <div className="flex shrink-0 items-center justify-between border-t border-slate-200 pt-3 dark:border-slate-700">
         <Button
           disabled={standards.length === 0}
           onClick={() => setPromptOpen(true)}

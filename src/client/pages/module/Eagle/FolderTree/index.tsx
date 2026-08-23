@@ -1,9 +1,9 @@
 import { settingsClient } from '@/client/service/settings'
+import type { EagleFolderTreeSettings } from '@/server/module/eagle/settings'
 import {
   EAGLE_UNCLASSIFIED_FOLDER_ID,
   type EagleFolder,
 } from '@/shared/eagle/types'
-import type { EagleFolderTreeSettings } from '@/server/module/eagle/settings'
 import { FolderOpenOutlined, FolderOutlined } from '@ant-design/icons'
 import type { TreeDataNode } from 'antd'
 import { Tree } from 'antd'
@@ -193,9 +193,7 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
     if (!ancestorKeys) return
     initialSelectionRevealedRef.current = true
     setStoredKeys((current) =>
-      current === null
-        ? null
-        : [...new Set([...current, ...ancestorKeys])],
+      current === null ? null : [...new Set([...current, ...ancestorKeys])],
     )
 
     requestAnimationFrame(() => {

@@ -76,8 +76,7 @@ const loadSelectedFolderId = () =>
 const hasFolder = (folders: EagleFolder[], folderId: string): boolean =>
   folderId === EAGLE_UNCLASSIFIED_FOLDER_ID ||
   folders.some(
-    (folder) =>
-      folder.id === folderId || hasFolder(folder.children, folderId),
+    (folder) => folder.id === folderId || hasFolder(folder.children, folderId),
   )
 
 const persistSelectedFolderId = (folderId: string) => {
