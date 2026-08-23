@@ -1,4 +1,5 @@
 import type {
+  OrganizeFailedItem,
   OrganizeItemStatus,
   OrganizePrepareResp,
   OrganizeQueueItem,
@@ -10,6 +11,7 @@ import type {
   OrganizeTaskView,
 } from '@/shared/eagle/organize'
 import type { EagleSortBy, EagleSortOrder } from '@/shared/eagle/types'
+import { EAGLE_UNCLASSIFIED_FOLDER_ID } from '@/shared/eagle/types'
 import { changeBus } from '../../../common/storage/change-bus'
 import {
   folderExists,
@@ -46,23 +48,29 @@ export type CreateTaskResult =
   | { ok: true; task: OrganizeTaskView }
   | { ok: false; status: 400 | 409; error: string }
 
-/** 确认 / 不处理 / 重新执行的结果动作 */
+/** 确认 / 不处理 / 重新执行 / 追加的结果动作 */
 export type OrganizeActionResult =
   | { ok: true }
-  | { ok: false; status: 404 | 409; error: string }
+  | { ok: false; status: 400 | 404 | 409; error: string }
 
-const toTaskView = (record: OrganizeTaskRecord): OrganizeTaskView => ({
+const toTaskView = (
+  record: OrganizeTaskRecord,
+  availableCount?: number,
+): OrganizeTaskView => ({
   phase: record.phase,
   pausedReason: record.pausedReason,
   compress: record.compress,
   concurrency: record.concurrency,
   createdAt: record.createdAt,
   standards: record.standards,
+  folderId: record.folderId,
+  folderName: record.folderName ?? '全部',
   total: record.itemIds.length,
   executed: record.executed,
   pendingConfirm: record.pendingConfirm,
   successCount: record.successCount,
   failedCount: record.failedCount,
+  availableCount,
 })
 
 class OrganizeService {
@@ -95,7 +103,14 @@ class OrganizeService {
     changeBus.publish({ resource: ORGANIZE_RESOURCE })
   }
 
-  /** 徽标用轻量状态；无任务返回 null */
+  private async resolveFolderName(folderId?: string): Promise<string> {
+    if (!folderId) return '全部'
+    if (folderId === EAGLE_UNCLASSIFIED_FOLDER_ID) return '未分类'
+    const paths = await getFolderPaths([folderId])
+    return paths[0] ?? '指定文件夹'
+  }
+
+  /** 徽标与弹窗用轻量状态；无任务返回 null */
   async getStatus(): Promise<OrganizeStatus | null> {
     await this.ready
     const task = await organizeRepository.getTask()
@@ -104,24 +119,68 @@ class OrganizeService {
       phase: task.phase,
       remaining: task.itemIds.length - task.executed,
       pendingConfirm: task.pendingConfirm,
+      failedCount: task.failedCount,
       pausedReason: task.pausedReason,
+      folderId: task.folderId,
+      folderName: task.folderName,
+      isLocked: task.phase !== 'done',
     }
   }
 
   async getTask(): Promise<OrganizeTaskView | null> {
     await this.ready
     const task = await organizeRepository.getTask()
-    return task ? toTaskView(task) : null
+    if (!task) return null
+    let availableCount: number | undefined
+    if (task.phase !== 'done') {
+      try {
+        const { total } = await getClassifiableItems({
+          folderId: task.folderId,
+          sortBy: 'mtime',
+          sortOrder: 'desc',
+        })
+        availableCount = Math.max(0, total - task.itemIds.length)
+      } catch {
+        // ignore
+      }
+    }
+    return toTaskView(task, availableCount)
   }
 
-  /** 步骤 1 准备数据：分类标准 + 当前范围内可处理图片数 */
+  /** 步骤 1 准备数据：分类标准 + 当前范围内可处理图片数（支持锁定模式与追加模式） */
   async prepare(params: OrganizePrepareParams): Promise<OrganizePrepareResp> {
     await this.ready
+    const task = await organizeRepository.getTask()
+    if (task && task.phase !== 'done') {
+      // 处于锁定文件夹状态：以任务锁定的 folderId 和 standards 为准
+      const allItems = await getClassifiableItems({
+        folderId: task.folderId,
+        sortBy: params.sortBy,
+        sortOrder: params.sortOrder,
+      })
+      const imageCount = allItems.total
+      const enqueuedCount = task.itemIds.length
+      const availableCount = Math.max(0, imageCount - enqueuedCount)
+      return {
+        standards: task.standards,
+        imageCount,
+        enqueuedCount,
+        availableCount,
+        lockedFolderId: task.folderId,
+        lockedFolderName: task.folderName,
+      }
+    }
+
     const [standards, items] = await Promise.all([
       getFolderStandards(),
       getClassifiableItems(params),
     ])
-    return { standards, imageCount: items.total }
+    return {
+      standards,
+      imageCount: items.total,
+      enqueuedCount: 0,
+      availableCount: items.total,
+    }
   }
 
   async createTask(
@@ -148,6 +207,7 @@ class OrganizeService {
     if (total === 0) {
       return { ok: false, status: 400, error: '当前范围内没有可处理的图片' }
     }
+    const folderName = await this.resolveFolderName(params.folderId)
     const record: OrganizeTaskRecord = {
       phase: 'running',
       pausedReason: null,
@@ -155,6 +215,8 @@ class OrganizeService {
       concurrency: params.concurrency,
       createdAt: Date.now(),
       standards,
+      folderId: params.folderId,
+      folderName,
       itemIds: itemIds.slice(0, Math.min(params.count, total)),
       executed: 0,
       pendingConfirm: 0,
@@ -166,7 +228,49 @@ class OrganizeService {
     await organizeRepository.saveTask(record)
     this.publishChange()
     organizeExecutor.kick()
-    return { ok: true, task: toTaskView(record) }
+    return {
+      ok: true,
+      task: toTaskView(record, Math.max(0, total - record.itemIds.length)),
+    }
+  }
+
+  /** 向当前锁定任务追加未入队的图片到队尾 */
+  async appendItems(count: number): Promise<OrganizeActionResult> {
+    await this.ready
+    const task = await organizeRepository.getTask()
+    if (!task || task.phase === 'done') {
+      return {
+        ok: false,
+        status: 409,
+        error: '当前没有正在进行的任务可追加图片',
+      }
+    }
+    const { itemIds: allAvailable } = await getClassifiableItems({
+      folderId: task.folderId,
+      sortBy: 'mtime',
+      sortOrder: 'desc',
+    })
+    const existing = new Set(task.itemIds)
+    const toAppend = allAvailable
+      .filter((id) => !existing.has(id))
+      .slice(0, count)
+    if (toAppend.length === 0) {
+      return { ok: false, status: 400, error: '没有更多可追加的图片' }
+    }
+    const updated = await organizeRepository.mutateTask((latest) => {
+      if (!latest || latest.phase === 'done') return null
+      return {
+        ...latest,
+        itemIds: [...latest.itemIds, ...toAppend],
+        phase: latest.phase === 'confirming' ? 'running' : latest.phase,
+      }
+    })
+    if (!updated) {
+      return { ok: false, status: 409, error: '追加图片失败' }
+    }
+    this.publishChange()
+    organizeExecutor.kick()
+    return { ok: true }
   }
 
   /** 用户暂停：停止派发新请求；返回 false 表示当前不可暂停 */
@@ -475,20 +579,84 @@ class OrganizeService {
     return { ok: true }
   }
 
+  async listFailedItems(): Promise<OrganizeFailedItem[]> {
+    await this.ready
+    const items = await organizeRepository.listItems()
+    const failed = items.filter((item) => item.status === 'failed')
+    const result: OrganizeFailedItem[] = []
+    for (const item of failed) {
+      const record = await organizeRepository.getItem(item.itemId)
+      const entry = await getItemEntry(item.itemId)
+      result.push({
+        itemId: item.itemId,
+        itemName: entry?.name ?? null,
+        error: record?.error ?? '未知错误',
+        updatedAt: item.updatedAt,
+      })
+    }
+    return result.sort((a, b) => b.updatedAt - a.updatedAt)
+  }
+
+  /** 步骤 2 批量跳过所有失败项 */
+  async skipFailedItems(): Promise<OrganizeActionResult> {
+    await this.ready
+    const items = await organizeRepository.listItems()
+    const failedItems = items.filter((item) => item.status === 'failed')
+    if (failedItems.length === 0) return { ok: true }
+    for (const item of failedItems) {
+      const record = await organizeRepository.getItem(item.itemId)
+      if (record && record.status === 'failed') {
+        await organizeRepository.saveItem({
+          ...record,
+          status: 'skipped',
+          updatedAt: Date.now(),
+        })
+      }
+    }
+    await organizeRepository.mutateTask((latest) => {
+      const next = {
+        ...latest,
+        failedCount: 0,
+      }
+      if (next.phase === 'confirming' && next.pendingConfirm === 0) {
+        return { ...next, phase: 'done', pausedReason: null }
+      }
+      return next
+    })
+    this.publishChange()
+    return { ok: true }
+  }
+
   /** 不处理：不做任何修改，状态 → skipped */
   async skipItem(itemId: string): Promise<OrganizeActionResult> {
     await this.ready
     const record = await organizeRepository.getItem(itemId)
     if (!record) return { ok: false, status: 404, error: '结果不存在' }
     if (record.status !== 'success' && record.status !== 'failed') {
-      return { ok: false, status: 409, error: '该结果当前不需要确认' }
+      return { ok: false, status: 409, error: '该结果当前不需要处理' }
     }
+    const wasSuccess = record.status === 'success'
+    const wasFailed = record.status === 'failed'
     await organizeRepository.saveItem({
       ...record,
       status: 'skipped',
       updatedAt: Date.now(),
     })
-    await this.settleAfterDecision()
+    await organizeRepository.mutateTask((task) => {
+      const next = {
+        ...task,
+        pendingConfirm: wasSuccess
+          ? Math.max(0, task.pendingConfirm - 1)
+          : task.pendingConfirm,
+        failedCount: wasFailed
+          ? Math.max(0, task.failedCount - 1)
+          : task.failedCount,
+      }
+      if (next.phase === 'confirming' && next.pendingConfirm === 0) {
+        return { ...next, phase: 'done', pausedReason: null }
+      }
+      return next
+    })
     this.publishChange()
     return { ok: true }
   }
@@ -505,13 +673,23 @@ class OrganizeService {
     const record = await organizeRepository.getItem(itemId)
     if (!record) return { ok: false, status: 404, error: '结果不存在' }
     if (record.status !== 'success' && record.status !== 'failed') {
-      return { ok: false, status: 409, error: '仅待确认的结果可以重新执行' }
+      return { ok: false, status: 409, error: '仅待确认或失败的结果可以重新执行' }
     }
+    const wasSuccess = record.status === 'success'
+    const wasFailed = record.status === 'failed'
     await organizeRepository.mutateTask((task) => ({
       ...task,
       phase: 'running',
       pausedReason: null,
-      pendingConfirm: Math.max(0, task.pendingConfirm - 1),
+      pendingConfirm: wasSuccess
+        ? Math.max(0, task.pendingConfirm - 1)
+        : task.pendingConfirm,
+      successCount: wasSuccess
+        ? Math.max(0, task.successCount - 1)
+        : task.successCount,
+      failedCount: wasFailed
+        ? Math.max(0, task.failedCount - 1)
+        : task.failedCount,
       executed: Math.max(0, task.executed - 1),
     }))
     try {

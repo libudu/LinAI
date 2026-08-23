@@ -231,8 +231,7 @@ class OrganizeExecutor {
         ...task,
         executed: task.executed + 1,
         pendingConfirm:
-          task.pendingConfirm +
-          (record.status === 'success' || record.status === 'failed' ? 1 : 0),
+          task.pendingConfirm + (record.status === 'success' ? 1 : 0),
         successCount: task.successCount + (record.status === 'success' ? 1 : 0),
         failedCount: task.failedCount + (record.status === 'failed' ? 1 : 0),
       }
@@ -277,7 +276,6 @@ class OrganizeExecutor {
           pendingConfirm++
           successCount++
         } else if (status === 'failed') {
-          pendingConfirm++
           failedCount++
         }
       }

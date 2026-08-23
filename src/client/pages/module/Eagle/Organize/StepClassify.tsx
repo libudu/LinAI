@@ -6,6 +6,7 @@ import {
   ORGANIZE_VISION_USER_TEXT,
   buildOrganizeVisionSystemPrompt,
 } from '@/shared/eagle/organize'
+import { InfoCircleOutlined } from '@ant-design/icons'
 import {
   Button,
   Checkbox,
@@ -17,7 +18,11 @@ import {
 } from 'antd'
 import { useEffect, useState } from 'react'
 import { useEagleStore } from '../store'
-import { createOrganizeTask, fetchOrganizePrepare } from './api'
+import {
+  appendOrganizeTask,
+  createOrganizeTask,
+  fetchOrganizePrepare,
+} from './api'
 import { refreshOrganizeStatus } from './store'
 
 const ORGANIZE_OPTIONS_STORAGE_KEY = 'eagle_organize_options'
@@ -74,9 +79,16 @@ const persistOrganizeOptions = (options: OrganizeOptions) => {
   }
 }
 
-// 步骤 1 分类文件夹划定：有描述的文件夹即分类标准（顺序即优先级），
-// 设置处理数量与压缩选项，确定后创建任务进入队列
-export function StepClassify({ onClose }: { onClose: () => void }) {
+// 步骤 1 分类文件夹划定 / 追加图片：
+// - 未锁定时：新建任务模式，配置数量、并发与压缩；
+// - 锁定状态下：追加模式，将当前锁定文件夹中未加入队列的图片追加到队尾
+export function StepClassify({
+  onClose,
+  onSuccess,
+}: {
+  onClose: () => void
+  onSuccess?: () => void
+}) {
   const { currentFolderId, sortBy, sortOrder } = useEagleStore()
   const [initialOptions] = useState(loadOrganizeOptions)
   const [prepare, setPrepare] = useState<OrganizePrepareResp | null>(null)
@@ -84,10 +96,16 @@ export function StepClassify({ onClose }: { onClose: () => void }) {
   const [count, setCount] = useState<number | null>(null)
   const [compress, setCompress] = useState(initialOptions.compress)
   const [concurrency, setConcurrency] = useState(initialOptions.concurrency)
-  const [creating, setCreating] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [promptOpen, setPromptOpen] = useState(false)
 
-  useEffect(() => {
+  const isLocked = !!prepare?.lockedFolderName
+  const availableCount = prepare?.availableCount ?? 0
+  const imageCount = prepare?.imageCount ?? 0
+  const enqueuedCount = prepare?.enqueuedCount ?? 0
+  const standards = prepare?.standards ?? []
+
+  const loadPrepareData = () => {
     let cancelled = false
     setLoading(true)
     fetchOrganizePrepare({
@@ -98,9 +116,11 @@ export function StepClassify({ onClose }: { onClose: () => void }) {
       .then((data) => {
         if (cancelled) return
         setPrepare(data)
+        const isCurrentlyLocked = !!data.lockedFolderName
+        const maxAvailable = isCurrentlyLocked ? data.availableCount : data.imageCount
         setCount(
-          data.imageCount > 0
-            ? Math.min(loadOrganizeOptions().count, data.imageCount)
+          maxAvailable > 0
+            ? Math.min(loadOrganizeOptions().count, maxAvailable)
             : null,
         )
       })
@@ -114,10 +134,11 @@ export function StepClassify({ onClose }: { onClose: () => void }) {
     return () => {
       cancelled = true
     }
-  }, [currentFolderId, sortBy, sortOrder])
+  }
 
-  const standards = prepare?.standards ?? []
-  const imageCount = prepare?.imageCount ?? 0
+  useEffect(() => {
+    return loadPrepareData()
+  }, [currentFolderId, sortBy, sortOrder])
 
   const saveOptions = (next: Partial<OrganizeOptions>) => {
     persistOrganizeOptions({
@@ -130,7 +151,7 @@ export function StepClassify({ onClose }: { onClose: () => void }) {
 
   const handleCreate = async () => {
     if (!count) return
-    setCreating(true)
+    setSubmitting(true)
     try {
       await createOrganizeTask({
         folderId: currentFolderId || undefined,
@@ -141,13 +162,30 @@ export function StepClassify({ onClose }: { onClose: () => void }) {
         concurrency,
       })
       message.success('任务已创建，开始处理队列')
-      // SSE 也会触发刷新，这里主动拉一次让步骤立即切换
       await refreshOrganizeStatus()
+      onSuccess?.()
     } catch (error) {
       console.error('创建图片整理任务失败', error)
       message.error(error instanceof Error ? error.message : '创建任务失败')
     } finally {
-      setCreating(false)
+      setSubmitting(false)
+    }
+  }
+
+  const handleAppend = async () => {
+    if (!count) return
+    setSubmitting(true)
+    try {
+      await appendOrganizeTask({ count })
+      message.success(`已成功追加 ${count} 张图片到队列`)
+      await refreshOrganizeStatus()
+      loadPrepareData()
+      onSuccess?.()
+    } catch (error) {
+      console.error('追加图片失败', error)
+      message.error(error instanceof Error ? error.message : '追加图片失败')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -161,10 +199,21 @@ export function StepClassify({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="text-sm text-slate-500 dark:text-slate-400">
-        将以下有描述的文件夹作为分类标准（从上到下优先级递减），对当前范围内的图片执行
-        AI 分类；gif 动图与视频不会处理。
-      </div>
+      {isLocked ? (
+        <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50/80 px-3 py-2 text-xs text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300">
+          <InfoCircleOutlined className="text-sm" />
+          <span>
+            当前任务已锁定文件夹：<strong className="font-semibold">{prepare?.lockedFolderName}</strong>
+            ，已加入队列 <strong className="font-semibold">{enqueuedCount}</strong> 张，
+            剩余 <strong className="font-semibold">{availableCount}</strong> 张未入队。
+          </span>
+        </div>
+      ) : (
+        <div className="text-sm text-slate-500 dark:text-slate-400">
+          将以下有描述的文件夹作为分类标准（从上到下优先级递减），对当前范围内的图片执行
+          AI 分类；gif 动图与视频不会处理。
+        </div>
+      )}
 
       {standards.length === 0 ? (
         <Empty
@@ -172,7 +221,7 @@ export function StepClassify({ onClose }: { onClose: () => void }) {
           description="没有包含描述的文件夹，请先在文件夹右键「编辑」中填写描述作为分类标准"
         />
       ) : (
-        <div className="max-h-72 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200 dark:divide-slate-700/60 dark:border-slate-700">
+        <div className="max-h-60 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200 dark:divide-slate-700/60 dark:border-slate-700">
           {standards.map((standard, index) => (
             <div
               key={standard.folderId}
@@ -196,63 +245,92 @@ export function StepClassify({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-        <div className="flex items-center gap-2">
-          <span className="text-sm">处理数量</span>
-          <InputNumber
-            min={1}
-            max={Math.max(imageCount, 1)}
-            value={count}
-            disabled={imageCount === 0}
-            onChange={(value) => {
-              const nextCount = Math.min(
-                imageCount,
-                value && value > 0 ? value : 1,
-              )
-              setCount(nextCount)
-              saveOptions({ count: nextCount })
-            }}
-          />
-          <span className="text-xs text-slate-400">
-            / 共 {imageCount} 张可处理图片
-          </span>
+      {isLocked ? (
+        <div className="flex flex-col gap-3">
+          {availableCount === 0 ? (
+            <Empty
+              className="py-2"
+              description="当前锁定文件夹下的所有图片已全部加入整理队列"
+            />
+          ) : (
+            <div className="flex items-center gap-3">
+              <span className="text-sm">追加数量</span>
+              <InputNumber
+                min={1}
+                max={Math.max(availableCount, 1)}
+                value={count}
+                onChange={(value) => {
+                  const nextCount = Math.min(
+                    availableCount,
+                    value && value > 0 ? value : 1,
+                  )
+                  setCount(nextCount)
+                }}
+              />
+              <span className="text-xs text-slate-400">
+                / 剩余 {availableCount} 张未入队可处理图片
+              </span>
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm">并发数</span>
-          <InputNumber
-            min={ORGANIZE_CONCURRENCY_MIN}
-            max={ORGANIZE_CONCURRENCY_MAX}
-            value={concurrency}
-            onChange={(value) => {
-              const nextConcurrency = Math.min(
-                ORGANIZE_CONCURRENCY_MAX,
-                Math.max(
-                  ORGANIZE_CONCURRENCY_MIN,
-                  value && value >= 1
-                    ? value
-                    : ORGANIZE_CONCURRENCY_DEFAULT,
-                ),
-              )
-              setConcurrency(nextConcurrency)
-              saveOptions({ concurrency: nextConcurrency })
+      ) : (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-sm">处理数量</span>
+            <InputNumber
+              min={1}
+              max={Math.max(imageCount, 1)}
+              value={count}
+              disabled={imageCount === 0}
+              onChange={(value) => {
+                const nextCount = Math.min(
+                  imageCount,
+                  value && value > 0 ? value : 1,
+                )
+                setCount(nextCount)
+                saveOptions({ count: nextCount })
+              }}
+            />
+            <span className="text-xs text-slate-400">
+              / 共 {imageCount} 张可处理图片
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm">并发数</span>
+            <InputNumber
+              min={ORGANIZE_CONCURRENCY_MIN}
+              max={ORGANIZE_CONCURRENCY_MAX}
+              value={concurrency}
+              onChange={(value) => {
+                const nextConcurrency = Math.min(
+                  ORGANIZE_CONCURRENCY_MAX,
+                  Math.max(
+                    ORGANIZE_CONCURRENCY_MIN,
+                    value && value >= 1
+                      ? value
+                      : ORGANIZE_CONCURRENCY_DEFAULT,
+                  ),
+                )
+                setConcurrency(nextConcurrency)
+                saveOptions({ concurrency: nextConcurrency })
+              }}
+            />
+            <span className="text-xs text-slate-400">
+              同时处理数（{ORGANIZE_CONCURRENCY_MIN}~{ORGANIZE_CONCURRENCY_MAX}）
+            </span>
+          </div>
+          <Checkbox
+            checked={compress}
+            onChange={(e) => {
+              const nextCompress = e.target.checked
+              setCompress(nextCompress)
+              saveOptions({ compress: nextCompress })
             }}
-          />
-          <span className="text-xs text-slate-400">
-            同时处理的图片数（{ORGANIZE_CONCURRENCY_MIN}~
-            {ORGANIZE_CONCURRENCY_MAX}）
-          </span>
+          >
+            输入图片压缩节省 token
+          </Checkbox>
         </div>
-        <Checkbox
-          checked={compress}
-          onChange={(e) => {
-            const nextCompress = e.target.checked
-            setCompress(nextCompress)
-            saveOptions({ compress: nextCompress })
-          }}
-        >
-          输入图片压缩节省 token
-        </Checkbox>
-      </div>
+      )}
 
       <div className="flex items-center justify-between border-t border-slate-200 pt-3 dark:border-slate-700">
         <Button
@@ -263,14 +341,25 @@ export function StepClassify({ onClose }: { onClose: () => void }) {
         </Button>
         <div className="flex gap-2">
           <Button onClick={onClose}>取消</Button>
-          <Button
-            type="primary"
-            loading={creating}
-            disabled={standards.length === 0 || imageCount === 0 || !count}
-            onClick={handleCreate}
-          >
-            确定
-          </Button>
+          {isLocked ? (
+            <Button
+              type="primary"
+              loading={submitting}
+              disabled={availableCount === 0 || !count}
+              onClick={handleAppend}
+            >
+              追加到队列
+            </Button>
+          ) : (
+            <Button
+              type="primary"
+              loading={submitting}
+              disabled={standards.length === 0 || imageCount === 0 || !count}
+              onClick={handleCreate}
+            >
+              确定
+            </Button>
+          )}
         </div>
       </div>
 

@@ -28,13 +28,14 @@ src/client/pages/module/Eagle/           # 本目录
 ├── store.ts                             # zustand：文件夹树/列表/排序/分页/图片大小档位/展示选项（文件名/文件大小）
 ├── FolderTree/                          # 左侧 antd Tree（展开状态持久化到后端设置，节点带文件夹图标与图片数）；「全部」下含「未分类」虚拟节点，真实文件夹支持右键编辑名称/描述
 ├── ResourceGrid.tsx                     # 右侧网格 + 分页 + 图片预览 + 视频 Modal，可按需在格子底部叠加文件名/文件大小
-├── Organize/                            # 「图片整理」弹窗（三步流程，依赖视觉接入点配置）
-│   ├── index.tsx                        # Modal 壳：按任务阶段路由步骤（running/paused→执行中，confirming→结果确认，done/无任务→分类划定）
-│   ├── StepClassify.tsx                 # 步骤 1：分类标准列表（有描述的文件夹，顺序即优先级）+ 处理数量 + 并发数（1~10，默认 5）+ 压缩选项，确定后创建任务
-│   ├── StepRunning.tsx                  # 步骤 2：执行状态/进度（已执行/总数、成功/失败）/暂停继续/清空；暂停时可批量重试全部错误或直接用成功图片进入分类；滚动队列表展示前 20 条执行中、待处理或失败条目（缩略图/状态/信息），完成无误的项过滤，完成后弹窗壳自动切步骤 3
-│   ├── StepConfirm.tsx                  # 步骤 3：结果确认——顶部待确认缩略图条（点击选中）+ 左大图右信息面板（状态/当前标题/可勾选的建议标题/原文件夹/至多 3 个候选目标文件夹，默认首项/低质/失败原因）+ 底部清除分类手动处理（A）/不处理（S）/重新执行/确认（D），操作后本地移除并自动选中下一张；无候选表示不属于任何已知分类
-│   ├── api.ts                           # /api/eagle/organize/* 封装
-│   └── store.ts                         # zustand：轻量 status + SSE 订阅（eagle.organize），Toolbar 徽标与弹窗共用；并发刷新只接纳最新请求，避免旧响应覆盖新阶段
+├── Organize/                            # 「图片整理」弹窗（左侧导航卡片 + 三步骤非互斥协同，依赖视觉接入点配置）
+│   ├── index.tsx                        # Modal 壳：标题栏展示锁定文件夹，左侧 StepNavBar 导航卡片 + 右侧步骤组件，支持智能默认与非互斥自由切换
+│   ├── StepNavBar.tsx                   # 导航卡片栏：01待添加/02处理中/03待确认三个卡片按钮，展示实时状态、执行进度与待查验/失败徽标
+│   ├── StepClassify.tsx                 # 步骤 1：新建任务（分类标准优先级列表 + 数量/并发/压缩）/ 追加模式（展示当前锁定文件夹剩余未入队数并随时追加到队尾）
+│   ├── StepRunning.tsx                  # 步骤 2：执行状态/进度（已执行/总数、成功/失败）/ 暂停继续 / 失败任务集中处理与重试 / 排队队列预览 / 快捷跳转步骤 3
+│   ├── StepConfirm.tsx                  # 步骤 3：纯净结果确认——仅查验判定成功项，顶部缩略图条 + 左大图右信息面板 + 底部快捷操作（A清除分类/S不处理/重新执行/D确认），重新执行不打断确认流
+│   ├── api.ts                           # /api/eagle/organize/* 封装（含追加任务、获取/跳过失败项等接口）
+│   └── store.ts                         # zustand：轻量 status + SSE 订阅（eagle.organize），Toolbar 徽标与弹窗共用
 ├── Toolbar.tsx                          # 「展示选项」下拉面板（排序/图片大小/文件名/文件大小）+ 刷新 + 「图片整理」按钮（Badge：队列剩余数/待确认红点）+ 移动端「切换文件夹」抽屉
 └── SettingModal/
     ├── index.tsx                        # 设置弹窗（openEagleSettingModal）：资源库 / 视觉接入点两个标签页
@@ -84,19 +85,22 @@ src/client/pages/module/Eagle/           # 本目录
 | POST | `/refresh`                                                           | 触发增量校验（库路径变化时重建索引）                                                                                                                    |
 | GET  | `/items/:id/thumbnail`                                               | 优先库内 `_thumbnail.png` → 缺失时图片用 sharp 生成 200px webp 缓存到 `data/eagle/thumb/` → 视频回退占位 SVG                                            |
 | GET  | `/items/:id/file`                                                    | 原文件流式返回，支持 Range（206），视频可拖进度条                                                                                                       |
-| GET  | `/organize/prepare?folderId&sortBy&sortOrder`                        | 图片整理步骤 1 数据：分类标准列表（有描述的文件夹，先序遍历=优先级从上到下）+ 当前范围内可处理图片数（排除 gif/视频）                                   |
-| GET  | `/organize/status`                                                   | 图片整理轻量状态（phase/remaining/pendingConfirm/pausedReason），无任务返回 null，供按钮徽标轮询                                                        |
-| GET  | `/organize/task`                                                     | 图片整理任务详情（分类标准快照 + 进度计数，不含队列明细）                                                                                               |
-| POST | `/organize/task`                                                     | 创建整理任务 `{ folderId?, sortBy, sortOrder, count, compress, concurrency? }`；并发范围 1~10，默认 5；已有未完成任务 409；创建前清空旧结果            |
+| GET  | `/organize/prepare?folderId&sortBy&sortOrder`                        | 图片整理步骤 1 数据：分类标准列表 + 当前范围内可处理图片数/已入队数/剩余可追加数（已排除 gif/视频）                                                      |
+| GET  | `/organize/status`                                                   | 图片整理轻量状态（phase/remaining/pendingConfirm/failedCount/folderId/folderName/isLocked），供按钮徽标与导航卡片轮询                                     |
+| GET  | `/organize/task`                                                     | 图片整理任务详情（分类标准快照 + 进度计数 + 锁定文件夹信息，不含队列明细）                                                                               |
+| POST | `/organize/task`                                                     | 创建整理任务 `{ folderId?, sortBy, sortOrder, count, compress, concurrency? }`；锁定选定文件夹；并发 1~10 默认 5；已有未完成任务 409；清空旧结果         |
+| POST | `/organize/task/append`                                              | 向当前锁定任务追加未入队的图片到队尾 `{ count }`；无缝扩充队列                                                                                           |
 | POST | `/organize/task/pause` `/organize/task/resume`                       | 用户暂停（停止派发，in-flight 不受影响）/ 恢复执行，状态不符 409                                                                                        |
-| POST | `/organize/task/retry-failed`                                        | 暂停时把全部失败结果重置为待处理、移到队首并恢复执行                                                                                                     |
+| POST | `/organize/task/retry-failed`                                        | 批量重试失败项：重置为待处理并移到队首恢复执行                                                                                                         |
+| POST | `/organize/task/skip-failed`                                         | 批量跳过所有失败项                                                                                                                                      |
 | POST | `/organize/task/classify-successful`                                 | 暂停且已有成功结果时，过滤未处理与失败条目，仅用成功图片进入结果确认                                                                                       |
-| POST | `/organize/task/clear`                                               | 强制停止所有请求、丢弃当前任务与结果；弹窗回到步骤 1                                                                                                      |
-| GET  | `/organize/queue?limit=20`                                          | 执行中队列预览：仅返回执行中、待处理与失败条目；成功项过滤，失败项含错误信息，limit 上限 50                                                              |
-| GET  | `/organize/results?status=&offset=&limit=`                           | 整理结果列表（按状态过滤，可选 offset/limit 分页缺省全量，按 updatedAt 倒序，摘要不含正文）                                                             |
+| POST | `/organize/task/clear`                                               | 强制停止所有请求、丢弃当前任务与结果，解锁文件夹；弹窗回到新建状态                                                                                      |
+| GET  | `/organize/queue?limit=20`                                          | 执行中队列预览：仅返回执行中与待处理条目；limit 上限 50                                                                                                  |
+| GET  | `/organize/failed-items`                                             | 步骤 2 失败列表：返回所有判定失败的图片及具体错误原因                                                                                                   |
+| GET  | `/organize/results?status=&offset=&limit=`                           | 整理结果列表（按状态过滤，步骤 3 仅请求 status=success，按 updatedAt 倒序）                                                                             |
 | GET  | `/organize/results/:itemId`                                          | 单图结果详情（附条目当前名称 `itemName`，`status` 取值见 `src/shared/eagle/organize.ts`）                                                               |
-| POST | `/organize/results/:itemId/confirm`                                  | 确认结果 `{ folderPath, withTitle }`：校验所选路径属于该图候选项，经 `updateItem` 移入目标文件夹（可选改标题）后状态 → confirmed；无候选时不可确认；目标文件夹已从库中删除时 409 |
-| POST | `/organize/results/:itemId/skip` / `/organize/results/:itemId/retry` | 不处理（状态 → skipped）/ 重新执行单图（状态 → pending、phase → running，仅该图入队）                                                                   |
+| POST | `/organize/results/:itemId/confirm`                                  | 确认结果 `{ folderPath, withTitle }`：校验所选路径属于该图候选项，经 `updateItem` 移入目标文件夹后状态 → confirmed                                       |
+| POST | `/organize/results/:itemId/skip` / `/organize/results/:itemId/retry` | 不处理（状态 → skipped）/ 重新执行单图（状态 → pending 送回步骤 2 队列，不打断步骤 3）                                                                  |
 | POST | `/organize/results/:itemId/clear-classification`                    | 清除分类后手动处理：把条目的 `folders` 替换为空数组并将结果状态置为 skipped，条目随后出现在「未分类」虚拟文件夹                                         |
 
 约定：
@@ -115,17 +119,21 @@ src/client/pages/module/Eagle/           # 本目录
 6. 设置弹窗保存库路径后调用 `store.reload()`（= POST /refresh + 重拉数据）；视觉接入点标签页挂载时拉取 `eagle-vision` 配置
 7. 目录树展开/收起状态持久化在后端设置 `eagle-folder-tree`（首次读取会迁移 localStorage `eagle_folder_expanded`，无记录时默认全展开）；「全部」下方的「未分类」虚拟节点筛选 `folders` 为空的条目并显示实时数量；移动端（`usePlatform().isMobile`）不渲染左侧栏，由工具栏「切换文件夹」按钮开抽屉展示同一棵 `FolderTree`
 8. 目录树右键节点 →「编辑」弹窗改文件夹名称/描述，保存后仅重拉文件夹树（`refreshFolders`）；「图片整理」按钮先校验 `eagle-vision` 的生效密钥，未配置时以 initialOnly 模式弹设置引导，保存后继续打开整理弹窗
-9. 图片整理（阶段三完成）：`Organize/store.ts` 订阅 SSE（`/api/storage/events?resources=eagle.organize`）驱动徽标与弹窗阶段路由，并以请求序号丢弃晚到的旧状态响应，避免完成后被旧 `running` 状态卡回步骤 2；步骤 2 的进度数字统一取同一次 task 快照，避免混用独立接口响应显示出矛盾计数。队列未完成显示剩余数（点击进步骤 2 不能新建）、有待确认显示小红点（点击只显示结果确认）。任务持久化在 `data/eagle/organize/`（task.json + items/），服务重启时 running 任务自动转为 paused（原因 restart），重启前 in-flight 未落盘的项恢复后重新执行。步骤 1 可指定队列并发数（1~10，默认 5）；服务端执行器按该值推进队列，但所有并发 lane 共用派发闸门，全局相邻两次视觉请求至少间隔 1 秒；视觉判定经 `eagle.vision` 中继，压缩在内存中完成不落盘。步骤 2 的滚动列表预览前 20 条执行中、待处理和失败项目（缩略图 / 状态 / 信息）；成功项目进入结果确认步骤不再显示，失败项目显示错误信息。清空操作会取消 in-flight 请求、丢弃任务与结果，并回到步骤 1。任务累计出现 3 个单图失败结果后暂停派发，暂停时可把全部失败项重置后移到队首继续执行；已有成功结果时也可过滤未处理与失败项，直接进入结果确认。视觉响应为按推荐程度排列的 0～3 个候选文件夹，空数组表示不属于任何已知分类。结果确认步骤默认选择首个候选，用户可切换后确认；确认、不处理或清除分类后待确认计数减一（全部处理完 phase → done），其中清除分类会把条目移入「未分类」供后续手动处理；确认请求携带所选候选路径并经 `updateItem` 写库（移动文件夹、可选改标题并重命名原文件），写库后发布 `eagle.library` 变更，Eagle 页面订阅该资源（`index.tsx`）刷新文件夹树与当前页；重新执行把单图状态置回 pending、phase 拉回 running（弹窗切回步骤 2）
+9. 图片整理流程：
+   - 弹窗采用左侧 `StepNavBar` 导航卡片 + 右侧主操作区架构，标题栏明确显示当前锁定的文件夹。
+   - 只要任务存在未完成图片即处于锁定状态，禁止切换其他文件夹分类；若要切换必须清空任务或全部完成。
+   - **步骤 1（待添加）**：未锁定时为新建任务模式；锁定状态下为追加模式，展示当前文件夹剩余未入队图片数，可随时将图片追加到队列末尾。
+   - **步骤 2（处理中）**：展示执行状态与进度（`已执行/总数`）；集中管理失败任务（支持单项重试、单项跳过、重试所有错误、全部跳过），失败项不计入成功计数，不流入步骤 3；提供队列预览与查验跳转。
+   - **步骤 3（待确认）**：纯净查验判定成功的结果（`status === 'success'`）；支持快捷键（A清除分类/S不处理/D确认）；单图重新执行将该图重置为 pending 送回步骤 2 队列，步骤 3 自动聚焦下一张，不打断确认流。
+   - 全部图片确认/跳过后，任务状态转为 done，文件夹锁定自动解除。
 
 ## 图片整理维护约束
 
-- **单任务与状态**：同一时间只保留一个任务；`running` / `paused` 时不能新建，`confirming` 表示仍有 `success` / `failed` 结果待处理，全部确认或跳过后进入 `done`。单图 `pending` 只用于重新执行，最终结果为 `confirmed` 或 `skipped`。
-- **持久化与计数**：任务文档保存分类标准快照和 `itemIds`，单图结果在执行完成后才懒创建，避免建任务时批量生成大量小文件；任务文档允许最大 16M。任务读改写必须走 `mutateTask` 串行化；执行器收尾按结果实体重算 `executed` / `pendingConfirm` / 成败计数，不能只信任中途累计值。
-- **分类响应**：视觉响应严格为 `{ title, folderPaths, lowQuality }`；`folderPaths` 必须是分类标准中的 0～3 个不重复路径，按推荐程度排序，空数组是合法成功结果。HTTP/网络、非 JSON、结构非法、候选越界或存储写盘异常会记为失败；任务累计出现 3 个失败结果后暂停继续派发。未压缩原图超过 relay 请求体上限也会记为失败。
-- **重新执行**：retry 先把结果置为 `pending`，并回补 `executed` / `pendingConfirm`；`attempts` 只在执行器真正再次处理时增加。执行器必须跳过已有非 pending 结果，避免重新执行一张图片时重复处理其后的已完成项。
-- **确认写库**：提交的 `folderPath` 必须属于该图候选项且对应文件夹当前仍存在；`folders` 是替换而非追加语义。可选标题会清理 Windows 非法字符、压缩空白并截断至 120 字符；重名时追加 ` (1)`～` (99)`，原文件与缩略图随之重命名。仅当库中原本存在 `mtime.json` 时才同步该指纹文件。
-- **展示边界**：`failed` 或无候选结果不可确认，只能重新执行或不处理；`lowQuality` 只在确认页提示，不触发自动跳过或删除。
-- **待验证**：Eagle 应用运行与关闭两种状态下，经 `updateItem` 外部写入后，Eagle 自身能否稳定感知改动，仍需实际环境验证。
+- **锁定文件夹约束**：任务运行期间（未进入 `done` 且未清空）文件夹处于锁定状态，保证追加与分类范围严格受控。
+- **持久化与计数**：任务文档保存分类标准快照、`folderId`、`folderName` 和 `itemIds`。`pendingConfirm` 仅统计判定成功待确认的项；`failedCount` 统计失败项并在步骤 2 集中处理。任务读改写必须走 `mutateTask` 串行化。
+- **分类响应**：视觉响应严格为 `{ title, folderPaths, lowQuality }`；`folderPaths` 必须是分类标准中的 0～3 个不重复路径，按推荐程度排序，空数组是合法成功结果。
+- **确认写库**：提交的 `folderPath` 必须属于该图候选项且对应文件夹当前仍存在；可选标题清理非法字符并截断至 120 字符；重名时追加 ` (1)`～` (99)`，原文件与缩略图随之重命名。
+- **重新执行**：单图 retry 重置为 `pending` 并回退相应计数，执行器继续派发，步骤 3 不跳出。
 
 ## 样式约定
 

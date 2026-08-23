@@ -40,7 +40,6 @@ export function Toolbar() {
     setShowFileSize,
     showFolderDescription,
     setShowFolderDescription,
-    currentFolderId,
   } = useEagleStore()
   const { isMobile } = usePlatform()
   const visionApiKey = useEagleVisionConfig((s) => s.visionApiKey)
@@ -49,14 +48,16 @@ export function Toolbar() {
   const [folderDrawerOpen, setFolderDrawerOpen] = useState(false)
   const [organizeOpen, setOrganizeOpen] = useState(false)
 
-  // 徽标：队列未完成时显示剩余任务数；全部执行完有待确认时显示小红点
+  // 徽标：队列未完成时显示剩余任务数；有待确认时显示小红点
   const organizePhase = organizeStatus?.phase
   const badgeCount =
     organizeStatus &&
     (organizePhase === 'running' || organizePhase === 'paused')
       ? organizeStatus.remaining
       : 0
-  const badgeDot = organizePhase === 'confirming'
+  const badgeDot =
+    organizePhase === 'confirming' ||
+    ((organizeStatus?.pendingConfirm ?? 0) > 0 && badgeCount === 0)
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -165,17 +166,15 @@ export function Toolbar() {
         </Button>
       </Space>
 
-      {currentFolderId && (
-        <Badge count={badgeCount} size="small" dot={badgeDot}>
-          <Button
-            type="primary"
-            icon={<AppstoreOutlined />}
-            onClick={handleOpenOrganize}
-          >
-            图片整理
-          </Button>
-        </Badge>
-      )}
+      <Badge count={badgeCount} size="small" dot={badgeDot}>
+        <Button
+          type="primary"
+          icon={<AppstoreOutlined />}
+          onClick={handleOpenOrganize}
+        >
+          图片整理
+        </Button>
+      </Badge>
 
       <Drawer
         title="文件夹"

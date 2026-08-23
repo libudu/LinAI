@@ -31,11 +31,15 @@ export interface OrganizeTaskRecord {
   concurrency: number
   createdAt: number
   standards: OrganizeFolderStandard[]
+  /** 锁定的文件夹 ID（空或 undefined 为全部） */
+  folderId?: string
+  /** 锁定的文件夹展示名称 */
+  folderName?: string
   /** 处理队列：按创建时排序的图片 id */
   itemIds: string[]
   /** 已执行完成（success / failed / skipped / confirmed）的数量 */
   executed: number
-  /** 待确认数量（success + failed） */
+  /** 待确认数量（仅 success 且未确认/未跳过） */
   pendingConfirm: number
   /** 判定成功数量（执行器维护，旧任务文档可能缺失，读取时兜底为 0） */
   successCount: number
@@ -61,9 +65,11 @@ export class OrganizeRepository {
     const doc = await this.taskStore.get()
     const task = doc.value
     if (!task) return null
-    // 阶段一遗留的任务文档没有 successCount / failedCount / concurrency
+    // 旧任务文档字段兜底
     return {
       ...task,
+      folderId: task.folderId,
+      folderName: task.folderName ?? '全部',
       successCount: task.successCount ?? 0,
       failedCount: task.failedCount ?? 0,
       concurrency: task.concurrency ?? ORGANIZE_CONCURRENCY_DEFAULT,

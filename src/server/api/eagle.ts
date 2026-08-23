@@ -272,6 +272,46 @@ eagleApi.post(
   },
 )
 
+// 追加图片：向当前锁定文件夹的任务追加图片到队尾
+eagleApi.post(
+  '/organize/task/append',
+  zValidator(
+    'json',
+    z.object({
+      count: z.number().int().min(1),
+    }),
+  ),
+  async (c) => {
+    const body = c.req.valid('json')
+    const result = await organizeService.appendItems(body.count)
+    if (!result.ok) {
+      return c.json(
+        { success: false as const, error: result.error },
+        result.status,
+      )
+    }
+    return c.json({ success: true as const, data: null })
+  },
+)
+
+// 获取失败条目列表（步骤 2 专用）
+eagleApi.get('/organize/failed-items', async (c) => {
+  const data = await organizeService.listFailedItems()
+  return c.json({ success: true as const, data })
+})
+
+// 批量跳过所有失败项
+eagleApi.post('/organize/task/skip-failed', async (c) => {
+  const result = await organizeService.skipFailedItems()
+  if (!result.ok) {
+    return c.json(
+      { success: false as const, error: result.error },
+      result.status,
+    )
+  }
+  return c.json({ success: true as const, data: null })
+})
+
 // 用户暂停：停止派发新请求，正在发送的请求不受影响
 eagleApi.post('/organize/task/pause', async (c) => {
   const ok = await organizeService.pauseTask()

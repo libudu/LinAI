@@ -59,6 +59,33 @@ export const createOrganizeTask = async (
   })
 }
 
+// 向当前锁定任务追加未入队的图片到队尾
+export const appendOrganizeTask = async (params: {
+  count: number
+}): Promise<void> => {
+  await apiRequest<null>('/api/eagle/organize/task/append', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  })
+}
+
+// 获取失败条目列表
+export const fetchFailedOrganizeItems = async (): Promise<
+  import('@/shared/eagle/organize').OrganizeFailedItem[]
+> => {
+  const json = await apiRequest<
+    import('@/shared/eagle/organize').OrganizeFailedItem[]
+  >('/api/eagle/organize/failed-items')
+  return json.data
+}
+
+// 批量跳过所有失败项
+export const skipFailedOrganizeItems = async (): Promise<void> => {
+  await apiRequest<null>('/api/eagle/organize/task/skip-failed', {
+    method: 'POST',
+  })
+}
+
 export const pauseOrganizeTask = async (): Promise<void> => {
   await apiRequest<null>('/api/eagle/organize/task/pause', {
     method: 'POST',
