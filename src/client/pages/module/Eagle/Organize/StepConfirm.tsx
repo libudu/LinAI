@@ -30,6 +30,8 @@ export function StepConfirm({
   const [actionLoading, setActionLoading] = useState(false)
   const resultsRef = useRef<OrganizeResultListItem[]>([])
   const confirmingIdsRef = useRef(new Set<string>())
+  const preloadedIdsRef = useRef(new Set<string>())
+  const preloadImagesRef = useRef<HTMLImageElement[]>([])
   const [titleDisabledIds, setTitleDisabledIds] = useState<Set<string>>(
     () => new Set(),
   )
@@ -72,6 +74,26 @@ export function StepConfirm({
       cancelled = true
     }
   }, [refreshResults])
+
+  // 预加载接下来两张原图（已加载过的自动跳过，避免重复发起请求）
+  useEffect(() => {
+    if (!selectedId || results.length === 0) return
+    preloadedIdsRef.current.add(selectedId)
+    const currentIndex = results.findIndex((item) => item.itemId === selectedId)
+    if (currentIndex === -1) return
+    const nextItems = results.slice(currentIndex + 1, currentIndex + 3)
+    nextItems.forEach((item) => {
+      if (!preloadedIdsRef.current.has(item.itemId)) {
+        preloadedIdsRef.current.add(item.itemId)
+        const img = new window.Image()
+        img.src = eagleFileUrl(item.itemId)
+        preloadImagesRef.current.push(img)
+        if (preloadImagesRef.current.length > 20) {
+          preloadImagesRef.current.shift()
+        }
+      }
+    })
+  }, [selectedId, results])
 
   // 选中项变化时拉取详情
   useEffect(() => {
@@ -253,7 +275,7 @@ export function StepConfirm({
             key={result.itemId}
             type="button"
             onClick={() => setSelectedId(result.itemId)}
-            className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-md border-2 transition-colors ${
+            className={`relative h-24 w-24 shrink-0 overflow-hidden rounded-md border-2 transition-colors ${
               result.itemId === selectedId
                 ? 'border-blue-500'
                 : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600'
@@ -269,15 +291,15 @@ export function StepConfirm({
       </div>
 
       {/* 中部：左大图 + 右信息面板 */}
-      <div className="grid min-h-0 flex-1 grid-cols-2 gap-3">
+      <div className="grid min-h-0 flex-1 grid-cols-[6fr_4fr] gap-3">
         <div className="flex h-full items-center justify-center overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800/60">
           {selectedId && (
             <Image
               key={selectedId}
-              src={eagleThumbnailUrl(selectedId)}
+              src={eagleFileUrl(selectedId)}
               classNames={{
                 root: 'h-full w-full flex items-center justify-center',
-                image: 'max-h-full max-w-full object-contain!',
+                image: 'h-full! w-full! object-contain!',
               }}
               preview={{ src: eagleFileUrl(selectedId) }}
             />

@@ -1,3 +1,4 @@
+import { usePlatform } from '@/client/hooks/usePlatform'
 import type { OrganizeTaskView } from '@/shared/eagle/organize'
 import { Modal, Spin, Tooltip } from 'antd'
 import { useEffect, useRef, useState } from 'react'
@@ -9,7 +10,7 @@ import { StepRunning } from './StepRunning'
 import { fetchOrganizeTask } from './api'
 import { useOrganizeStatus } from './store'
 
-// 图片整理弹窗：左侧导航卡片栏 + 右侧主操作区
+// 图片整理弹窗：左侧/顶部导航卡片栏 + 主操作区
 // 支持在当前锁定文件夹下非互斥自由切换与随时追加图片
 export function OrganizeModal({
   open,
@@ -18,6 +19,7 @@ export function OrganizeModal({
   open: boolean
   onClose: () => void
 }) {
+  const { isMobile } = usePlatform()
   const { status, loaded } = useOrganizeStatus()
   const [currentStep, setCurrentStep] = useState<OrganizeStepKey>('classify')
   const [task, setTask] = useState<OrganizeTaskView | null>(null)
@@ -89,12 +91,13 @@ export function OrganizeModal({
       open={open}
       onCancel={onClose}
       footer={null}
-      width={880}
+      width={isMobile ? '100%' : 880}
       centered
       destroyOnHidden
       styles={{
         body: {
-          height: 620,
+          height: isMobile ? 'calc(100dvh - 100px)' : 620,
+          maxHeight: isMobile ? '90vh' : undefined,
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
@@ -106,7 +109,7 @@ export function OrganizeModal({
           <Spin />
         </div>
       ) : (
-        <div className="flex h-full gap-4 pt-1">
+        <div className="flex h-full flex-col gap-3 pt-1 md:flex-row md:gap-4">
           <StepNavBar
             currentStep={currentStep}
             onChange={setCurrentStep}

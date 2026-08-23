@@ -176,13 +176,6 @@ export function StepRunning({
 
   return (
     <div className="flex h-full flex-col gap-3">
-      {/* 仅当暂停时顶部红色小字显示暂停理由 */}
-      {phase === 'paused' && status?.pausedReason && (
-        <div className="text-xs text-red-500">
-          {PAUSED_REASON_TEXT[status.pausedReason] ?? PAUSED_REASON_TEXT.user}
-        </div>
-      )}
-
       {/* Tabs: 失败待处理 & 队列预览 */}
       <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-slate-200 p-2 dark:border-slate-700">
         <Tabs
@@ -336,14 +329,26 @@ export function StepRunning({
 
       {/* 底部操作与引导 */}
       <div className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-200 pt-2 dark:border-slate-700">
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Button danger onClick={handleClear}>
             清空任务
           </Button>
           <Button loading={actionLoading} onClick={handleToggle}>
             {phase === 'running' ? '暂停' : '继续'}
           </Button>
+          {/* 仅当暂停时顶部红色小字显示暂停理由 */}
+          {phase === 'paused' && status?.pausedReason && (
+            <div className="flex items-center text-xs text-red-500">
+              {PAUSED_REASON_TEXT[status.pausedReason] ??
+                PAUSED_REASON_TEXT.user}
+            </div>
+          )}
         </div>
+        {onSwitchToConfirm && pendingConfirm > 0 && (
+          <Button type="primary" onClick={onSwitchToConfirm}>
+            去确认结果 ({pendingConfirm})
+          </Button>
+        )}
       </div>
     </div>
   )

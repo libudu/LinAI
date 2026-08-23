@@ -52,7 +52,7 @@ const mimeOf = (ext: string) =>
 
 /** 库内条目内容以 lastModified 为 etag，变更后浏览器缓存自动失效 */
 const itemCacheHeaders = (etag: number) => ({
-  'Cache-Control': 'private, max-age=0, must-revalidate',
+  'Cache-Control': 'private, max-age=86400',
   ETag: `"${etag}"`,
 })
 
@@ -167,6 +167,7 @@ eagleApi.get('/items/:id/file', async (c) => {
   const entry = await getItemEntry(id)
   if (!entry)
     return c.json({ success: false as const, error: '条目不存在' }, 404)
+  if (notModified(c, entry.lastModified)) return c.body(null, 304)
   const filePath = await getItemFilePath(id)
   if (!filePath || !(await fs.pathExists(filePath))) {
     return c.json({ success: false as const, error: '文件不存在' }, 404)

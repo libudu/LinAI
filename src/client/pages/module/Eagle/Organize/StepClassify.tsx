@@ -252,9 +252,7 @@ export function StepClassify({
                   setCount(nextCount)
                 }}
               />
-              <span className="text-xs text-slate-400">
-                / 剩余 {availableCount} 张未入队可处理图片
-              </span>
+              <span className="text-xs text-slate-400">/ {availableCount}</span>
             </div>
           )}
         </div>
@@ -276,9 +274,7 @@ export function StepClassify({
                 saveOptions({ count: nextCount })
               }}
             />
-            <span className="text-xs text-slate-400">
-              / 共 {imageCount} 张可处理图片
-            </span>
+            <span className="text-xs text-slate-400">/ {imageCount}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm">并发数</span>
