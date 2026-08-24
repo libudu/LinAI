@@ -1,3 +1,4 @@
+import { useLongPressContextMenu } from '@/client/hooks/useLongPressContextMenu'
 import { usePlatform } from '@/client/hooks/usePlatform'
 import {
   EAGLE_UNCLASSIFIED_FOLDER_ID,
@@ -35,6 +36,91 @@ const formatFileSize = (bytes: number) => {
   if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)}MB`
   if (bytes >= 1024) return `${Math.round(bytes / 1024)}KB`
   return `${bytes}B`
+}
+
+interface ResourceGridItemProps {
+  item: EagleItem
+  showFileName: boolean
+  showFileSize: boolean
+  onClick: (item: EagleItem) => void
+  onMove: (item: EagleItem) => void
+  onDelete: (item: EagleItem) => void
+}
+
+// 单个资源卡片：支持鼠标右键 / 移动端长按弹出操作菜单
+function ResourceGridItem({
+  item,
+  showFileName,
+  showFileSize,
+  onClick,
+  onMove,
+  onDelete,
+}: ResourceGridItemProps) {
+  const longPressHandlers = useLongPressContextMenu()
+
+  return (
+    <Dropdown
+      trigger={['contextMenu']}
+      menu={{
+        items: [
+          {
+            key: 'move',
+            icon: <FolderOutlined />,
+            label: '修改文件夹',
+          },
+          {
+            key: 'delete',
+            icon: <DeleteOutlined />,
+            label: '移到回收站',
+            danger: true,
+          },
+        ],
+        onClick: ({ key, domEvent }) => {
+          domEvent.stopPropagation()
+          if (key === 'move') {
+            onMove(item)
+          } else if (key === 'delete') {
+            onDelete(item)
+          }
+        },
+      }}
+      popupRender={(node) => (
+        <div onClick={(e) => e.stopPropagation()}>{node}</div>
+      )}
+    >
+      <div
+        className="group relative aspect-square cursor-pointer overflow-hidden rounded-lg border-2 border-transparent bg-slate-100 transition-all select-none hover:border-blue-500 dark:bg-slate-800"
+        style={{ WebkitTouchCallout: 'none' }}
+        onClick={() => onClick(item)}
+        title={item.name}
+        {...longPressHandlers}
+      >
+        <img
+          src={eagleThumbnailUrl(item.id)}
+          alt={item.name}
+          className="pointer-events-none h-full w-full object-cover"
+          loading="lazy"
+        />
+        {(showFileName || showFileSize) && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/55 px-1 py-0.5 text-center text-[11px] leading-4 text-white">
+            {showFileName && (
+              <div className="truncate">
+                {item.name}.{item.ext}
+              </div>
+            )}
+            {showFileSize && (
+              <div className="truncate">{formatFileSize(item.size)}</div>
+            )}
+          </div>
+        )}
+        {item.isVideo && (
+          <div className="pointer-events-none absolute right-1 bottom-1 rounded bg-black/60 px-1.5 py-0.5 text-white">
+            <PlayCircleOutlined />
+          </div>
+        )}
+      </div>
+    </Dropdown>
+  )
 }
 
 // 右侧资源网格：固定大小格子 + object-cover 缩略图，底部分页翻页
@@ -127,68 +213,15 @@ export function ResourceGrid() {
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4">
           <div className={`grid gap-2 ${GRID_COLS[imageSize]}`}>
             {items.map((item) => (
-              <Dropdown
+              <ResourceGridItem
                 key={item.id}
-                trigger={['contextMenu']}
-                menu={{
-                  items: [
-                    {
-                      key: 'move',
-                      icon: <FolderOutlined />,
-                      label: '修改文件夹',
-                    },
-                    {
-                      key: 'delete',
-                      icon: <DeleteOutlined />,
-                      label: '移到回收站',
-                      danger: true,
-                    },
-                  ],
-                  onClick: ({ key, domEvent }) => {
-                    domEvent.stopPropagation()
-                    if (key === 'move') {
-                      setMovingItem(item)
-                    } else if (key === 'delete') {
-                      handleDeleteItem(item)
-                    }
-                  },
-                }}
-                popupRender={(node) => (
-                  <div onClick={(e) => e.stopPropagation()}>{node}</div>
-                )}
-              >
-                <div
-                  className="group relative aspect-square cursor-pointer overflow-hidden rounded-lg border-2 border-transparent bg-slate-100 transition-all hover:border-blue-500 dark:bg-slate-800"
-                  onClick={() => handleClick(item)}
-                  title={item.name}
-                >
-                  <img
-                    src={eagleThumbnailUrl(item.id)}
-                    alt={item.name}
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                  />
-                  {(showFileName || showFileSize) && (
-                    <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/55 px-1 py-0.5 text-center text-[11px] leading-4 text-white">
-                      {showFileName && (
-                        <div className="truncate">
-                          {item.name}.{item.ext}
-                        </div>
-                      )}
-                      {showFileSize && (
-                        <div className="truncate">
-                          {formatFileSize(item.size)}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {item.isVideo && (
-                    <div className="absolute right-1 bottom-1 rounded bg-black/60 px-1.5 py-0.5 text-white">
-                      <PlayCircleOutlined />
-                    </div>
-                  )}
-                </div>
-              </Dropdown>
+                item={item}
+                showFileName={showFileName}
+                showFileSize={showFileSize}
+                onClick={handleClick}
+                onMove={(targetItem) => setMovingItem(targetItem)}
+                onDelete={handleDeleteItem}
+              />
             ))}
           </div>
         </div>

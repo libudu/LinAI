@@ -1,10 +1,11 @@
+import { useLongPressContextMenu } from '@/client/hooks/useLongPressContextMenu'
 import type { EagleFolder } from '@/shared/eagle/types'
 import { Dropdown } from 'antd'
 import type { ReactNode } from 'react'
 
-// 右键菜单：挂在节点标题上，trigger 为 contextMenu 时 antd 会在鼠标位置弹出，
-// 并在点击菜单外区域或滚动时自动关闭，无需外部维护开关状态；
-// 触发 span 设为 block 配合 FolderTree.scss 铺满整行标题区，右侧空白也能右键
+// 右键/长按菜单：挂在节点标题上，trigger 为 contextMenu 时 antd 会在鼠标位置弹出，
+// 支持移动端长按触发，并在点击菜单外区域或滚动时自动关闭，无需外部维护开关状态；
+// 触发 span 设为 block 配合 FolderTree.scss 铺满整行标题区，右侧空白也能右键/长按
 export function FolderContextMenu({
   folder,
   onEdit,
@@ -14,6 +15,8 @@ export function FolderContextMenu({
   onEdit: (folder: EagleFolder) => void
   children: ReactNode
 }) {
+  const longPressHandlers = useLongPressContextMenu()
+
   return (
     <Dropdown
       trigger={['contextMenu']}
@@ -28,7 +31,13 @@ export function FolderContextMenu({
         <div onClick={(e) => e.stopPropagation()}>{node}</div>
       )}
     >
-      <span className="block">{children}</span>
+      <span
+        className="block select-none"
+        style={{ WebkitTouchCallout: 'none' }}
+        {...longPressHandlers}
+      >
+        {children}
+      </span>
     </Dropdown>
   )
 }
