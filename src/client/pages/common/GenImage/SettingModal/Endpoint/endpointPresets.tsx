@@ -72,6 +72,29 @@ const PRESET_REMARKS: Record<string, ReactNode> = {
       </div>
     </div>
   ),
+  '【已废弃】云雾 gpt-image-2-c': (
+    <div>
+      <div>
+        官网：
+        <a href="https://api.oljjio.xyz" target="_blank">
+          https://api.oljjio.xyz/
+        </a>
+      </div>
+      <div>无论1k、2k、4k，均固定计费 0.075r 一张</div>
+      <div>需要 GPT绘图 分组</div>
+    </div>
+  ),
+  '【已废弃】云雾 gpt-image-2': (
+    <div>
+      <div>
+        官网：
+        <a href="https://api.oljjio.xyz" target="_blank">
+          https://api.oljjio.xyz/
+        </a>
+      </div>
+      <div>截止 26-08-01 以前，除了8倍优质官转分组外其他均不可用</div>
+    </div>
+  ),
 }
 
 export const ENDPOINT_PRESETS: EndpointPreset[] = ENDPOINT_PRESET_INFOS.map(

@@ -52,6 +52,18 @@ export const ENDPOINT_PRESET_INFOS: EndpointPresetInfo[] = [
     modelId: 'qwen-image-3-edit',
     currency: '$',
   },
+  {
+    label: '【已废弃】云雾 gpt-image-2-c',
+    baseUrl: 'https://api.oljjio.xyz/v1',
+    modelId: 'gpt-image-2-c',
+    creditRatio: 2,
+  },
+  {
+    label: '【已废弃】云雾 gpt-image-2',
+    baseUrl: 'https://api.oljjio.xyz/v1',
+    modelId: 'gpt-image-2',
+    creditRatio: 2,
+  },
 ]
 
 /** 接入点与密钥设置的最小形状（GptImageSettings 与子集均满足） */
@@ -77,7 +89,11 @@ export const resolveGptImageApiKey = (
       p.modelId === settings.gptImageModelId,
   )
   if (preset) {
-    const key = settings.gptImagePresetApiKeys[preset.label]
+    const key =
+      settings.gptImagePresetApiKeys[preset.label] ||
+      (preset.label.startsWith('【已废弃】')
+        ? settings.gptImagePresetApiKeys[preset.label.replace('【已废弃】', '')]
+        : undefined)
     if (key) return key
   }
   const custom = settings.gptImageCustomEndpoints.find(

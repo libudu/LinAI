@@ -58,7 +58,14 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
     if (matchedPreset) {
       form.setFieldsValue({
         apiKey:
-          gptImagePresetApiKeys[matchedPreset.label] ?? gptImageApiKey ?? '',
+          gptImagePresetApiKeys[matchedPreset.label] ??
+          (matchedPreset.label.startsWith('【已废弃】')
+            ? gptImagePresetApiKeys[
+                matchedPreset.label.replace('【已废弃】', '')
+              ]
+            : undefined) ??
+          gptImageApiKey ??
+          '',
         endpoint: presetValue(matchedPreset.label),
         title: '',
         baseUrl: matchedPreset.baseUrl,
@@ -109,7 +116,12 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
         title: '',
         baseUrl: preset.baseUrl,
         modelId: preset.modelId,
-        apiKey: gptImagePresetApiKeys[preset.label] ?? '',
+        apiKey:
+          gptImagePresetApiKeys[preset.label] ??
+          (preset.label.startsWith('【已废弃】')
+            ? gptImagePresetApiKeys[preset.label.replace('【已废弃】', '')]
+            : undefined) ??
+          '',
       })
       return
     }

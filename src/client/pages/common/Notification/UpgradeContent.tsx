@@ -3,6 +3,11 @@ import copy from 'copy-to-clipboard'
 import { MessageList } from './MessageList'
 
 const upgradeHistory = [
+  `LinAI v2.0.1 更新内容 🐱：
+🦅 新增 Eagle 图片管理模块，支持素材库浏览与基于 AI 视觉模型的智能整理分类
+🖌️ 输入图片新增自由涂抹与画面裁剪功能，生图前置调整更灵活
+🔌 迁移云雾接入点为 openlux 接入点
+🔧 重构底层文件系统，避免了数据太大时写入冲突的问题`,
   `LinAI v2.0.0 更新内容 🐱：
 🧭 导航重构为响应式侧边栏布局，支持折叠收起
 🎨 新增全局明暗主题与自定义主题色，logo 随主题色动态适配
