@@ -91,7 +91,7 @@ export function OrganizeModal({
       open={open}
       onCancel={onClose}
       footer={null}
-      width={isMobile ? '100%' : 880}
+      width={isMobile ? '100%' : 1200}
       centered
       destroyOnHidden
       styles={{

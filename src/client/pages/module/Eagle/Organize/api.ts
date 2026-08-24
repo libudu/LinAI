@@ -157,10 +157,11 @@ export const confirmOrganizeResult = async (
   itemId: string,
   folderPath: string,
   withTitle: boolean,
+  folderId?: string,
 ): Promise<void> => {
   await apiRequest<null>(`/api/eagle/organize/results/${itemId}/confirm`, {
     method: 'POST',
-    body: JSON.stringify({ folderPath, withTitle }),
+    body: JSON.stringify({ folderPath, withTitle, folderId }),
   })
 }
 

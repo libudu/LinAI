@@ -128,9 +128,10 @@ class OrganizeService {
     itemId: string,
     folderPath: string,
     withTitle: boolean,
+    folderId?: string,
   ): Promise<OrganizeActionResult> {
     await this.ready
-    return resultService.confirmItem(itemId, folderPath, withTitle)
+    return resultService.confirmItem(itemId, folderPath, withTitle, folderId)
   }
 
   async clearItemClassification(itemId: string): Promise<OrganizeActionResult> {

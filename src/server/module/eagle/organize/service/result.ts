@@ -3,7 +3,9 @@ import type {
   OrganizeResultDetail,
   OrganizeResultListItem,
 } from '@/shared/eagle/organize'
+import { EAGLE_UNCLASSIFIED_FOLDER_ID } from '@/shared/eagle/types'
 import {
+  findFolderIdByPath,
   folderExists,
   getFolderPaths,
   getItemEntry,
@@ -44,46 +46,55 @@ export class ResultService {
 
   /**
    * 确认结果：写 Eagle 库（移入目标文件夹，withTitle 决定是否同时改标题），状态 → confirmed。
-   * 仅判定成功且至少有一个候选文件夹的结果可确认
+   * 支持 AI 推荐候选项与用户手动选择的分类文件夹。
    */
   async confirmItem(
     itemId: string,
     folderPath: string,
     withTitle: boolean,
+    folderId?: string,
   ): Promise<OrganizeActionResult> {
     const record = await organizeRepository.getItem(itemId)
     if (!record) return { ok: false, status: 404, error: '结果不存在' }
     if (record.status !== 'success') {
       return { ok: false, status: 409, error: '仅判定成功的结果可以确认' }
     }
-    const candidates =
-      record.folderPaths ?? (record.folderPath ? [record.folderPath] : [])
-    if (!candidates.includes(folderPath)) {
-      return {
-        ok: false,
-        status: 409,
-        error: '所选文件夹不在该图片的候选分类中',
-      }
-    }
+
+    let targetFolderId: string | null = null
     const task = await organizeRepository.getTask()
     const standard = task?.standards.find((s) => s.folderPath === folderPath)
-    if (!standard) {
-      return {
-        ok: false,
-        status: 409,
-        error: '结果的分类文件夹已不在标准中，请重新执行后再确认',
+
+    if (standard) {
+      targetFolderId = standard.folderId
+    } else if (folderId) {
+      targetFolderId = folderId
+    } else if (
+      folderPath === '未分类' ||
+      folderPath === EAGLE_UNCLASSIFIED_FOLDER_ID
+    ) {
+      targetFolderId = EAGLE_UNCLASSIFIED_FOLDER_ID
+    } else {
+      targetFolderId = await findFolderIdByPath(folderPath)
+    }
+
+    const isUnclassified =
+      targetFolderId === EAGLE_UNCLASSIFIED_FOLDER_ID ||
+      folderPath === '未分类' ||
+      folderPath === EAGLE_UNCLASSIFIED_FOLDER_ID
+
+    if (!isUnclassified) {
+      if (!targetFolderId || !(await folderExists(targetFolderId))) {
+        return {
+          ok: false,
+          status: 409,
+          error: '目标文件夹已不存在（可能已被删除），请重新选择后再确认',
+        }
       }
     }
-    // 标准是任务创建时的快照，长任务期间文件夹可能已被删除，写库前按当前库校验
-    if (!(await folderExists(standard.folderId))) {
-      return {
-        ok: false,
-        status: 409,
-        error: '目标文件夹已不存在（可能已被删除），请重新执行该图片后再确认',
-      }
-    }
+
+    const folderIds = isUnclassified ? [] : [targetFolderId!]
     const updated = await updateItem(itemId, {
-      folderIds: [standard.folderId],
+      folderIds,
       name: withTitle ? record.title : undefined,
     })
     if (!updated) return { ok: false, status: 404, error: 'Eagle 条目不存在' }

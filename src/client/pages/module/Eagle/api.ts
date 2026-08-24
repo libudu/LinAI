@@ -51,6 +51,25 @@ export const updateEagleFolder = async (
   })
 }
 
+// 编辑条目（修改所属文件夹 / 标题）
+export const updateEagleItem = async (
+  id: string,
+  patch: { folderIds?: string[]; name?: string },
+): Promise<void> => {
+  await apiRequest<null>(`/api/eagle/items/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+}
+
+// 移入 Eagle 回收站（软删除）
+export const deleteEagleItem = async (id: string): Promise<void> => {
+  await apiRequest<null>(`/api/eagle/items/${id}`, {
+    method: 'DELETE',
+  })
+}
+
 export const eagleThumbnailUrl = (id: string) =>
   `/api/eagle/items/${id}/thumbnail`
 

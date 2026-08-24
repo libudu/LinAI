@@ -14,6 +14,7 @@ import sharp from 'sharp'
 import { z } from 'zod'
 import { dataPath } from '../common/storage/data-path'
 import {
+  deleteItem,
   getFolderTree,
   getItemEntry,
   getItemFilePath,
@@ -22,6 +23,7 @@ import {
   isVideoExt,
   refreshIndex,
   updateFolder,
+  updateItem,
 } from '../module/eagle/library'
 import { organizeService } from '../module/eagle/organize/service'
 
@@ -110,6 +112,37 @@ eagleApi.put(
     return c.json({ success: true as const, data: null })
   },
 )
+
+// 编辑条目（修改所属文件夹 / 标题等）
+eagleApi.put(
+  '/items/:id',
+  zValidator(
+    'json',
+    z.object({
+      folderIds: z.array(z.string()).optional(),
+      name: z.string().min(1).optional(),
+    }),
+  ),
+  async (c) => {
+    const id = c.req.param('id')
+    const body = c.req.valid('json')
+    const ok = await updateItem(id, body)
+    if (!ok) {
+      return c.json({ success: false as const, error: '条目不存在' }, 404)
+    }
+    return c.json({ success: true as const, data: null })
+  },
+)
+
+// 移入 Eagle 回收站（软删除）
+eagleApi.delete('/items/:id', async (c) => {
+  const id = c.req.param('id')
+  const ok = await deleteItem(id)
+  if (!ok) {
+    return c.json({ success: false as const, error: '条目不存在' }, 404)
+  }
+  return c.json({ success: true as const, data: null })
+})
 
 // 缩略图：优先库内 _thumbnail.png，缺失时图片用 sharp 生成缓存，视频回退占位 SVG
 eagleApi.get('/items/:id/thumbnail', async (c) => {
@@ -409,7 +442,11 @@ eagleApi.post(
   '/organize/results/:itemId/confirm',
   zValidator(
     'json',
-    z.object({ folderPath: z.string().min(1), withTitle: z.boolean() }),
+    z.object({
+      folderPath: z.string().min(1),
+      folderId: z.string().optional(),
+      withTitle: z.boolean(),
+    }),
   ),
   async (c) => {
     const body = c.req.valid('json')
@@ -417,6 +454,7 @@ eagleApi.post(
       c.req.param('itemId'),
       body.folderPath,
       body.withTitle,
+      body.folderId,
     )
     if (!result.ok) {
       return c.json(

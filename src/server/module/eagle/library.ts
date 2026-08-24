@@ -565,6 +565,72 @@ export const updateItem = async (
   return true
 }
 
+/**
+ * 移入 Eagle 回收站：软删除条目（设置 isDeleted: true，同步 mtime.json，从内存索引移除）。
+ * 不物理删除磁盘原文件与目录，与 Eagle 官方回收站逻辑保持一致。
+ */
+export const deleteItem = async (id: string): Promise<boolean> => {
+  if (!ITEM_ID_PATTERN.test(id)) return false
+  const index = await ensureIndex()
+  if (!index) return false
+  const meta = await readItemMeta(index.libraryPath, id)
+  if (!meta) return false
+
+  const lastModified = Date.now()
+  const nextMeta: EagleRawItemMeta = {
+    ...meta,
+    isDeleted: true,
+    lastModified,
+  }
+  const infoDir = path.join(imagesDir(index.libraryPath), `${id}.info`)
+  const metaPath = path.join(infoDir, 'metadata.json')
+  const metaTmp = `${metaPath}.tmp`
+  await fs.writeJson(metaTmp, nextMeta)
+  await fs.move(metaTmp, metaPath, { overwrite: true })
+
+  // 同步库根 mtime.json
+  const mtimePath = path.join(index.libraryPath, 'mtime.json')
+  if (await fs.pathExists(mtimePath)) {
+    let mtimeMap: Record<string, number> = {}
+    try {
+      mtimeMap = await fs.readJson(mtimePath)
+    } catch {}
+    mtimeMap[id] = lastModified
+    const mtimeTmp = `${mtimePath}.tmp`
+    await fs.writeJson(mtimeTmp, mtimeMap)
+    await fs.move(mtimeTmp, mtimePath, { overwrite: true })
+  }
+
+  // 从内存索引中删除
+  index.items.delete(id)
+  await persistCache()
+  changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
+  return true
+}
+
+/** 按文件夹完整路径（如 "分类A/子分类B"）查找对应文件夹 ID，不存在返回 null */
+export const findFolderIdByPath = async (
+  folderPath: string,
+): Promise<string | null> => {
+  const index = await ensureIndex()
+  if (!index) return null
+  let foundId: string | null = null
+  const walk = (folders: EagleRawFolder[], parentPath: string) => {
+    for (const folder of folders) {
+      const currentPath = parentPath
+        ? `${parentPath}/${folder.name}`
+        : folder.name
+      if (currentPath === folderPath) {
+        foundId = folder.id
+        return
+      }
+      walk(folder.children ?? [], currentPath)
+    }
+  }
+  walk(index.folders, '')
+  return foundId
+}
+
 export const getFolderTree = async (): Promise<EagleFolder[]> => {
   const index = await ensureIndex()
   if (!index) return []

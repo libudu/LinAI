@@ -51,6 +51,28 @@ settingsRegistry.register<EagleFolderTreeSettings>('eagle-folder-tree', {
   schema: eagleFolderTreeSchema,
 })
 
+// Eagle 手动选择文件夹记录：前端在整理步骤手动选择文件夹的记录与计数，data/eagle/manual-folders.json
+export const eagleManualFolderItemSchema = z.object({
+  folderId: z.string(),
+  folderPath: z.string(),
+  count: z.number().int().nonnegative(),
+})
+
+export const eagleManualFoldersSchema = z.object({
+  folders: z.array(eagleManualFolderItemSchema),
+})
+
+export type EagleManualFolderItem = z.infer<typeof eagleManualFolderItemSchema>
+export type EagleManualFoldersSettings = z.infer<
+  typeof eagleManualFoldersSchema
+>
+
+settingsRegistry.register<EagleManualFoldersSettings>('eagle-manual-folders', {
+  file: dataPath('eagle', 'manual-folders.json'),
+  defaults: { folders: [] },
+  schema: eagleManualFoldersSchema,
+})
+
 // Eagle 视觉接入点设置：与图片生成的 vision 配置互相独立，落盘 data/eagle/vision.json
 export type EagleVisionSettings = VisionSettings
 

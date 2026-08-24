@@ -83,31 +83,33 @@ src/client/pages/module/Eagle/           # 本目录
 
 ## API（/api/eagle）
 
-| 方法 | 路径                                                                 | 说明                                                                                                                                             |
-| ---- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| GET  | `/folders`                                                           | 文件夹树，`count` 直接包含数 / `totalCount` 含子孙累计                                                                                           |
-| PUT  | `/folders/:id`                                                       | 编辑文件夹名称/描述（body `{ name, description }`），写回库根 metadata.json（另一个写操作是整理确认的 `updateItem`）                             |
-| GET  | `/items?folderId&sortBy&sortOrder&offset&limit`                      | 服务端排序分页；`sortBy=mtime\|size`，`limit` 上限 500；缺省 folderId = 全部，`folderId=__unclassified__` = 未归入任何文件夹                     |
-| POST | `/refresh`                                                           | 触发增量校验（库路径变化时重建索引）                                                                                                             |
-| GET  | `/items/:id/thumbnail`                                               | 优先库内 `_thumbnail.png` → 缺失时图片用 sharp 生成 200px webp 缓存到 `data/eagle/thumb/` → 视频回退占位 SVG                                     |
-| GET  | `/items/:id/file`                                                    | 原文件流式返回，支持 Range（206），视频可拖进度条                                                                                                |
-| GET  | `/organize/prepare?folderId&sortBy&sortOrder`                        | 图片整理步骤 1 数据：分类标准列表 + 当前范围内可处理图片数/已入队数/剩余可追加数（已排除 gif/视频）                                              |
-| GET  | `/organize/status`                                                   | 图片整理轻量状态（phase/remaining/pendingConfirm/failedCount/folderId/folderName/isLocked），供按钮徽标与导航卡片轮询                            |
-| GET  | `/organize/task`                                                     | 图片整理任务详情（分类标准快照 + 进度计数 + 锁定文件夹信息，不含队列明细）                                                                       |
-| POST | `/organize/task`                                                     | 创建整理任务 `{ folderId?, sortBy, sortOrder, count, compress, concurrency? }`；锁定选定文件夹；并发 1~10 默认 5；已有未完成任务 409；清空旧结果 |
-| POST | `/organize/task/append`                                              | 向当前锁定任务追加未入队的图片到队尾 `{ count }`；无缝扩充队列                                                                                   |
-| POST | `/organize/task/pause` `/organize/task/resume`                       | 用户暂停（停止派发，in-flight 不受影响）/ 恢复执行，状态不符 409                                                                                 |
-| POST | `/organize/task/retry-failed`                                        | 批量重试失败项：重置为待处理并移到队首恢复执行                                                                                                   |
-| POST | `/organize/task/skip-failed`                                         | 批量跳过所有失败项                                                                                                                               |
-| POST | `/organize/task/classify-successful`                                 | 暂停且已有成功结果时，过滤未处理与失败条目，仅用成功图片进入结果确认                                                                             |
-| POST | `/organize/task/clear`                                               | 强制停止所有请求、丢弃当前任务与结果，解锁文件夹；弹窗回到新建状态                                                                               |
-| GET  | `/organize/queue?limit=20`                                           | 执行中队列预览：仅返回执行中与待处理条目；limit 上限 50                                                                                          |
-| GET  | `/organize/failed-items`                                             | 步骤 2 失败列表：返回所有判定失败的图片及具体错误原因                                                                                            |
-| GET  | `/organize/results?status=&offset=&limit=`                           | 整理结果列表（按状态过滤，步骤 3 仅请求 status=success，按 updatedAt 倒序）                                                                      |
-| GET  | `/organize/results/:itemId`                                          | 单图结果详情（附条目当前名称 `itemName`，`status` 取值见 `src/shared/eagle/organize.ts`）                                                        |
-| POST | `/organize/results/:itemId/confirm`                                  | 确认结果 `{ folderPath, withTitle }`：校验所选路径属于该图候选项，经 `updateItem` 移入目标文件夹后状态 → confirmed                               |
-| POST | `/organize/results/:itemId/skip` / `/organize/results/:itemId/retry` | 不处理（状态 → skipped）/ 重新执行单图（状态 → pending 送回步骤 2 队列，不打断步骤 3）                                                           |
-| POST | `/organize/results/:itemId/clear-classification`                     | 清除分类后手动处理：把条目的 `folders` 替换为空数组并将结果状态置为 skipped，条目随后出现在「未分类」虚拟文件夹                                  |
+| 方法   | 路径                                                                 | 说明                                                                                                                                             |
+| ------ | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/folders`                                                           | 文件夹树，`count` 直接包含数 / `totalCount` 含子孙累计                                                                                           |
+| PUT    | `/folders/:id`                                                       | 编辑文件夹名称/描述（body `{ name, description }`），写回库根 metadata.json                                                                      |
+| GET    | `/items?folderId&sortBy&sortOrder&offset&limit`                      | 服务端排序分页；`sortBy=mtime\|size`，`limit` 上限 500；缺省 folderId = 全部，`folderId=__unclassified__` = 未归入任何文件夹                     |
+| PUT    | `/items/:id`                                                         | 编辑条目（修改所属文件夹 / 标题），写回条目 metadata.json 与 mtime.json 并同步索引                                                               |
+| DELETE | `/items/:id`                                                         | 移入 Eagle 回收站（软删除，设置 `isDeleted: true` 并同步 mtime.json 与索引，保留磁盘原文件）                                                     |
+| POST   | `/refresh`                                                           | 触发增量校验（库路径变化时重建索引）                                                                                                             |
+| GET    | `/items/:id/thumbnail`                                               | 优先库内 `_thumbnail.png` → 缺失时图片用 sharp 生成 200px webp 缓存到 `data/eagle/thumb/` → 视频回退占位 SVG                                     |
+| GET    | `/items/:id/file`                                                    | 原文件流式返回，支持 Range（206），视频可拖进度条                                                                                                |
+| GET    | `/organize/prepare?folderId&sortBy&sortOrder`                        | 图片整理步骤 1 数据：分类标准列表 + 当前范围内可处理图片数/已入队数/剩余可追加数（已排除 gif/视频）                                              |
+| GET    | `/organize/status`                                                   | 图片整理轻量状态（phase/remaining/pendingConfirm/failedCount/folderId/folderName/isLocked），供按钮徽标与导航卡片轮询                            |
+| GET    | `/organize/task`                                                     | 图片整理任务详情（分类标准快照 + 进度计数 + 锁定文件夹信息，不含队列明细）                                                                       |
+| POST   | `/organize/task`                                                     | 创建整理任务 `{ folderId?, sortBy, sortOrder, count, compress, concurrency? }`；锁定选定文件夹；并发 1~10 默认 5；已有未完成任务 409；清空旧结果 |
+| POST   | `/organize/task/append`                                              | 向当前锁定任务追加未入队的图片到队尾 `{ count }`；无缝扩充队列                                                                                   |
+| POST   | `/organize/task/pause` `/organize/task/resume`                       | 用户暂停（停止派发，in-flight 不受影响）/ 恢复执行，状态不符 409                                                                                 |
+| POST   | `/organize/task/retry-failed`                                        | 批量重试失败项：重置为待处理并移到队首恢复执行                                                                                                   |
+| POST   | `/organize/task/skip-failed`                                         | 批量跳过所有失败项                                                                                                                               |
+| POST   | `/organize/task/classify-successful`                                 | 暂停且已有成功结果时，过滤未处理与失败条目，仅用成功图片进入结果确认                                                                             |
+| POST   | `/organize/task/clear`                                               | 强制停止所有请求、丢弃当前任务与结果，解锁文件夹；弹窗回到新建状态                                                                               |
+| GET    | `/organize/queue?limit=20`                                           | 执行中队列预览：仅返回执行中与待处理条目；limit 上限 50                                                                                          |
+| GET    | `/organize/failed-items`                                             | 步骤 2 失败列表：返回所有判定失败的图片及具体错误原因                                                                                            |
+| GET    | `/organize/results?status=&offset=&limit=`                           | 整理结果列表（按状态过滤，步骤 3 仅请求 status=success，按 updatedAt 倒序）                                                                      |
+| GET    | `/organize/results/:itemId`                                          | 单图结果详情（附条目当前名称 `itemName`，`status` 取值见 `src/shared/eagle/organize.ts`）                                                        |
+| POST   | `/organize/results/:itemId/confirm`                                  | 确认结果 `{ folderPath, folderId?, withTitle }`：支持 AI 候选项或手动选择的文件夹，经 `updateItem` 移入目标文件夹后状态 → confirmed              |
+| POST   | `/organize/results/:itemId/skip` / `/organize/results/:itemId/retry` | 不处理（状态 → skipped）/ 重新执行单图（状态 → pending 送回步骤 2 队列，不打断步骤 3）                                                           |
+| POST   | `/organize/results/:itemId/clear-classification`                     | 清除分类后手动处理：把条目的 `folders` 替换为空数组并将结果状态置为 skipped，条目随后出现在「未分类」虚拟文件夹                                  |
 
 约定：
 

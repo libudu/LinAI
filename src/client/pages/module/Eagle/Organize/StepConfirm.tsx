@@ -1,10 +1,20 @@
+import { settingsClient } from '@/client/service/settings'
+import type {
+  EagleManualFolderItem,
+  EagleManualFoldersSettings,
+} from '@/server/module/eagle/settings'
 import type {
   OrganizeResultDetail,
   OrganizeResultListItem,
 } from '@/shared/eagle/organize'
-import { Button, Checkbox, Empty, Image, Radio, Spin, Tag, message } from 'antd'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { DeleteOutlined, FolderAddOutlined } from '@ant-design/icons'
+import { Button, Checkbox, Empty, Image, Radio, Spin, message } from 'antd'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { eagleFileUrl, eagleThumbnailUrl } from '../api'
+import {
+  FolderSelectModal,
+  type SelectedFolderInfo,
+} from '../components/FolderSelectModal'
 import {
   clearOrganizeResultClassification,
   confirmOrganizeResult,
@@ -13,6 +23,10 @@ import {
   retryOrganizeResult,
   skipOrganizeResult,
 } from './api'
+
+const manualFoldersClient = settingsClient<EagleManualFoldersSettings>(
+  'eagle-manual-folders',
+)
 
 // 步骤 3 结果确认：纯净查验判定成功的结果（status === 'success'）
 // 顶部缩略图条 + 左大图右信息面板 + 底部操作（A/S/D 与重新执行）
@@ -28,6 +42,11 @@ export function StepConfirm({
   const [detail, setDetail] = useState<OrganizeResultDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
+  const [manualFolders, setManualFolders] = useState<EagleManualFolderItem[]>(
+    [],
+  )
+  const [folderSelectOpen, setFolderSelectOpen] = useState(false)
+  const manualRevisionRef = useRef<number | undefined>(undefined)
   const resultsRef = useRef<OrganizeResultListItem[]>([])
   const confirmingIdsRef = useRef(new Set<string>())
   const preloadedIdsRef = useRef(new Set<string>())
@@ -35,7 +54,7 @@ export function StepConfirm({
   const [titleDisabledIds, setTitleDisabledIds] = useState<Set<string>>(
     () => new Set(),
   )
-  const [selectedFolders, setSelectedFolders] = useState<
+  const [selectedOptionKeys, setSelectedOptionKeys] = useState<
     Record<string, string>
   >({})
 
@@ -74,6 +93,85 @@ export function StepConfirm({
       cancelled = true
     }
   }, [refreshResults])
+
+  // 加载手动选择文件夹的历史记录
+  useEffect(() => {
+    let cancelled = false
+    manualFoldersClient
+      .get()
+      .then((res) => {
+        if (cancelled) return
+        manualRevisionRef.current = res.revision
+        setManualFolders(res.value.folders ?? [])
+      })
+      .catch((error) => {
+        console.error('加载手动文件夹历史失败', error)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const saveManualFolders = useCallback(
+    async (folders: EagleManualFolderItem[]) => {
+      try {
+        const res = await manualFoldersClient.put(
+          { folders },
+          manualRevisionRef.current,
+        )
+        manualRevisionRef.current = res.revision
+        setManualFolders(res.value.folders ?? [])
+      } catch (error) {
+        console.error('保存手动文件夹历史失败', error)
+      }
+    },
+    [],
+  )
+
+  const handleManualFolderSelect = useCallback(
+    (folder: SelectedFolderInfo) => {
+      const existing = manualFolders.find((f) => f.folderId === folder.id)
+      if (!existing) {
+        const next = [
+          ...manualFolders,
+          { folderId: folder.id, folderPath: folder.path, count: 0 },
+        ]
+        setManualFolders(next)
+        void saveManualFolders(next)
+      }
+      if (selectedId) {
+        setSelectedOptionKeys((current) => ({
+          ...current,
+          [selectedId]: `manual:${folder.id}`,
+        }))
+      }
+    },
+    [manualFolders, saveManualFolders, selectedId],
+  )
+
+  const handleRemoveManualFolder = useCallback(
+    (target: EagleManualFolderItem) => {
+      const next = manualFolders.filter((f) => f.folderId !== target.folderId)
+      setManualFolders(next)
+      void saveManualFolders(next)
+      if (
+        selectedId &&
+        selectedOptionKeys[selectedId] === `manual:${target.folderId}`
+      ) {
+        setSelectedOptionKeys((current) => {
+          const copy = { ...current }
+          delete copy[selectedId]
+          return copy
+        })
+      }
+    },
+    [manualFolders, saveManualFolders, selectedId, selectedOptionKeys],
+  )
+
+  const sortedManualFolders = useMemo(
+    () => [...manualFolders].sort((a, b) => b.count - a.count),
+    [manualFolders],
+  )
 
   // 预加载接下来两张原图（已加载过的自动跳过，避免重复发起请求）
   useEffect(() => {
@@ -120,9 +218,36 @@ export function StepConfirm({
   }, [selectedId])
 
   const folderPaths = detail?.folderPaths ?? []
-  const selectedFolderPath = selectedId
-    ? (selectedFolders[selectedId] ?? folderPaths[0] ?? null)
+
+  // 若手动选择的文件夹已出现在当前图片的 AI 推荐选项中，则不在下方重复展示
+  const displayedManualFolders = useMemo(() => {
+    const aiPathSet = new Set(folderPaths)
+    return sortedManualFolders.filter((m) => !aiPathSet.has(m.folderPath))
+  }, [folderPaths, sortedManualFolders])
+
+  // 当前选中项的唯一 key（例如 "ai:角色/插画" 或 "manual:folderId"）
+  const activeOptionKey = selectedId
+    ? (selectedOptionKeys[selectedId] ??
+      (folderPaths[0] ? `ai:${folderPaths[0]}` : null))
     : null
+
+  const selectedManualFolder = useMemo(() => {
+    if (!activeOptionKey?.startsWith('manual:')) return null
+    const folderId = activeOptionKey.slice('manual:'.length)
+    return manualFolders.find((f) => f.folderId === folderId) ?? null
+  }, [activeOptionKey, manualFolders])
+
+  const selectedFolderPath = useMemo(() => {
+    if (!activeOptionKey) return null
+    if (activeOptionKey.startsWith('ai:')) {
+      return activeOptionKey.slice('ai:'.length)
+    }
+    if (activeOptionKey.startsWith('manual:')) {
+      return selectedManualFolder?.folderPath ?? null
+    }
+    return null
+  }, [activeOptionKey, selectedManualFolder])
+
   const canConfirm = detail?.status === 'success' && !!selectedFolderPath
   const withTitle = selectedId ? !titleDisabledIds.has(selectedId) : true
 
@@ -170,6 +295,17 @@ export function StepConfirm({
     const isLast = remaining.length === 0
     confirmingIdsRef.current.add(itemId)
 
+    // 检查是否为手动选择的文件夹，如果是则计数 +1 并持久化
+    if (selectedManualFolder) {
+      const nextManuals = manualFolders.map((f) =>
+        f.folderId === selectedManualFolder.folderId
+          ? { ...f, count: f.count + 1 }
+          : f,
+      )
+      setManualFolders(nextManuals)
+      void saveManualFolders(nextManuals)
+    }
+
     // 非最后一张立即切换，确认请求留在后台执行，不阻塞继续处理
     if (isLast) {
       setActionLoading(true)
@@ -180,7 +316,12 @@ export function StepConfirm({
     }
 
     try {
-      await confirmOrganizeResult(itemId, selectedFolderPath, withTitle)
+      await confirmOrganizeResult(
+        itemId,
+        selectedFolderPath,
+        withTitle,
+        selectedManualFolder?.folderId,
+      )
       if (isLast) {
         const current = resultsRef.current.filter(
           (result) => result.itemId !== itemId,
@@ -208,9 +349,12 @@ export function StepConfirm({
   }, [
     actionLoading,
     canConfirm,
+    manualFolders,
     results,
+    saveManualFolders,
     selectedFolderPath,
     selectedId,
+    selectedManualFolder,
     withTitle,
   ])
 
@@ -312,69 +456,13 @@ export function StepConfirm({
             </div>
           ) : (
             <>
-              <div className="flex items-center gap-2">
-                <span className="text-slate-500 dark:text-slate-400">
-                  执行状态
-                </span>
-                <Tag color="green">判定成功</Tag>
-              </div>
+              {detail.lowQuality && (
+                <div className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-600 dark:bg-amber-500/10 dark:text-amber-400">
+                  疑似低质图片（分辨率低、画面主体不清晰、美学品味较差等）
+                </div>
+              )}
 
               <div className="flex flex-col gap-2">
-                <div>
-                  <div className="mb-1 text-xs text-slate-400">
-                    选择目标文件夹
-                  </div>
-                  {folderPaths.length > 0 ? (
-                    <Radio.Group
-                      value={selectedFolderPath}
-                      onChange={(event) => {
-                        if (!selectedId) return
-                        setSelectedFolders((current) => ({
-                          ...current,
-                          [selectedId]: event.target.value,
-                        }))
-                      }}
-                    >
-                      {folderPaths.map((folderPath) => (
-                        <div key={folderPath}>
-                          <Radio value={folderPath}>
-                            <span className="text-base font-bold break-all">
-                              {folderPath}
-                            </span>
-                          </Radio>
-                        </div>
-                      ))}
-                    </Radio.Group>
-                  ) : (
-                    <div className="text-slate-500 dark:text-slate-400">
-                      不属于任何已知分类
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <div className="text-xs text-slate-400">建议标题</div>
-                  <Checkbox
-                    className="items-start"
-                    checked={withTitle}
-                    onChange={(event) => {
-                      if (!selectedId) return
-                      setTitleDisabledIds((current) => {
-                        const next = new Set(current)
-                        if (event.target.checked) next.delete(selectedId)
-                        else next.add(selectedId)
-                        return next
-                      })
-                    }}
-                  >
-                    <span
-                      className={`break-all transition-colors ${
-                        withTitle ? '' : 'text-slate-400 dark:text-slate-500'
-                      }`}
-                    >
-                      {detail.title}
-                    </span>
-                  </Checkbox>
-                </div>
                 <div>
                   <div className="text-xs text-slate-400">原文件夹</div>
                   <div className="break-all">
@@ -390,12 +478,98 @@ export function StepConfirm({
                   </div>
                 </div>
               </div>
-
-              {detail.lowQuality && (
-                <div className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-600 dark:bg-amber-500/10 dark:text-amber-400">
-                  疑似低质图片（分辨率低、画面主体不清晰、美学品味较差等）
+              <div>
+                <div className="text-xs text-slate-400">建议标题</div>
+                <Checkbox
+                  className="items-start"
+                  checked={withTitle}
+                  onChange={(event) => {
+                    if (!selectedId) return
+                    setTitleDisabledIds((current) => {
+                      const next = new Set(current)
+                      if (event.target.checked) next.delete(selectedId)
+                      else next.add(selectedId)
+                      return next
+                    })
+                  }}
+                >
+                  <span
+                    className={`break-all transition-colors ${
+                      withTitle ? '' : 'text-slate-400 dark:text-slate-500'
+                    }`}
+                  >
+                    {detail.title}
+                  </span>
+                </Checkbox>
+              </div>
+              <div>
+                <div className="mb-1 text-xs text-slate-400">
+                  选择目标文件夹
                 </div>
-              )}
+                {folderPaths.length > 0 || displayedManualFolders.length > 0 ? (
+                  <Radio.Group
+                    value={activeOptionKey}
+                    onChange={(event) => {
+                      if (!selectedId) return
+                      setSelectedOptionKeys((current) => ({
+                        ...current,
+                        [selectedId]: event.target.value,
+                      }))
+                    }}
+                    className="flex w-full flex-col gap-1.5"
+                  >
+                    {folderPaths.map((folderPath) => (
+                      <div key={`ai-${folderPath}`}>
+                        <Radio value={`ai:${folderPath}`}>
+                          <span className="text-base font-bold break-all">
+                            {folderPath}
+                          </span>
+                        </Radio>
+                      </div>
+                    ))}
+                    {displayedManualFolders.map((manual) => (
+                      <div
+                        key={`manual-${manual.folderId}`}
+                        className="group flex items-center justify-between"
+                      >
+                        <Radio value={`manual:${manual.folderId}`}>
+                          <span className="text-base font-bold break-all">
+                            <span className="text-blue-500">
+                              【{manual.count}】
+                            </span>
+                            {manual.folderPath}
+                          </span>
+                        </Radio>
+                        <Button
+                          type="text"
+                          size="small"
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRemoveManualFolder(manual)
+                          }}
+                          className="text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-500"
+                        />
+                      </div>
+                    ))}
+                  </Radio.Group>
+                ) : (
+                  <div className="text-slate-500 dark:text-slate-400">
+                    不属于任何已知分类
+                  </div>
+                )}
+                <div className="flex justify-end pt-1">
+                  <Button
+                    type="link"
+                    size="small"
+                    icon={<FolderAddOutlined />}
+                    onClick={() => setFolderSelectOpen(true)}
+                  >
+                    手动选择文件夹
+                  </Button>
+                </div>
+              </div>
             </>
           )}
         </div>
@@ -437,6 +611,12 @@ export function StepConfirm({
           </Button>
         </div>
       </div>
+
+      <FolderSelectModal
+        open={folderSelectOpen}
+        onClose={() => setFolderSelectOpen(false)}
+        onConfirm={handleManualFolderSelect}
+      />
     </div>
   )
 }
