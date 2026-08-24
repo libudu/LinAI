@@ -10,7 +10,7 @@ import { judgeItem } from './vision'
 
 /**
  * 整理队列执行器：按队列顺序以任务指定的并发数派发视觉判定。
- * - 单图失败累计达到 3 次后停止派发，in-flight 请求继续完成并落盘
+ * - 单图失败累计达到 10 次后停止派发，in-flight 请求继续完成并落盘
  * - 全部执行过一遍后 phase → confirming（有待确认）/ done（无待确认）
  * - 由 service 在任务创建 / 恢复时 kick；用户暂停与失败停止都只停派发
  * - 强制清空（abort）：epoch 递增 + AbortController 中断 in-flight 上游请求，
@@ -18,7 +18,7 @@ import { judgeItem } from './vision'
  * 队列推进在服务端后台进行，不依赖前端在线。
  */
 class OrganizeExecutor {
-  private static readonly ERROR_PAUSE_THRESHOLD = 3
+  private static readonly ERROR_PAUSE_THRESHOLD = 10
   private static readonly REQUEST_INTERVAL_MS = 1_000
   /** runQueue 是否在执行中（kick 的幂等依据） */
   private active = false
@@ -195,7 +195,7 @@ class OrganizeExecutor {
     })
   }
 
-  /** 执行单个条目：判定 → 落盘结果 → 更新任务计数；累计 3 次失败后暂停派发 */
+  /** 执行单个条目：判定 → 落盘结果 → 更新任务计数；累计 10 次失败后暂停派发 */
   private async processItem(
     itemId: string,
     options: {

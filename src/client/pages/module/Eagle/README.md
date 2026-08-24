@@ -23,7 +23,7 @@ src/server/module/eagle/
     │   ├── queue.ts                     # 队列预览与失败项集中重试/跳过
     │   ├── result.ts                    # 结果列表/详情/确认写库/清除分类/单图重试
     │   └── index.ts                     # OrganizeService 单例门面与统一导出
-    ├── executor.ts                      # 队列执行器：任务指定并发（1~10，默认 5）按序派发，全局相邻请求至少间隔 1 秒，支持中断 in-flight 请求的强制清空；跳过已完成项，支持「重新执行」在中途挖洞；累计 3 次单图失败后暂停派发（落盘异常仍立即暂停），全部执行完 → confirming/done；每张图完成发布变更
+    ├── executor.ts                      # 队列执行器：任务指定并发（1~10，默认 5）按序派发，全局相邻请求至少间隔 1 秒，支持中断 in-flight 请求的强制清空；跳过已完成项，支持「重新执行」在中途挖洞；累计 10 次单图失败后暂停派发（落盘异常仍立即暂停），全部执行完 → confirming/done；每张图完成发布变更
     └── vision.ts                        # 单图视觉判定：sharp 内存压缩（不落盘）→ 组装分类标准 prompt → requestRegistry.execute('eagle.vision') → 严格 JSON 解析（zod）+ 0～3 个 folderPaths 匹配校验，支持 AbortSignal，失败抛错由执行器记为 failed
 
 src/server/api/eagle.ts                  # Hono 子路由，挂在 /api/eagle
@@ -99,7 +99,7 @@ src/client/pages/module/Eagle/           # 本目录
 | POST   | `/organize/task`                                                     | 创建整理任务 `{ folderId?, sortBy, sortOrder, count, compress, concurrency? }`；锁定选定文件夹；并发 1~10 默认 5；已有未完成任务 409；清空旧结果 |
 | POST   | `/organize/task/append`                                              | 向当前锁定任务追加未入队的图片到队尾 `{ count }`；无缝扩充队列                                                                                   |
 | POST   | `/organize/task/pause` `/organize/task/resume`                       | 用户暂停（停止派发，in-flight 不受影响）/ 恢复执行，状态不符 409                                                                                 |
-| POST   | `/organize/task/retry-failed`                                        | 批量重试失败项：重置为待处理并移到队首恢复执行                                                                                                   |
+| POST   | `/organize/task/retry-failed`                                        | 批量重试失败项：重置为待处理并重新加入执行队列继续执行                                                                                           |
 | POST   | `/organize/task/skip-failed`                                         | 批量跳过所有失败项                                                                                                                               |
 | POST   | `/organize/task/classify-successful`                                 | 暂停且已有成功结果时，过滤未处理与失败条目，仅用成功图片进入结果确认                                                                             |
 | POST   | `/organize/task/clear`                                               | 强制停止所有请求、丢弃当前任务与结果，解锁文件夹；弹窗回到新建状态                                                                               |

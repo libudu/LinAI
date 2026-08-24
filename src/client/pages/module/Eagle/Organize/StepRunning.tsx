@@ -204,7 +204,7 @@ export function StepRunning({
                   onClick={() =>
                     handleBatchAction(
                       retryFailedOrganizeItems,
-                      '已将失败项加入队首重试',
+                      '已重新加入执行队列',
                     )
                   }
                 >

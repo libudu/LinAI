@@ -366,7 +366,7 @@ eagleApi.post('/organize/task/resume', async (c) => {
   return c.json({ success: true as const, data: null })
 })
 
-// 暂停后批量重试失败项：移到队首并恢复执行
+// 批量重试失败项：重新加入执行队列并继续执行
 eagleApi.post('/organize/task/retry-failed', async (c) => {
   const result = await organizeService.retryFailedItems()
   if (!result.ok) {
