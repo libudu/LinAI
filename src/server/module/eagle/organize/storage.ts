@@ -133,7 +133,11 @@ export class OrganizeRepository {
 
   /** 落盘单图结果（首次懒创建；「重新执行」复写已有实体） */
   async saveItem(record: OrganizeItemRecord): Promise<void> {
-    const summary: OrganizeItemSummary = { status: record.status }
+    const summary: OrganizeItemSummary = {
+      status: record.status,
+      folderPaths:
+        record.folderPaths ?? (record.folderPath ? [record.folderPath] : []),
+    }
     try {
       await this.itemStore.create(record, summary, record.itemId)
     } catch (error) {

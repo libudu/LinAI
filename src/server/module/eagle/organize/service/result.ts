@@ -27,7 +27,18 @@ export class ResultService {
     const { offset = 0, limit } = options ?? {}
     if (offset > 0) list = list.slice(offset)
     if (limit !== undefined && limit >= 0) list = list.slice(0, limit)
-    return list
+    return Promise.all(
+      list.map(async (item) => {
+        const entry = await getItemEntry(item.itemId)
+        return {
+          itemId: item.itemId,
+          status: item.status,
+          updatedAt: item.updatedAt,
+          folderPaths: item.folderPaths,
+          mtime: entry?.mtime ?? 0,
+        }
+      }),
+    )
   }
 
   async getResult(itemId: string): Promise<OrganizeResultDetail | null> {

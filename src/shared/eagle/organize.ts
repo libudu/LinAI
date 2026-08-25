@@ -147,6 +147,8 @@ export const buildOrganizeVisionSystemPrompt = (
 /** 单图结果摘要（实体列表接口返回，不含 value 正文） */
 export interface OrganizeItemSummary {
   status: OrganizeItemStatus
+  /** AI 判定的候选目标文件夹，按推荐顺序排列（用于按分类排序） */
+  folderPaths?: string[]
 }
 
 /** 待确认结果列表项（GET /api/eagle/organize/results） */
@@ -154,6 +156,10 @@ export interface OrganizeResultListItem {
   itemId: string
   status: OrganizeItemStatus
   updatedAt: number
+  /** AI 判定的候选目标文件夹，按推荐顺序排列（用于按分类排序） */
+  folderPaths?: string[]
+  /** 图片修改时间（用于按修改时间排序） */
+  mtime?: number
 }
 
 /** 单图结果详情（GET /api/eagle/organize/results/:itemId），附条目当前名称便于对比建议标题 */

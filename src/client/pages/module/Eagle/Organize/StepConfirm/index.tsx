@@ -6,6 +6,7 @@ import { Button, Empty, Image, Spin, message } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { deleteEagleItem, eagleFileUrl } from '../../api'
 import { confirmDeleteEagleItem } from '../../components/confirmDeleteModal'
+import { useEagleStore } from '../../store'
 import {
   clearOrganizeResultClassification,
   confirmOrganizeResult,
@@ -16,8 +17,14 @@ import {
 } from '../api'
 import { ActionBar } from './ActionBar'
 import { DetailPanel } from './DetailPanel'
-import { ThumbnailBar } from './ThumbnailBar'
+import {
+  ThumbnailBar,
+  sortOrganizeResults,
+  type OrganizeSortType,
+} from './ThumbnailBar'
 import { useManualFolders } from './useManualFolders'
+
+const CONFIRM_SORT_STORAGE_KEY = 'eagle_organize_confirm_sort'
 
 // 步骤 3 结果确认：纯净查验判定成功的结果（status === 'success'）
 // 顶部缩略图条 + 左大图右信息面板 + 底部操作（A/S/D 与重新执行）
@@ -30,6 +37,23 @@ export function StepConfirm({
   const [results, setResults] = useState<OrganizeResultListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [sortType, setSortType] = useState<OrganizeSortType>(() => {
+    try {
+      const saved = localStorage.getItem(CONFIRM_SORT_STORAGE_KEY)
+      if (
+        saved === 'completion' ||
+        saved === 'category' ||
+        saved === 'mtime_desc' ||
+        saved === 'mtime_asc'
+      ) {
+        return saved
+      }
+    } catch {
+      // 忽略损坏的本地缓存
+    }
+    return 'category'
+  })
+  const folders = useEagleStore((s) => s.folders)
   const [detail, setDetail] = useState<OrganizeResultDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
@@ -45,6 +69,26 @@ export function StepConfirm({
   const preloadedIdsRef = useRef(new Set<string>())
   const preloadImagesRef = useRef<HTMLImageElement[]>([])
 
+  const handleSortTypeChange = useCallback(
+    (newSort: OrganizeSortType) => {
+      setSortType(newSort)
+      try {
+        localStorage.setItem(CONFIRM_SORT_STORAGE_KEY, newSort)
+      } catch {
+        // 忽略损坏的本地缓存
+      }
+      const nextSorted = sortOrganizeResults(
+        resultsRef.current,
+        newSort,
+        folders,
+      )
+      resultsRef.current = nextSorted
+      setResults(nextSorted)
+      setSelectedId(nextSorted[0]?.itemId ?? null)
+    },
+    [folders],
+  )
+
   const {
     manualFolders,
     sortedManualFolders,
@@ -56,28 +100,28 @@ export function StepConfirm({
     setSelectedOptionKeys,
   })
 
-  // 仅拉取判定成功的结果，按完成时间正序展示
+  // 仅拉取判定成功的结果，按当前排序规则组织队列
   const refreshResults = useCallback(async (): Promise<
     OrganizeResultListItem[]
   > => {
     const succeeded = await fetchOrganizeResults('success')
-    const pending = [...succeeded].sort((a, b) => a.updatedAt - b.updatedAt)
-    resultsRef.current = pending
-    setResults(pending)
-    return pending
-  }, [])
+    const sorted = sortOrganizeResults(succeeded, sortType, folders)
+    resultsRef.current = sorted
+    setResults(sorted)
+    return sorted
+  }, [folders, sortType])
 
   // 仅在挂载时拉取一次；确认操作成功后在本地移除，避免每次 SSE 都重拉列表
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     refreshResults()
-      .then((pending) => {
+      .then((sorted) => {
         if (cancelled) return
         setSelectedId((prev) =>
-          prev && pending.some((r) => r.itemId === prev)
+          prev && sorted.some((r) => r.itemId === prev)
             ? prev
-            : (pending[0]?.itemId ?? null),
+            : (sorted[0]?.itemId ?? null),
         )
       })
       .catch((error) => {
@@ -205,11 +249,12 @@ export function StepConfirm({
     }
 
     const itemId = selectedId
-    const item = results.find((result) => result.itemId === itemId)
+    const current = resultsRef.current
+    const item = current.find((result) => result.itemId === itemId)
     if (!item) return
 
-    const index = results.findIndex((result) => result.itemId === itemId)
-    const remaining = results.filter((result) => result.itemId !== itemId)
+    const index = current.findIndex((result) => result.itemId === itemId)
+    const remaining = current.filter((result) => result.itemId !== itemId)
     const nextId = remaining[index]?.itemId ?? remaining[0]?.itemId ?? null
     const isLast = remaining.length === 0
     confirmingIdsRef.current.add(itemId)
@@ -236,18 +281,18 @@ export function StepConfirm({
         selectedManualFolder?.folderId,
       )
       if (isLast) {
-        const current = resultsRef.current.filter(
+        const updated = resultsRef.current.filter(
           (result) => result.itemId !== itemId,
         )
-        resultsRef.current = current
-        setResults(current)
-        setSelectedId(current[0]?.itemId ?? null)
+        resultsRef.current = updated
+        setResults(updated)
+        setSelectedId(updated[0]?.itemId ?? null)
       }
     } catch (error) {
       if (!isLast) {
-        const current = resultsRef.current
-        if (!current.some((result) => result.itemId === itemId)) {
-          const restored = [...current]
+        const latest = resultsRef.current
+        if (!latest.some((result) => result.itemId === itemId)) {
+          const restored = [...latest]
           restored.splice(Math.min(index, restored.length), 0, item)
           resultsRef.current = restored
           setResults(restored)
@@ -263,7 +308,6 @@ export function StepConfirm({
     actionLoading,
     canConfirm,
     recordManualFolderUsage,
-    results,
     selectedFolderPath,
     selectedId,
     selectedManualFolder,
@@ -342,6 +386,8 @@ export function StepConfirm({
         results={results}
         selectedId={selectedId}
         onSelect={setSelectedId}
+        sortType={sortType}
+        onSortTypeChange={handleSortTypeChange}
       />
 
       {/* 中部：左大图 + 右信息面板 */}

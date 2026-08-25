@@ -147,13 +147,34 @@ export class EntityStore<T = unknown, S = unknown> {
   /** 摘要列表（按 updatedAt 倒序），不返回 value 正文 */
   readonly list = async (): Promise<StoredEntitySummary<S>[]> => {
     const entities = await this.readAll()
-    return entities.map(({ id, revision, createdAt, updatedAt, summary }) => ({
-      id,
-      revision,
-      createdAt,
-      updatedAt,
-      summary,
-    }))
+    return entities.map(
+      ({ id, revision, createdAt, updatedAt, summary, value }) => {
+        let finalSummary = summary
+        if (
+          summary &&
+          typeof summary === 'object' &&
+          !('folderPaths' in summary) &&
+          value &&
+          typeof value === 'object'
+        ) {
+          const v = value as { folderPaths?: string[]; folderPath?: string }
+          if (v.folderPaths || v.folderPath) {
+            finalSummary = {
+              ...summary,
+              folderPaths:
+                v.folderPaths ?? (v.folderPath ? [v.folderPath] : []),
+            }
+          }
+        }
+        return {
+          id,
+          revision,
+          createdAt,
+          updatedAt,
+          summary: finalSummary,
+        }
+      },
+    )
   }
 
   readonly get = async (id: string): Promise<StoredEntity<T, S>> => {
