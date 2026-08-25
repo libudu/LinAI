@@ -63,8 +63,9 @@ export function StepConfirm({
     return 'category'
   })
   const folders = useEagleStore((s) => s.folders)
-  const [detail, setDetail] = useState<OrganizeResultDetail | null>(null)
-  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailsMap, setDetailsMap] = useState<
+    Record<string, OrganizeResultDetail>
+  >({})
   const [actionLoading, setActionLoading] = useState(false)
   const [titleDisabledIds, setTitleDisabledIds] = useState<Set<string>>(
     () => new Set(),
@@ -76,6 +77,8 @@ export function StepConfirm({
   const resultsRef = useRef<OrganizeResultListItem[]>([])
   const preloadedIdsRef = useRef(new Set<string>())
   const preloadImagesRef = useRef<HTMLImageElement[]>([])
+  const fetchingDetailIdsRef = useRef(new Set<string>())
+  const failedDetailIdsRef = useRef(new Set<string>())
   const pendingBatchRef = useRef<PendingConfirmItem[]>([])
   const batchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isFlushingRef = useRef(false)
@@ -147,13 +150,46 @@ export function StepConfirm({
     }
   }, [refreshResults])
 
-  // 预加载接下来两张原图（已加载过的自动跳过，避免重复发起请求）
+  const fetchDetail = useCallback(async (itemId: string) => {
+    if (
+      fetchingDetailIdsRef.current.has(itemId) ||
+      failedDetailIdsRef.current.has(itemId)
+    ) {
+      return
+    }
+    fetchingDetailIdsRef.current.add(itemId)
+    try {
+      const data = await fetchOrganizeResult(itemId)
+      if (data) {
+        setDetailsMap((prev) => ({ ...prev, [itemId]: data }))
+      } else {
+        failedDetailIdsRef.current.add(itemId)
+      }
+    } catch (error) {
+      console.error(`拉取条目 ${itemId} 详情失败`, error)
+      failedDetailIdsRef.current.add(itemId)
+    } finally {
+      fetchingDetailIdsRef.current.delete(itemId)
+    }
+  }, [])
+
+  // 预加载当前项及接下来 3 张图片的大图与详情信息（已加载过的自动跳过，避免重复发起请求）
   useEffect(() => {
     if (!selectedId || results.length === 0) return
-    preloadedIdsRef.current.add(selectedId)
+
     const currentIndex = results.findIndex((item) => item.itemId === selectedId)
     if (currentIndex === -1) return
-    const nextItems = results.slice(currentIndex + 1, currentIndex + 3)
+
+    // 预加载当前项与接下来的 3 项详情（共 4 项）
+    const detailTargets = results.slice(currentIndex, currentIndex + 4)
+    detailTargets.forEach((item) => {
+      if (!detailsMap[item.itemId]) {
+        void fetchDetail(item.itemId)
+      }
+    })
+
+    // 预加载接下来 3 张原图（当前项由 Image 组件自身渲染）
+    const nextItems = results.slice(currentIndex + 1, currentIndex + 4)
     nextItems.forEach((item) => {
       if (!preloadedIdsRef.current.has(item.itemId)) {
         preloadedIdsRef.current.add(item.itemId)
@@ -165,31 +201,12 @@ export function StepConfirm({
         }
       }
     })
-  }, [selectedId, results])
+  }, [selectedId, results, detailsMap, fetchDetail])
 
-  // 选中项变化时拉取详情
-  useEffect(() => {
-    if (!selectedId) {
-      setDetail(null)
-      return
-    }
-    let cancelled = false
-    setDetailLoading(true)
-    fetchOrganizeResult(selectedId)
-      .then((data) => {
-        if (!cancelled) setDetail(data)
-      })
-      .catch((error) => {
-        console.error('拉取结果详情失败', error)
-        if (!cancelled) setDetail(null)
-      })
-      .finally(() => {
-        if (!cancelled) setDetailLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [selectedId])
+  const detail = selectedId ? (detailsMap[selectedId] ?? null) : null
+  const detailLoading = Boolean(
+    selectedId && !detail && !failedDetailIdsRef.current.has(selectedId),
+  )
 
   const folderPaths = detail?.folderPaths ?? []
 
@@ -222,7 +239,13 @@ export function StepConfirm({
     return null
   }, [activeOptionKey, selectedManualFolder])
 
-  const canConfirm = detail?.status === 'success' && !!selectedFolderPath
+  const canConfirm = Boolean(
+    !detailLoading &&
+      detail &&
+      detail.itemId === selectedId &&
+      detail.status === 'success' &&
+      selectedFolderPath,
+  )
   const withTitle = selectedId ? !titleDisabledIds.has(selectedId) : true
 
   // 批量提交待确认批次
