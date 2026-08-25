@@ -165,6 +165,23 @@ export const confirmOrganizeResult = async (
   })
 }
 
+export interface OrganizeBatchConfirmItem {
+  itemId: string
+  folderPath: string
+  withTitle: boolean
+  folderId?: string
+}
+
+// 批量确认结果
+export const confirmOrganizeResultsBatch = async (
+  items: OrganizeBatchConfirmItem[],
+): Promise<void> => {
+  await apiRequest<null>('/api/eagle/organize/results/confirm-batch', {
+    method: 'POST',
+    body: JSON.stringify({ items }),
+  })
+}
+
 // 不处理：不做任何修改
 export const skipOrganizeResult = async (itemId: string): Promise<void> => {
   await apiRequest<null>(`/api/eagle/organize/results/${itemId}/skip`, {

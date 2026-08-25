@@ -119,6 +119,93 @@ export class ResultService {
     return { ok: true }
   }
 
+  /**
+   * 批量确认结果：写 Eagle 库（移入目标文件夹，withTitle 决定是否同时改标题），状态 → confirmed。
+   * 合并批量更新任务计数与状态，最后发布一次变更事件。
+   */
+  async confirmBatch(
+    items: Array<{
+      itemId: string
+      folderPath: string
+      withTitle: boolean
+      folderId?: string
+    }>,
+  ): Promise<OrganizeActionResult> {
+    if (items.length === 0) return { ok: true }
+    const task = await organizeRepository.getTask()
+    let confirmedCount = 0
+
+    for (const item of items) {
+      const record = await organizeRepository.getItem(item.itemId)
+      if (!record || record.status !== 'success') continue
+
+      let targetFolderId: string | null = null
+      const standard = task?.standards.find(
+        (s) => s.folderPath === item.folderPath,
+      )
+
+      if (standard) {
+        targetFolderId = standard.folderId
+      } else if (item.folderId) {
+        targetFolderId = item.folderId
+      } else if (
+        item.folderPath === '未分类' ||
+        item.folderPath === EAGLE_UNCLASSIFIED_FOLDER_ID
+      ) {
+        targetFolderId = EAGLE_UNCLASSIFIED_FOLDER_ID
+      } else {
+        targetFolderId = await findFolderIdByPath(item.folderPath)
+      }
+
+      const isUnclassified =
+        targetFolderId === EAGLE_UNCLASSIFIED_FOLDER_ID ||
+        item.folderPath === '未分类' ||
+        item.folderPath === EAGLE_UNCLASSIFIED_FOLDER_ID
+
+      if (!isUnclassified) {
+        if (!targetFolderId || !(await folderExists(targetFolderId))) {
+          continue
+        }
+      }
+
+      const folderIds = isUnclassified ? [] : [targetFolderId!]
+      const updated = await updateItem(item.itemId, {
+        folderIds,
+        name: item.withTitle ? record.title : undefined,
+      })
+      if (!updated) continue
+
+      await organizeRepository.saveItem({
+        ...record,
+        status: 'confirmed',
+        updatedAt: Date.now(),
+      })
+      confirmedCount++
+    }
+
+    if (confirmedCount > 0) {
+      await organizeRepository.mutateTask((latestTask) => {
+        if (!latestTask) return null
+        const pendingConfirm = Math.max(
+          0,
+          latestTask.pendingConfirm - confirmedCount,
+        )
+        if (latestTask.phase === 'confirming' && pendingConfirm === 0) {
+          return {
+            ...latestTask,
+            pendingConfirm,
+            phase: 'done',
+            pausedReason: null,
+          }
+        }
+        return { ...latestTask, pendingConfirm }
+      })
+      publishOrganizeChange()
+    }
+
+    return { ok: true }
+  }
+
   /** 清除全部文件夹归属并结束该结果，留给用户在「未分类」中手动处理 */
   async clearItemClassification(itemId: string): Promise<OrganizeActionResult> {
     const record = await organizeRepository.getItem(itemId)

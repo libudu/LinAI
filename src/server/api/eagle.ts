@@ -427,6 +427,37 @@ eagleApi.get('/organize/results', async (c) => {
   return c.json({ success: true as const, data })
 })
 
+// 批量确认结果：批量移入选中的候选文件夹并写 Eagle 库
+eagleApi.post(
+  '/organize/results/confirm-batch',
+  zValidator(
+    'json',
+    z.object({
+      items: z
+        .array(
+          z.object({
+            itemId: z.string().min(1),
+            folderPath: z.string().min(1),
+            folderId: z.string().optional(),
+            withTitle: z.boolean(),
+          }),
+        )
+        .min(1),
+    }),
+  ),
+  async (c) => {
+    const body = c.req.valid('json')
+    const result = await organizeService.confirmBatch(body.items)
+    if (!result.ok) {
+      return c.json(
+        { success: false as const, error: result.error },
+        result.status,
+      )
+    }
+    return c.json({ success: true as const, data: null })
+  },
+)
+
 // 单图结果详情（附条目当前名称，供确认页对比建议标题）
 eagleApi.get('/organize/results/:itemId', async (c) => {
   const itemId = c.req.param('itemId')

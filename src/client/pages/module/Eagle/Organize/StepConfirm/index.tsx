@@ -9,7 +9,7 @@ import { confirmDeleteEagleItem } from '../../components/confirmDeleteModal'
 import { useEagleStore } from '../../store'
 import {
   clearOrganizeResultClassification,
-  confirmOrganizeResult,
+  confirmOrganizeResultsBatch,
   fetchOrganizeResult,
   fetchOrganizeResults,
   retryOrganizeResult,
@@ -25,6 +25,15 @@ import {
 import { useManualFolders } from './useManualFolders'
 
 const CONFIRM_SORT_STORAGE_KEY = 'eagle_organize_confirm_sort'
+
+interface PendingConfirmItem {
+  itemId: string
+  folderPath: string
+  withTitle: boolean
+  folderId?: string
+  originalItem: OrganizeResultListItem
+  index: number
+}
 
 // 步骤 3 结果确认：纯净查验判定成功的结果（status === 'success'）
 // 顶部缩略图条 + 左大图右信息面板 + 底部操作（A/S/D 与重新执行）
@@ -65,9 +74,11 @@ export function StepConfirm({
   >({})
 
   const resultsRef = useRef<OrganizeResultListItem[]>([])
-  const confirmingIdsRef = useRef(new Set<string>())
   const preloadedIdsRef = useRef(new Set<string>())
   const preloadImagesRef = useRef<HTMLImageElement[]>([])
+  const pendingBatchRef = useRef<PendingConfirmItem[]>([])
+  const batchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isFlushingRef = useRef(false)
 
   const handleSortTypeChange = useCallback(
     (newSort: OrganizeSortType) => {
@@ -214,12 +225,86 @@ export function StepConfirm({
   const canConfirm = detail?.status === 'success' && !!selectedFolderPath
   const withTitle = selectedId ? !titleDisabledIds.has(selectedId) : true
 
+  // 批量提交待确认批次
+  const flushPendingBatch = useCallback(async () => {
+    if (batchTimerRef.current) {
+      clearTimeout(batchTimerRef.current)
+      batchTimerRef.current = null
+    }
+    if (pendingBatchRef.current.length === 0) return
+    if (isFlushingRef.current) return
+
+    isFlushingRef.current = true
+    const batchToProcess = [...pendingBatchRef.current]
+    pendingBatchRef.current = []
+
+    try {
+      await confirmOrganizeResultsBatch(
+        batchToProcess.map((b) => ({
+          itemId: b.itemId,
+          folderPath: b.folderPath,
+          withTitle: b.withTitle,
+          folderId: b.folderId,
+        })),
+      )
+    } catch (error) {
+      console.error('批量确认失败', error)
+      message.error(error instanceof Error ? error.message : '确认失败')
+      // 发生错误时回退未成功的条目到待确认列表
+      const current = resultsRef.current
+      const restored = [...current]
+      for (const b of batchToProcess) {
+        if (!restored.some((r) => r.itemId === b.itemId)) {
+          restored.splice(Math.min(b.index, restored.length), 0, b.originalItem)
+        }
+      }
+      resultsRef.current = restored
+      setResults(restored)
+      setSelectedId((curr) => curr ?? batchToProcess[0]?.itemId ?? null)
+    } finally {
+      isFlushingRef.current = false
+      if (pendingBatchRef.current.length >= 20) {
+        void flushPendingBatch()
+      } else if (pendingBatchRef.current.length > 0 && !batchTimerRef.current) {
+        batchTimerRef.current = setTimeout(() => {
+          void flushPendingBatch()
+        }, 3000)
+      }
+    }
+  }, [])
+
+  // 组件卸载时自动提交剩余的待确认队列
+  useEffect(() => {
+    return () => {
+      if (batchTimerRef.current) {
+        clearTimeout(batchTimerRef.current)
+        batchTimerRef.current = null
+      }
+      if (pendingBatchRef.current.length > 0) {
+        const batch = [...pendingBatchRef.current]
+        pendingBatchRef.current = []
+        void confirmOrganizeResultsBatch(
+          batch.map((b) => ({
+            itemId: b.itemId,
+            folderPath: b.folderPath,
+            withTitle: b.withTitle,
+            folderId: b.folderId,
+          })),
+        ).catch((err) => {
+          console.error('组件卸载时批量确认失败', err)
+        })
+      }
+    }
+  }, [])
+
   const runAction = useCallback(
     async (fn: (itemId: string) => Promise<void>) => {
       if (!selectedId || actionLoading) return
       const itemId = selectedId
       setActionLoading(true)
       try {
+        // 先冲刷待确认队列中的项目，保证操作时序
+        await flushPendingBatch()
         await fn(itemId)
         const current = resultsRef.current
         const index = current.findIndex((result) => result.itemId === itemId)
@@ -234,17 +319,11 @@ export function StepConfirm({
         setActionLoading(false)
       }
     },
-    [actionLoading, selectedId],
+    [actionLoading, flushPendingBatch, selectedId],
   )
 
   const runConfirm = useCallback(async () => {
-    if (
-      !selectedId ||
-      !selectedFolderPath ||
-      !canConfirm ||
-      actionLoading ||
-      confirmingIdsRef.current.has(selectedId)
-    ) {
+    if (!selectedId || !selectedFolderPath || !canConfirm || actionLoading) {
       return
     }
 
@@ -256,57 +335,45 @@ export function StepConfirm({
     const index = current.findIndex((result) => result.itemId === itemId)
     const remaining = current.filter((result) => result.itemId !== itemId)
     const nextId = remaining[index]?.itemId ?? remaining[0]?.itemId ?? null
-    const isLast = remaining.length === 0
-    confirmingIdsRef.current.add(itemId)
 
     // 检查是否为手动选择的文件夹，如果是则计数 +1 并持久化
     if (selectedManualFolder) {
       recordManualFolderUsage(selectedManualFolder.folderId)
     }
 
-    // 非最后一张立即切换，确认请求留在后台执行，不阻塞继续处理
-    if (isLast) {
-      setActionLoading(true)
-    } else {
-      resultsRef.current = remaining
-      setResults(remaining)
-      setSelectedId(nextId)
+    // 立即乐观切换下一张，界面无卡顿响应
+    resultsRef.current = remaining
+    setResults(remaining)
+    setSelectedId(nextId)
+
+    // 加入待确认批次队列
+    pendingBatchRef.current.push({
+      itemId,
+      folderPath: selectedFolderPath,
+      withTitle,
+      folderId: selectedManualFolder?.folderId,
+      originalItem: item,
+      index,
+    })
+
+    // 清除已有防抖定时器
+    if (batchTimerRef.current) {
+      clearTimeout(batchTimerRef.current)
+      batchTimerRef.current = null
     }
 
-    try {
-      await confirmOrganizeResult(
-        itemId,
-        selectedFolderPath,
-        withTitle,
-        selectedManualFolder?.folderId,
-      )
-      if (isLast) {
-        const updated = resultsRef.current.filter(
-          (result) => result.itemId !== itemId,
-        )
-        resultsRef.current = updated
-        setResults(updated)
-        setSelectedId(updated[0]?.itemId ?? null)
-      }
-    } catch (error) {
-      if (!isLast) {
-        const latest = resultsRef.current
-        if (!latest.some((result) => result.itemId === itemId)) {
-          const restored = [...latest]
-          restored.splice(Math.min(index, restored.length), 0, item)
-          resultsRef.current = restored
-          setResults(restored)
-          setSelectedId((curr) => curr ?? itemId)
-        }
-      }
-      message.error(error instanceof Error ? error.message : '确认失败')
-    } finally {
-      confirmingIdsRef.current.delete(itemId)
-      if (isLast) setActionLoading(false)
+    // 累积满 20 个立即发送，否则 3 秒防抖后发送
+    if (pendingBatchRef.current.length >= 20) {
+      void flushPendingBatch()
+    } else {
+      batchTimerRef.current = setTimeout(() => {
+        void flushPendingBatch()
+      }, 3000)
     }
   }, [
     actionLoading,
     canConfirm,
+    flushPendingBatch,
     recordManualFolderUsage,
     selectedFolderPath,
     selectedId,

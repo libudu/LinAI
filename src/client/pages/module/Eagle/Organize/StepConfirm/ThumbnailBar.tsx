@@ -2,7 +2,7 @@ import type { OrganizeResultListItem } from '@/shared/eagle/organize'
 import type { EagleFolder } from '@/shared/eagle/types'
 import { FolderOutlined, SortAscendingOutlined } from '@ant-design/icons'
 import { Select } from 'antd'
-import { Fragment, useEffect, useRef } from 'react'
+import { Fragment, useEffect, useMemo, useRef } from 'react'
 import { eagleThumbnailUrl } from '../../api'
 
 export type OrganizeSortType =
@@ -123,6 +123,15 @@ export function ThumbnailBar({
 }: ThumbnailBarProps) {
   const itemRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
 
+  const categoryRemainingCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const item of results) {
+      const cat = getOrganizeItemCategory(item)
+      counts.set(cat, (counts.get(cat) ?? 0) + 1)
+    }
+    return counts
+  }, [results])
+
   // 选中项变化时平滑滚动到可见区域
   useEffect(() => {
     if (selectedId) {
@@ -145,17 +154,21 @@ export function ThumbnailBar({
             sortType === 'category' &&
             (index === 0 ||
               getOrganizeItemCategory(results[index - 1]) !== categoryName)
+          const remainingCount = categoryRemainingCounts.get(categoryName) ?? 0
 
           return (
             <Fragment key={result.itemId}>
               {isFirstOfCategory && (
                 <div
                   className="flex h-24 shrink-0 flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50/80 px-2 py-1 text-center select-none dark:border-slate-600 dark:bg-slate-800/60"
-                  title={categoryName}
+                  title={`${categoryName}（剩余 ${remainingCount} 张）`}
                 >
-                  <FolderOutlined className="mb-1 text-sm text-slate-400 dark:text-slate-500" />
-                  <span className="line-clamp-3 max-w-[84px] text-xs leading-tight font-medium break-all text-slate-700 dark:text-slate-200">
+                  <FolderOutlined className="mb-0.5 text-xs text-slate-400 dark:text-slate-500" />
+                  <span className="line-clamp-2 max-w-[84px] text-xs leading-tight font-medium break-all text-slate-700 dark:text-slate-200">
                     {categoryName}
+                  </span>
+                  <span className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+                    剩余 {remainingCount} 张
                   </span>
                 </div>
               )}

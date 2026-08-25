@@ -134,6 +134,18 @@ class OrganizeService {
     return resultService.confirmItem(itemId, folderPath, withTitle, folderId)
   }
 
+  async confirmBatch(
+    items: Array<{
+      itemId: string
+      folderPath: string
+      withTitle: boolean
+      folderId?: string
+    }>,
+  ): Promise<OrganizeActionResult> {
+    await this.ready
+    return resultService.confirmBatch(items)
+  }
+
   async clearItemClassification(itemId: string): Promise<OrganizeActionResult> {
     await this.ready
     return resultService.clearItemClassification(itemId)
