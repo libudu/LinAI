@@ -1,8 +1,8 @@
 import type { OrganizeResultListItem } from '@/shared/eagle/organize'
 import type { EagleFolder } from '@/shared/eagle/types'
-import { SortAscendingOutlined } from '@ant-design/icons'
+import { FolderOutlined, SortAscendingOutlined } from '@ant-design/icons'
 import { Select } from 'antd'
-import { useEffect, useRef } from 'react'
+import { Fragment, useEffect, useRef } from 'react'
 import { eagleThumbnailUrl } from '../../api'
 
 export type OrganizeSortType =
@@ -10,6 +10,12 @@ export type OrganizeSortType =
   | 'category'
   | 'mtime_desc'
   | 'mtime_asc'
+
+export const getOrganizeItemCategory = (
+  item: OrganizeResultListItem,
+): string => {
+  return item.folderPaths?.[0] || '未分类'
+}
 
 /**
  * 待确认结果排序函数：
@@ -133,28 +139,48 @@ export function ThumbnailBar({
     <div className="flex shrink-0 items-center gap-2">
       {/* 缩略图横向滚动列表 */}
       <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto rounded-lg border border-slate-200 p-2 dark:border-slate-700">
-        {results.map((result) => (
-          <button
-            key={result.itemId}
-            ref={(el) => {
-              if (el) itemRefs.current.set(result.itemId, el)
-              else itemRefs.current.delete(result.itemId)
-            }}
-            type="button"
-            onClick={() => onSelect(result.itemId)}
-            className={`relative h-24 w-24 shrink-0 overflow-hidden rounded-md border-2 transition-colors ${
-              result.itemId === selectedId
-                ? 'border-blue-500'
-                : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600'
-            }`}
-          >
-            <img
-              src={eagleThumbnailUrl(result.itemId)}
-              className="h-full w-full object-cover"
-              loading="lazy"
-            />
-          </button>
-        ))}
+        {results.map((result, index) => {
+          const categoryName = getOrganizeItemCategory(result)
+          const isFirstOfCategory =
+            sortType === 'category' &&
+            (index === 0 ||
+              getOrganizeItemCategory(results[index - 1]) !== categoryName)
+
+          return (
+            <Fragment key={result.itemId}>
+              {isFirstOfCategory && (
+                <div
+                  className="flex h-24 shrink-0 flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50/80 px-2 py-1 text-center select-none dark:border-slate-600 dark:bg-slate-800/60"
+                  title={categoryName}
+                >
+                  <FolderOutlined className="mb-1 text-sm text-slate-400 dark:text-slate-500" />
+                  <span className="line-clamp-3 max-w-[84px] text-xs leading-tight font-medium break-all text-slate-700 dark:text-slate-200">
+                    {categoryName}
+                  </span>
+                </div>
+              )}
+              <button
+                ref={(el) => {
+                  if (el) itemRefs.current.set(result.itemId, el)
+                  else itemRefs.current.delete(result.itemId)
+                }}
+                type="button"
+                onClick={() => onSelect(result.itemId)}
+                className={`relative h-24 w-24 shrink-0 overflow-hidden rounded-md border-2 transition-colors ${
+                  result.itemId === selectedId
+                    ? 'border-blue-500'
+                    : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600'
+                }`}
+              >
+                <img
+                  src={eagleThumbnailUrl(result.itemId)}
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                />
+              </button>
+            </Fragment>
+          )
+        })}
       </div>
 
       {/* 右侧排序组件 */}
