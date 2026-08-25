@@ -16,7 +16,9 @@ import {
   skipOrganizeResult,
 } from '../api'
 import { ActionBar } from './ActionBar'
+import { ConfirmControls } from './ConfirmControls'
 import { DetailPanel } from './DetailPanel'
+import { QuickConfirmList } from './QuickConfirmList'
 import {
   ThumbnailBar,
   sortOrganizeResults,
@@ -25,6 +27,7 @@ import {
 import { useManualFolders } from './useManualFolders'
 
 const CONFIRM_SORT_STORAGE_KEY = 'eagle_organize_confirm_sort'
+const CONFIRM_QUICK_MODE_STORAGE_KEY = 'eagle_organize_confirm_quick_mode'
 
 interface PendingConfirmItem {
   itemId: string
@@ -37,6 +40,7 @@ interface PendingConfirmItem {
 
 // 步骤 3 结果确认：纯净查验判定成功的结果（status === 'success'）
 // 顶部缩略图条 + 左大图右信息面板 + 底部操作（A/S/D 与重新执行）
+// 支持「快速模式」：只展示居中放大列表与卡片底部确定按钮，跳过原图与详情拉取
 // 完成当前结果后自动选中下一张；重新执行单图送回步骤 2 队列，步骤 3 继续确认下一张
 export function StepConfirm({
   onSwitchToRunning,
@@ -62,6 +66,14 @@ export function StepConfirm({
     }
     return 'category'
   })
+  const [quickMode, setQuickMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(CONFIRM_QUICK_MODE_STORAGE_KEY) === 'true'
+    } catch {
+      return false
+    }
+  })
+
   const folders = useEagleStore((s) => s.folders)
   const [detailsMap, setDetailsMap] = useState<
     Record<string, OrganizeResultDetail>
@@ -102,6 +114,18 @@ export function StepConfirm({
     },
     [folders],
   )
+
+  const handleQuickModeChange = useCallback((newQuickMode: boolean) => {
+    setQuickMode(newQuickMode)
+    try {
+      localStorage.setItem(
+        CONFIRM_QUICK_MODE_STORAGE_KEY,
+        String(newQuickMode),
+      )
+    } catch {
+      // 忽略损坏的本地缓存
+    }
+  }, [])
 
   const {
     manualFolders,
@@ -173,9 +197,9 @@ export function StepConfirm({
     }
   }, [])
 
-  // 预加载当前项及接下来 3 张图片的大图与详情信息（已加载过的自动跳过，避免重复发起请求）
+  // 预加载当前项及接下来 3 张图片的大图与详情信息（快速模式下不预加载，避免资源与网络请求浪费）
   useEffect(() => {
-    if (!selectedId || results.length === 0) return
+    if (quickMode || !selectedId || results.length === 0) return
 
     const currentIndex = results.findIndex((item) => item.itemId === selectedId)
     if (currentIndex === -1) return
@@ -201,7 +225,7 @@ export function StepConfirm({
         }
       }
     })
-  }, [selectedId, results, detailsMap, fetchDetail])
+  }, [quickMode, selectedId, results, detailsMap, fetchDetail])
 
   const detail = selectedId ? (detailsMap[selectedId] ?? null) : null
   const detailLoading = Boolean(
@@ -321,9 +345,9 @@ export function StepConfirm({
   }, [])
 
   const runAction = useCallback(
-    async (fn: (itemId: string) => Promise<void>) => {
-      if (!selectedId || actionLoading) return
-      const itemId = selectedId
+    async (fn: (itemId: string) => Promise<void>, targetId?: string) => {
+      const itemId = targetId ?? selectedId
+      if (!itemId || actionLoading) return
       setActionLoading(true)
       try {
         // 先冲刷待确认队列中的项目，保证操作时序
@@ -332,7 +356,10 @@ export function StepConfirm({
         const current = resultsRef.current
         const index = current.findIndex((result) => result.itemId === itemId)
         const remaining = current.filter((result) => result.itemId !== itemId)
-        const nextId = remaining[index]?.itemId ?? remaining[0]?.itemId ?? null
+        const nextId =
+          itemId === selectedId
+            ? (remaining[index]?.itemId ?? remaining[0]?.itemId ?? null)
+            : selectedId
         resultsRef.current = remaining
         setResults(remaining)
         setSelectedId(nextId)
@@ -345,8 +372,65 @@ export function StepConfirm({
     [actionLoading, flushPendingBatch, selectedId],
   )
 
+  // 快速模式下单项确认（直接按第一推荐分类确认）
+  const confirmItemQuick = useCallback(
+    (item: OrganizeResultListItem) => {
+      if (actionLoading) return
+      const itemId = item.itemId
+      const current = resultsRef.current
+      const foundIndex = current.findIndex((r) => r.itemId === itemId)
+      if (foundIndex === -1) return
+
+      const remaining = current.filter((r) => r.itemId !== itemId)
+      const nextId =
+        remaining[foundIndex]?.itemId ?? remaining[0]?.itemId ?? null
+
+      const targetFolderPath = item.folderPaths?.[0] || '未分类'
+      const itemWithTitle = !titleDisabledIds.has(itemId)
+
+      resultsRef.current = remaining
+      setResults(remaining)
+      setSelectedId(nextId)
+
+      pendingBatchRef.current.push({
+        itemId,
+        folderPath: targetFolderPath,
+        withTitle: itemWithTitle,
+        originalItem: item,
+        index: foundIndex,
+      })
+
+      if (batchTimerRef.current) {
+        clearTimeout(batchTimerRef.current)
+        batchTimerRef.current = null
+      }
+
+      if (pendingBatchRef.current.length >= 20) {
+        void flushPendingBatch()
+      } else {
+        batchTimerRef.current = setTimeout(() => {
+          void flushPendingBatch()
+        }, 3000)
+      }
+    },
+    [actionLoading, flushPendingBatch, titleDisabledIds],
+  )
+
   const runConfirm = useCallback(async () => {
-    if (!selectedId || !selectedFolderPath || !canConfirm || actionLoading) {
+    if (actionLoading) return
+
+    // 快速模式：直接按首选推荐分类确认当前选中项
+    if (quickMode) {
+      if (!selectedId) return
+      const current = resultsRef.current
+      const item = current.find((result) => result.itemId === selectedId)
+      if (item) {
+        confirmItemQuick(item)
+      }
+      return
+    }
+
+    if (!selectedId || !selectedFolderPath || !canConfirm) {
       return
     }
 
@@ -396,7 +480,9 @@ export function StepConfirm({
   }, [
     actionLoading,
     canConfirm,
+    confirmItemQuick,
     flushPendingBatch,
+    quickMode,
     recordManualFolderUsage,
     selectedFolderPath,
     selectedId,
@@ -471,72 +557,116 @@ export function StepConfirm({
 
   return (
     <div className="flex h-full flex-col gap-3">
-      {/* 顶部待确认缩略图条 */}
-      <ThumbnailBar
-        results={results}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
-        sortType={sortType}
-        onSortTypeChange={handleSortTypeChange}
-      />
+      {quickMode ? (
+        <>
+          {/* 快速模式头部控件栏 */}
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 pb-2 dark:border-slate-700/80">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                ⚡ 快速整理模式
+              </span>
+              <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                待确认 {results.length} 张
+              </span>
+            </div>
 
-      {/* 中部：左大图 + 右信息面板 */}
-      <div className="grid min-h-0 flex-1 grid-cols-[6fr_4fr] gap-3">
-        <div className="flex h-full items-center justify-center overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800/60">
-          {selectedId && (
-            <Image
-              key={selectedId}
-              src={eagleFileUrl(selectedId)}
-              classNames={{
-                root: 'h-full w-full flex items-center justify-center',
-                image: 'h-full! w-full! object-contain!',
-              }}
-              preview={{ src: eagleFileUrl(selectedId) }}
+            <ConfirmControls
+              sortType={sortType}
+              onSortTypeChange={handleSortTypeChange}
+              quickMode={quickMode}
+              onQuickModeChange={handleQuickModeChange}
             />
-          )}
-        </div>
+          </div>
 
-        <DetailPanel
-          loading={detailLoading}
-          detail={detail}
-          withTitle={withTitle}
-          onToggleTitle={(checked) => {
-            if (!selectedId) return
-            setTitleDisabledIds((current) => {
-              const next = new Set(current)
-              if (checked) next.delete(selectedId)
-              else next.add(selectedId)
-              return next
-            })
-          }}
-          activeOptionKey={activeOptionKey}
-          onSelectOptionKey={(key) => {
-            if (!selectedId) return
-            setSelectedOptionKeys((current) => ({
-              ...current,
-              [selectedId]: key,
-            }))
-          }}
-          folderPaths={folderPaths}
-          displayedManualFolders={displayedManualFolders}
-          onRemoveManualFolder={handleRemoveManualFolder}
-          onManualFolderSelect={handleManualFolderSelect}
-        />
-      </div>
+          {/* 快速模式居中放大的图片卡片列表 */}
+          <QuickConfirmList
+            results={results}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onConfirmItem={confirmItemQuick}
+            onClearClassification={(item) =>
+              runAction(clearOrganizeResultClassification, item.itemId)
+            }
+            onSkipItem={(item) =>
+              runAction(skipOrganizeResult, item.itemId)
+            }
+            sortType={sortType}
+            actionLoading={actionLoading}
+          />
+        </>
+      ) : (
+        <>
+          {/* 顶部待确认缩略图条 */}
+          <ThumbnailBar
+            results={results}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            sortType={sortType}
+            onSortTypeChange={handleSortTypeChange}
+            quickMode={quickMode}
+            onQuickModeChange={handleQuickModeChange}
+          />
 
-      {/* 底部操作：移到回收站 / 清除分类 / 不处理 / 重新执行 / 确认 */}
-      <ActionBar
-        selectedId={selectedId}
-        canConfirm={canConfirm}
-        actionLoading={actionLoading}
-        onDelete={handleDelete}
-        onClearClassification={() =>
-          runAction(clearOrganizeResultClassification)
-        }
-        onSkip={() => runAction(skipOrganizeResult)}
-        onRetry={() => runAction(retryOrganizeResult)}
-        onConfirm={() => void runConfirm()}
-      />
+          {/* 中部：左大图 + 右信息面板 */}
+          <div className="grid min-h-0 flex-1 grid-cols-[6fr_4fr] gap-3">
+            <div className="flex h-full items-center justify-center overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800/60">
+              {selectedId && (
+                <Image
+                  key={selectedId}
+                  src={eagleFileUrl(selectedId)}
+                  classNames={{
+                    root: 'h-full w-full flex items-center justify-center',
+                    image: 'h-full! w-full! object-contain!',
+                  }}
+                  preview={{ src: eagleFileUrl(selectedId) }}
+                />
+              )}
+            </div>
+
+            <DetailPanel
+              loading={detailLoading}
+              detail={detail}
+              withTitle={withTitle}
+              onToggleTitle={(checked) => {
+                if (!selectedId) return
+                setTitleDisabledIds((current) => {
+                  const next = new Set(current)
+                  if (checked) next.delete(selectedId)
+                  else next.add(selectedId)
+                  return next
+                })
+              }}
+              activeOptionKey={activeOptionKey}
+              onSelectOptionKey={(key) => {
+                if (!selectedId) return
+                setSelectedOptionKeys((current) => ({
+                  ...current,
+                  [selectedId]: key,
+                }))
+              }}
+              folderPaths={folderPaths}
+              displayedManualFolders={displayedManualFolders}
+              onRemoveManualFolder={handleRemoveManualFolder}
+              onManualFolderSelect={handleManualFolderSelect}
+            />
+          </div>
+
+          {/* 底部操作：移到回收站 / 清除分类 / 不处理 / 重新执行 / 确认 */}
+          <ActionBar
+            selectedId={selectedId}
+            canConfirm={canConfirm}
+            actionLoading={actionLoading}
+            onDelete={handleDelete}
+            onClearClassification={() =>
+              runAction(clearOrganizeResultClassification)
+            }
+            onSkip={() => runAction(skipOrganizeResult)}
+            onRetry={() => runAction(retryOrganizeResult)}
+            onConfirm={() => void runConfirm()}
+          />
+        </>
+      )}
     </div>
   )
 }
+

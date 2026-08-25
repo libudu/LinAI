@@ -1,9 +1,9 @@
 import type { OrganizeResultListItem } from '@/shared/eagle/organize'
 import type { EagleFolder } from '@/shared/eagle/types'
-import { FolderOutlined, SortAscendingOutlined } from '@ant-design/icons'
-import { Select } from 'antd'
+import { FolderOutlined } from '@ant-design/icons'
 import { Fragment, useEffect, useMemo, useRef } from 'react'
 import { eagleThumbnailUrl } from '../../api'
+import { ConfirmControls } from './ConfirmControls'
 
 export type OrganizeSortType =
   | 'completion'
@@ -112,6 +112,8 @@ interface ThumbnailBarProps {
   onSelect: (itemId: string) => void
   sortType: OrganizeSortType
   onSortTypeChange: (sortType: OrganizeSortType) => void
+  quickMode: boolean
+  onQuickModeChange: (quickMode: boolean) => void
 }
 
 export function ThumbnailBar({
@@ -120,6 +122,8 @@ export function ThumbnailBar({
   onSelect,
   sortType,
   onSortTypeChange,
+  quickMode,
+  onQuickModeChange,
 }: ThumbnailBarProps) {
   const itemRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
 
@@ -147,7 +151,7 @@ export function ThumbnailBar({
   return (
     <div className="flex shrink-0 items-center gap-2">
       {/* 缩略图横向滚动列表 */}
-      <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto rounded-lg border border-slate-200 p-2 dark:border-slate-700">
+      <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto rounded-lg">
         {results.map((result, index) => {
           const categoryName = getOrganizeItemCategory(result)
           const isFirstOfCategory =
@@ -196,25 +200,13 @@ export function ThumbnailBar({
         })}
       </div>
 
-      {/* 右侧排序组件 */}
-      <div className="flex shrink-0 flex-col items-start justify-center gap-1.5 self-stretch rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/40">
-        <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
-          <SortAscendingOutlined />
-          <span>排序方式</span>
-        </div>
-        <Select<OrganizeSortType>
-          value={sortType}
-          onChange={onSortTypeChange}
-          size="small"
-          className="w-32"
-          options={[
-            { value: 'category', label: '图片分类' },
-            { value: 'completion', label: '完成顺序' },
-            { value: 'mtime_desc', label: '修改时间 新→旧' },
-            { value: 'mtime_asc', label: '修改时间 旧→新' },
-          ]}
-        />
-      </div>
+      {/* 右侧排序与快速模式组件 */}
+      <ConfirmControls
+        sortType={sortType}
+        onSortTypeChange={onSortTypeChange}
+        quickMode={quickMode}
+        onQuickModeChange={onQuickModeChange}
+      />
     </div>
   )
 }
