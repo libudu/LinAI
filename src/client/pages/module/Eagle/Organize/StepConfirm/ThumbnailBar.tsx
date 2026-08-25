@@ -1,7 +1,8 @@
 import type { OrganizeResultListItem } from '@/shared/eagle/organize'
 import type { EagleFolder } from '@/shared/eagle/types'
 import { FolderOutlined } from '@ant-design/icons'
-import { Fragment, useEffect, useMemo, useRef } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { useEffect, useMemo, useRef } from 'react'
 import { eagleThumbnailUrl } from '../../api'
 import { ConfirmControls } from './ConfirmControls'
 
@@ -16,6 +17,19 @@ export const getOrganizeItemCategory = (
 ): string => {
   return item.folderPaths?.[0] || '未分类'
 }
+
+type VirtualThumbItem =
+  | {
+      type: 'category'
+      id: string
+      categoryName: string
+      remainingCount: number
+    }
+  | {
+      type: 'card'
+      id: string
+      result: OrganizeResultListItem
+    }
 
 /**
  * 待确认结果排序函数：
@@ -125,79 +139,134 @@ export function ThumbnailBar({
   quickMode,
   onQuickModeChange,
 }: ThumbnailBarProps) {
-  const itemRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
+  const parentRef = useRef<HTMLDivElement>(null)
 
-  const categoryRemainingCounts = useMemo(() => {
-    const counts = new Map<string, number>()
+  // 平铺分类标题与缩略图卡片项
+  const flatItems = useMemo<VirtualThumbItem[]>(() => {
+    const categoryRemainingCounts = new Map<string, number>()
     for (const item of results) {
       const cat = getOrganizeItemCategory(item)
-      counts.set(cat, (counts.get(cat) ?? 0) + 1)
+      categoryRemainingCounts.set(
+        cat,
+        (categoryRemainingCounts.get(cat) ?? 0) + 1,
+      )
     }
-    return counts
-  }, [results])
 
-  // 选中项变化时平滑滚动到可见区域
-  useEffect(() => {
-    if (selectedId) {
-      const el = itemRefs.current.get(selectedId)
-      el?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-        inline: 'nearest',
+    const list: VirtualThumbItem[] = []
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i]
+      const categoryName = getOrganizeItemCategory(result)
+      const isFirstOfCategory =
+        sortType === 'category' &&
+        (i === 0 || getOrganizeItemCategory(results[i - 1]) !== categoryName)
+
+      if (isFirstOfCategory) {
+        list.push({
+          type: 'category',
+          id: `cat_${categoryName}_${i}`,
+          categoryName,
+          remainingCount: categoryRemainingCounts.get(categoryName) ?? 0,
+        })
+      }
+
+      list.push({
+        type: 'card',
+        id: result.itemId,
+        result,
       })
     }
-  }, [selectedId])
+
+    return list
+  }, [results, sortType])
+
+  // 水平虚拟列表：卡片宽度 96px + gap 8px = 104px
+  const virtualizer = useVirtualizer({
+    horizontal: true,
+    count: flatItems.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 104,
+    overscan: 6,
+  })
+
+  // 选中项切换时自动滚动到可视区域
+  useEffect(() => {
+    if (!selectedId) return
+    const index = flatItems.findIndex(
+      (it) => it.type === 'card' && it.result.itemId === selectedId,
+    )
+    if (index !== -1) {
+      virtualizer.scrollToIndex(index, {
+        align: 'auto',
+        behavior: 'auto',
+      })
+    }
+  }, [selectedId, flatItems, virtualizer])
 
   return (
     <div className="flex shrink-0 items-center gap-2">
-      {/* 缩略图横向滚动列表 */}
-      <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto rounded-lg">
-        {results.map((result, index) => {
-          const categoryName = getOrganizeItemCategory(result)
-          const isFirstOfCategory =
-            sortType === 'category' &&
-            (index === 0 ||
-              getOrganizeItemCategory(results[index - 1]) !== categoryName)
-          const remainingCount = categoryRemainingCounts.get(categoryName) ?? 0
+      {/* 缩略图横向虚拟滚动列表 */}
+      <div
+        ref={parentRef}
+        className="min-w-0 flex-1 overflow-x-auto rounded-lg"
+      >
+        <div
+          style={{
+            width: `${virtualizer.getTotalSize()}px`,
+            height: '96px',
+            position: 'relative',
+          }}
+        >
+          {virtualizer.getVirtualItems().map((virtualItem) => {
+            const item = flatItems[virtualItem.index]
+            if (!item) return null
 
-          return (
-            <Fragment key={result.itemId}>
-              {isFirstOfCategory && (
-                <div
-                  className="flex h-24 shrink-0 flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50/80 px-2 py-1 text-center select-none dark:border-slate-600 dark:bg-slate-800/60"
-                  title={`${categoryName}（剩余 ${remainingCount} 张）`}
-                >
-                  <FolderOutlined className="mb-0.5 text-xs text-slate-400 dark:text-slate-500" />
-                  <span className="line-clamp-2 max-w-[84px] text-xs leading-tight font-medium break-all text-slate-700 dark:text-slate-200">
-                    {categoryName}
-                  </span>
-                  <span className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
-                    剩余 {remainingCount} 张
-                  </span>
-                </div>
-              )}
-              <button
-                ref={(el) => {
-                  if (el) itemRefs.current.set(result.itemId, el)
-                  else itemRefs.current.delete(result.itemId)
+            return (
+              <div
+                key={item.id}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  transform: `translateX(${virtualItem.start}px)`,
+                  width: '96px',
+                  height: '96px',
                 }}
-                type="button"
-                onClick={() => onSelect(result.itemId)}
-                className={`relative h-24 w-24 shrink-0 overflow-hidden rounded-md border-2 transition-colors ${
-                  result.itemId === selectedId
-                    ? 'border-blue-500'
-                    : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600'
-                }`}
               >
-                <img
-                  src={eagleThumbnailUrl(result.itemId)}
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
-              </button>
-            </Fragment>
-          )
-        })}
+                {item.type === 'category' ? (
+                  <div
+                    className="flex h-24 w-24 flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50/80 px-2 py-1 text-center select-none dark:border-slate-600 dark:bg-slate-800/60"
+                    title={`${item.categoryName}（剩余 ${item.remainingCount} 张）`}
+                  >
+                    <FolderOutlined className="mb-0.5 text-xs text-slate-400 dark:text-slate-500" />
+                    <span className="line-clamp-2 max-w-[84px] text-xs leading-tight font-medium break-all text-slate-700 dark:text-slate-200">
+                      {item.categoryName}
+                    </span>
+                    <span className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+                      剩余 {item.remainingCount} 张
+                    </span>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onSelect(item.result.itemId)}
+                    className={`relative h-24 w-24 shrink-0 overflow-hidden rounded-md border-2 transition-colors ${
+                      item.result.itemId === selectedId
+                        ? 'border-blue-500'
+                        : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600'
+                    }`}
+                  >
+                    <img
+                      src={eagleThumbnailUrl(item.result.itemId)}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                      alt="thumbnail"
+                    />
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       {/* 右侧排序与快速模式组件 */}

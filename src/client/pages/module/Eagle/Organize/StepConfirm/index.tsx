@@ -197,14 +197,14 @@ export function StepConfirm({
     }
   }, [])
 
-  // 预加载当前项及接下来 3 张图片的大图与详情信息（快速模式下不预加载，避免资源与网络请求浪费）
+  // 预加载当前项及接下来几张图片（仅在普通模式预加载详情与原图大图；快速模式由 IntersectionObserver 视口按需懒加载）
   useEffect(() => {
     if (quickMode || !selectedId || results.length === 0) return
 
     const currentIndex = results.findIndex((item) => item.itemId === selectedId)
     if (currentIndex === -1) return
 
-    // 预加载当前项与接下来的 3 项详情（共 4 项）
+    // 普通模式：预加载详情与原图大图
     const detailTargets = results.slice(currentIndex, currentIndex + 4)
     detailTargets.forEach((item) => {
       if (!detailsMap[item.itemId]) {
@@ -212,9 +212,8 @@ export function StepConfirm({
       }
     })
 
-    // 预加载接下来 3 张原图（当前项由 Image 组件自身渲染）
-    const nextItems = results.slice(currentIndex + 1, currentIndex + 4)
-    nextItems.forEach((item) => {
+    const fullImageTargets = results.slice(currentIndex, currentIndex + 3)
+    fullImageTargets.forEach((item) => {
       if (!preloadedIdsRef.current.has(item.itemId)) {
         preloadedIdsRef.current.add(item.itemId)
         const img = new window.Image()
@@ -348,23 +347,39 @@ export function StepConfirm({
     async (fn: (itemId: string) => Promise<void>, targetId?: string) => {
       const itemId = targetId ?? selectedId
       if (!itemId || actionLoading) return
+
+      const current = resultsRef.current
+      const item = current.find((r) => r.itemId === itemId)
+      if (!item) return
+
+      const index = current.findIndex((result) => result.itemId === itemId)
+      const remaining = current.filter((result) => result.itemId !== itemId)
+      const nextId =
+        itemId === selectedId
+          ? (remaining[index]?.itemId ?? remaining[0]?.itemId ?? null)
+          : selectedId
+
+      // 立即乐观更新列表与选中项，界面无卡顿响应
+      resultsRef.current = remaining
+      setResults(remaining)
+      setSelectedId(nextId)
+
       setActionLoading(true)
       try {
         // 先冲刷待确认队列中的项目，保证操作时序
         await flushPendingBatch()
         await fn(itemId)
-        const current = resultsRef.current
-        const index = current.findIndex((result) => result.itemId === itemId)
-        const remaining = current.filter((result) => result.itemId !== itemId)
-        const nextId =
-          itemId === selectedId
-            ? (remaining[index]?.itemId ?? remaining[0]?.itemId ?? null)
-            : selectedId
-        resultsRef.current = remaining
-        setResults(remaining)
-        setSelectedId(nextId)
       } catch (error) {
         message.error(error instanceof Error ? error.message : '操作失败')
+        // 发生错误时回退该条目
+        const latest = resultsRef.current
+        if (!latest.some((r) => r.itemId === itemId)) {
+          const restored = [...latest]
+          restored.splice(Math.min(index, restored.length), 0, item)
+          resultsRef.current = restored
+          setResults(restored)
+          setSelectedId((curr) => curr ?? itemId)
+        }
       } finally {
         setActionLoading(false)
       }
@@ -534,6 +549,20 @@ export function StepConfirm({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [runAction, runConfirm])
 
+  const handleClearClassification = useCallback(
+    (item: OrganizeResultListItem) => {
+      void runAction(clearOrganizeResultClassification, item.itemId)
+    },
+    [runAction],
+  )
+
+  const handleSkipItem = useCallback(
+    (item: OrganizeResultListItem) => {
+      void runAction(skipOrganizeResult, item.itemId)
+    },
+    [runAction],
+  )
+
   if (loading && results.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -584,12 +613,8 @@ export function StepConfirm({
             selectedId={selectedId}
             onSelect={setSelectedId}
             onConfirmItem={confirmItemQuick}
-            onClearClassification={(item) =>
-              runAction(clearOrganizeResultClassification, item.itemId)
-            }
-            onSkipItem={(item) =>
-              runAction(skipOrganizeResult, item.itemId)
-            }
+            onClearClassification={handleClearClassification}
+            onSkipItem={handleSkipItem}
             sortType={sortType}
             actionLoading={actionLoading}
           />
