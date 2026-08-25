@@ -1,3 +1,4 @@
+import pkg from '../../../../package.json'
 import { logger } from '../../common/logger'
 
 // PNG 文件签名
@@ -84,6 +85,8 @@ export function writePngGenerationInfo(
     }
 
     const text = [
+      `software: LinAI`,
+      `version: ${pkg.version}`,
       `model: ${info.model}`,
       `prompt: ${info.prompt}`,
       `size: ${info.size}`,
