@@ -187,3 +187,33 @@ export interface OrganizeQueueResp {
   /** 未完成（执行中 / 待处理 / 失败）总条数，用于「仅展示前 N 条」提示 */
   total: number
 }
+
+/**
+ * 提取模型标识后缀：_【模型第一个词】【模型数字】
+ * 用于在生成图片标题之后标识起标题的模型。
+ * 例如：
+ * - gemini-3.7-flash-high -> _gemini3.7
+ * - gpt-5.6 -> _gpt5.6
+ * - gpt-5.6-terra -> _gpt5.6
+ * - claude-3-7-sonnet -> _claude3.7
+ */
+export const getModelTitleSuffix = (modelId?: string): string => {
+  if (!modelId || typeof modelId !== 'string') return ''
+  const trimmed = modelId.trim()
+  if (!trimmed) return ''
+
+  // 去除可能的 provider 路径前缀（如 "google/gemini-3.7-flash" -> "gemini-3.7-flash"）
+  const name = trimmed.includes('/') ? trimmed.split('/').pop()! : trimmed
+
+  // 提取第一个英文单词（连续字母）
+  const wordMatch = name.match(/[a-zA-Z]+/)
+  const word = wordMatch ? wordMatch[0].toLowerCase() : ''
+
+  // 提取模型版本数字（支持 3.7、3-7、5.6、4 等形式并转为小数点格式）
+  const versionMatch = name.match(/\d+(?:[.-]\d+)?/)
+  const num = versionMatch ? versionMatch[0].replace('-', '.') : ''
+
+  if (!word && !num) return ''
+  return `_${word}${num}`
+}
+

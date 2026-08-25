@@ -10,7 +10,8 @@ import type {
 import { DeleteOutlined, FolderAddOutlined } from '@ant-design/icons'
 import { Button, Checkbox, Empty, Image, Radio, Spin, message } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { eagleFileUrl, eagleThumbnailUrl } from '../api'
+import { deleteEagleItem, eagleFileUrl, eagleThumbnailUrl } from '../api'
+import { confirmDeleteEagleItem } from '../components/confirmDeleteModal'
 import {
   FolderSelectModal,
   type SelectedFolderInfo,
@@ -358,6 +359,19 @@ export function StepConfirm({
     withTitle,
   ])
 
+  const handleDelete = useCallback(() => {
+    if (!selectedId || actionLoading) return
+    confirmDeleteEagleItem({
+      name: detail?.itemName,
+      onConfirm: () =>
+        runAction(async (itemId) => {
+          await deleteEagleItem(itemId)
+          await skipOrganizeResult(itemId)
+          message.success('已移至回收站')
+        }),
+    })
+  }, [actionLoading, detail?.itemName, runAction, selectedId])
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return
@@ -575,9 +589,17 @@ export function StepConfirm({
         </div>
       </div>
 
-      {/* 底部操作：清除分类 / 不处理 / 重新执行 / 确认 */}
+      {/* 底部操作：移到回收站 / 清除分类 / 不处理 / 重新执行 / 确认 */}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3 dark:border-slate-700">
         <div className="flex flex-wrap gap-2">
+          <Button
+            danger
+            loading={actionLoading}
+            disabled={!selectedId}
+            onClick={handleDelete}
+          >
+            移到回收站
+          </Button>
           <Button
             loading={actionLoading}
             disabled={!selectedId}

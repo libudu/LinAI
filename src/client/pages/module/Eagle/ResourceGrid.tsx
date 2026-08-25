@@ -12,11 +12,11 @@ import {
 import { Dropdown, Image, Modal, Pagination, Spin, message } from 'antd'
 import { useRef, useState } from 'react'
 import {
-  deleteEagleItem,
   eagleFileUrl,
   eagleThumbnailUrl,
   updateEagleItem,
 } from './api'
+import { confirmDeleteEagleItem } from './components/confirmDeleteModal'
 import {
   FolderSelectModal,
   type SelectedFolderInfo,
@@ -176,22 +176,10 @@ export function ResourceGrid() {
   }
 
   const handleDeleteItem = (item: EagleItem) => {
-    Modal.confirm({
-      title: '移到回收站',
-      content: `确定要将「${item.name}」移至 Eagle 回收站吗？`,
-      okText: '移到回收站',
-      okType: 'danger',
-      cancelText: '取消',
-      centered: true,
-      onOk: async () => {
-        try {
-          await deleteEagleItem(item.id)
-          message.success('已移至回收站')
-          await refreshCurrentPage()
-        } catch (error) {
-          message.error(error instanceof Error ? error.message : '删除失败')
-        }
-      },
+    confirmDeleteEagleItem({
+      id: item.id,
+      name: item.name,
+      onDeleted: () => refreshCurrentPage(),
     })
   }
 

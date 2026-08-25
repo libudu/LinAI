@@ -19,7 +19,7 @@ import { judgeItem } from './vision'
  */
 class OrganizeExecutor {
   private static readonly ERROR_PAUSE_THRESHOLD = 10
-  private static readonly REQUEST_INTERVAL_MS = 1_000
+  private static readonly REQUEST_INTERVAL_MS = 500
   /** runQueue 是否在执行中（kick 的幂等依据） */
   private active = false
   /** 停止派发标记（用户暂停 / 单图失败 / 结果落盘异常 / 强制清空） */
@@ -155,7 +155,7 @@ class OrganizeExecutor {
     await this.finalize(itemsAfter)
   }
 
-  /** 串行分配请求启动时隙，使全局相邻两次派发至少间隔 1 秒 */
+  /** 串行分配请求启动时隙，使全局相邻两次派发至少间隔 0.5 秒 */
   private async waitForDispatch(
     epoch: number,
     signal: AbortSignal,

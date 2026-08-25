@@ -2,12 +2,14 @@ import type { OrganizeFolderStandard } from '@/shared/eagle/organize'
 import {
   ORGANIZE_VISION_USER_TEXT,
   buildOrganizeVisionSystemPrompt,
+  getModelTitleSuffix,
 } from '@/shared/eagle/organize'
 import fs from 'fs-extra'
 import sharp from 'sharp'
 import { z } from 'zod'
 import { requestRegistry } from '../../../common/relay'
 import { getItemEntry, getItemFilePath } from '../library'
+import { getEagleVisionEndpoint } from '../settings'
 import {
   EAGLE_VISION_IMAGE_MAX_DIMENSION,
   EAGLE_VISION_IMAGE_QUALITY,
@@ -186,5 +188,14 @@ export const judgeItem = async (
   if (unknownPath) {
     throw new Error(`判定的文件夹不在分类标准中：${unknownPath}`)
   }
-  return validated.data
+  const endpoint = await getEagleVisionEndpoint()
+  const suffix = getModelTitleSuffix(endpoint.modelId)
+  const title = suffix
+    ? `${validated.data.title}${suffix}`
+    : validated.data.title
+
+  return {
+    ...validated.data,
+    title,
+  }
 }
