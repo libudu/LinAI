@@ -216,4 +216,3 @@ export const getModelTitleSuffix = (modelId?: string): string => {
   if (!word && !num) return ''
   return `_${word}${num}`
 }
-

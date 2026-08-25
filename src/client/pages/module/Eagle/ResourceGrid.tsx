@@ -11,11 +11,7 @@ import {
 } from '@ant-design/icons'
 import { Dropdown, Image, Modal, Pagination, Spin, message } from 'antd'
 import { useRef, useState } from 'react'
-import {
-  eagleFileUrl,
-  eagleThumbnailUrl,
-  updateEagleItem,
-} from './api'
+import { eagleFileUrl, eagleThumbnailUrl, updateEagleItem } from './api'
 import { confirmDeleteEagleItem } from './components/confirmDeleteModal'
 import {
   FolderSelectModal,
