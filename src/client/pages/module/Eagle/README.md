@@ -41,6 +41,12 @@ src/client/pages/module/Eagle/           # 本目录
 │   ├── index.tsx                        # Modal 壳：标题栏展示锁定文件夹，左侧 StepNavBar 导航卡片 + 右侧步骤组件，支持智能默认与非互斥自由切换
 │   ├── StepNavBar.tsx                   # 导航卡片栏：01待添加（蓝）/02处理中（紫）/03待确认（绿）三个卡片按钮，具区分度背景色，移动端横排置顶，展示实时状态、执行进度与待查验/失败徽标
 │   ├── StepClassify.tsx                 # 步骤 1：新建任务（分类标准优先级列表 + 数量/并发/压缩）/ 追加模式（展示当前锁定文件夹剩余未入队数并随时追加到队尾）
+│   ├── StepRunning/                     # 步骤 2：执行中任务（拆分为主入口 index / CompletedCards / QueueList / FailedList / BottomBar）
+│   │   ├── index.tsx                    # 主入口：状态与批量操作、Tab 切换与完成双卡片组装
+│   │   ├── CompletedCards.tsx           # 完成且无错误时居中展示左右并置操作卡片（继续添加 / 开始确认）
+│   │   ├── QueueList.tsx                # 排队与执行中列表
+│   │   ├── FailedList.tsx               # 失败待处理列表与单项重试/跳过
+│   │   └── BottomBar.tsx                # 底部操作栏（清空任务、暂停/继续、去确认结果）
 │   ├── StepConfirm/                     # 步骤 3：纯净结果确认（拆分为主入口 index / useManualFolders / ThumbnailBar / DetailPanel / ActionBar）
 │   │   ├── index.tsx                    # 主入口：纯净结果确认——仅查验判定成功项，顶部缩略图条 + 左大图（原图展示并预加载下两张）右信息面板 + 底部快捷操作（移到回收站/A清除分类/S不处理/重新执行/D确认），重新执行不打断确认流
 │   │   ├── useManualFolders.ts          # 手动选择文件夹历史记录 Hook
