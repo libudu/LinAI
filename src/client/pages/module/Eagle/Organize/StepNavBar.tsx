@@ -47,6 +47,21 @@ export const StepNavBar: React.FC<StepNavBarProps> = ({
     return '追加图片到队列'
   }
 
+  const isRunningCompleted =
+    phase === 'confirming' ||
+    phase === 'done' ||
+    (total > 0 &&
+      executed >= total &&
+      phase !== 'running' &&
+      phase !== 'paused')
+
+  const getRunningTitle = () => {
+    if (isRunningCompleted && total > 0) {
+      return '02 已完成'
+    }
+    return '02 处理中'
+  }
+
   const getRunningSubtitle = () => {
     if (isStepRunningDisabled) {
       return '暂无任务'
@@ -112,7 +127,7 @@ export const StepNavBar: React.FC<StepNavBarProps> = ({
                 : 'text-slate-800 dark:text-slate-200'
             }`}
           >
-            02 处理中
+            {getRunningTitle()}
           </span>
           {!isStepRunningDisabled && phase === 'running' && (
             <span className="flex h-2 w-2 shrink-0 items-center justify-center">
