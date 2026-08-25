@@ -13,6 +13,7 @@ import storageApi from './api/common/storage'
 import taskApi from './api/common/task'
 import eagleApi from './api/eagle'
 import gptImageApi from './api/gpt-image'
+import openaiApi from './api/openai'
 import ttsApi from './api/tts'
 import ttsInworldApi from './api/tts/inworld'
 import yunwuTokenApi from './api/yunwu-token'
@@ -79,6 +80,9 @@ const routes = app
   .route('/api/log', logApi)
   .route('/api/static', staticApi)
   .route('/api/config', configApi)
+  // openai compatible
+  .route('/v1', openaiApi)
+  .route('/api/v1', openaiApi)
 export type AppType = typeof routes
 
 export const BACKEND_PORT = process.env.NODE_ENV !== 'development' ? 3000 : 3001
