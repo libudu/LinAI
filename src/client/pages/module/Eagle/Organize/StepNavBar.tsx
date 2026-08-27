@@ -24,7 +24,11 @@ export const StepNavBar: React.FC<StepNavBarProps> = ({
   const pendingConfirm = status?.pendingConfirm ?? 0
   const failedCount = status?.failedCount ?? 0
   const total = task?.total ?? 0
-  const executed = task?.executed ?? 0
+  // 由固定总数与 status.remaining 实时推导已执行数，避免队列运行中频繁拉取 task
+  const executed =
+    total > 0
+      ? Math.max(0, total - (status?.remaining ?? 0))
+      : (task?.executed ?? 0)
 
   // 02 处理中：无任务或已全部完成且无队列时置灰
   const isStepRunningDisabled =

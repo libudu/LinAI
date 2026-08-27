@@ -1,7 +1,7 @@
 import { usePlatform } from '@/client/hooks/usePlatform'
 import type { OrganizeTaskView } from '@/shared/eagle/organize'
 import { Modal, Spin, Tooltip } from 'antd'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { setEagleLibraryRefreshSuspended } from '../store'
 import { StepClassify } from './StepClassify'
 import { StepConfirm } from './StepConfirm'
@@ -28,19 +28,50 @@ export function OrganizeModal({
   const phase = status?.phase
   const isLocked = status?.isLocked ?? false
   const lockedFolderName = status?.folderName
+  const isFetchingTaskRef = useRef(false)
+  const pendingTaskFetchRef = useRef(false)
+  const taskSequenceRef = useRef(0)
+  const prevPhaseRef = useRef(phase)
+  const prevOpenRef = useRef(open)
 
-  // 拉取任务快照以同步导航卡片展示
-  const loadTask = () => {
-    fetchOrganizeTask()
-      .then((t) => setTask(t))
-      .catch((err) => console.error('拉取任务详情失败', err))
-  }
-
-  useEffect(() => {
-    if (open) {
-      loadTask()
+  // 拉取任务快照以同步导航卡片展示（带单飞保护）
+  const doLoadTask = useCallback(async () => {
+    if (isFetchingTaskRef.current) {
+      pendingTaskFetchRef.current = true
+      return
     }
-  }, [open, status])
+    isFetchingTaskRef.current = true
+    const sequence = ++taskSequenceRef.current
+    try {
+      const nextTask = await fetchOrganizeTask()
+      if (sequence === taskSequenceRef.current) {
+        setTask(nextTask)
+      }
+    } catch (err) {
+      console.error('拉取任务详情失败', err)
+    } finally {
+      isFetchingTaskRef.current = false
+      if (pendingTaskFetchRef.current) {
+        pendingTaskFetchRef.current = false
+        queueMicrotask(() => {
+          void doLoadTask()
+        })
+      }
+    }
+  }, [])
+
+  // 仅在弹窗打开、phase 发生阶段性跳变（如新建/完成/清空等）或无 task 时拉取
+  // 队列执行中（phase 为 running 期间的数值变动）无需重复拉取整包 task
+  useEffect(() => {
+    const isJustOpened = open && !prevOpenRef.current
+    const isPhaseChanged = open && phase !== prevPhaseRef.current
+    prevOpenRef.current = open
+    prevPhaseRef.current = phase
+
+    if (isJustOpened || isPhaseChanged || (open && !task)) {
+      void doLoadTask()
+    }
+  }, [open, phase, task, doLoadTask])
 
   // 打开弹窗或状态首次加载时，智能推荐初始展示步骤
   useEffect(() => {

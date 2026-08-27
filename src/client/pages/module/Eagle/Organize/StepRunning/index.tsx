@@ -43,35 +43,82 @@ export function StepRunning({
   const [itemActionLoading, setItemActionLoading] = useState<string | null>(
     null,
   )
+  const isFetchingRef = useRef(false)
+  const pendingFetchRef = useRef(false)
   const refreshSequenceRef = useRef(0)
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasAutoJumpedRef = useRef(false)
 
-  const refreshTask = useCallback(() => {
+  const doRefreshTask = useCallback(async () => {
+    if (isFetchingRef.current) {
+      pendingFetchRef.current = true
+      return
+    }
+    isFetchingRef.current = true
     const sequence = ++refreshSequenceRef.current
 
-    fetchOrganizeQueue(QUEUE_PREVIEW_LIMIT)
-      .then((nextQueue) => {
-        if (sequence === refreshSequenceRef.current) setQueue(nextQueue)
-      })
-      .catch((error) => console.error('拉取图片整理队列预览失败', error))
+    try {
+      const [nextQueue, nextFailedItems] = await Promise.all([
+        fetchOrganizeQueue(QUEUE_PREVIEW_LIMIT).catch((error) => {
+          console.error('拉取图片整理队列预览失败', error)
+          return null
+        }),
+        fetchFailedOrganizeItems().catch((error) => {
+          console.error('拉取失败项列表失败', error)
+          return null
+        }),
+      ])
 
-    fetchFailedOrganizeItems()
-      .then((items) => {
-        if (sequence === refreshSequenceRef.current) {
-          setFailedItems(items)
-        }
-      })
-      .catch((error) => console.error('拉取失败项列表失败', error))
+      if (sequence === refreshSequenceRef.current) {
+        if (nextQueue) setQueue(nextQueue)
+        if (nextFailedItems) setFailedItems(nextFailedItems)
+      }
+    } finally {
+      isFetchingRef.current = false
+      if (pendingFetchRef.current) {
+        pendingFetchRef.current = false
+        queueMicrotask(() => {
+          void doRefreshTask()
+        })
+      }
+    }
   }, [])
 
-  useEffect(() => {
-    refreshTask()
-  }, [refreshTask])
+  const triggerDebouncedRefreshTask = useCallback(
+    (delay = 200) => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+      debounceTimerRef.current = setTimeout(() => {
+        debounceTimerRef.current = null
+        void doRefreshTask()
+      }, delay)
+    },
+    [doRefreshTask],
+  )
 
-  // status 由 SSE 变更触发更新，变化后同步刷新任务详情与队列预览
+  const refreshTaskImmediate = useCallback(async () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+      debounceTimerRef.current = null
+    }
+    await doRefreshTask()
+  }, [doRefreshTask])
+
   useEffect(() => {
-    refreshTask()
-  }, [status, refreshTask])
+    void doRefreshTask()
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+        debounceTimerRef.current = null
+      }
+    }
+  }, [doRefreshTask])
+
+  // status 由 SSE 变更触发更新，变化后防抖刷新任务详情与队列预览
+  useEffect(() => {
+    triggerDebouncedRefreshTask(200)
+  }, [status, triggerDebouncedRefreshTask])
 
   const phase = status?.phase
   const pendingConfirm = status?.pendingConfirm ?? 0
@@ -133,7 +180,7 @@ export function StepRunning({
       await action()
       message.success(successMsg)
       await refreshOrganizeStatus()
-      refreshTask()
+      await refreshTaskImmediate()
     } catch (error) {
       message.error(error instanceof Error ? error.message : '操作失败')
     } finally {
@@ -147,7 +194,7 @@ export function StepRunning({
       await retryOrganizeResult(itemId)
       message.success('已重新加入执行队列')
       await refreshOrganizeStatus()
-      refreshTask()
+      await refreshTaskImmediate()
     } catch (error) {
       message.error(error instanceof Error ? error.message : '重试失败')
     } finally {
@@ -161,7 +208,7 @@ export function StepRunning({
       await skipOrganizeResult(itemId)
       message.success('已跳过该项')
       await refreshOrganizeStatus()
-      refreshTask()
+      await refreshTaskImmediate()
     } catch (error) {
       message.error(error instanceof Error ? error.message : '跳过失败')
     } finally {

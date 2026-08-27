@@ -16,21 +16,76 @@ interface OrganizeState {
   refresh: () => Promise<void>
 }
 
-let refreshSequence = 0
+let isFetching = false
+let hasPendingRefresh = false
+let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
-const refreshStatus = async (): Promise<void> => {
-  const sequence = ++refreshSequence
+const isEqualStatus = (
+  a: OrganizeStatus | null,
+  b: OrganizeStatus | null,
+): boolean => {
+  if (a === b) return true
+  if (!a || !b) return false
+  return (
+    a.phase === b.phase &&
+    a.remaining === b.remaining &&
+    a.pendingConfirm === b.pendingConfirm &&
+    a.failedCount === b.failedCount &&
+    a.pausedReason === b.pausedReason &&
+    a.folderId === b.folderId &&
+    a.folderName === b.folderName &&
+    a.isLocked === b.isLocked
+  )
+}
+
+const doFetchStatus = async (): Promise<void> => {
+  if (isFetching) {
+    hasPendingRefresh = true
+    return
+  }
+  isFetching = true
   try {
     const status = await fetchOrganizeStatus()
-    // SSE 事件可能密集触发并发请求，只允许最后发起的请求更新状态，
-    // 避免较旧响应晚到后把 confirming 覆盖回 running/paused。
-    if (sequence !== refreshSequence) return
-    useOrganizeStore.setState({ status, loaded: true })
+    const current = useOrganizeStore.getState().status
+    if (!isEqualStatus(current, status)) {
+      useOrganizeStore.setState({ status, loaded: true })
+    } else if (!useOrganizeStore.getState().loaded) {
+      useOrganizeStore.setState({ loaded: true })
+    }
   } catch (error) {
     console.error('拉取图片整理任务状态失败', error)
-    if (sequence !== refreshSequence) return
-    useOrganizeStore.setState({ loaded: true })
+    if (!useOrganizeStore.getState().loaded) {
+      useOrganizeStore.setState({ loaded: true })
+    }
+  } finally {
+    isFetching = false
+    if (hasPendingRefresh) {
+      hasPendingRefresh = false
+      queueMicrotask(() => {
+        void doFetchStatus()
+      })
+    }
   }
+}
+
+/** 触发带防抖的状态刷新（供高频 SSE 变更使用） */
+const triggerDebouncedRefresh = (delay = 200) => {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+  }
+  debounceTimer = setTimeout(() => {
+    debounceTimer = null
+    void doFetchStatus()
+  }, delay)
+}
+
+/** 立即刷新（取消防抖定时器并直接发起请求） */
+const refreshStatus = async (): Promise<void> => {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+    debounceTimer = null
+  }
+  await doFetchStatus()
 }
 
 const useOrganizeStore = create<OrganizeState>((set) => ({
@@ -43,12 +98,12 @@ const useOrganizeStore = create<OrganizeState>((set) => ({
     set((state) => {
       const newCount = state.subscriberCount + 1
       if (newCount === 1 && !state.eventSource) {
-        refreshStatus()
+        void doFetchStatus()
         const es = new EventSource(
           '/api/storage/events?resources=eagle.organize',
         )
         es.addEventListener('change', () => {
-          refreshStatus()
+          triggerDebouncedRefresh(200)
         })
         es.onerror = (error) => {
           console.error('图片整理任务 SSE 连接错误', error)
@@ -63,6 +118,10 @@ const useOrganizeStore = create<OrganizeState>((set) => ({
     set((state) => {
       const newCount = Math.max(0, state.subscriberCount - 1)
       if (newCount === 0 && state.eventSource) {
+        if (debounceTimer) {
+          clearTimeout(debounceTimer)
+          debounceTimer = null
+        }
         state.eventSource.close()
         return { subscriberCount: newCount, eventSource: null }
       }

@@ -699,7 +699,7 @@ export const folderExists = async (folderId: string): Promise<boolean> => {
   return walk(index.folders)
 }
 
-/** 图片整理用：可处理图片（排除 gif / 视频 / heif），排序后返回 id 队列与总数 */
+/** 图片整理用：可处理图片（排除 gif / 视频 / heif / heic），排序后返回 id 队列与总数 */
 export const getClassifiableItems = async (params: {
   folderId?: string
   sortBy: EagleSortBy
@@ -709,7 +709,10 @@ export const getClassifiableItems = async (params: {
   if (!index) return { total: 0, itemIds: [] }
   let list = [...index.items.values()].filter(
     (item) =>
-      !VIDEO_EXTS.has(item.ext) && item.ext !== 'gif' && item.ext !== 'heif',
+      !VIDEO_EXTS.has(item.ext) &&
+      item.ext !== 'gif' &&
+      item.ext !== 'heif' &&
+      item.ext !== 'heic',
   )
   if (params.folderId === EAGLE_UNCLASSIFIED_FOLDER_ID) {
     list = list.filter((item) => item.folders.length === 0)

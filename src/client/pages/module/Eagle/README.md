@@ -55,7 +55,7 @@ src/client/pages/module/Eagle/           # 本目录
 │   │   ├── QuickConfirmList.tsx         # 快速模式下居中放大的图片卡片横向滚动列表（带每项首选分类确定按钮）
 │   │   ├── DetailPanel.tsx              # 右侧条目信息与分类选择面板
 │   │   └── ActionBar.tsx                # 底部快捷操作栏
-│   └── store.ts                         # zustand：轻量 status + SSE 订阅（eagle.organize），Toolbar 徽标与弹窗共用
+│   └── store.ts                         # zustand：轻量 status + SSE 订阅（eagle.organize，防抖 + in-flight 单飞合并），Toolbar 徽标与弹窗共用
 ├── Toolbar.tsx                          # 「展示选项」下拉面板（排序/图片大小/文件名/文件大小）+ 刷新 + 「图片整理」按钮（Badge：队列剩余数/待确认红点）+ 移动端「切换文件夹」抽屉
 └── SettingModal/
     ├── index.tsx                        # 设置弹窗（openEagleSettingModal）：资源库 / 视觉接入点两个标签页
@@ -107,7 +107,7 @@ src/client/pages/module/Eagle/           # 本目录
 | POST   | `/refresh`                                                           | 触发增量校验（库路径变化时重建索引）                                                                                                             |
 | GET    | `/items/:id/thumbnail`                                               | 优先库内 `_thumbnail.png` → 缺失时图片用 sharp 生成 200px webp 缓存到 `data/eagle/thumb/` → 视频回退占位 SVG                                     |
 | GET    | `/items/:id/file`                                                    | 原文件流式返回，支持 Range（206），视频可拖进度条                                                                                                |
-| GET    | `/organize/prepare?folderId&sortBy&sortOrder`                        | 图片整理步骤 1 数据：分类标准列表 + 当前范围内可处理图片数/已入队数/剩余可追加数（已排除 gif/视频/heif）                                          |
+| GET    | `/organize/prepare?folderId&sortBy&sortOrder`                        | 图片整理步骤 1 数据：分类标准列表 + 当前范围内可处理图片数/已入队数/剩余可追加数（已排除 gif/视频/heif/heic）                                     |
 | GET    | `/organize/status`                                                   | 图片整理轻量状态（phase/remaining/pendingConfirm/failedCount/folderId/folderName/isLocked），供按钮徽标与导航卡片轮询                            |
 | GET    | `/organize/task`                                                     | 图片整理任务详情（分类标准快照 + 进度计数 + 锁定文件夹信息，不含队列明细）                                                                       |
 | POST   | `/organize/task`                                                     | 创建整理任务 `{ folderId?, sortBy, sortOrder, count, compress, concurrency? }`；锁定选定文件夹；并发 1~10 默认 5；已有未完成任务 409；清空旧结果 |
