@@ -59,17 +59,18 @@ export class QueueService {
   async listFailedItems(): Promise<OrganizeFailedItem[]> {
     const items = await organizeRepository.listItems()
     const failed = items.filter((item) => item.status === 'failed')
-    const result: OrganizeFailedItem[] = []
-    for (const item of failed) {
-      const record = await organizeRepository.getItem(item.itemId)
-      const entry = await getItemEntry(item.itemId)
-      result.push({
-        itemId: item.itemId,
-        itemName: entry?.name ?? null,
-        error: record?.error ?? '未知错误',
-        updatedAt: item.updatedAt,
-      })
-    }
+    const result = await Promise.all(
+      failed.map(async (item) => {
+        const record = await organizeRepository.getItem(item.itemId)
+        const entry = await getItemEntry(item.itemId)
+        return {
+          itemId: item.itemId,
+          itemName: entry?.name ?? null,
+          error: record?.error ?? '未知错误',
+          updatedAt: item.updatedAt,
+        }
+      }),
+    )
     return result.sort((a, b) => b.updatedAt - a.updatedAt)
   }
 

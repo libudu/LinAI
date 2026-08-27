@@ -15,7 +15,7 @@ src/server/module/eagle/
 ├── library.ts                           # 核心：内存索引（扫描/增量校验/fs.watch/查询）+ updateFolder 文件夹编辑 + updateItem 条目更新（改名/移动文件夹，同步 mtime.json 与索引后发布 eagle.library 变更）+ 图片整理查询（分类标准 getFolderStandards / 可处理图片 getClassifiableItems）
 └── organize/                            # 图片整理（阶段三完成：任务基建 + 用户指定并发的队列执行 + 结果确认写库）
     ├── constants.ts                     # 模块自有常量：变更资源 ID、视觉上传压缩参数（与 common/static 的同名常量分开定义）
-    ├── storage.ts                       # 私有持久化：任务 DocumentStore（task.json，含队列 itemIds 与进度计数）+ 结果 EntityStore（items/<itemId>.json，执行完成时才落盘），落盘 data/eagle/organize/，不注册通用存储；mutateTask 提供任务文档的串行读改写（service 与 executor 共用单例）
+    ├── storage.ts                       # 私有持久化：任务 DocumentStore（task.json，含队列 itemIds 与进度计数）+ 结果 EntityStore（items/<itemId>.json，执行完成时才落盘）+ 内存 itemsCache 索引缓存（高频 query 毫秒级响应），落盘 data/eagle/organize/，不注册通用存储；mutateTask 提供任务文档的串行读改写（service 与 executor 共用单例）
     ├── service/                         # OrganizeService 模块化服务（拆分为 types / helpers / task / queue / result / index）
     │   ├── types.ts                     # 参数与操作返回类型定义
     │   ├── helpers.ts                   # 视图转换与变更发布辅助函数
