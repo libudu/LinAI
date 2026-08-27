@@ -38,6 +38,8 @@ export function StepRunning({
   const { status } = useOrganizeStatus()
   const [queue, setQueue] = useState<OrganizeQueueResp | null>(null)
   const [failedItems, setFailedItems] = useState<OrganizeFailedItem[]>([])
+  const [queueLoading, setQueueLoading] = useState(true)
+  const [failedLoading, setFailedLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'queue' | 'failed'>('queue')
   const [actionLoading, setActionLoading] = useState(false)
   const [itemActionLoading, setItemActionLoading] = useState<string | null>(
@@ -70,8 +72,14 @@ export function StepRunning({
       ])
 
       if (sequence === refreshSequenceRef.current) {
-        if (nextQueue) setQueue(nextQueue)
-        if (nextFailedItems) setFailedItems(nextFailedItems)
+        if (nextQueue) {
+          setQueue(nextQueue)
+        }
+        setQueueLoading(false)
+        if (nextFailedItems) {
+          setFailedItems(nextFailedItems)
+        }
+        setFailedLoading(false)
       }
     } finally {
       isFetchingRef.current = false
@@ -308,7 +316,9 @@ export function StepRunning({
               {
                 key: 'queue',
                 label: '排队与执行中',
-                children: <QueueList items={queueItems} />,
+                children: (
+                  <QueueList items={queueItems} loading={queueLoading} />
+                ),
               },
               {
                 key: 'failed',
@@ -326,6 +336,7 @@ export function StepRunning({
                 children: (
                   <FailedList
                     items={failedItems}
+                    loading={failedLoading}
                     actionLoadingId={itemActionLoading}
                     onRetry={handleSingleRetry}
                     onSkip={handleSingleSkip}

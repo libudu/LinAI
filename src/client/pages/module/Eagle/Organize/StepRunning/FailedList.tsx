@@ -1,10 +1,11 @@
 import type { OrganizeFailedItem } from '@/shared/eagle/organize'
-import { Button, Empty } from 'antd'
+import { Button, Empty, Spin } from 'antd'
 import { eagleThumbnailUrl } from '../../api'
 
 interface FailedListProps {
   items: OrganizeFailedItem[]
   actionLoadingId: string | null
+  loading?: boolean
   onRetry: (itemId: string) => void
   onSkip: (itemId: string) => void
 }
@@ -12,9 +13,18 @@ interface FailedListProps {
 export function FailedList({
   items,
   actionLoadingId,
+  loading,
   onRetry,
   onSkip,
 }: FailedListProps) {
+  if (loading && items.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center py-6">
+        <Spin />
+      </div>
+    )
+  }
+
   if (items.length === 0) {
     return (
       <div className="flex h-full items-center justify-center py-6">

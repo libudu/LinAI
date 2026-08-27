@@ -1,5 +1,5 @@
 import type { OrganizeQueueItem } from '@/shared/eagle/organize'
-import { Empty } from 'antd'
+import { Empty, Spin } from 'antd'
 import { eagleThumbnailUrl } from '../../api'
 
 const QUEUE_STATE_TEXT: Record<OrganizeQueueItem['state'], string> = {
@@ -16,9 +16,18 @@ const QUEUE_STATE_CLASS: Record<OrganizeQueueItem['state'], string> = {
 
 interface QueueListProps {
   items: OrganizeQueueItem[]
+  loading?: boolean
 }
 
-export function QueueList({ items }: QueueListProps) {
+export function QueueList({ items, loading }: QueueListProps) {
+  if (loading && items.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center py-6">
+        <Spin />
+      </div>
+    )
+  }
+
   if (items.length === 0) {
     return (
       <div className="flex h-full items-center justify-center py-6">

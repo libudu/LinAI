@@ -16,9 +16,12 @@ interface OrganizeState {
   refresh: () => Promise<void>
 }
 
+const MIN_REFRESH_INTERVAL_MS = 1000
+
 let isFetching = false
 let hasPendingRefresh = false
-let debounceTimer: ReturnType<typeof setTimeout> | null = null
+let scheduledTimer: ReturnType<typeof setTimeout> | null = null
+let lastFetchedAt = 0
 
 const isEqualStatus = (
   a: OrganizeStatus | null,
@@ -43,9 +46,14 @@ const doFetchStatus = async (): Promise<void> => {
     hasPendingRefresh = true
     return
   }
+  if (scheduledTimer) {
+    clearTimeout(scheduledTimer)
+    scheduledTimer = null
+  }
   isFetching = true
   try {
     const status = await fetchOrganizeStatus()
+    lastFetchedAt = Date.now()
     const current = useOrganizeStore.getState().status
     if (!isEqualStatus(current, status)) {
       useOrganizeStore.setState({ status, loaded: true })
@@ -61,30 +69,35 @@ const doFetchStatus = async (): Promise<void> => {
     isFetching = false
     if (hasPendingRefresh) {
       hasPendingRefresh = false
-      queueMicrotask(() => {
-        void doFetchStatus()
-      })
+      scheduleThrottledRefresh()
     }
   }
 }
 
-/** 触发带防抖的状态刷新（供高频 SSE 变更使用） */
-const triggerDebouncedRefresh = (delay = 200) => {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer)
-  }
-  debounceTimer = setTimeout(() => {
-    debounceTimer = null
+/** 按照最快 3 秒一次的频率调度状态刷新（供高频 SSE 变更使用） */
+const scheduleThrottledRefresh = () => {
+  if (scheduledTimer) return
+
+  const elapsed = Date.now() - lastFetchedAt
+  const remaining = Math.max(0, MIN_REFRESH_INTERVAL_MS - elapsed)
+
+  if (remaining === 0 && !isFetching) {
     void doFetchStatus()
-  }, delay)
+  } else {
+    scheduledTimer = setTimeout(() => {
+      scheduledTimer = null
+      void doFetchStatus()
+    }, remaining)
+  }
 }
 
-/** 立即刷新（取消防抖定时器并直接发起请求） */
+/** 立即刷新（取消防抖/节流定时器并直接发起请求，供主动操作后使用） */
 const refreshStatus = async (): Promise<void> => {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer)
-    debounceTimer = null
+  if (scheduledTimer) {
+    clearTimeout(scheduledTimer)
+    scheduledTimer = null
   }
+  hasPendingRefresh = false
   await doFetchStatus()
 }
 
@@ -103,7 +116,7 @@ const useOrganizeStore = create<OrganizeState>((set) => ({
           '/api/storage/events?resources=eagle.organize',
         )
         es.addEventListener('change', () => {
-          triggerDebouncedRefresh(200)
+          scheduleThrottledRefresh()
         })
         es.onerror = (error) => {
           console.error('图片整理任务 SSE 连接错误', error)
@@ -118,9 +131,9 @@ const useOrganizeStore = create<OrganizeState>((set) => ({
     set((state) => {
       const newCount = Math.max(0, state.subscriberCount - 1)
       if (newCount === 0 && state.eventSource) {
-        if (debounceTimer) {
-          clearTimeout(debounceTimer)
-          debounceTimer = null
+        if (scheduledTimer) {
+          clearTimeout(scheduledTimer)
+          scheduledTimer = null
         }
         state.eventSource.close()
         return { subscriberCount: newCount, eventSource: null }
