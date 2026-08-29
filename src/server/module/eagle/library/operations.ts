@@ -370,3 +370,61 @@ export const purgeTrash = async (): Promise<number> => {
   changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
   return trashIds.length
 }
+
+/**
+ * 将未分类目录下的所有条目移入 Eagle 回收站（软删除，设置 isDeleted: true，同步 mtime.json 与内存索引）。
+ */
+export const trashUnclassified = async (): Promise<number> => {
+  const index = await ensureIndex()
+  if (!index) return 0
+
+  const unclassifiedIds = [...index.items.values()]
+    .filter((item) => !item.isDeleted && item.folders.length === 0)
+    .map((item) => item.id)
+
+  if (unclassifiedIds.length === 0) return 0
+
+  const now = Date.now()
+  await runPool(unclassifiedIds, SCAN_CONCURRENCY, async (id) => {
+    const meta = await readItemMeta(index.libraryPath, id)
+    if (!meta) return
+    const nextMeta: EagleRawItemMeta = {
+      ...meta,
+      isDeleted: true,
+      lastModified: now,
+    }
+    const infoDir = path.join(imagesDir(index.libraryPath), `${id}.info`)
+    const metaPath = path.join(infoDir, 'metadata.json')
+    const metaTmp = `${metaPath}.tmp`
+    await fs.writeJson(metaTmp, nextMeta)
+    await fs.move(metaTmp, metaPath, { overwrite: true })
+
+    const entry = index.items.get(id)
+    if (entry) {
+      index.items.set(id, {
+        ...entry,
+        isDeleted: true,
+        lastModified: now,
+      })
+    }
+  })
+
+  // 同步库根 mtime.json
+  const mtimePath = path.join(index.libraryPath, 'mtime.json')
+  if (await fs.pathExists(mtimePath)) {
+    let mtimeMap: Record<string, number> = {}
+    try {
+      mtimeMap = await fs.readJson(mtimePath)
+    } catch {}
+    for (const id of unclassifiedIds) {
+      mtimeMap[id] = now
+    }
+    const mtimeTmp = `${mtimePath}.tmp`
+    await fs.writeJson(mtimeTmp, mtimeMap)
+    await fs.move(mtimeTmp, mtimePath, { overwrite: true })
+  }
+
+  await persistCache()
+  changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
+  return unclassifiedIds.length
+}

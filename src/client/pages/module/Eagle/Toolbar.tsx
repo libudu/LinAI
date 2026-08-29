@@ -1,5 +1,8 @@
 import { usePlatform } from '@/client/hooks/usePlatform'
-import { EAGLE_TRASH_FOLDER_ID } from '@/shared/eagle/types'
+import {
+  EAGLE_TRASH_FOLDER_ID,
+  EAGLE_UNCLASSIFIED_FOLDER_ID,
+} from '@/shared/eagle/types'
 import {
   AppstoreOutlined,
   DeleteOutlined,
@@ -20,7 +23,7 @@ import {
   message,
 } from 'antd'
 import { useState } from 'react'
-import { purgeEagleTrash } from './api'
+import { purgeEagleTrash, trashAllUnclassifiedEagleItems } from './api'
 import { FolderTree } from './FolderTree'
 import { OrganizeModal } from './Organize'
 import { useOrganizeStatus } from './Organize/store'
@@ -34,6 +37,7 @@ export function Toolbar() {
   const {
     currentFolderId,
     trashTotal,
+    unclassifiedTotal,
     refreshCurrentPage,
     sortBy,
     sortOrder,
@@ -53,6 +57,7 @@ export function Toolbar() {
   const { status: organizeStatus } = useOrganizeStatus()
   const [refreshing, setRefreshing] = useState(false)
   const [purgingTrash, setPurgingTrash] = useState(false)
+  const [trashingUnclassified, setTrashingUnclassified] = useState(false)
   const [folderDrawerOpen, setFolderDrawerOpen] = useState(false)
   const [organizeOpen, setOrganizeOpen] = useState(false)
 
@@ -112,6 +117,30 @@ export function Toolbar() {
           message.error(error instanceof Error ? error.message : '删除失败')
         } finally {
           setPurgingTrash(false)
+        }
+      },
+    })
+  }
+
+  // 全部移动到回收站（未分类条目）
+  const handleTrashAllUnclassified = () => {
+    Modal.confirm({
+      title: '全部移动到回收站',
+      content: `确定要将未分类下的全部 ${unclassifiedTotal} 个文件移动到回收站吗？`,
+      okText: '全部移动到回收站',
+      okType: 'danger',
+      cancelText: '取消',
+      centered: true,
+      onOk: async () => {
+        setTrashingUnclassified(true)
+        try {
+          const res = await trashAllUnclassifiedEagleItems()
+          message.success(`已将 ${res.count} 个文件移动到回收站`)
+          await refreshCurrentPage()
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : '操作失败')
+        } finally {
+          setTrashingUnclassified(false)
         }
       },
     })
@@ -208,6 +237,17 @@ export function Toolbar() {
             onClick={handlePurgeAllTrash}
           >
             全部彻底删除
+          </Button>
+        )}
+        {currentFolderId === EAGLE_UNCLASSIFIED_FOLDER_ID && (
+          <Button
+            danger
+            icon={<DeleteOutlined />}
+            disabled={unclassifiedTotal === 0}
+            loading={trashingUnclassified}
+            onClick={handleTrashAllUnclassified}
+          >
+            全部移动到回收站
           </Button>
         )}
         <Badge count={badgeCount} size="small" dot={badgeDot}>

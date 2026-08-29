@@ -92,6 +92,19 @@ export const purgeEagleTrash = async (): Promise<{ count: number }> => {
   return json.data
 }
 
+// 全部移动到回收站（未分类目录下的所有条目）
+export const trashAllUnclassifiedEagleItems = async (): Promise<{
+  count: number
+}> => {
+  const json = await apiRequest<{ count: number }>(
+    '/api/eagle/unclassified/trash',
+    {
+      method: 'POST',
+    },
+  )
+  return json.data
+}
+
 export const eagleThumbnailUrl = (id: string) =>
   `/api/eagle/items/${id}/thumbnail`
 

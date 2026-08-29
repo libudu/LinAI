@@ -25,6 +25,7 @@ import {
   purgeTrash,
   refreshIndex,
   restoreItem,
+  trashUnclassified,
   updateFolder,
   updateItem,
 } from '../module/eagle/library'
@@ -170,6 +171,12 @@ eagleApi.delete('/items/:id/purge', async (c) => {
 // 全部彻底删除回收站文件（清空回收站）
 eagleApi.post('/trash/purge', async (c) => {
   const count = await purgeTrash()
+  return c.json({ success: true as const, data: { count } })
+})
+
+// 全部移入回收站（未分类目录下所有条目）
+eagleApi.post('/unclassified/trash', async (c) => {
+  const count = await trashUnclassified()
   return c.json({ success: true as const, data: { count } })
 })
 
