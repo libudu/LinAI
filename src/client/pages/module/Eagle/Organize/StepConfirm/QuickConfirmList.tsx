@@ -80,14 +80,14 @@ const QuickCard = React.memo(function QuickCard({
       <div className="flex shrink-0 flex-col gap-2 border-t border-slate-100 p-3 dark:border-slate-700/60">
         <Button
           type="primary"
-          size="middle"
+          size="large"
           icon={<CheckOutlined />}
           disabled={actionLoading}
           onClick={(e) => {
             e.stopPropagation()
             onConfirmItem(result)
           }}
-          className="w-full font-medium"
+          className="h-12! w-full font-bold"
         >
           确定(D)
         </Button>

@@ -680,7 +680,6 @@ export function StepConfirm({
           <ActionBar
             selectedId={selectedId}
             canConfirm={canConfirm}
-            actionLoading={actionLoading}
             onDelete={handleDelete}
             onClearClassification={() =>
               runAction(clearOrganizeResultClassification)

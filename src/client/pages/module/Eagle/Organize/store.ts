@@ -16,10 +16,11 @@ interface OrganizeState {
   refresh: () => Promise<void>
 }
 
-const MIN_REFRESH_INTERVAL_MS = 1000
+const MIN_REFRESH_INTERVAL_MS = 3000
 
 let isFetching = false
 let hasPendingRefresh = false
+let hasImmediateRefresh = false
 let scheduledTimer: ReturnType<typeof setTimeout> | null = null
 let lastFetchedAt = 0
 
@@ -43,7 +44,6 @@ const isEqualStatus = (
 
 const doFetchStatus = async (): Promise<void> => {
   if (isFetching) {
-    hasPendingRefresh = true
     return
   }
   if (scheduledTimer) {
@@ -67,7 +67,11 @@ const doFetchStatus = async (): Promise<void> => {
     }
   } finally {
     isFetching = false
-    if (hasPendingRefresh) {
+    if (hasImmediateRefresh) {
+      hasImmediateRefresh = false
+      hasPendingRefresh = false
+      void doFetchStatus()
+    } else if (hasPendingRefresh) {
       hasPendingRefresh = false
       scheduleThrottledRefresh()
     }
@@ -84,8 +88,10 @@ const scheduleThrottledRefresh = () => {
   if (remaining === 0 && !isFetching) {
     void doFetchStatus()
   } else {
+    hasPendingRefresh = true
     scheduledTimer = setTimeout(() => {
       scheduledTimer = null
+      hasPendingRefresh = false
       void doFetchStatus()
     }, remaining)
   }
@@ -97,6 +103,11 @@ const refreshStatus = async (): Promise<void> => {
     clearTimeout(scheduledTimer)
     scheduledTimer = null
   }
+  if (isFetching) {
+    hasImmediateRefresh = true
+    return
+  }
+  hasImmediateRefresh = false
   hasPendingRefresh = false
   await doFetchStatus()
 }
