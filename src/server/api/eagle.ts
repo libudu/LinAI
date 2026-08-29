@@ -21,7 +21,10 @@ import {
   getItemThumbnailPath,
   getItems,
   isVideoExt,
+  purgeItem,
+  purgeTrash,
   refreshIndex,
+  restoreItem,
   updateFolder,
   updateItem,
 } from '../module/eagle/library'
@@ -142,6 +145,32 @@ eagleApi.delete('/items/:id', async (c) => {
     return c.json({ success: false as const, error: '条目不存在' }, 404)
   }
   return c.json({ success: true as const, data: null })
+})
+
+// 从 Eagle 回收站恢复条目
+eagleApi.post('/items/:id/restore', async (c) => {
+  const id = c.req.param('id')
+  const ok = await restoreItem(id)
+  if (!ok) {
+    return c.json({ success: false as const, error: '条目不存在' }, 404)
+  }
+  return c.json({ success: true as const, data: null })
+})
+
+// 彻底删除单张图片（物理删除磁盘文件）
+eagleApi.delete('/items/:id/purge', async (c) => {
+  const id = c.req.param('id')
+  const ok = await purgeItem(id)
+  if (!ok) {
+    return c.json({ success: false as const, error: '条目不存在' }, 404)
+  }
+  return c.json({ success: true as const, data: null })
+})
+
+// 全部彻底删除回收站文件（清空回收站）
+eagleApi.post('/trash/purge', async (c) => {
+  const count = await purgeTrash()
+  return c.json({ success: true as const, data: { count } })
 })
 
 // 缩略图：优先库内 _thumbnail.png，缺失时图片用 sharp 生成缓存，视频回退占位 SVG

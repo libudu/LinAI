@@ -1,10 +1,11 @@
-import type {
-  EagleFolder,
-  EagleItem,
-  EagleSortBy,
-  EagleSortOrder,
+import {
+  EAGLE_TRASH_FOLDER_ID,
+  EAGLE_UNCLASSIFIED_FOLDER_ID,
+  type EagleFolder,
+  type EagleItem,
+  type EagleSortBy,
+  type EagleSortOrder,
 } from '@/shared/eagle/types'
-import { EAGLE_UNCLASSIFIED_FOLDER_ID } from '@/shared/eagle/types'
 import { create } from 'zustand'
 import { fetchEagleFolders, fetchEagleItems, refreshEagleIndex } from './api'
 
@@ -75,6 +76,7 @@ const loadSelectedFolderId = () =>
 
 const hasFolder = (folders: EagleFolder[], folderId: string): boolean =>
   folderId === EAGLE_UNCLASSIFIED_FOLDER_ID ||
+  folderId === EAGLE_TRASH_FOLDER_ID ||
   folders.some(
     (folder) => folder.id === folderId || hasFolder(folder.children, folderId),
   )
@@ -98,6 +100,8 @@ interface EagleState {
   allTotal: number
   /** 「未分类」虚拟文件夹的资源数 */
   unclassifiedTotal: number
+  /** 「回收站」虚拟文件夹的资源数 */
+  trashTotal: number
   listLoading: boolean
   sortBy: EagleSortBy
   sortOrder: EagleSortOrder
@@ -156,6 +160,10 @@ export const useEagleStore = create<EagleState>()((set, get) => {
       })
       set({ items: resp.items, total: resp.total, page })
       if (!currentFolderId) set({ allTotal: resp.total })
+      else if (currentFolderId === EAGLE_UNCLASSIFIED_FOLDER_ID)
+        set({ unclassifiedTotal: resp.total })
+      else if (currentFolderId === EAGLE_TRASH_FOLDER_ID)
+        set({ trashTotal: resp.total })
     } finally {
       set({ listLoading: false })
     }
@@ -165,7 +173,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
     set({ foldersLoading: true })
     try {
       const { sortBy, sortOrder } = get()
-      const [folders, all, unclassified] = await Promise.all([
+      const [folders, all, unclassified, trash] = await Promise.all([
         fetchEagleFolders(),
         fetchEagleItems({
           sortBy,
@@ -180,11 +188,19 @@ export const useEagleStore = create<EagleState>()((set, get) => {
           offset: 0,
           limit: 1,
         }),
+        fetchEagleItems({
+          folderId: EAGLE_TRASH_FOLDER_ID,
+          sortBy,
+          sortOrder,
+          offset: 0,
+          limit: 1,
+        }),
       ])
       set({
         folders,
         allTotal: all.total,
         unclassifiedTotal: unclassified.total,
+        trashTotal: trash.total,
       })
       return folders
     } finally {
@@ -201,6 +217,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
     page: 1,
     allTotal: 0,
     unclassifiedTotal: 0,
+    trashTotal: 0,
     listLoading: false,
     imageSize: loadImageSize(),
     ...loadSort(),

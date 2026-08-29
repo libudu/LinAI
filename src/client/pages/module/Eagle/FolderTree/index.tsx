@@ -1,10 +1,15 @@
 import { settingsClient } from '@/client/service/settings'
 import type { EagleFolderTreeSettings } from '@/server/module/eagle/settings'
 import {
+  EAGLE_TRASH_FOLDER_ID,
   EAGLE_UNCLASSIFIED_FOLDER_ID,
   type EagleFolder,
 } from '@/shared/eagle/types'
-import { FolderOpenOutlined, FolderOutlined } from '@ant-design/icons'
+import {
+  DeleteOutlined,
+  FolderOpenOutlined,
+  FolderOutlined,
+} from '@ant-design/icons'
 import type { TreeDataNode } from 'antd'
 import { Tree } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -107,6 +112,7 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
     selectFolder,
     allTotal,
     unclassifiedTotal,
+    trashTotal,
     refreshFolders,
     showFolderDescription,
   } = useEagleStore()
@@ -129,9 +135,20 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
         title: renderTitle('未分类', unclassifiedTotal),
         children: undefined,
       },
+      {
+        key: EAGLE_TRASH_FOLDER_ID,
+        title: renderTitle('回收站', trashTotal),
+        children: undefined,
+      },
       ...toTreeData(folders, setEditingFolder, showFolderDescription),
     ],
-    [folders, allTotal, showFolderDescription, unclassifiedTotal],
+    [
+      folders,
+      allTotal,
+      showFolderDescription,
+      unclassifiedTotal,
+      trashTotal,
+    ],
   )
 
   const allKeys = useMemo(() => collectKeys(folders), [folders])
@@ -237,9 +254,19 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
             onSelected?.()
           }}
           showIcon
-          icon={({ expanded }) =>
-            expanded ? <FolderOpenOutlined /> : <FolderOutlined />
-          }
+          icon={(nodeProps) => {
+            const isTrash =
+              (nodeProps as { data?: { key?: string } })?.data?.key ===
+                EAGLE_TRASH_FOLDER_ID ||
+              (nodeProps as { eventKey?: string })?.eventKey ===
+                EAGLE_TRASH_FOLDER_ID
+            if (isTrash) return <DeleteOutlined />
+            return nodeProps.expanded ? (
+              <FolderOpenOutlined />
+            ) : (
+              <FolderOutlined />
+            )
+          }}
           blockNode
         />
         {foldersLoading && (

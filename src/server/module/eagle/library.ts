@@ -1,5 +1,6 @@
 import type { OrganizeFolderStandard } from '@/shared/eagle/organize'
 import {
+  EAGLE_TRASH_FOLDER_ID,
   EAGLE_UNCLASSIFIED_FOLDER_ID,
   type EagleFolder,
   type EagleItem,
@@ -60,6 +61,8 @@ interface EagleItemIndex {
   fileName: string
   /** 缩略图文件名，不存在为 null */
   thumbnailName: string | null
+  /** 是否已移入回收站（Eagle 软删除） */
+  isDeleted?: boolean
 }
 
 interface EagleIndexCacheFile {
@@ -75,6 +78,7 @@ const WATCH_DEBOUNCE_MS = 500
 const SCAN_CONCURRENCY = 32
 
 const CACHE_FILE = dataPath('eagle', 'index.json')
+const THUMB_DIR = dataPath('eagle', 'thumb')
 
 /** 库内容变更（updateItem 写库后发布），前端订阅后刷新文件夹树与列表 */
 export const EAGLE_LIBRARY_RESOURCE = 'eagle.library'
@@ -152,6 +156,7 @@ const buildIndexEntry = async (
     folders: meta.folders ?? [],
     fileName,
     thumbnailName,
+    isDeleted: meta.isDeleted === true,
   }
 }
 
@@ -240,7 +245,7 @@ const syncIndex = async (libraryPath: string) => {
   if (toLoad.length > 0) {
     await runPool(toLoad, SCAN_CONCURRENCY, async (id) => {
       const meta = await readItemMeta(libraryPath, id)
-      if (!meta || meta.isDeleted) {
+      if (!meta) {
         items.delete(id)
         return
       }
@@ -361,6 +366,7 @@ const toEagleItem = (entry: EagleItemIndex): EagleItem => ({
 const countByFolder = (items: Map<string, EagleItemIndex>) => {
   const counts = new Map<string, number>()
   for (const item of items.values()) {
+    if (item.isDeleted) continue
     for (const folderId of item.folders) {
       counts.set(folderId, (counts.get(folderId) ?? 0) + 1)
     }
@@ -430,6 +436,8 @@ export interface UpdateItemPatch {
   name?: string
   /** 目标文件夹 id 列表（替换 folders，可传空数组清除分类）；缺省不改动 */
   folderIds?: string[]
+  /** 是否移出/移入回收站 */
+  isDeleted?: boolean
 }
 
 /** 条目名即文件名：去掉 Windows 文件名非法字符与首尾空白/点号，限制长度 */
@@ -523,10 +531,18 @@ export const updateItem = async (
 
   const lastModified = Date.now()
   const folders = patch.folderIds ?? meta.folders
+  let isDeleted = meta.isDeleted === true
+  if (patch.isDeleted !== undefined) {
+    isDeleted = patch.isDeleted
+  } else if (patch.folderIds !== undefined && isDeleted) {
+    isDeleted = false
+  }
+
   const nextMeta: EagleRawItemMeta = {
     ...meta,
     name: targetName,
     folders,
+    isDeleted: isDeleted ? true : undefined,
     lastModified,
     mtime: fileStat ? Math.round(fileStat.mtimeMs) : meta.mtime,
   }
@@ -557,6 +573,7 @@ export const updateItem = async (
     fileName,
     thumbnailName,
     folders: folders ?? [],
+    isDeleted,
     mtime: nextMeta.mtime,
     lastModified,
   })
@@ -566,7 +583,7 @@ export const updateItem = async (
 }
 
 /**
- * 移入 Eagle 回收站：软删除条目（设置 isDeleted: true，同步 mtime.json，从内存索引移除）。
+ * 移入 Eagle 回收站：软删除条目（设置 isDeleted: true，同步 mtime.json 与内存索引）。
  * 不物理删除磁盘原文件与目录，与 Eagle 官方回收站逻辑保持一致。
  */
 export const deleteItem = async (id: string): Promise<boolean> => {
@@ -601,11 +618,145 @@ export const deleteItem = async (id: string): Promise<boolean> => {
     await fs.move(mtimeTmp, mtimePath, { overwrite: true })
   }
 
-  // 从内存索引中删除
+  // 同步内存索引与缓存
+  const entry = index.items.get(id)
+  if (entry) {
+    index.items.set(id, {
+      ...entry,
+      isDeleted: true,
+      lastModified,
+    })
+  }
+  await persistCache()
+  changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
+  return true
+}
+
+/**
+ * 从 Eagle 回收站恢复条目：取消软删除（设置 isDeleted: false，同步 mtime.json 与内存索引）。
+ */
+export const restoreItem = async (id: string): Promise<boolean> => {
+  if (!ITEM_ID_PATTERN.test(id)) return false
+  const index = await ensureIndex()
+  if (!index) return false
+  const meta = await readItemMeta(index.libraryPath, id)
+  if (!meta) return false
+
+  const lastModified = Date.now()
+  const nextMeta: EagleRawItemMeta = {
+    ...meta,
+    isDeleted: false,
+    lastModified,
+  }
+  const infoDir = path.join(imagesDir(index.libraryPath), `${id}.info`)
+  const metaPath = path.join(infoDir, 'metadata.json')
+  const metaTmp = `${metaPath}.tmp`
+  await fs.writeJson(metaTmp, nextMeta)
+  await fs.move(metaTmp, metaPath, { overwrite: true })
+
+  // 同步库根 mtime.json
+  const mtimePath = path.join(index.libraryPath, 'mtime.json')
+  if (await fs.pathExists(mtimePath)) {
+    let mtimeMap: Record<string, number> = {}
+    try {
+      mtimeMap = await fs.readJson(mtimePath)
+    } catch {}
+    mtimeMap[id] = lastModified
+    const mtimeTmp = `${mtimePath}.tmp`
+    await fs.writeJson(mtimeTmp, mtimeMap)
+    await fs.move(mtimeTmp, mtimePath, { overwrite: true })
+  }
+
+  // 同步内存索引与缓存
+  const entry = index.items.get(id)
+  if (entry) {
+    index.items.set(id, {
+      ...entry,
+      isDeleted: false,
+      lastModified,
+    })
+  }
+  await persistCache()
+  changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
+  return true
+}
+
+/**
+ * 彻底删除单个条目：从磁盘物理删除 images/<id>.info 目录与缩略图缓存，
+ * 同步 mtime.json 与内存索引。此操作不可逆。
+ */
+export const purgeItem = async (id: string): Promise<boolean> => {
+  if (!ITEM_ID_PATTERN.test(id)) return false
+  const index = await ensureIndex()
+  if (!index) return false
+  const entry = index.items.get(id)
+  if (!entry) return false
+
+  const infoDir = path.join(imagesDir(index.libraryPath), `${id}.info`)
+  await fs.remove(infoDir).catch(() => {})
+  const thumbFile = path.join(THUMB_DIR, `${id}.webp`)
+  await fs.remove(thumbFile).catch(() => {})
+
+  // 同步库根 mtime.json
+  const mtimePath = path.join(index.libraryPath, 'mtime.json')
+  if (await fs.pathExists(mtimePath)) {
+    let mtimeMap: Record<string, number> = {}
+    try {
+      mtimeMap = await fs.readJson(mtimePath)
+    } catch {}
+    delete mtimeMap[id]
+    const mtimeTmp = `${mtimePath}.tmp`
+    await fs.writeJson(mtimeTmp, mtimeMap)
+    await fs.move(mtimeTmp, mtimePath, { overwrite: true })
+  }
+
+  // 从内存索引与缓存中移除
   index.items.delete(id)
   await persistCache()
   changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
   return true
+}
+
+/**
+ * 彻底删除回收站下所有条目（清空回收站）：物理删除全部 isDeleted 条目的
+ * images/<id>.info 目录与缩略图缓存，同步 mtime.json 与内存索引。
+ */
+export const purgeTrash = async (): Promise<number> => {
+  const index = await ensureIndex()
+  if (!index) return 0
+
+  const trashIds = [...index.items.values()]
+    .filter((item) => item.isDeleted === true)
+    .map((item) => item.id)
+
+  if (trashIds.length === 0) return 0
+
+  await runPool(trashIds, SCAN_CONCURRENCY, async (id) => {
+    const infoDir = path.join(imagesDir(index.libraryPath), `${id}.info`)
+    await fs.remove(infoDir).catch(() => {})
+    const thumbFile = path.join(THUMB_DIR, `${id}.webp`)
+    await fs.remove(thumbFile).catch(() => {})
+    index.items.delete(id)
+  })
+
+  // 同步库根 mtime.json
+  const mtimePath = path.join(index.libraryPath, 'mtime.json')
+  if (await fs.pathExists(mtimePath)) {
+    let mtimeMap: Record<string, number> = {}
+    try {
+      mtimeMap = await fs.readJson(mtimePath)
+    } catch {}
+    for (const id of trashIds) {
+      delete mtimeMap[id]
+    }
+    const mtimeTmp = `${mtimePath}.tmp`
+    await fs.writeJson(mtimeTmp, mtimeMap)
+    await fs.move(mtimeTmp, mtimePath, { overwrite: true })
+  }
+
+  await persistCache()
+  changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
+  return trashIds.length
 }
 
 /** 按文件夹完整路径（如 "分类A/子分类B"）查找对应文件夹 ID，不存在返回 null */
@@ -644,10 +795,15 @@ export const getItems = async (
   if (!index) return { total: 0, items: [] }
   const { folderId, sortBy, sortOrder, offset, limit } = params
   let list = [...index.items.values()]
-  if (folderId === EAGLE_UNCLASSIFIED_FOLDER_ID) {
-    list = list.filter((item) => item.folders.length === 0)
-  } else if (folderId) {
-    list = list.filter((item) => item.folders.includes(folderId))
+  if (folderId === EAGLE_TRASH_FOLDER_ID) {
+    list = list.filter((item) => item.isDeleted === true)
+  } else {
+    list = list.filter((item) => !item.isDeleted)
+    if (folderId === EAGLE_UNCLASSIFIED_FOLDER_ID) {
+      list = list.filter((item) => item.folders.length === 0)
+    } else if (folderId) {
+      list = list.filter((item) => item.folders.includes(folderId))
+    }
   }
   const direction = sortOrder === 'asc' ? 1 : -1
   list.sort((a, b) => (a[sortBy] - b[sortBy]) * direction)
@@ -707,8 +863,12 @@ export const getClassifiableItems = async (params: {
 }): Promise<{ total: number; itemIds: string[] }> => {
   const index = await ensureIndex()
   if (!index) return { total: 0, itemIds: [] }
+  if (params.folderId === EAGLE_TRASH_FOLDER_ID) {
+    return { total: 0, itemIds: [] }
+  }
   let list = [...index.items.values()].filter(
     (item) =>
+      !item.isDeleted &&
       !VIDEO_EXTS.has(item.ext) &&
       item.ext !== 'gif' &&
       item.ext !== 'heif' &&

@@ -3,6 +3,9 @@
 /** 文件夹树虚拟节点：筛选未归入任何 Eagle 文件夹的条目 */
 export const EAGLE_UNCLASSIFIED_FOLDER_ID = '__unclassified__'
 
+/** 文件夹树虚拟节点：筛选 Eagle 回收站条目 */
+export const EAGLE_TRASH_FOLDER_ID = '__trash__'
+
 export interface EagleFolder {
   id: string
   name: string

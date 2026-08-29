@@ -1,6 +1,8 @@
 import { usePlatform } from '@/client/hooks/usePlatform'
+import { EAGLE_TRASH_FOLDER_ID } from '@/shared/eagle/types'
 import {
   AppstoreOutlined,
+  DeleteOutlined,
   FolderOutlined,
   ReloadOutlined,
   SettingOutlined,
@@ -11,12 +13,14 @@ import {
   Checkbox,
   Drawer,
   Dropdown,
+  Modal,
   Segmented,
   Select,
   Space,
   message,
 } from 'antd'
 import { useState } from 'react'
+import { purgeEagleTrash } from './api'
 import { FolderTree } from './FolderTree'
 import { OrganizeModal } from './Organize'
 import { useOrganizeStatus } from './Organize/store'
@@ -28,6 +32,9 @@ import { useEagleStore } from './store'
 // 资源列表顶部操作区：「展示选项」下拉面板（排序/图片大小/文件名/文件大小/文件夹描述）+ 刷新按钮 +「图片整理」入口；移动端提供文件夹抽屉入口
 export function Toolbar() {
   const {
+    currentFolderId,
+    trashTotal,
+    refreshCurrentPage,
     sortBy,
     sortOrder,
     setSort,
@@ -45,6 +52,7 @@ export function Toolbar() {
   const visionApiKey = useEagleVisionConfig((s) => s.visionApiKey)
   const { status: organizeStatus } = useOrganizeStatus()
   const [refreshing, setRefreshing] = useState(false)
+  const [purgingTrash, setPurgingTrash] = useState(false)
   const [folderDrawerOpen, setFolderDrawerOpen] = useState(false)
   const [organizeOpen, setOrganizeOpen] = useState(false)
 
@@ -82,6 +90,30 @@ export function Toolbar() {
       initialTab: 'vision-endpoint',
       initialOnly: true,
       onSuccess: () => setOrganizeOpen(true),
+    })
+  }
+
+  // 全部彻底删除回收站条目
+  const handlePurgeAllTrash = () => {
+    Modal.confirm({
+      title: '全部彻底删除',
+      content: `确定要彻底删除回收站下的全部 ${trashTotal} 个文件吗？此操作将从磁盘永久删除原文件且无法撤销。`,
+      okText: '全部彻底删除',
+      okType: 'danger',
+      cancelText: '取消',
+      centered: true,
+      onOk: async () => {
+        setPurgingTrash(true)
+        try {
+          const res = await purgeEagleTrash()
+          message.success(`已彻底删除 ${res.count} 个文件`)
+          await refreshCurrentPage()
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : '删除失败')
+        } finally {
+          setPurgingTrash(false)
+        }
+      },
     })
   }
 
@@ -166,15 +198,28 @@ export function Toolbar() {
         </Button>
       </Space>
 
-      <Badge count={badgeCount} size="small" dot={badgeDot}>
-        <Button
-          type="primary"
-          icon={<AppstoreOutlined />}
-          onClick={handleOpenOrganize}
-        >
-          图片整理
-        </Button>
-      </Badge>
+      <Space>
+        {currentFolderId === EAGLE_TRASH_FOLDER_ID && (
+          <Button
+            danger
+            icon={<DeleteOutlined />}
+            disabled={trashTotal === 0}
+            loading={purgingTrash}
+            onClick={handlePurgeAllTrash}
+          >
+            全部彻底删除
+          </Button>
+        )}
+        <Badge count={badgeCount} size="small" dot={badgeDot}>
+          <Button
+            type="primary"
+            icon={<AppstoreOutlined />}
+            onClick={handleOpenOrganize}
+          >
+            图片整理
+          </Button>
+        </Badge>
+      </Space>
 
       <Drawer
         title="文件夹"

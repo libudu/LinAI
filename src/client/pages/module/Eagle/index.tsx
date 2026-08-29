@@ -61,7 +61,7 @@ export function Eagle() {
         </div>
       )}
       {/* 资源列表区：原 main 的外围边距移到这里 */}
-      <div className="flex min-w-0 flex-1 flex-col p-3 pb-0 sm:p-6 sm:pb-0">
+      <div className="flex min-w-0 flex-1 flex-col p-1 pb-0 sm:p-6 sm:pb-0">
         <Toolbar />
         <ResourceGrid />
       </div>

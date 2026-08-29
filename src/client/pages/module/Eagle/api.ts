@@ -70,6 +70,28 @@ export const deleteEagleItem = async (id: string): Promise<void> => {
   })
 }
 
+// 从 Eagle 回收站恢复
+export const restoreEagleItem = async (id: string): Promise<void> => {
+  await apiRequest<null>(`/api/eagle/items/${id}/restore`, {
+    method: 'POST',
+  })
+}
+
+// 彻底删除单张图片（物理删除磁盘文件）
+export const purgeEagleItem = async (id: string): Promise<void> => {
+  await apiRequest<null>(`/api/eagle/items/${id}/purge`, {
+    method: 'DELETE',
+  })
+}
+
+// 全部彻底删除回收站文件（清空回收站）
+export const purgeEagleTrash = async (): Promise<{ count: number }> => {
+  const json = await apiRequest<{ count: number }>('/api/eagle/trash/purge', {
+    method: 'POST',
+  })
+  return json.data
+}
+
 export const eagleThumbnailUrl = (id: string) =>
   `/api/eagle/items/${id}/thumbnail`
 

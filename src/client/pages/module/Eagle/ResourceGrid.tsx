@@ -1,6 +1,7 @@
 import { useLongPressContextMenu } from '@/client/hooks/useLongPressContextMenu'
 import { usePlatform } from '@/client/hooks/usePlatform'
 import {
+  EAGLE_TRASH_FOLDER_ID,
   EAGLE_UNCLASSIFIED_FOLDER_ID,
   type EagleItem,
 } from '@/shared/eagle/types'
@@ -11,7 +12,12 @@ import {
 } from '@ant-design/icons'
 import { Dropdown, Image, Modal, Pagination, Spin, message } from 'antd'
 import { useRef, useState } from 'react'
-import { eagleFileUrl, eagleThumbnailUrl, updateEagleItem } from './api'
+import {
+  eagleFileUrl,
+  eagleThumbnailUrl,
+  purgeEagleItem,
+  updateEagleItem,
+} from './api'
 import { confirmDeleteEagleItem } from './components/confirmDeleteModal'
 import {
   FolderSelectModal,
@@ -36,47 +42,69 @@ const formatFileSize = (bytes: number) => {
 
 interface ResourceGridItemProps {
   item: EagleItem
+  isTrash: boolean
   showFileName: boolean
   showFileSize: boolean
   onClick: (item: EagleItem) => void
   onMove: (item: EagleItem) => void
   onDelete: (item: EagleItem) => void
+  onPurge: (item: EagleItem) => void
 }
 
 // 单个资源卡片：支持鼠标右键 / 移动端长按弹出操作菜单
 function ResourceGridItem({
   item,
+  isTrash,
   showFileName,
   showFileSize,
   onClick,
   onMove,
   onDelete,
+  onPurge,
 }: ResourceGridItemProps) {
   const longPressHandlers = useLongPressContextMenu()
+
+  const menuItems = isTrash
+    ? [
+        {
+          key: 'move',
+          icon: <FolderOutlined />,
+          label: '修改文件夹',
+        },
+        {
+          key: 'purge',
+          icon: <DeleteOutlined />,
+          label: '彻底删除',
+          danger: true,
+        },
+      ]
+    : [
+        {
+          key: 'move',
+          icon: <FolderOutlined />,
+          label: '修改文件夹',
+        },
+        {
+          key: 'delete',
+          icon: <DeleteOutlined />,
+          label: '移到回收站',
+          danger: true,
+        },
+      ]
 
   return (
     <Dropdown
       trigger={['contextMenu']}
       menu={{
-        items: [
-          {
-            key: 'move',
-            icon: <FolderOutlined />,
-            label: '修改文件夹',
-          },
-          {
-            key: 'delete',
-            icon: <DeleteOutlined />,
-            label: '移到回收站',
-            danger: true,
-          },
-        ],
+        items: menuItems,
         onClick: ({ key, domEvent }) => {
           domEvent.stopPropagation()
           if (key === 'move') {
             onMove(item)
           } else if (key === 'delete') {
             onDelete(item)
+          } else if (key === 'purge') {
+            onPurge(item)
           }
         },
       }}
@@ -179,6 +207,26 @@ export function ResourceGrid() {
     })
   }
 
+  const handlePurgeItem = (item: EagleItem) => {
+    Modal.confirm({
+      title: '彻底删除',
+      content: `确定要彻底删除「${item.name}」吗？此操作将从磁盘永久删除原文件且无法撤销。`,
+      okText: '彻底删除',
+      okType: 'danger',
+      cancelText: '取消',
+      centered: true,
+      onOk: async () => {
+        try {
+          await purgeEagleItem(item.id)
+          message.success('已彻底删除')
+          await refreshCurrentPage()
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : '删除失败')
+        }
+      },
+    })
+  }
+
   if (listLoading) {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -186,6 +234,8 @@ export function ResourceGrid() {
       </div>
     )
   }
+
+  const isTrash = currentFolderId === EAGLE_TRASH_FOLDER_ID
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -200,11 +250,13 @@ export function ResourceGrid() {
               <ResourceGridItem
                 key={item.id}
                 item={item}
+                isTrash={isTrash}
                 showFileName={showFileName}
                 showFileSize={showFileSize}
                 onClick={handleClick}
                 onMove={(targetItem) => setMovingItem(targetItem)}
                 onDelete={handleDeleteItem}
+                onPurge={handlePurgeItem}
               />
             ))}
           </div>
