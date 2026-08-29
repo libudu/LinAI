@@ -16,7 +16,7 @@ export function ConfirmControls({
   onQuickModeChange,
 }: ConfirmControlsProps) {
   return (
-    <div className="flex shrink-0 flex-col items-start justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/40">
+    <div className="flex shrink-0 flex-col items-start justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/40">
       <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
         <SortAscendingOutlined />
         <span>排序方式</span>
@@ -24,8 +24,7 @@ export function ConfirmControls({
       <Select<OrganizeSortType>
         value={sortType}
         onChange={onSortTypeChange}
-        size="small"
-        className="w-32"
+        className="w-28"
         options={[
           { value: 'category', label: '图片分类' },
           { value: 'completion', label: '完成顺序' },
@@ -33,14 +32,14 @@ export function ConfirmControls({
           { value: 'mtime_asc', label: '修改时间 旧→新' },
         ]}
       />
-      <div className="mt-0.5 flex w-full items-center justify-between gap-2 pt-1.5">
+      <div className="flex w-full items-center justify-between gap-1.5 pt-1.5">
         <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
           <ThunderboltOutlined
             className={quickMode ? 'text-amber-500' : 'text-slate-400'}
           />
           <span>快速模式</span>
         </div>
-        <Switch size="small" checked={quickMode} onChange={onQuickModeChange} />
+        <Switch checked={quickMode} onChange={onQuickModeChange} />
       </div>
     </div>
   )

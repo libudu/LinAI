@@ -10,6 +10,8 @@ import React, { useEffect, useMemo, useRef } from 'react'
 import { eagleFileUrl, eagleThumbnailUrl } from '../../api'
 import { getOrganizeItemCategory, type OrganizeSortType } from './ThumbnailBar'
 
+const QUICK_CARD_HEIGHT = 450
+
 type VirtualQuickItem =
   | {
       type: 'category'
@@ -47,7 +49,7 @@ const QuickCard = React.memo(function QuickCard({
   return (
     <div
       onClick={() => onSelect(result.itemId)}
-      className={`group relative flex h-[390px] w-64 shrink-0 flex-col overflow-hidden rounded-xl border-2 transition-colors duration-150 ${
+      className={`group relative flex h-full w-64 shrink-0 flex-col overflow-hidden rounded-xl border-2 transition-colors duration-150 ${
         isSelected
           ? 'border-blue-500 bg-blue-50/30 shadow-lg shadow-blue-500/10 dark:border-blue-500 dark:bg-blue-900/10 dark:shadow-blue-500/20'
           : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/80 dark:hover:border-slate-600'
@@ -71,7 +73,7 @@ const QuickCard = React.memo(function QuickCard({
           classNames={{
             root: 'h-full w-full flex items-center justify-center',
             image:
-              'h-full! w-full! object-contain! p-2 transition-transform duration-200 group-hover:scale-105',
+              'h-full! w-full! object-contain! transition-transform duration-200 group-hover:scale-105',
           }}
         />
       </div>
@@ -95,6 +97,7 @@ const QuickCard = React.memo(function QuickCard({
         <div className="grid grid-cols-2 gap-1.5">
           <Button
             disabled={actionLoading}
+            size="large"
             onClick={(e) => {
               e.stopPropagation()
               onClearClassification(result)
@@ -105,6 +108,7 @@ const QuickCard = React.memo(function QuickCard({
           </Button>
           <Button
             disabled={actionLoading}
+            size="large"
             onClick={(e) => {
               e.stopPropagation()
               onSkipItem(result)
@@ -213,7 +217,7 @@ export function QuickConfirmList({
         <div
           style={{
             width: `${virtualizer.getTotalSize()}px`,
-            height: '390px',
+            height: `${QUICK_CARD_HEIGHT}px`,
             position: 'relative',
           }}
         >
@@ -230,7 +234,7 @@ export function QuickConfirmList({
                   left: 0,
                   transform: `translateX(${virtualItem.start}px)`,
                   width: item.type === 'category' ? '208px' : '256px',
-                  height: '390px',
+                  height: `${QUICK_CARD_HEIGHT}px`,
                 }}
               >
                 {item.type === 'category' ? (
