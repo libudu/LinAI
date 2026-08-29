@@ -207,7 +207,7 @@ eagleApi.get('/items/:id/thumbnail', async (c) => {
   try {
     if (!(await fs.pathExists(thumbPath))) {
       await fs.ensureDir(THUMB_DIR)
-      await sharp(filePath)
+      await sharp(filePath, { failOn: 'none' })
         .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'cover' })
         .webp({ quality: 80 })
         .toFile(`${thumbPath}.tmp`)

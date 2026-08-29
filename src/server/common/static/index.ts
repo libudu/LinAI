@@ -82,7 +82,7 @@ async function ensureThumbnail(
 
   if (!(await fs.pathExists(thumbPath))) {
     const file = await fs.readFile(sourcePath)
-    const metadata = await sharp(file).metadata()
+    const metadata = await sharp(file, { failOn: 'none' }).metadata()
 
     if (!metadata.width || !metadata.height) {
       return null
@@ -90,7 +90,7 @@ async function ensureThumbnail(
 
     const width = metadata.width > metadata.height ? undefined : THUMB_SIZE
     const height = metadata.width > metadata.height ? THUMB_SIZE : undefined
-    const thumbBuffer = await sharp(file)
+    const thumbBuffer = await sharp(file, { failOn: 'none' })
       .resize(width, height)
       .webp({
         quality: THUMB_COMPRESS_QUALITY,
@@ -117,7 +117,7 @@ export async function uploadInputImage(image: string) {
   }
 
   const buffer = Buffer.from(matches[2], 'base64')
-  const webpBuffer = await sharp(buffer)
+  const webpBuffer = await sharp(buffer, { failOn: 'none' })
     .resize(IMAGE_MAX_DIMENSION, IMAGE_MAX_DIMENSION, {
       fit: 'inside',
       withoutEnlargement: true,

@@ -49,7 +49,7 @@ const loadImageDataUrl = async (
   compress: boolean,
 ): Promise<string> => {
   if (compress) {
-    const buffer = await sharp(filePath)
+    const buffer = await sharp(filePath, { failOn: 'none' })
       .resize(
         EAGLE_VISION_IMAGE_MAX_DIMENSION,
         EAGLE_VISION_IMAGE_MAX_DIMENSION,
