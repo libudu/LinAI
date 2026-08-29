@@ -118,10 +118,7 @@ export function StepConfirm({
   const handleQuickModeChange = useCallback((newQuickMode: boolean) => {
     setQuickMode(newQuickMode)
     try {
-      localStorage.setItem(
-        CONFIRM_QUICK_MODE_STORAGE_KEY,
-        String(newQuickMode),
-      )
+      localStorage.setItem(CONFIRM_QUICK_MODE_STORAGE_KEY, String(newQuickMode))
     } catch {
       // 忽略损坏的本地缓存
     }
@@ -264,10 +261,10 @@ export function StepConfirm({
 
   const canConfirm = Boolean(
     !detailLoading &&
-      detail &&
-      detail.itemId === selectedId &&
-      detail.status === 'success' &&
-      selectedFolderPath,
+    detail &&
+    detail.itemId === selectedId &&
+    detail.status === 'success' &&
+    selectedFolderPath,
   )
   const withTitle = selectedId ? !titleDisabledIds.has(selectedId) : true
 
@@ -693,4 +690,3 @@ export function StepConfirm({
     </div>
   )
 }
-

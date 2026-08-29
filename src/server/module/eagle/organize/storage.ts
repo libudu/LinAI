@@ -159,7 +159,10 @@ export class OrganizeRepository {
                 }
               } catch (error) {
                 // 单个文件异常记录警告并跳过，不阻塞其他数据
-                console.warn(`[Eagle Organize] 加载结果缓存跳过异常文件: ${file}`, error)
+                console.warn(
+                  `[Eagle Organize] 加载结果缓存跳过异常文件: ${file}`,
+                  error,
+                )
               }
             },
             32,

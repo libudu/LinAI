@@ -8,7 +8,7 @@
  * - operations: 文件夹与条目的写、改、删、清空等磁盘副作用操作。
  */
 
-export * from './types'
 export * from './index-state'
-export * from './query'
 export * from './operations'
+export * from './query'
+export * from './types'

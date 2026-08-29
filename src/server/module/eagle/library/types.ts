@@ -7,10 +7,7 @@
  * - 核心参数接口与全局常量配置（视频扩展名集合、ID 格式校验、扫描并发度、路径辅助等）
  */
 
-import type {
-  EagleSortBy,
-  EagleSortOrder,
-} from '@/shared/eagle/types'
+import type { EagleSortBy, EagleSortOrder } from '@/shared/eagle/types'
 import path from 'path'
 import { changeBus } from '../../../common/storage/change-bus'
 import { dataPath } from '../../../common/storage/data-path'
@@ -98,7 +95,15 @@ export interface UpdateItemPatch {
 // ---- 常量与路径 ----
 
 /** 支持通过 HTML5 video 播放的视频扩展名集合 */
-export const VIDEO_EXTS = new Set(['mp4', 'webm', 'mov', 'avi', 'mkv', 'flv', 'm4v'])
+export const VIDEO_EXTS = new Set([
+  'mp4',
+  'webm',
+  'mov',
+  'avi',
+  'mkv',
+  'flv',
+  'm4v',
+])
 
 /** Eagle 条目唯一标识格式正则（字母数字组成） */
 export const ITEM_ID_PATTERN = /^[A-Za-z0-9]+$/
@@ -120,7 +125,8 @@ changeBus.register(EAGLE_LIBRARY_RESOURCE)
 // ---- 基础工具函数 ----
 
 /** 获取指定 Eagle 库下的 images 目录绝对路径 */
-export const imagesDir = (libraryPath: string) => path.join(libraryPath, 'images')
+export const imagesDir = (libraryPath: string) =>
+  path.join(libraryPath, 'images')
 
 /** 判断指定扩展名是否属于视频文件 */
 export const isVideoExt = (ext: string) => VIDEO_EXTS.has(ext)

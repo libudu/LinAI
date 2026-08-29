@@ -142,13 +142,7 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
       },
       ...toTreeData(folders, setEditingFolder, showFolderDescription),
     ],
-    [
-      folders,
-      allTotal,
-      showFolderDescription,
-      unclassifiedTotal,
-      trashTotal,
-    ],
+    [folders, allTotal, showFolderDescription, unclassifiedTotal, trashTotal],
   )
 
   const allKeys = useMemo(() => collectKeys(folders), [folders])
