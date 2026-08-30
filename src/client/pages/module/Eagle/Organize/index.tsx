@@ -1,4 +1,3 @@
-import { usePlatform } from '@/client/hooks/usePlatform'
 import type { OrganizeTaskView } from '@/shared/eagle/organize'
 import { Modal, Spin, Tooltip } from 'antd'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -19,7 +18,6 @@ export function OrganizeModal({
   open: boolean
   onClose: () => void
 }) {
-  const { isMobile } = usePlatform()
   const { status, loaded } = useOrganizeStatus()
   const [currentStep, setCurrentStep] = useState<OrganizeStepKey>('classify')
   const [task, setTask] = useState<OrganizeTaskView | null>(null)
@@ -122,13 +120,19 @@ export function OrganizeModal({
       open={open}
       onCancel={onClose}
       footer={null}
-      width={isMobile ? '100%' : 1200}
+      width="calc(100vw - 32px)"
+      style={{ maxWidth: 'calc(100vw - 32px)' }}
       centered
       destroyOnHidden
       styles={{
+        container: {
+          height: 'calc(100dvh - 32px)',
+          display: 'flex',
+          flexDirection: 'column',
+        },
         body: {
-          height: isMobile ? 'calc(100dvh - 100px)' : 620,
-          maxHeight: isMobile ? '90vh' : undefined,
+          flex: 1,
+          minHeight: 0,
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
