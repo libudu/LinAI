@@ -14,13 +14,13 @@ import {
   InputNumber,
   Popconfirm,
   Radio,
-  Slider,
   Tag,
   Tooltip,
 } from 'antd'
 import { useMemo, useState } from 'react'
 import { analyzeSelectedCellDetails } from '../processing'
 import type { CellOverride, CellResult, ColorRule, GridSize } from '../types'
+import { OffsetPad } from './OffsetPad'
 
 interface ToolPanelProps {
   gridSize: GridSize
@@ -144,8 +144,9 @@ export function ToolPanel({
       selectedCell.row,
       selectedCell.column,
       gridSize,
+      cellOverride?.rule || rule,
     )
-  }, [imageData, selectedCell, gridSize])
+  }, [imageData, selectedCell, gridSize, cellOverride?.rule, rule])
 
   // 导出完美像素图为 PNG（无网格线，纯净点阵图）
   const handleExportPNG = (scaleType: 'hd' | '1to1' = 'hd') => {
@@ -292,11 +293,10 @@ export function ToolPanel({
           value={rule.type}
           onChange={(e) => {
             const nextType = e.target.value
-            if (nextType === 'dominant') {
-              onRuleChange({ type: 'dominant' })
-            } else {
-              onRuleChange({ type: 'center', offsetX: 0, offsetY: 0 })
-            }
+            onRuleChange({
+              ...rule,
+              type: nextType,
+            })
           }}
           className="flex flex-col gap-2"
         >
@@ -313,54 +313,34 @@ export function ToolPanel({
             <div>
               <div className="text-xs font-medium">中心像素采样</div>
               <div className="text-[11px] text-slate-400">
-                严格获取单元中心点像素，可微调 X / Y 偏移（极速 60FPS 实时响应）
+                获取单元中心点像素，支持毫秒级极速响应
               </div>
             </div>
           </Radio>
         </Radio.Group>
 
-        {rule.type === 'center' && (
-          <div className="mt-3 space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800">
-            <div>
-              <div className="flex justify-between text-[11px] text-slate-500">
-                <span>X 轴偏移</span>
-                <span>{Math.round((rule.offsetX || 0) * 100)}%</span>
-              </div>
-              <Slider
-                min={-1}
-                max={1}
-                step={0.05}
-                value={rule.offsetX || 0}
-                onChange={(v) =>
-                  onRuleChange({
-                    type: 'center',
-                    offsetX: v,
-                    offsetY: rule.offsetY || 0,
-                  })
-                }
-              />
-            </div>
-            <div>
-              <div className="flex justify-between text-[11px] text-slate-500">
-                <span>Y 轴偏移</span>
-                <span>{Math.round((rule.offsetY || 0) * 100)}%</span>
-              </div>
-              <Slider
-                min={-1}
-                max={1}
-                step={0.05}
-                value={rule.offsetY || 0}
-                onChange={(v) =>
-                  onRuleChange({
-                    type: 'center',
-                    offsetX: rule.offsetX || 0,
-                    offsetY: v,
-                  })
-                }
-              />
-            </div>
+        {/* 无论中心像素采样还是主色占比都支持调整 XY 轴偏移 */}
+        <div className="mt-3 space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-medium text-slate-700 dark:text-slate-300">
+              网格 / 取色 XY 轴偏移
+            </span>
+            <span className="text-[11px] text-slate-400">
+              左侧原图网格实时同步
+            </span>
           </div>
-        )}
+          <OffsetPad
+            offsetX={rule.offsetX ?? 0.5}
+            offsetY={rule.offsetY ?? 0.5}
+            onChange={(nx, ny) =>
+              onRuleChange({
+                ...rule,
+                offsetX: nx,
+                offsetY: ny,
+              })
+            }
+          />
+        </div>
       </Card>
 
       {/* 3. 单格编辑 */}
@@ -450,7 +430,11 @@ export function ToolPanel({
                 size="small"
                 onClick={() =>
                   onCellOverride(selectedCell.row, selectedCell.column, {
-                    rule: { type: 'dominant' },
+                    rule: {
+                      type: 'dominant',
+                      offsetX: rule.offsetX ?? 0.5,
+                      offsetY: rule.offsetY ?? 0.5,
+                    },
                   })
                 }
               >
@@ -460,7 +444,11 @@ export function ToolPanel({
                 size="small"
                 onClick={() =>
                   onCellOverride(selectedCell.row, selectedCell.column, {
-                    rule: { type: 'center', offsetX: 0, offsetY: 0 },
+                    rule: {
+                      type: 'center',
+                      offsetX: rule.offsetX ?? 0.5,
+                      offsetY: rule.offsetY ?? 0.5,
+                    },
                   })
                 }
               >

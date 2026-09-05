@@ -3,9 +3,12 @@ export interface GridSize {
   rows: number
 }
 
-export type ColorRule =
-  | { type: 'center'; offsetX: number; offsetY: number }
-  | { type: 'dominant'; maxColors?: number }
+export interface ColorRule {
+  type: 'center' | 'dominant'
+  offsetX: number // 0 ~ 1，默认 0.5，精度 0.01
+  offsetY: number // 0 ~ 1，默认 0.5，精度 0.01
+  maxColors?: number
+}
 
 export interface CellColor {
   color: string // #RRGGBB

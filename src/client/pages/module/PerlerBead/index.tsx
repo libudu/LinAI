@@ -169,6 +169,8 @@ export function PerlerBead() {
             grid={gridSize}
             cells={cells}
             selectedCell={selectedCell}
+            offsetX={globalRule.offsetX ?? 0.5}
+            offsetY={globalRule.offsetY ?? 0.5}
             onSelectCell={setSelectedCell}
             title="原图网格对照"
           />

@@ -98,7 +98,7 @@ function blendOverWhite(
 // ---------- 高性能单元格取色实现 ----------
 
 /**
- * 中心像素直接采样（O(1) 性能，拖动滑块时毫秒级更新，杜绝卡顿）
+ * 中心像素直接采样（O(1) 性能，拖动方框时毫秒级更新，杜绝卡顿）
  */
 export function sampleCenterColor(
   imageData: ImageData,
@@ -106,23 +106,13 @@ export function sampleCenterColor(
   endX: number,
   startY: number,
   endY: number,
-  offsetX = 0,
-  offsetY = 0,
 ): string {
   const imgW = imageData.width
-  const cellW = endX - startX
-  const cellH = endY - startY
-  const midX = startX + cellW / 2
-  const midY = startY + cellH / 2
-
-  const targetX = Math.max(
-    startX,
-    Math.min(endX - 1, Math.round(midX + offsetX * (cellW / 2))),
-  )
-  const targetY = Math.max(
-    startY,
-    Math.min(endY - 1, Math.round(midY + offsetY * (cellH / 2))),
-  )
+  const imgH = imageData.height
+  const midX = Math.floor((startX + endX) / 2)
+  const midY = Math.floor((startY + endY) / 2)
+  const targetX = Math.max(0, Math.min(imgW - 1, midX))
+  const targetY = Math.max(0, Math.min(imgH - 1, midY))
 
   const idx = (targetY * imgW + targetX) * 4
   const data = imageData.data
@@ -213,22 +203,29 @@ export function analyzeSelectedCellDetails(
   row: number,
   column: number,
   gridSize: GridSize,
+  rule?: ColorRule,
   maxColors = 6,
   clusterDistThreshold = 24,
 ): CellColor[] {
   const imgW = imageData.width
   const imgH = imageData.height
+  const cols = gridSize.columns
+  const rows = gridSize.rows
 
-  const startX = Math.floor((column * imgW) / gridSize.columns)
-  const endX = Math.min(
-    imgW,
-    Math.max(startX + 1, Math.floor(((column + 1) * imgW) / gridSize.columns)),
-  )
-  const startY = Math.floor((row * imgH) / gridSize.rows)
-  const endY = Math.min(
-    imgH,
-    Math.max(startY + 1, Math.floor(((row + 1) * imgH) / gridSize.rows)),
-  )
+  const offX = rule?.offsetX ?? 0.5
+  const offY = rule?.offsetY ?? 0.5
+  const shiftX = (offX - 0.5) * (imgW / cols)
+  const shiftY = (offY - 0.5) * (imgH / rows)
+
+  const rawStartX = Math.round((column * imgW) / cols + shiftX)
+  const rawEndX = Math.round(((column + 1) * imgW) / cols + shiftX)
+  const rawStartY = Math.round((row * imgH) / rows + shiftY)
+  const rawEndY = Math.round(((row + 1) * imgH) / rows + shiftY)
+
+  const startX = Math.max(0, Math.min(imgW - 1, rawStartX))
+  const endX = Math.min(imgW, Math.max(startX + 1, rawEndX))
+  const startY = Math.max(0, Math.min(imgH - 1, rawStartY))
+  const endY = Math.min(imgH, Math.max(startY + 1, rawEndY))
 
   const data = imageData.data
   const distSqThreshold = clusterDistThreshold * clusterDistThreshold
@@ -325,21 +322,15 @@ export function computeAllCells(
   const imgH = imageData.height
   const results: CellResult[][] = []
 
+  const defaultOffX = globalRule.offsetX ?? 0.5
+  const defaultOffY = globalRule.offsetY ?? 0.5
+  const defaultShiftX = (defaultOffX - 0.5) * (imgW / cols)
+  const defaultShiftY = (defaultOffY - 0.5) * (imgH / rows)
+
   for (let r = 0; r < rows; r++) {
-    const startY = Math.floor((r * imgH) / rows)
-    const endY = Math.min(
-      imgH,
-      Math.max(startY + 1, Math.floor(((r + 1) * imgH) / rows)),
-    )
     const rowList: CellResult[] = []
 
     for (let c = 0; c < cols; c++) {
-      const startX = Math.floor((c * imgW) / cols)
-      const endX = Math.min(
-        imgW,
-        Math.max(startX + 1, Math.floor(((c + 1) * imgW) / cols)),
-      )
-
       const key = `${r},${c}`
       const override = overrides[key]
       let cellColor = '#FFFFFF'
@@ -348,15 +339,32 @@ export function computeAllCells(
         cellColor = override.color
       } else {
         const effectiveRule = override?.rule || globalRule
+        let shiftX = defaultShiftX
+        let shiftY = defaultShiftY
+        if (override?.rule) {
+          const offX = override.rule.offsetX ?? defaultOffX
+          const offY = override.rule.offsetY ?? defaultOffY
+          shiftX = (offX - 0.5) * (imgW / cols)
+          shiftY = (offY - 0.5) * (imgH / rows)
+        }
+
+        const rawStartX = Math.round((c * imgW) / cols + shiftX)
+        const rawEndX = Math.round(((c + 1) * imgW) / cols + shiftX)
+        const rawStartY = Math.round((r * imgH) / rows + shiftY)
+        const rawEndY = Math.round(((r + 1) * imgH) / rows + shiftY)
+
+        const startX = Math.max(0, Math.min(imgW - 1, rawStartX))
+        const endX = Math.min(imgW, Math.max(startX + 1, rawEndX))
+        const startY = Math.max(0, Math.min(imgH - 1, rawStartY))
+        const endY = Math.min(imgH, Math.max(startY + 1, rawEndY))
+
         if (effectiveRule.type === 'center') {
           cellColor = sampleCenterColor(
             imageData,
-            startX,
-            endX,
-            startY,
-            endY,
-            effectiveRule.offsetX || 0,
-            effectiveRule.offsetY || 0,
+            rawStartX,
+            rawEndX,
+            rawStartY,
+            rawEndY,
           )
         } else {
           cellColor = sampleDominantColor(imageData, startX, endX, startY, endY)

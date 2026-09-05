@@ -15,10 +15,11 @@ src/client/pages/module/PerlerBead/
 ├── store.ts                # Zustand 全局状态管理（保证页面切换保活与 ObjectURL 生命周期管理）
 ├── types.ts                # 页面核心数据模型定义（网格、规则、单元结果、单格覆盖等）
 ├── processing.ts           # 核心图像算法库（自动识别网格、极速取色、颜色聚类量化）
-└── components/
-    ├── ImageSource.tsx     # 图片导入组件（支持本地拖拽/文件选择与图库选择器）
-    ├── GridPreview.tsx     # Canvas 网格渲染器（原图/效果双模式、选区联动、高清缩放平移）
-    └── ToolPanel.tsx       # 控制面板（尺寸调节、取色规则、单格编辑、清单统计与图片导出）
+├── components/
+│   ├── ImageSource.tsx     # 图片导入组件（支持本地拖拽/文件选择与图库选择器）
+│   ├── GridPreview.tsx     # Canvas 网格渲染器（原图/效果双模式、选区联动、高清缩放平移、原图网格动态偏移定位）
+│   ├── OffsetPad.tsx       # 二维方框偏移调节器（XY 轴拖动/点击与精确输入框双向联动）
+│   └── ToolPanel.tsx       # 控制面板（尺寸调节、取色规则、单格编辑、清单统计与图片导出）
 ```
 
 ---
@@ -26,9 +27,9 @@ src/client/pages/module/PerlerBead/
 ## 核心数据模型 (`types.ts`)
 
 - `GridSize`: `{ columns: number; rows: number }` 网格行列规格（范围 1..200，最大 40,000 单元）。
-- `ColorRule`:
-  - `dominant`: 主色占比规则，聚合微小杂色与抗锯齿；
-  - `center`: 中心像素采样，支持 `offsetX` / `offsetY`（-100% ~ +100%）微调。
+- `ColorRule`: `{ type: 'center' | 'dominant'; offsetX: number; offsetY: number; maxColors?: number }`
+  - 取色规则，“主色占比”与“中心像素采样”均支持 `offsetX` / `offsetY`（范围 0.00 ~ 1.00，精度 0.01，默认 0.50 居中）四向微调；
+  - 切换规则时保留已调好的偏移量，左侧原图网格辅助线与选区高亮实时跟随动态偏移，方便像素与网格精准对齐。
 - `CellResult`: `{ row, column, color, sourceColors }` 单元格最终标准 6 位十六进制色（`#RRGGBB`）。
 - `CellOverride`: `{ color?: string; rule?: ColorRule }` 单格独立覆盖规则。
 
@@ -42,13 +43,13 @@ src/client/pages/module/PerlerBead/
 - 从当前页面切出到左侧其他导航时，组件卸载但不销毁 store 数据，重新切回时立即恢复原先工作区；
 - 仅在用户**重新选择新图片**或执行**重置**时调用 `URL.revokeObjectURL` 释放内存，避免内存泄漏。
 
-### 2. 交互性能优化（杜绝拖动滑块卡顿）
+### 2. 二维方框偏移调节与极速交互性能 (`OffsetPad.tsx` & `processing.ts`)
 
-- **性能瓶颈成因**：如果在每次拖动滑块时对 2500~40000 个单元格全部执行多重循环的颜色聚类和颜色分布统计，会导致主线程巨幅卡顿；
-- **优化方案**：
-  - **中心采样 (`sampleCenterColor`)**：直接进行单一像素内存寻址，时间复杂度严格为 $O(1)$，拖动 X/Y 偏移滑块时可达到 60FPS+ 极速实时反馈；
-  - **快速主色 (`sampleDominantColor`)**：采用轻量数字聚类与无堆内存分配算法，单格计算耗时降低 95% 以上；
-  - **单格原色分布 (`analyzeSelectedCellDetails`)**：来源色频次分布仅在用户**选中该单元格**时按需计算，全图计算时不执行冗余统计。
+- **全新二维方框控制器**：替换原本的滑块，提供直观的二维操作方框（内置十字参考准星），支持点击与平滑拖拽，右侧提供 X/Y 两个精度为 0.01 的 `0.00 ~ 1.00` 输入框，并支持一键重置居中；
+- **动态网格对齐**：左侧原图模式下的辅助网格线和单元格高亮框随 XY 偏移量实时联动位移，点击画布单元格时自动进行偏移逆变换，杜绝点击错位；
+- **中心采样 (`sampleCenterColor`)**：直接进行单一像素内存寻址，时间复杂度严格为 $O(1)$，调整 X/Y 偏移方框时达到 60FPS+ 极速实时反馈；
+- **快速主色 (`sampleDominantColor`)**：采用轻量数字聚类与无堆内存分配算法，单格计算耗时降低 95% 以上，且同样支持 XY 偏移；
+- **单格原色分布 (`analyzeSelectedCellDetails`)**：同步基于单元格实际偏移区域按需计算来源色分布。
 
 ### 3. 完美像素图导出 (`ToolPanel.tsx`)
 

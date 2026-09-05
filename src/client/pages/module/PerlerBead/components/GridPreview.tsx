@@ -15,6 +15,8 @@ interface GridPreviewProps {
   cells: CellResult[][] | null
   selectedCell: { row: number; column: number } | null
   mode: 'source' | 'result'
+  offsetX?: number
+  offsetY?: number
   onSelectCell: (cell: { row: number; column: number } | null) => void
   title?: string
 }
@@ -25,6 +27,8 @@ export function GridPreview({
   cells,
   selectedCell,
   mode,
+  offsetX = 0.5,
+  offsetY = 0.5,
   onSelectCell,
   title,
 }: GridPreviewProps) {
@@ -144,6 +148,18 @@ export function GridPreview({
       }
     }
 
+    // 计算网格在画布上的单元尺寸与动态偏移量
+    const cellCanvasW = grid.columns > 0 ? drawW / grid.columns : 0
+    const cellCanvasH = grid.rows > 0 ? drawH / grid.rows : 0
+    const shiftX =
+      mode === 'source' && grid.columns > 0
+        ? ((offsetX ?? 0.5) - 0.5) * cellCanvasW
+        : 0
+    const shiftY =
+      mode === 'source' && grid.rows > 0
+        ? ((offsetY ?? 0.5) - 0.5) * cellCanvasH
+        : 0
+
     // 2. 绘制网格线
     if (showGridLines && grid.columns > 0 && grid.rows > 0) {
       const cols = grid.columns
@@ -153,31 +169,55 @@ export function GridPreview({
       ctx.lineWidth = 1
 
       if (mode === 'source') {
-        // 原图模式使用半透明线，确保深浅背景均可见
+        // 原图模式：限制在原图区域内裁剪，确保偏移网格线不超出图像
+        ctx.beginPath()
+        ctx.rect(drawX, drawY, drawW, drawH)
+        ctx.clip()
+
+        // 绘制半透明动态偏移网格线
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)'
+        ctx.beginPath()
+        // 纵向线覆盖范围扩展至前后各一格以覆盖平移空隙
+        for (let c = -1; c <= cols + 1; c++) {
+          const x = Math.round(drawX + (c * drawW) / cols + shiftX) + 0.5
+          ctx.moveTo(x, drawY)
+          ctx.lineTo(x, drawY + drawH)
+        }
+        // 横向线覆盖范围扩展至前后各一格以覆盖平移空隙
+        for (let r = -1; r <= rows + 1; r++) {
+          const y = Math.round(drawY + (r * drawH) / rows + shiftY) + 0.5
+          ctx.moveTo(drawX, y)
+          ctx.lineTo(drawX + drawW, y)
+        }
+        ctx.stroke()
+        ctx.restore()
+
+        // 绘制原图固定外边框，明确图像轮廓边界
+        ctx.save()
+        ctx.lineWidth = 1.5
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)'
+        ctx.strokeRect(drawX, drawY, drawW, drawH)
+        ctx.restore()
       } else {
         // 结果模式使用细微边框线
         ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)'
+        ctx.beginPath()
+        for (let c = 0; c <= cols; c++) {
+          const x = Math.round(drawX + (c * drawW) / cols) + 0.5
+          ctx.moveTo(x, drawY)
+          ctx.lineTo(x, drawY + drawH)
+        }
+        for (let r = 0; r <= rows; r++) {
+          const y = Math.round(drawY + (r * drawH) / rows) + 0.5
+          ctx.moveTo(drawX, y)
+          ctx.lineTo(drawX + drawW, y)
+        }
+        ctx.stroke()
+        ctx.restore()
       }
-
-      ctx.beginPath()
-      // 纵向线
-      for (let c = 0; c <= cols; c++) {
-        const x = Math.round(drawX + (c * drawW) / cols) + 0.5
-        ctx.moveTo(x, drawY)
-        ctx.lineTo(x, drawY + drawH)
-      }
-      // 横向线
-      for (let r = 0; r <= rows; r++) {
-        const y = Math.round(drawY + (r * drawH) / rows) + 0.5
-        ctx.moveTo(drawX, y)
-        ctx.lineTo(drawX + drawW, y)
-      }
-      ctx.stroke()
-      ctx.restore()
     }
 
-    // 3. 高亮绘制选中单元格
+    // 3. 高亮绘制选中单元格（跟随原图偏移位置）
     if (
       selectedCell &&
       selectedCell.row >= 0 &&
@@ -190,10 +230,10 @@ export function GridPreview({
       const r = selectedCell.row
       const c = selectedCell.column
 
-      const selX = drawX + (c * drawW) / cols
-      const nextX = drawX + ((c + 1) * drawW) / cols
-      const selY = drawY + (r * drawH) / rows
-      const nextY = drawY + ((r + 1) * drawH) / rows
+      const selX = drawX + (c * drawW) / cols + shiftX
+      const nextX = drawX + ((c + 1) * drawW) / cols + shiftX
+      const selY = drawY + (r * drawH) / rows + shiftY
+      const nextY = drawY + ((r + 1) * drawH) / rows + shiftY
       const selW = nextX - selX
       const selH = nextY - selY
 
@@ -216,6 +256,8 @@ export function GridPreview({
     cells,
     selectedCell,
     mode,
+    offsetX,
+    offsetY,
     zoom,
     offset,
     showGridLines,
@@ -247,8 +289,19 @@ export function GridPreview({
       clickY >= drawY &&
       clickY <= drawY + drawH
     ) {
-      const relX = clickX - drawX
-      const relY = clickY - drawY
+      const cellCanvasW = grid.columns > 0 ? drawW / grid.columns : 1
+      const cellCanvasH = grid.rows > 0 ? drawH / grid.rows : 1
+      const shiftX =
+        mode === 'source' && grid.columns > 0
+          ? ((offsetX ?? 0.5) - 0.5) * cellCanvasW
+          : 0
+      const shiftY =
+        mode === 'source' && grid.rows > 0
+          ? ((offsetY ?? 0.5) - 0.5) * cellCanvasH
+          : 0
+
+      const relX = clickX - drawX - shiftX
+      const relY = clickY - drawY - shiftY
       const col = Math.floor((relX / drawW) * grid.columns)
       const row = Math.floor((relY / drawH) * grid.rows)
 
