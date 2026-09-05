@@ -7,3 +7,4 @@ dist
 data
 tsconfig.tsbuildinfo
 .codegraph
+.temp

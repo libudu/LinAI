@@ -1,4 +1,5 @@
 import {
+  AppstoreOutlined,
   AudioOutlined,
   BookOutlined,
   CloudOutlined,
@@ -15,6 +16,7 @@ import { TTS } from './pages/module/GeminiTTS'
 import { openTTSSettingModal } from './pages/module/GeminiTTS/SettingModal'
 import { Novel } from './pages/module/Novel'
 import { openNovelSettingModal } from './pages/module/Novel/SettingModal'
+import { PerlerBead } from './pages/module/PerlerBead'
 import { YunwuAdmin } from './pages/module/YunwuAdmin'
 
 export interface AppRoute {
@@ -50,6 +52,14 @@ export const appRoutes: AppRoute[] = [
     key: 'image-canvas',
     icon: <HighlightOutlined />,
     disabled: true,
+  },
+  {
+    path: '/perler-bead',
+    label: '拼豆图处理',
+    element: <PerlerBead />,
+    key: 'perler-bead',
+    icon: <AppstoreOutlined />,
+    fullBleed: true,
   },
   {
     path: '/tts',
