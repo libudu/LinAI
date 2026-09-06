@@ -28,7 +28,6 @@ type VirtualQuickItem =
 interface QuickCardProps {
   result: OrganizeResultListItem
   isSelected: boolean
-  actionLoading: boolean
   onSelect: (itemId: string) => void
   onConfirmItem: (item: OrganizeResultListItem) => void
   onClearClassification: (item: OrganizeResultListItem) => void
@@ -38,7 +37,6 @@ interface QuickCardProps {
 const QuickCard = React.memo(function QuickCard({
   result,
   isSelected,
-  actionLoading,
   onSelect,
   onConfirmItem,
   onClearClassification,
@@ -84,7 +82,6 @@ const QuickCard = React.memo(function QuickCard({
           type="primary"
           size="large"
           icon={<CheckOutlined />}
-          disabled={actionLoading}
           onClick={(e) => {
             e.stopPropagation()
             onConfirmItem(result)
@@ -96,7 +93,6 @@ const QuickCard = React.memo(function QuickCard({
 
         <div className="grid grid-cols-2 gap-1.5">
           <Button
-            disabled={actionLoading}
             size="large"
             onClick={(e) => {
               e.stopPropagation()
@@ -107,7 +103,6 @@ const QuickCard = React.memo(function QuickCard({
             清除分类(A)
           </Button>
           <Button
-            disabled={actionLoading}
             size="large"
             onClick={(e) => {
               e.stopPropagation()
@@ -131,7 +126,6 @@ interface QuickConfirmListProps {
   onClearClassification: (item: OrganizeResultListItem) => void
   onSkipItem: (item: OrganizeResultListItem) => void
   sortType: OrganizeSortType
-  actionLoading: boolean
 }
 
 export function QuickConfirmList({
@@ -142,7 +136,6 @@ export function QuickConfirmList({
   onClearClassification,
   onSkipItem,
   sortType,
-  actionLoading,
 }: QuickConfirmListProps) {
   const parentRef = useRef<HTMLDivElement>(null)
 
@@ -256,7 +249,6 @@ export function QuickConfirmList({
                   <QuickCard
                     result={item.result}
                     isSelected={item.result.itemId === selectedId}
-                    actionLoading={actionLoading}
                     onSelect={onSelect}
                     onConfirmItem={onConfirmItem}
                     onClearClassification={onClearClassification}

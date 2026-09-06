@@ -78,7 +78,6 @@ export function StepConfirm({
   const [detailsMap, setDetailsMap] = useState<
     Record<string, OrganizeResultDetail>
   >({})
-  const [actionLoading, setActionLoading] = useState(false)
   const [titleDisabledIds, setTitleDisabledIds] = useState<Set<string>>(
     () => new Set(),
   )
@@ -87,6 +86,7 @@ export function StepConfirm({
   >({})
 
   const resultsRef = useRef<OrganizeResultListItem[]>([])
+  const inFlightActionIdsRef = useRef(new Set<string>())
   const preloadedIdsRef = useRef(new Set<string>())
   const preloadImagesRef = useRef<HTMLImageElement[]>([])
   const fetchingDetailIdsRef = useRef(new Set<string>())
@@ -343,7 +343,7 @@ export function StepConfirm({
   const runAction = useCallback(
     async (fn: (itemId: string) => Promise<void>, targetId?: string) => {
       const itemId = targetId ?? selectedId
-      if (!itemId || actionLoading) return
+      if (!itemId || inFlightActionIdsRef.current.has(itemId)) return
 
       const current = resultsRef.current
       const item = current.find((r) => r.itemId === itemId)
@@ -361,10 +361,10 @@ export function StepConfirm({
       setResults(remaining)
       setSelectedId(nextId)
 
-      setActionLoading(true)
+      inFlightActionIdsRef.current.add(itemId)
       try {
-        // 先冲刷待确认队列中的项目，保证操作时序
-        await flushPendingBatch()
+        // 后台冲刷待确认队列中的项目（非阻塞，保证之前积攒的项目及时入库）
+        void flushPendingBatch()
         await fn(itemId)
       } catch (error) {
         message.error(error instanceof Error ? error.message : '操作失败')
@@ -378,16 +378,15 @@ export function StepConfirm({
           setSelectedId((curr) => curr ?? itemId)
         }
       } finally {
-        setActionLoading(false)
+        inFlightActionIdsRef.current.delete(itemId)
       }
     },
-    [actionLoading, flushPendingBatch, selectedId],
+    [flushPendingBatch, selectedId],
   )
 
   // 快速模式下单项确认（直接按第一推荐分类确认）
   const confirmItemQuick = useCallback(
     (item: OrganizeResultListItem) => {
-      if (actionLoading) return
       const itemId = item.itemId
       const current = resultsRef.current
       const foundIndex = current.findIndex((r) => r.itemId === itemId)
@@ -425,12 +424,10 @@ export function StepConfirm({
         }, 3000)
       }
     },
-    [actionLoading, flushPendingBatch, titleDisabledIds],
+    [flushPendingBatch, titleDisabledIds],
   )
 
   const runConfirm = useCallback(async () => {
-    if (actionLoading) return
-
     // 快速模式：直接按首选推荐分类确认当前选中项
     if (quickMode) {
       if (!selectedId) return
@@ -490,7 +487,6 @@ export function StepConfirm({
       }, 3000)
     }
   }, [
-    actionLoading,
     canConfirm,
     confirmItemQuick,
     flushPendingBatch,
@@ -503,7 +499,7 @@ export function StepConfirm({
   ])
 
   const handleDelete = useCallback(() => {
-    if (!selectedId || actionLoading) return
+    if (!selectedId) return
     confirmDeleteEagleItem({
       name: detail?.itemName,
       onConfirm: () =>
@@ -513,7 +509,7 @@ export function StepConfirm({
           message.success('已移至回收站')
         }),
     })
-  }, [actionLoading, detail?.itemName, runAction, selectedId])
+  }, [detail?.itemName, runAction, selectedId])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -613,7 +609,6 @@ export function StepConfirm({
             onClearClassification={handleClearClassification}
             onSkipItem={handleSkipItem}
             sortType={sortType}
-            actionLoading={actionLoading}
           />
         </>
       ) : (
