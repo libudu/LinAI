@@ -94,9 +94,9 @@ export function OffsetPad({
           ref={padRef}
           onMouseDown={handleMouseDown}
           onTouchStart={handleTouchStart}
-          className={`relative h-20 w-20 shrink-0 cursor-crosshair rounded-lg border bg-slate-100 shadow-2xs select-none transition-colors dark:bg-slate-900 ${
+          className={`relative h-20 w-20 shrink-0 cursor-crosshair rounded-lg border bg-slate-100 shadow-2xs transition-colors select-none dark:bg-slate-900 ${
             disabled
-              ? 'cursor-not-allowed opacity-50 border-slate-200 dark:border-slate-800'
+              ? 'cursor-not-allowed border-slate-200 opacity-50 dark:border-slate-800'
               : 'border-slate-300 hover:border-orange-400 dark:border-slate-700 dark:hover:border-orange-500'
           }`}
         >

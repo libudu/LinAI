@@ -2,6 +2,7 @@ import type {
   OrganizeResultDetail,
   OrganizeResultListItem,
 } from '@/shared/eagle/organize'
+import { ExportOutlined } from '@ant-design/icons'
 import { Button, Empty, Image, Spin, message } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { deleteEagleItem, eagleFileUrl } from '../../api'
@@ -635,7 +636,26 @@ export function StepConfirm({
                     root: 'h-full w-full flex items-center justify-center',
                     image: 'h-full! w-full! object-contain!',
                   }}
-                  preview={{ src: eagleFileUrl(selectedId) }}
+                  preview={{
+                    src: eagleFileUrl(selectedId),
+                    toolbarRender: (originalNode) => (
+                      <div className="flex items-center gap-2">
+                        {originalNode}
+                        <button
+                          type="button"
+                          title="在新标签页查看原图"
+                          aria-label="在新标签页查看原图"
+                          className="flex cursor-pointer items-center gap-1 rounded-full bg-black/40 px-3 py-1.5 text-xs text-white/85 backdrop-blur-sm transition-colors hover:bg-black/60 hover:text-white"
+                          onClick={() =>
+                            window.open(eagleFileUrl(selectedId), '_blank')
+                          }
+                        >
+                          <ExportOutlined />
+                          <span>查看原图</span>
+                        </button>
+                      </div>
+                    ),
+                  }}
                 />
               )}
             </div>
