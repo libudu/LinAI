@@ -363,8 +363,8 @@ export function StepConfirm({
 
       inFlightActionIdsRef.current.add(itemId)
       try {
-        // 后台冲刷待确认队列中的项目（非阻塞，保证之前积攒的项目及时入库）
-        void flushPendingBatch()
+        // 先冲刷待确认队列中积攒的项目，确保时序一致且避免并发写库冲突
+        await flushPendingBatch()
         await fn(itemId)
       } catch (error) {
         message.error(error instanceof Error ? error.message : '操作失败')

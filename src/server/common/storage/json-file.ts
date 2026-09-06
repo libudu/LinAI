@@ -63,8 +63,10 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 export const writeJsonFile = async (
   file: string,
   data: unknown,
+  options?: { backup?: boolean },
 ): Promise<void> => {
   const tempFile = tempFileOf(file)
+  const shouldBackup = options?.backup ?? true
   try {
     await fsp.mkdir(path.dirname(file), { recursive: true })
     const handle = await fsp.open(tempFile, 'w')
@@ -75,10 +77,12 @@ export const writeJsonFile = async (
       await handle.close()
     }
     // 替换前保留最近一次有效备份，备份失败不阻塞主流程
-    try {
-      await fsp.copyFile(file, backupOf(file))
-    } catch {
-      /* 目标不存在或备份失败时忽略 */
+    if (shouldBackup) {
+      try {
+        await fsp.copyFile(file, backupOf(file))
+      } catch {
+        /* 目标不存在或备份失败时忽略 */
+      }
     }
     for (let attempt = 1; ; attempt++) {
       try {

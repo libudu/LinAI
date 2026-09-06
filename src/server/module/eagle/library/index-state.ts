@@ -11,6 +11,7 @@
 
 import fs from 'fs-extra'
 import path from 'path'
+import { writeJsonFile } from '../../../common/storage/json-file'
 import { getEagleSettings } from '../settings'
 import {
   CACHE_FILE,
@@ -23,6 +24,7 @@ import {
   ITEM_ID_PATTERN,
   SCAN_CONCURRENCY,
   WATCH_DEBOUNCE_MS,
+  withLibraryLock,
 } from './types'
 
 let state: EagleIndexState | null = null
@@ -117,18 +119,41 @@ export const runPool = async <T>(
   await Promise.all(lanes)
 }
 
-/** 将当前内存索引原子持久化到本地磁盘缓存 (data/eagle/index.json) */
-export const persistCache = async () => {
+let lastInternalWriteAt = 0
+
+/** 标记最近一次由本应用自身写操作引发的库变更，供 watcher 防抖跳过增量扫描 */
+export const markInternalWrite = () => {
+  lastInternalWriteAt = Date.now()
+}
+
+let writeCachePromise: Promise<void> | null = null
+let hasPendingWrite = false
+
+/** 将当前内存索引原子持久化到本地磁盘缓存 (data/eagle/index.json)，具备写入合并与重试防冲突保护 */
+export const persistCache = async (): Promise<void> => {
   if (!state) return
-  const cache: EagleIndexCacheFile = {
-    libraryPath: state.libraryPath,
-    scannedAt: Date.now(),
-    items: [...state.items.values()],
+  if (writeCachePromise) {
+    hasPendingWrite = true
+    return writeCachePromise
   }
-  await fs.ensureDir(path.dirname(CACHE_FILE))
-  const tmp = `${CACHE_FILE}.tmp`
-  await fs.writeJson(tmp, cache)
-  await fs.move(tmp, CACHE_FILE, { overwrite: true })
+
+  const doWrite = async () => {
+    while (state) {
+      hasPendingWrite = false
+      const cache: EagleIndexCacheFile = {
+        libraryPath: state.libraryPath,
+        scannedAt: Date.now(),
+        items: [...state.items.values()],
+      }
+      await writeJsonFile(CACHE_FILE, cache, { backup: false })
+      if (!hasPendingWrite) break
+    }
+  }
+
+  writeCachePromise = doWrite().finally(() => {
+    writeCachePromise = null
+  })
+  return writeCachePromise
 }
 
 /**
@@ -207,6 +232,10 @@ const scheduleWatcher = (libraryPath: string) => {
   const trigger = () => {
     if (watchTimer) clearTimeout(watchTimer)
     watchTimer = setTimeout(() => {
+      // 若距离上一次内部写操作不足 1500ms，说明是自身写操作触发的 watcher 事件，跳过冗余的全量增量校验
+      if (Date.now() - lastInternalWriteAt < 1500) {
+        return
+      }
       refreshIndex().catch((err) =>
         console.error('[Eagle] 监听触发的增量刷新失败', err),
       )
@@ -270,20 +299,22 @@ export const ensureIndex = async (): Promise<EagleIndexState | null> => {
   return state
 }
 
-/** 手动或监听触发刷新：库路径变化时完全重建，否则执行增量校验并更新缓存 */
+/** 手动或监听触发刷新：库路径变化时完全重建，否则执行增量校验并更新缓存（库级串行互斥） */
 export const refreshIndex = async (): Promise<void> => {
   const libraryPath = await resolveLibraryPath()
   if (!libraryPath) {
     state = null
     return
   }
-  if (!state || state.libraryPath !== libraryPath) {
-    loadingPromise = null
-    await ensureIndex()
-    return
-  }
-  await syncIndex(libraryPath)
-  await persistCache()
+  await withLibraryLock(libraryPath, async () => {
+    if (!state || state.libraryPath !== libraryPath) {
+      loadingPromise = null
+      await ensureIndex()
+      return
+    }
+    await syncIndex(libraryPath)
+    await persistCache()
+  })
 }
 
 /** 供 API 层/服务层根据 ID 查询索引条目（含 ID 格式校验） */

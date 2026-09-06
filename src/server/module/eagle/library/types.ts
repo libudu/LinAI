@@ -11,6 +11,7 @@ import type { EagleSortBy, EagleSortOrder } from '@/shared/eagle/types'
 import path from 'path'
 import { changeBus } from '../../../common/storage/change-bus'
 import { dataPath } from '../../../common/storage/data-path'
+import { resourceLock } from '../../../common/storage/resource-lock'
 
 // ---- Eagle 库内原始数据结构 ----
 
@@ -140,3 +141,11 @@ export const sanitizeItemName = (name: string): string =>
     .replace(/[\s.]+$/, '')
     .slice(0, 120)
     .trim()
+
+/** Eagle 资源库操作互斥锁：确保对同一资源库的写操作与增量校验串行执行 */
+export const withLibraryLock = <T>(
+  libraryPath: string,
+  action: () => Promise<T>,
+): Promise<T> => {
+  return resourceLock.run(`eagle.library:${libraryPath}`, action)
+}

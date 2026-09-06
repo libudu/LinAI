@@ -10,6 +10,7 @@ import {
   getFolderPaths,
   getItemEntry,
   updateItem,
+  updateItems,
 } from '../../library'
 import { organizeExecutor } from '../executor'
 import { organizeRepository } from '../storage'
@@ -133,7 +134,11 @@ export class ResultService {
   ): Promise<OrganizeActionResult> {
     if (items.length === 0) return { ok: true }
     const task = await organizeRepository.getTask()
-    let confirmedCount = 0
+    const updates: Array<{
+      item: (typeof items)[number]
+      record: import('@/shared/eagle/organize').OrganizeItemRecord
+      folderIds: string[]
+    }> = []
 
     for (const item of items) {
       const record = await organizeRepository.getItem(item.itemId)
@@ -169,16 +174,31 @@ export class ResultService {
       }
 
       const folderIds = isUnclassified ? [] : [targetFolderId!]
-      const updated = await updateItem(item.itemId, {
-        folderIds,
-        name: item.withTitle ? record.title : undefined,
-      })
-      if (!updated) continue
+      updates.push({ item, record, folderIds })
+    }
 
+    if (updates.length === 0) return { ok: true }
+
+    // 一次性批量写 Eagle 库（仅写一次 mtime.json 与 index.json）
+    const batchResults = await updateItems(
+      updates.map(({ item, record, folderIds }) => ({
+        id: item.itemId,
+        patch: {
+          folderIds,
+          name: item.withTitle ? record.title : undefined,
+        },
+      })),
+    )
+
+    let confirmedCount = 0
+    const now = Date.now()
+    for (let i = 0; i < updates.length; i++) {
+      if (!batchResults[i]) continue
+      const { record } = updates[i]
       await organizeRepository.saveItem({
         ...record,
         status: 'confirmed',
-        updatedAt: Date.now(),
+        updatedAt: now,
       })
       confirmedCount++
     }

@@ -16,7 +16,7 @@ src/server/module/eagle/
 │   ├── types.ts                         # 数据模型（原始/索引结构）、路径常量、变更资源 ID（eagle.library）与基础工具函数
 │   ├── index-state.ts                   # 内存索引生命周期（ensureIndex/refreshIndex）、增量扫描（mtime 对比与并发池）、本地缓存持久化、fs.watch 监听与文件路径解析
 │   ├── query.ts                         # 只读查询与数据投影：文件夹树/计数统计（getFolderTree）、服务端排序分页（getItems）、整理标准提取（getFolderStandards）与路径解析
-│   ├── operations.ts                    # 持久化写操作：updateFolder 文件夹编辑 + updateItem 条目更新（改名/同名序号/移动文件夹）+ deleteItem/restoreItem 回收站软删除/还原 + purgeItem/purgeTrash 物理删除
+│   ├── operations.ts                    # 持久化写操作：全由 withLibraryLock 串行互斥保护，updateFolder 文件夹编辑 + updateItem/updateItems 条目更新（改名/同名序号/移动文件夹，批量合并减少 I/O）+ deleteItem/restoreItem 回收站软删除/还原 + purgeItem/purgeTrash 物理删除
 │   └── index.ts                         # 统一聚合导出入口
 └── organize/                            # 图片整理（阶段三完成：任务基建 + 用户指定并发的队列执行 + 结果确认写库）
     ├── constants.ts                     # 模块自有常量：变更资源 ID、视觉上传压缩参数（与 common/static 的同名常量分开定义）
@@ -180,5 +180,5 @@ src/client/pages/module/Eagle/           # 本目录
 - **加列表字段**：改 `src/shared/eagle/types.ts` 的 `EagleItem` + `src/server/module/eagle/library/query.ts` 的 `toEagleItem`；若需持久化到索引缓存，同步改 `src/server/module/eagle/library/types.ts` 的 `EagleItemIndex` 和 `index-state.ts` 的 `buildIndexEntry`（旧缓存缺字段时要有默认值兜底，或考虑清缓存逻辑）
 - **加排序维度**：扩展 `EagleSortBy` + `library/query.ts` 中 `getItems` 排序逻辑 + `Toolbar` 选项（注意 localStorage 里旧值要能正常解析）
 - **加 API**：`api/eagle.ts` 内新增，保持信封结构和 id 校验；前端在 `api.ts` 加封装
-- **写库操作**仅限 `library/operations.ts` 的 `updateFolder` / `updateItem` 等（都要同步内存索引并原子写回，`updateItem` 还需同步 mtime.json 与原文件重命名）；不要在其他地方直接写库目录；不要复用 `common/static` 的 `serveImage`（整读 Buffer 不支持 Range）
+- **写库操作**仅限 `library/operations.ts` 的 `updateFolder` / `updateItem` / `updateItems` 等（全由 `withLibraryLock` 保护，同步内存索引并原子写回，`updateItem`/`updateItems` 还需同步 mtime.json 与原文件重命名）；不要在其他地方直接写库目录；不要复用 `common/static` 的 `serveImage`（整读 Buffer 不支持 Range）
 - 改完跑 `npx tsc --noEmit`，然后更新本文档
