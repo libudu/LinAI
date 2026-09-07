@@ -588,7 +588,7 @@ export function StepConfirm({
   }
 
   return (
-    <div className="flex h-full flex-col gap-3">
+    <div className="flex h-full min-h-0 flex-col gap-3">
       {quickMode ? (
         <>
           {/* 快速模式头部控件栏 */}

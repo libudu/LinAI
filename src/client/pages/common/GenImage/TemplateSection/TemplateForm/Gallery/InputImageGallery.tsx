@@ -41,14 +41,12 @@ export function InputImageGallery({
             {selectedFolderView.folder} ({selectedFolderView.urls.length})
           </span>
         </div>
-        <div className="max-h-[60vh] overflow-y-auto">
-          <GalleryImageGrid
-            urls={selectedFolderView.urls}
-            selectedUrls={selectedUrls}
-            unreferencedUrls={unreferencedUrls}
-            onSelect={onSelectImage}
-          />
-        </div>
+        <GalleryImageGrid
+          urls={selectedFolderView.urls}
+          selectedUrls={selectedUrls}
+          unreferencedUrls={unreferencedUrls}
+          onSelect={onSelectImage}
+        />
       </div>
     )
   }
@@ -77,6 +75,7 @@ export function InputImageGallery({
           selectedUrls={selectedUrls}
           unreferencedUrls={unreferencedUrls}
           onSelect={onSelectImage}
+          className=""
         />
       )}
     </div>

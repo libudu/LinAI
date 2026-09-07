@@ -198,7 +198,7 @@ export function StepClassify({
   }
 
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
         {standards.length === 0 ? (
           <div className="flex flex-1 items-center justify-center p-6">
@@ -231,7 +231,7 @@ export function StepClassify({
       </div>
 
       {isLocked ? (
-        <div className="flex flex-col gap-3">
+        <div className="flex shrink-0 flex-col gap-3">
           {availableCount === 0 ? (
             <Empty
               className="py-2"
@@ -257,7 +257,7 @@ export function StepClassify({
           )}
         </div>
       ) : (
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-x-6 gap-y-2">
           <div className="flex items-center gap-2">
             <span className="text-sm">处理数量</span>
             <InputNumber

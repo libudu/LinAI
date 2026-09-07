@@ -10,6 +10,7 @@ interface GalleryImageGridProps {
   onSelect: (url: string) => void
   onImageError?: (url: string) => void
   onRemove?: (url: string) => void
+  className?: string
 }
 
 export function GalleryImageGrid({
@@ -19,6 +20,7 @@ export function GalleryImageGrid({
   onSelect,
   onImageError,
   onRemove,
+  className = 'max-h-[60vh] overflow-y-auto',
 }: GalleryImageGridProps) {
   const selectionOrderMap = useMemo(
     () => new Map(selectedUrls.map((url, index) => [url, index + 1])),
@@ -30,7 +32,9 @@ export function GalleryImageGrid({
   }
 
   return (
-    <div className="grid max-h-[60vh] grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+    <div
+      className={`grid grid-cols-3 gap-2 p-1 sm:grid-cols-4 md:grid-cols-5 ${className}`}
+    >
       {urls.map((url) => {
         const order = selectionOrderMap.get(url)
         const selected = typeof order === 'number'

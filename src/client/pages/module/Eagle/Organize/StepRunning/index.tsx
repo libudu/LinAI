@@ -264,7 +264,7 @@ export function StepRunning({
   const queueItems = queue?.items ?? []
 
   return (
-    <div className="flex h-full flex-col gap-3">
+    <div className="flex h-full min-h-0 flex-col gap-3">
       {isAllCompletedAndClean ? (
         /* 全部完成且无错误：居中展示继续添加 / 开始确认卡片 */
         <CompletedCards

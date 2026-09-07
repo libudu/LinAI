@@ -144,14 +144,14 @@ export function OrganizeModal({
           <Spin />
         </div>
       ) : (
-        <div className="flex h-full flex-col gap-3 pt-1 md:flex-row md:gap-4">
+        <div className="flex h-full min-h-0 flex-col gap-3 pt-1 md:flex-row md:gap-4">
           <StepNavBar
             currentStep={currentStep}
             onChange={setCurrentStep}
             status={status}
             task={task}
           />
-          <div className="flex h-full min-w-0 flex-1 flex-col">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {currentStep === 'classify' && (
               <StepClassify
                 onClose={onClose}

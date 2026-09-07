@@ -207,7 +207,7 @@ export function ThumbnailBar({
       {/* 缩略图横向虚拟滚动列表 */}
       <div
         ref={parentRef}
-        className="min-w-0 flex-1 overflow-x-auto rounded-lg"
+        className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden rounded-lg"
       >
         <div
           style={{

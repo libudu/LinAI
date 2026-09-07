@@ -16,7 +16,7 @@ export function CompletedCards({
   pendingConfirm,
 }: CompletedCardsProps) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-lg border border-slate-200 p-6 dark:border-slate-700">
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto rounded-lg border border-slate-200 p-6 dark:border-slate-700">
       <div className="grid w-full max-w-xl grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
         {/* 卡片 1：继续添加 (蓝/Sky) */}
         <button
