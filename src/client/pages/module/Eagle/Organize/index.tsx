@@ -167,6 +167,7 @@ export function OrganizeModal({
             )}
             {currentStep === 'confirm' && (
               <StepConfirm
+                task={task}
                 onSwitchToRunning={() => setCurrentStep('running')}
               />
             )}

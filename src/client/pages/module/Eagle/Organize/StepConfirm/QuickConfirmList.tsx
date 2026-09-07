@@ -4,12 +4,19 @@ import {
   CheckOutlined,
   FolderOutlined,
   PictureOutlined,
+  QuestionCircleOutlined,
+  WarningOutlined,
 } from '@ant-design/icons'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Button, Image } from 'antd'
 import React, { useEffect, useMemo, useRef } from 'react'
 import { eagleFileUrl, eagleThumbnailUrl } from '../../api'
-import { getOrganizeItemCategory, type OrganizeSortType } from './ThumbnailBar'
+import {
+  getOrganizeItemCategory,
+  SPECIAL_CATEGORY_LOW_QUALITY,
+  SPECIAL_CATEGORY_UNCLASSIFIED,
+  type OrganizeSortType,
+} from './ThumbnailBar'
 
 const QUICK_CARD_HEIGHT = 450
 
@@ -81,6 +88,12 @@ const QuickCard = React.memo(function QuickCard({
           height={result.height}
           fileSize={result.size}
         />
+        {/* 疑似低质图片显示醒目标记；点击确定仍会归入其原建议文件夹，兼顾优先展示与正常分类 */}
+        {result.lowQuality && (
+          <div className="absolute top-2 right-2 rounded-md bg-amber-500/90 px-2 py-0.5 text-xs font-semibold text-white shadow-md">
+            疑似低质
+          </div>
+        )}
       </div>
 
       {/* 底部信息与操作栏 */}
@@ -146,7 +159,8 @@ export function QuickConfirmList({
 }: QuickConfirmListProps) {
   const parentRef = useRef<HTMLDivElement>(null)
 
-  // 将分类标题与卡片项平铺为虚拟列表数据源
+  // 将分类标题与卡片项平铺为虚拟列表数据源：
+  // 仅在图片分类模式下，在每个分类的首张图片前插入该分类的标题卡片（包含「疑似低质」与「未分类」特殊卡片）
   const flatItems = useMemo<VirtualQuickItem[]>(() => {
     const categoryRemainingCounts = new Map<string, number>()
     for (const item of results) {
@@ -239,16 +253,49 @@ export function QuickConfirmList({
               >
                 {item.type === 'category' ? (
                   <div
-                    className="flex h-full w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-3 py-4 text-center select-none dark:border-slate-600 dark:bg-slate-800/50"
+                    className={`flex h-full w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-3 py-4 text-center select-none ${
+                      item.categoryName === SPECIAL_CATEGORY_LOW_QUALITY
+                        ? 'border-amber-400/80 bg-amber-50/70 dark:border-amber-600/80 dark:bg-amber-950/20'
+                        : item.categoryName === SPECIAL_CATEGORY_UNCLASSIFIED
+                          ? 'border-slate-300 bg-slate-100/70 dark:border-slate-600 dark:bg-slate-800/60'
+                          : 'border-slate-300 bg-slate-50/80 dark:border-slate-600 dark:bg-slate-800/50'
+                    }`}
                     title={`${item.categoryName}（剩余 ${item.remainingCount} 张）`}
                   >
-                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-blue-500 dark:bg-blue-900/30">
-                      <FolderOutlined className="text-3xl" />
+                    <div
+                      className={`flex h-14 w-14 items-center justify-center rounded-full ${
+                        item.categoryName === SPECIAL_CATEGORY_LOW_QUALITY
+                          ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400'
+                          : item.categoryName === SPECIAL_CATEGORY_UNCLASSIFIED
+                            ? 'bg-slate-200/80 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400'
+                            : 'bg-blue-50 text-blue-500 dark:bg-blue-900/30'
+                      }`}
+                    >
+                      {item.categoryName === SPECIAL_CATEGORY_LOW_QUALITY ? (
+                        <WarningOutlined className="text-3xl" />
+                      ) : item.categoryName ===
+                        SPECIAL_CATEGORY_UNCLASSIFIED ? (
+                        <QuestionCircleOutlined className="text-3xl" />
+                      ) : (
+                        <FolderOutlined className="text-3xl" />
+                      )}
                     </div>
-                    <span className="line-clamp-3 text-base font-bold break-all text-slate-800 dark:text-slate-100">
+                    <span
+                      className={`line-clamp-3 text-base font-bold break-all ${
+                        item.categoryName === SPECIAL_CATEGORY_LOW_QUALITY
+                          ? 'text-amber-800 dark:text-amber-200'
+                          : 'text-slate-800 dark:text-slate-100'
+                      }`}
+                    >
                       {item.categoryName}
                     </span>
-                    <span className="rounded-full bg-slate-200/70 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-medium ${
+                        item.categoryName === SPECIAL_CATEGORY_LOW_QUALITY
+                          ? 'bg-amber-200/70 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
+                          : 'bg-slate-200/70 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                      }`}
+                    >
                       剩余 {item.remainingCount} 张
                     </span>
                   </div>

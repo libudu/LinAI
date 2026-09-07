@@ -149,6 +149,8 @@ export interface OrganizeItemSummary {
   status: OrganizeItemStatus
   /** AI 判定的候选目标文件夹，按推荐顺序排列（用于按分类排序） */
   folderPaths?: string[]
+  /** 疑似低质（用于优先展示） */
+  lowQuality?: boolean
 }
 
 /** 待确认结果列表项（GET /api/eagle/organize/results） */
@@ -158,6 +160,8 @@ export interface OrganizeResultListItem {
   updatedAt: number
   /** AI 判定的候选目标文件夹，按推荐顺序排列（用于按分类排序） */
   folderPaths?: string[]
+  /** 疑似低质（用于优先展示） */
+  lowQuality?: boolean
   /** 图片修改时间（用于按修改时间排序） */
   mtime?: number
   /** 原图宽度（像素） */

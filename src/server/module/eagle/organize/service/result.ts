@@ -82,6 +82,8 @@ export class ResultService {
           status: item.status,
           updatedAt: item.updatedAt,
           folderPaths: item.folderPaths,
+          // 透传疑似低质标记，供前端待确认步骤作为首选特殊类别置顶展示
+          lowQuality: item.lowQuality,
           mtime: entry?.mtime ?? 0,
           width: entry?.width,
           height: entry?.height,

@@ -2,6 +2,7 @@ import { ImageSizeBadge } from '@/client/pages/components/ImageSizeBadge'
 import type {
   OrganizeResultDetail,
   OrganizeResultListItem,
+  OrganizeTaskView,
 } from '@/shared/eagle/organize'
 import { ExportOutlined } from '@ant-design/icons'
 import { Button, Empty, Image, Spin, message } from 'antd'
@@ -23,6 +24,7 @@ import { DetailPanel } from './DetailPanel'
 import { QuickConfirmList } from './QuickConfirmList'
 import {
   ThumbnailBar,
+  getOrUpdateCategoryOrder,
   sortOrganizeResults,
   type OrganizeSortType,
 } from './ThumbnailBar'
@@ -30,6 +32,48 @@ import { useManualFolders } from './useManualFolders'
 
 const CONFIRM_SORT_STORAGE_KEY = 'eagle_organize_confirm_sort'
 const CONFIRM_QUICK_MODE_STORAGE_KEY = 'eagle_organize_confirm_quick_mode'
+const CONFIRM_CATEGORY_ORDER_STORAGE_PREFIX = 'eagle_organize_category_order'
+
+/**
+ * 读取当前整理任务固化的分类排序列表。
+ * 以 taskCreatedAt 作为存储键的后缀，确保：
+ * 1. 同一个任务内多次打开弹窗或刷新页面时，始终复用已固化的分类先后顺序；
+ * 2. 任务清空并创建新任务后，因 taskCreatedAt 变更而自动使用全新的分类顺序，互不干扰。
+ */
+const getSavedCategoryOrder = (taskCreatedAt?: number): string[] => {
+  try {
+    const key = taskCreatedAt
+      ? `${CONFIRM_CATEGORY_ORDER_STORAGE_PREFIX}_${taskCreatedAt}`
+      : CONFIRM_CATEGORY_ORDER_STORAGE_PREFIX
+    const raw = localStorage.getItem(key)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.every((s) => typeof s === 'string')) {
+        return parsed
+      }
+    }
+  } catch {
+    // 忽略损坏的本地存储
+  }
+  return []
+}
+
+/**
+ * 持久化保存当前任务的分类先后顺序列表。
+ */
+const saveCategoryOrder = (
+  taskCreatedAt: number | undefined,
+  order: string[],
+) => {
+  try {
+    const key = taskCreatedAt
+      ? `${CONFIRM_CATEGORY_ORDER_STORAGE_PREFIX}_${taskCreatedAt}`
+      : CONFIRM_CATEGORY_ORDER_STORAGE_PREFIX
+    localStorage.setItem(key, JSON.stringify(order))
+  } catch {
+    // 忽略写入异常
+  }
+}
 
 interface PendingConfirmItem {
   itemId: string
@@ -45,8 +89,10 @@ interface PendingConfirmItem {
 // 支持「快速模式」：只展示居中放大列表与卡片底部确定按钮，跳过原图与详情拉取
 // 完成当前结果后自动选中下一张；重新执行单图送回步骤 2 队列，步骤 3 继续确认下一张
 export function StepConfirm({
+  task,
   onSwitchToRunning,
 }: {
+  task?: OrganizeTaskView | null
   onSwitchToRunning?: () => void
 }) {
   const [results, setResults] = useState<OrganizeResultListItem[]>([])
@@ -105,16 +151,18 @@ export function StepConfirm({
       } catch {
         // 忽略损坏的本地缓存
       }
+      const existingOrder = getSavedCategoryOrder(task?.createdAt)
       const nextSorted = sortOrganizeResults(
         resultsRef.current,
         newSort,
         folders,
+        existingOrder,
       )
       resultsRef.current = nextSorted
       setResults(nextSorted)
       setSelectedId(nextSorted[0]?.itemId ?? null)
     },
-    [folders],
+    [folders, task?.createdAt],
   )
 
   const handleQuickModeChange = useCallback((newQuickMode: boolean) => {
@@ -137,16 +185,31 @@ export function StepConfirm({
     setSelectedOptionKeys,
   })
 
-  // 仅拉取判定成功的结果，按当前排序规则组织队列
+  // 仅拉取判定成功的结果，结合当前任务固化的分类顺序组织队列
   const refreshResults = useCallback(async (): Promise<
     OrganizeResultListItem[]
   > => {
     const succeeded = await fetchOrganizeResults('success')
-    const sorted = sortOrganizeResults(succeeded, sortType, folders)
+    // 1. 读取当前任务已固化的分类先后排位
+    const existingOrder = getSavedCategoryOrder(task?.createdAt)
+    // 2. 补全新追加的分类并持久化（确保已有分类排位绝对稳定，避免数量减少后排位跳动）
+    const updatedOrder = getOrUpdateCategoryOrder(
+      succeeded,
+      folders,
+      existingOrder,
+    )
+    saveCategoryOrder(task?.createdAt, updatedOrder)
+    // 3. 执行多维排序（疑似低质绝对置顶 -> 未分类次高置顶 -> 常规分类按固化顺序 -> updatedAt 正序）
+    const sorted = sortOrganizeResults(
+      succeeded,
+      sortType,
+      folders,
+      updatedOrder,
+    )
     resultsRef.current = sorted
     setResults(sorted)
     return sorted
-  }, [folders, sortType])
+  }, [folders, sortType, task?.createdAt])
 
   // 仅在挂载时拉取一次；确认操作成功后在本地移除，避免每次 SSE 都重拉列表
   useEffect(() => {

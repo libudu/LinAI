@@ -230,12 +230,14 @@ export class OrganizeRepository {
   > {
     await this.ensureCacheLoaded()
     const items = Array.from(this.itemsCache.values())
+    // 列表摘要包含 folderPaths 与 lowQuality，支持前端无需拉取详情即可完成分类分组与低质置顶排序
     return items
       .map((record) => ({
         itemId: record.itemId,
         status: record.status,
         folderPaths:
           record.folderPaths ?? (record.folderPath ? [record.folderPath] : []),
+        lowQuality: record.lowQuality,
         updatedAt: record.updatedAt,
       }))
       .sort((a, b) => b.updatedAt - a.updatedAt)
@@ -271,6 +273,7 @@ export class OrganizeRepository {
       status: record.status,
       folderPaths:
         record.folderPaths ?? (record.folderPath ? [record.folderPath] : []),
+      lowQuality: record.lowQuality,
     }
     try {
       await this.itemStore.create(record, summary, record.itemId)
