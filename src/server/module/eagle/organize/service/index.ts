@@ -79,6 +79,11 @@ class OrganizeService {
     return taskService.resumeTask()
   }
 
+  async syncStandards(): Promise<OrganizeActionResult> {
+    await this.ready
+    return taskService.syncStandards()
+  }
+
   async clearTask(): Promise<void> {
     await this.ready
     return taskService.clearTask()

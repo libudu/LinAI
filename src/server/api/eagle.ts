@@ -402,6 +402,18 @@ eagleApi.post('/organize/task/resume', async (c) => {
   return c.json({ success: true as const, data: null })
 })
 
+// 暂停状态下同步最新分类标准：将外部库最新文件夹标准快照更新进当前任务
+eagleApi.post('/organize/task/sync-standards', async (c) => {
+  const result = await organizeService.syncStandards()
+  if (!result.ok) {
+    return c.json(
+      { success: false as const, error: result.error },
+      result.status,
+    )
+  }
+  return c.json({ success: true as const, data: null })
+})
+
 // 批量重试失败项：重新加入执行队列并继续执行
 eagleApi.post('/organize/task/retry-failed', async (c) => {
   const result = await organizeService.retryFailedItems()

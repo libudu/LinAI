@@ -98,6 +98,13 @@ export const resumeOrganizeTask = async (): Promise<void> => {
   })
 }
 
+// 任务暂停时同步最新分类标准
+export const syncOrganizeStandards = async (): Promise<void> => {
+  await apiRequest<null>('/api/eagle/organize/task/sync-standards', {
+    method: 'POST',
+  })
+}
+
 // 将全部失败项移到队首并恢复执行
 export const retryFailedOrganizeItems = async (): Promise<void> => {
   await apiRequest<null>('/api/eagle/organize/task/retry-failed', {

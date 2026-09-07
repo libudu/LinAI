@@ -1,7 +1,8 @@
-import type {
-  OrganizePrepareResp,
-  OrganizeStatus,
-  OrganizeTaskView,
+import {
+  areStandardsEqual,
+  type OrganizePrepareResp,
+  type OrganizeStatus,
+  type OrganizeTaskView,
 } from '@/shared/eagle/organize'
 import { getClassifiableItems, getFolderStandards } from '../../library'
 import { organizeExecutor } from '../executor'
@@ -28,7 +29,7 @@ export class TaskService {
         publishOrganizeChange()
       }
     } catch (error) {
-      console.error('[Eagle] 图片整理任务启动恢复失败', error)
+      console.error('[Eagle] 启动恢复图片整理任务失败', error)
     }
   }
 
@@ -38,7 +39,7 @@ export class TaskService {
     if (!task) return null
     return {
       phase: task.phase,
-      remaining: task.itemIds.length - task.executed,
+      remaining: Math.max(0, task.itemIds.length - task.executed),
       pendingConfirm: task.pendingConfirm,
       failedCount: task.failedCount,
       pausedReason: task.pausedReason,
@@ -54,14 +55,14 @@ export class TaskService {
     let availableCount: number | undefined
     if (task.phase !== 'done') {
       try {
-        const { total } = await getClassifiableItems({
+        const allItems = await getClassifiableItems({
           folderId: task.folderId,
           sortBy: 'mtime',
           sortOrder: 'desc',
         })
-        availableCount = Math.max(0, total - task.itemIds.length)
+        availableCount = Math.max(0, allItems.total - task.itemIds.length)
       } catch {
-        // ignore
+        availableCount = undefined
       }
     }
     return toTaskView(task, availableCount)
@@ -72,14 +73,21 @@ export class TaskService {
     const task = await organizeRepository.getTask()
     if (task && task.phase !== 'done') {
       // 处于锁定文件夹状态：以任务锁定的 folderId 和 standards 为准
-      const allItems = await getClassifiableItems({
-        folderId: task.folderId,
-        sortBy: params.sortBy,
-        sortOrder: params.sortOrder,
-      })
+      const [allItems, latestStandards] = await Promise.all([
+        getClassifiableItems({
+          folderId: task.folderId,
+          sortBy: params.sortBy,
+          sortOrder: params.sortOrder,
+        }),
+        getFolderStandards(),
+      ])
       const imageCount = allItems.total
       const enqueuedCount = task.itemIds.length
       const availableCount = Math.max(0, imageCount - enqueuedCount)
+      const hasStandardsMismatch = !areStandardsEqual(
+        task.standards,
+        latestStandards,
+      )
       return {
         standards: task.standards,
         imageCount,
@@ -87,6 +95,7 @@ export class TaskService {
         availableCount,
         lockedFolderId: task.folderId,
         lockedFolderName: task.folderName,
+        hasStandardsMismatch,
       }
     }
 
@@ -213,6 +222,46 @@ export class TaskService {
     publishOrganizeChange()
     organizeExecutor.kick()
     return true
+  }
+
+  /**
+   * 同步最新分类标准：
+   * 仅在任务处于 paused 状态时允许。
+   * 将当前外部最新的文件夹标准快照原子写回 task.standards 并发布变更。
+   */
+  async syncStandards(): Promise<OrganizeActionResult> {
+    const task = await organizeRepository.getTask()
+    if (!task || task.phase !== 'paused') {
+      return {
+        ok: false,
+        status: 409,
+        error: '仅在任务处于暂停状态时允许同步分类标准',
+      }
+    }
+    const latestStandards = await getFolderStandards()
+    if (latestStandards.length === 0) {
+      return {
+        ok: false,
+        status: 400,
+        error: '当前没有包含描述的文件夹，无法同步',
+      }
+    }
+    const updated = await organizeRepository.mutateTask((current) => {
+      if (!current || current.phase !== 'paused') return null
+      return {
+        ...current,
+        standards: latestStandards,
+      }
+    })
+    if (!updated) {
+      return {
+        ok: false,
+        status: 409,
+        error: '任务状态已变更，请刷新后重试',
+      }
+    }
+    publishOrganizeChange()
+    return { ok: true }
   }
 
   /**

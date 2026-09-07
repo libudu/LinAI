@@ -13,6 +13,7 @@ import {
   InputNumber,
   Modal,
   Spin,
+  Tooltip,
   message,
 } from 'antd'
 import { useEffect, useState } from 'react'
@@ -21,8 +22,9 @@ import {
   appendOrganizeTask,
   createOrganizeTask,
   fetchOrganizePrepare,
+  syncOrganizeStandards,
 } from './api'
-import { refreshOrganizeStatus } from './store'
+import { refreshOrganizeStatus, useOrganizeStatus } from './store'
 
 const ORGANIZE_OPTIONS_STORAGE_KEY = 'eagle_organize_options'
 const ORGANIZE_COUNT_DEFAULT = 100
@@ -89,6 +91,7 @@ export function StepClassify({
   onSuccess?: () => void
 }) {
   const { currentFolderId, sortBy, sortOrder } = useEagleStore()
+  const { status } = useOrganizeStatus()
   const [initialOptions] = useState(loadOrganizeOptions)
   const [prepare, setPrepare] = useState<OrganizePrepareResp | null>(null)
   const [loading, setLoading] = useState(true)
@@ -96,9 +99,11 @@ export function StepClassify({
   const [compress, setCompress] = useState(initialOptions.compress)
   const [concurrency, setConcurrency] = useState(initialOptions.concurrency)
   const [submitting, setSubmitting] = useState(false)
+  const [syncingStandards, setSyncingStandards] = useState(false)
   const [promptOpen, setPromptOpen] = useState(false)
 
   const isLocked = !!prepare?.lockedFolderName
+  const isPaused = status?.phase === 'paused'
   const availableCount = prepare?.availableCount ?? 0
   const imageCount = prepare?.imageCount ?? 0
   const standards = prepare?.standards ?? []
@@ -138,7 +143,22 @@ export function StepClassify({
 
   useEffect(() => {
     return loadPrepareData()
-  }, [currentFolderId, sortBy, sortOrder])
+  }, [currentFolderId, sortBy, sortOrder, status?.phase])
+
+  const handleSyncStandards = async () => {
+    setSyncingStandards(true)
+    try {
+      await syncOrganizeStandards()
+      message.success('已同步最新文件夹分类标准')
+      await refreshOrganizeStatus()
+      loadPrepareData()
+    } catch (error) {
+      console.error('同步分类标准失败', error)
+      message.error(error instanceof Error ? error.message : '同步分类标准失败')
+    } finally {
+      setSyncingStandards(false)
+    }
+  }
 
   const saveOptions = (next: Partial<OrganizeOptions>) => {
     persistOrganizeOptions({
@@ -313,12 +333,24 @@ export function StepClassify({
       )}
 
       <div className="flex shrink-0 items-center justify-between border-t border-slate-200 pt-3 dark:border-slate-700">
-        <Button
-          disabled={standards.length === 0}
-          onClick={() => setPromptOpen(true)}
-        >
-          预览提示词
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            disabled={standards.length === 0}
+            onClick={() => setPromptOpen(true)}
+          >
+            预览提示词
+          </Button>
+          {isLocked && isPaused && prepare?.hasStandardsMismatch && (
+            <Tooltip title="检测到外部文件夹顺序或分类标准已更新，点击将最新标准同步到当前任务">
+              <Button
+                loading={syncingStandards}
+                onClick={handleSyncStandards}
+              >
+                同步最新文件夹
+              </Button>
+            </Tooltip>
+          )}
+        </div>
         <div className="flex gap-2">
           <Button onClick={onClose}>取消</Button>
           {isLocked ? (

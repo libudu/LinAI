@@ -83,6 +83,32 @@ export interface OrganizePrepareResp {
   lockedFolderId?: string
   /** 当前锁定的文件夹名称（若已锁定） */
   lockedFolderName?: string
+  /** 当前任务分类标准与库中最新标准是否不一致（顺序/内容/增删），仅在存在未完成任务时计算 */
+  hasStandardsMismatch?: boolean
+}
+
+/**
+ * 校验两组分类标准是否完全一致（严格按顺序比对每个元素的 id、路径、名称与描述）。
+ * 只要发生顺序变动、新增、删除或内容修改，即返回 false。
+ */
+export const areStandardsEqual = (
+  a: OrganizeFolderStandard[],
+  b: OrganizeFolderStandard[],
+): boolean => {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    const s1 = a[i]
+    const s2 = b[i]
+    if (
+      s1.folderId !== s2.folderId ||
+      s1.folderPath !== s2.folderPath ||
+      s1.name !== s2.name ||
+      s1.description !== s2.description
+    ) {
+      return false
+    }
+  }
+  return true
 }
 
 /** 追加图片请求体（POST /api/eagle/organize/task/append） */
