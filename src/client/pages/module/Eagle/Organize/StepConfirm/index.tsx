@@ -505,7 +505,11 @@ export function StepConfirm({
       name: detail?.itemName,
       onConfirm: () =>
         runAction(async (itemId) => {
-          await deleteEagleItem(itemId)
+          try {
+            await deleteEagleItem(itemId)
+          } catch {
+            // 若外部已删除则容错继续标记跳过
+          }
           await skipOrganizeResult(itemId)
           message.success('已移至回收站')
         }),

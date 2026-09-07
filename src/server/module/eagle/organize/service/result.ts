@@ -24,6 +24,52 @@ export class ResultService {
   ): Promise<OrganizeResultListItem[]> {
     const items = await organizeRepository.listItems()
     let list = status ? items.filter((item) => item.status === status) : items
+
+    // 待确认项自愈：若条目在外部已被彻底物理删除（!entry），自动标记为已确认并核减任务待确认计数
+    if (status === 'success') {
+      const remaining: typeof list = []
+      let autoConfirmedCount = 0
+      const now = Date.now()
+
+      for (const item of list) {
+        const entry = await getItemEntry(item.itemId)
+        if (!entry) {
+          const record = await organizeRepository.getItem(item.itemId)
+          if (record) {
+            await organizeRepository.saveItem({
+              ...record,
+              status: 'confirmed',
+              updatedAt: now,
+            })
+            autoConfirmedCount++
+          }
+        } else {
+          remaining.push(item)
+        }
+      }
+
+      if (autoConfirmedCount > 0) {
+        await organizeRepository.mutateTask((latestTask) => {
+          if (!latestTask) return null
+          const pendingConfirm = Math.max(
+            0,
+            latestTask.pendingConfirm - autoConfirmedCount,
+          )
+          if (latestTask.phase === 'confirming' && pendingConfirm === 0) {
+            return {
+              ...latestTask,
+              pendingConfirm,
+              phase: 'done',
+              pausedReason: null,
+            }
+          }
+          return { ...latestTask, pendingConfirm }
+        })
+        publishOrganizeChange()
+      }
+      list = remaining
+    }
+
     // 列表按 updatedAt 倒序（EntityStore.list），offset/limit 在过滤后切片
     const { offset = 0, limit } = options ?? {}
     if (offset > 0) list = list.slice(offset)
@@ -59,6 +105,7 @@ export class ResultService {
   /**
    * 确认结果：写 Eagle 库（移入目标文件夹，withTitle 决定是否同时改标题），状态 → confirmed。
    * 支持 AI 推荐候选项与用户手动选择的分类文件夹。
+   * 若条目在外部已被彻底物理删除，自动记为确认成功并直接推进流程。
    */
   async confirmItem(
     itemId: string,
@@ -70,6 +117,19 @@ export class ResultService {
     if (!record) return { ok: false, status: 404, error: '结果不存在' }
     if (record.status !== 'success') {
       return { ok: false, status: 409, error: '仅判定成功的结果可以确认' }
+    }
+
+    // 若条目在外部已彻底物理删除，直接算作确认成功并结束
+    const entry = await getItemEntry(itemId)
+    if (!entry) {
+      await organizeRepository.saveItem({
+        ...record,
+        status: 'confirmed',
+        updatedAt: Date.now(),
+      })
+      await this.settleAfterDecision()
+      publishOrganizeChange()
+      return { ok: true }
     }
 
     let targetFolderId: string | null = null
@@ -123,6 +183,7 @@ export class ResultService {
   /**
    * 批量确认结果：写 Eagle 库（移入目标文件夹，withTitle 决定是否同时改标题），状态 → confirmed。
    * 合并批量更新任务计数与状态，最后发布一次变更事件。
+   * 若条目在外部已被彻底物理删除，自动作为已确认收集，避免 404 导致整个批次失败。
    */
   async confirmBatch(
     items: Array<{
@@ -139,10 +200,19 @@ export class ResultService {
       record: import('@/shared/eagle/organize').OrganizeItemRecord
       folderIds: string[]
     }> = []
+    const purgedRecords: import('@/shared/eagle/organize').OrganizeItemRecord[] =
+      []
 
     for (const item of items) {
       const record = await organizeRepository.getItem(item.itemId)
       if (!record || record.status !== 'success') continue
+
+      // 若条目在外部已彻底物理删除，直接作为已确认收集
+      const entry = await getItemEntry(item.itemId)
+      if (!entry) {
+        purgedRecords.push(record)
+        continue
+      }
 
       let targetFolderId: string | null = null
       const standard = task?.standards.find(
@@ -177,24 +247,36 @@ export class ResultService {
       updates.push({ item, record, folderIds })
     }
 
-    if (updates.length === 0) return { ok: true }
-
-    // 一次性批量写 Eagle 库（仅写一次 mtime.json 与 index.json）
-    const batchResults = await updateItems(
-      updates.map(({ item, record, folderIds }) => ({
-        id: item.itemId,
-        patch: {
-          folderIds,
-          name: item.withTitle ? record.title : undefined,
-        },
-      })),
-    )
+    if (updates.length === 0 && purgedRecords.length === 0) return { ok: true }
 
     let confirmedCount = 0
     const now = Date.now()
-    for (let i = 0; i < updates.length; i++) {
-      if (!batchResults[i]) continue
-      const { record } = updates[i]
+
+    if (updates.length > 0) {
+      // 一次性批量写 Eagle 库（仅写一次 mtime.json 与 index.json）
+      const batchResults = await updateItems(
+        updates.map(({ item, record, folderIds }) => ({
+          id: item.itemId,
+          patch: {
+            folderIds,
+            name: item.withTitle ? record.title : undefined,
+          },
+        })),
+      )
+
+      for (let i = 0; i < updates.length; i++) {
+        if (!batchResults[i]) continue
+        const { record } = updates[i]
+        await organizeRepository.saveItem({
+          ...record,
+          status: 'confirmed',
+          updatedAt: now,
+        })
+        confirmedCount++
+      }
+    }
+
+    for (const record of purgedRecords) {
       await organizeRepository.saveItem({
         ...record,
         status: 'confirmed',
@@ -232,6 +314,17 @@ export class ResultService {
     if (!record) return { ok: false, status: 404, error: '结果不存在' }
     if (record.status !== 'success' && record.status !== 'failed') {
       return { ok: false, status: 409, error: '该结果当前不需要确认' }
+    }
+    const entry = await getItemEntry(itemId)
+    if (!entry) {
+      await organizeRepository.saveItem({
+        ...record,
+        status: 'skipped',
+        updatedAt: Date.now(),
+      })
+      await this.settleAfterDecision()
+      publishOrganizeChange()
+      return { ok: true }
     }
     const updated = await updateItem(itemId, { folderIds: [] })
     if (!updated) return { ok: false, status: 404, error: 'Eagle 条目不存在' }
