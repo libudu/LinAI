@@ -25,8 +25,8 @@ const PRESET_REMARKS: Record<string, ReactNode> = {
     <div>
       <div>
         官网：
-        <a href="https://openlux.ai" target="_blank">
-          https://openlux.ai/
+        <a href="https://api.openlux.ai" target="_blank">
+          https://api.openlux.ai/
         </a>
       </div>
       <div>无论1k、2k、4k，均固定计费</div>
