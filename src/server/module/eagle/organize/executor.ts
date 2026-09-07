@@ -11,7 +11,7 @@ import { judgeItem } from './vision'
 
 /**
  * 整理队列执行器：按队列顺序以任务指定的并发数派发视觉判定。
- * - 单图失败累计达到 10 次后停止派发，in-flight 请求继续完成并落盘
+ * - 单图连续失败达到 10 次后停止派发（任意一次成功后重头计数），in-flight 请求继续完成并落盘
  * - 全部执行过一遍后 phase → confirming（有待确认）/ done（无待确认）
  * - 由 service 在任务创建 / 恢复时 kick；用户暂停与失败停止都只停派发
  * - 强制清空（abort）：epoch 递增 + AbortController 中断 in-flight 上游请求，
@@ -21,6 +21,8 @@ import { judgeItem } from './vision'
 class OrganizeExecutor {
   private static readonly ERROR_PAUSE_THRESHOLD = 10
   private static readonly REQUEST_INTERVAL_MS = 500
+  /** 连续失败计数：任意一次成功重置为 0，连续达到 10 次时暂停队列 */
+  private consecutiveErrors = 0
   /** runQueue 是否在执行中（kick 的幂等依据） */
   private active = false
   /** 停止派发标记（用户暂停 / 单图失败 / 结果落盘异常 / 强制清空） */
@@ -40,6 +42,7 @@ class OrganizeExecutor {
 
   /** 开始（或继续）执行队列；已在执行时仅清除停止标记 */
   kick(): void {
+    this.consecutiveErrors = 0
     if (this.active) {
       this.stopping = false
       return
@@ -76,6 +79,7 @@ class OrganizeExecutor {
   async abort(): Promise<void> {
     this.stopping = true
     this.epoch++
+    this.consecutiveErrors = 0
     this.abortController?.abort()
     await this.runPromise
   }
@@ -196,7 +200,7 @@ class OrganizeExecutor {
     })
   }
 
-  /** 执行单个条目：判定 → 落盘结果 → 更新任务计数；累计 10 次失败后暂停派发 */
+  /** 执行单个条目：判定 → 落盘结果 → 更新任务计数；连续 10 次失败后暂停派发（任意一次成功后重头计数） */
   private async processItem(
     itemId: string,
     options: {
@@ -234,11 +238,17 @@ class OrganizeExecutor {
     await organizeRepository.saveItem(record)
     let didPauseOnError = false
     const updated = await organizeRepository.mutateTask((task) => {
+      if (record.status === 'success') {
+        this.consecutiveErrors = 0
+      } else if (record.status === 'failed') {
+        this.consecutiveErrors++
+      }
+
       const isFailed = record.status === 'failed'
       const nextFailedCount = task.failedCount + (isFailed ? 1 : 0)
       const shouldPause =
         isFailed &&
-        nextFailedCount >= OrganizeExecutor.ERROR_PAUSE_THRESHOLD &&
+        this.consecutiveErrors >= OrganizeExecutor.ERROR_PAUSE_THRESHOLD &&
         task.phase === 'running'
 
       const next = {
@@ -261,7 +271,7 @@ class OrganizeExecutor {
       const folderInfo = updated?.folderName ? `「${updated.folderName}」` : ''
       sendWindowsNotification(
         'LinAI 图片整理',
-        `${folderInfo}图片整理队列因累计失败达到 ${OrganizeExecutor.ERROR_PAUSE_THRESHOLD} 次已自动暂停，请检查原因`,
+        `${folderInfo}图片整理队列因连续失败达到 ${OrganizeExecutor.ERROR_PAUSE_THRESHOLD} 次已自动暂停，请检查原因`,
       )
     }
     changeBus.publish({ resource: ORGANIZE_RESOURCE })
@@ -306,6 +316,7 @@ class OrganizeExecutor {
       }
     })
     if (updated) {
+      this.consecutiveErrors = 0
       changeBus.publish({ resource: ORGANIZE_RESOURCE })
       if (updated.executed > 0) {
         const folderInfo = updated.folderName ? `「${updated.folderName}」` : ''
