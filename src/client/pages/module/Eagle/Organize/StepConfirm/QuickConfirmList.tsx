@@ -1,3 +1,4 @@
+import { ImageSizeBadge } from '@/client/pages/components/ImageSizeBadge'
 import type { OrganizeResultListItem } from '@/shared/eagle/organize'
 import {
   CheckOutlined,
@@ -73,6 +74,12 @@ const QuickCard = React.memo(function QuickCard({
             image:
               'h-full! w-full! object-contain! transition-transform duration-200 group-hover:scale-105',
           }}
+        />
+        <ImageSizeBadge
+          src={eagleFileUrl(result.itemId)}
+          width={result.width}
+          height={result.height}
+          fileSize={result.size}
         />
       </div>
 

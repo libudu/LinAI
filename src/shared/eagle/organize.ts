@@ -160,6 +160,12 @@ export interface OrganizeResultListItem {
   folderPaths?: string[]
   /** 图片修改时间（用于按修改时间排序） */
   mtime?: number
+  /** 原图宽度（像素） */
+  width?: number
+  /** 原图高度（像素） */
+  height?: number
+  /** 原图文件大小（字节数） */
+  size?: number
 }
 
 /** 单图结果详情（GET /api/eagle/organize/results/:itemId），附条目当前名称便于对比建议标题 */
@@ -168,6 +174,12 @@ export interface OrganizeResultDetail extends OrganizeItemRecord {
   itemName: string | null
   /** Eagle 条目当前所在文件夹的完整路径；未归入文件夹或条目不存在时为空数组 */
   itemFolderPaths: string[]
+  /** 原图宽度（像素） */
+  width?: number
+  /** 原图高度（像素） */
+  height?: number
+  /** 原图文件大小（字节数） */
+  size?: number
 }
 
 /** 执行中步骤的队列预览行状态 */

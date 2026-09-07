@@ -1,3 +1,4 @@
+import { ImageSizeBadge } from '@/client/pages/components/ImageSizeBadge'
 import type {
   OrganizeResultDetail,
   OrganizeResultListItem,
@@ -225,6 +226,10 @@ export function StepConfirm({
   }, [quickMode, selectedId, results, detailsMap, fetchDetail])
 
   const detail = selectedId ? (detailsMap[selectedId] ?? null) : null
+  const selectedItem = useMemo(
+    () => (selectedId ? results.find((r) => r.itemId === selectedId) : null),
+    [results, selectedId],
+  )
   const detailLoading = Boolean(
     selectedId && !detail && !failedDetailIdsRef.current.has(selectedId),
   )
@@ -631,36 +636,44 @@ export function StepConfirm({
 
           {/* 中部：左大图 + 右信息面板 */}
           <div className="grid min-h-0 flex-1 grid-cols-[6fr_4fr] gap-3">
-            <div className="flex h-full items-center justify-center overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800/60">
+            <div className="relative flex h-full items-center justify-center overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800/60">
               {selectedId && (
-                <Image
-                  key={selectedId}
-                  src={eagleFileUrl(selectedId)}
-                  classNames={{
-                    root: 'h-full w-full flex items-center justify-center',
-                    image: 'h-full! w-full! object-contain!',
-                  }}
-                  preview={{
-                    src: eagleFileUrl(selectedId),
-                    toolbarRender: (originalNode) => (
-                      <div className="flex items-center gap-2">
-                        {originalNode}
-                        <button
-                          type="button"
-                          title="在新标签页查看原图"
-                          aria-label="在新标签页查看原图"
-                          className="flex cursor-pointer items-center gap-1 rounded-full bg-black/40 px-3 py-1.5 text-xs text-white/85 backdrop-blur-sm transition-colors hover:bg-black/60 hover:text-white"
-                          onClick={() =>
-                            window.open(eagleFileUrl(selectedId), '_blank')
-                          }
-                        >
-                          <ExportOutlined />
-                          <span>查看原图</span>
-                        </button>
-                      </div>
-                    ),
-                  }}
-                />
+                <>
+                  <Image
+                    key={selectedId}
+                    src={eagleFileUrl(selectedId)}
+                    classNames={{
+                      root: 'h-full w-full flex items-center justify-center',
+                      image: 'h-full! w-full! object-contain!',
+                    }}
+                    preview={{
+                      src: eagleFileUrl(selectedId),
+                      toolbarRender: (originalNode) => (
+                        <div className="flex items-center gap-2">
+                          {originalNode}
+                          <button
+                            type="button"
+                            title="在新标签页查看原图"
+                            aria-label="在新标签页查看原图"
+                            className="flex cursor-pointer items-center gap-1 rounded-full bg-black/40 px-3 py-1.5 text-xs text-white/85 backdrop-blur-sm transition-colors hover:bg-black/60 hover:text-white"
+                            onClick={() =>
+                              window.open(eagleFileUrl(selectedId), '_blank')
+                            }
+                          >
+                            <ExportOutlined />
+                            <span>查看原图</span>
+                          </button>
+                        </div>
+                      ),
+                    }}
+                  />
+                  <ImageSizeBadge
+                    src={eagleFileUrl(selectedId)}
+                    width={selectedItem?.width ?? detail?.width}
+                    height={selectedItem?.height ?? detail?.height}
+                    fileSize={selectedItem?.size ?? detail?.size}
+                  />
+                </>
               )}
             </div>
 

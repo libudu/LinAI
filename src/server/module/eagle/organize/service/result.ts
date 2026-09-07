@@ -83,6 +83,9 @@ export class ResultService {
           updatedAt: item.updatedAt,
           folderPaths: item.folderPaths,
           mtime: entry?.mtime ?? 0,
+          width: entry?.width,
+          height: entry?.height,
+          size: entry?.size,
         }
       }),
     )
@@ -99,6 +102,9 @@ export class ResultService {
         record.folderPaths ?? (record.folderPath ? [record.folderPath] : []),
       itemName: entry?.name ?? null,
       itemFolderPaths,
+      width: entry?.width,
+      height: entry?.height,
+      size: entry?.size,
     }
   }
 
