@@ -65,10 +65,10 @@ export interface OrganizeTaskView {
   availableCount?: number
 }
 
-/** 队列执行并发数：创建任务时用户输入，默认 5，范围 1~10 */
-export const ORGANIZE_CONCURRENCY_DEFAULT = 5
+/** 队列执行并发数：创建任务时用户输入，默认 20，范围 1~20 */
+export const ORGANIZE_CONCURRENCY_DEFAULT = 20
 export const ORGANIZE_CONCURRENCY_MIN = 1
-export const ORGANIZE_CONCURRENCY_MAX = 10
+export const ORGANIZE_CONCURRENCY_MAX = 20
 
 /** 步骤 1 准备数据（GET /api/eagle/organize/prepare） */
 export interface OrganizePrepareResp {

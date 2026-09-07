@@ -5,7 +5,11 @@ import type {
 } from '@/shared/eagle/organize'
 import { sendWindowsNotification } from '../../../common/notify'
 import { changeBus } from '../../../common/storage/change-bus'
-import { ORGANIZE_RESOURCE } from './constants'
+import {
+  ERROR_PAUSE_THRESHOLD,
+  ORGANIZE_RESOURCE,
+  REQUEST_INTERVAL_MS,
+} from './constants'
 import { organizeRepository } from './storage'
 import { judgeItem } from './vision'
 
@@ -19,8 +23,6 @@ import { judgeItem } from './vision'
  * 队列推进在服务端后台进行，不依赖前端在线。
  */
 class OrganizeExecutor {
-  private static readonly ERROR_PAUSE_THRESHOLD = 10
-  private static readonly REQUEST_INTERVAL_MS = 500
   /** 连续失败计数：任意一次成功重置为 0，连续达到 10 次时暂停队列 */
   private consecutiveErrors = 0
   /** runQueue 是否在执行中（kick 的幂等依据） */
@@ -175,7 +177,7 @@ class OrganizeExecutor {
       if (this.stopping || epoch !== this.epoch || signal.aborted) return false
       const delay = Math.max(
         0,
-        this.lastDispatchAt + OrganizeExecutor.REQUEST_INTERVAL_MS - Date.now(),
+        this.lastDispatchAt + REQUEST_INTERVAL_MS - Date.now(),
       )
       if (delay > 0) await this.waitForDelay(delay, signal)
       if (this.stopping || epoch !== this.epoch || signal.aborted) return false
@@ -248,7 +250,7 @@ class OrganizeExecutor {
       const nextFailedCount = task.failedCount + (isFailed ? 1 : 0)
       const shouldPause =
         isFailed &&
-        this.consecutiveErrors >= OrganizeExecutor.ERROR_PAUSE_THRESHOLD &&
+        this.consecutiveErrors >= ERROR_PAUSE_THRESHOLD &&
         task.phase === 'running'
 
       const next = {
@@ -271,7 +273,7 @@ class OrganizeExecutor {
       const folderInfo = updated?.folderName ? `「${updated.folderName}」` : ''
       sendWindowsNotification(
         'LinAI 图片整理',
-        `${folderInfo}图片整理队列因连续失败达到 ${OrganizeExecutor.ERROR_PAUSE_THRESHOLD} 次已自动暂停，请检查原因`,
+        `${folderInfo}图片整理队列因连续失败达到 ${ERROR_PAUSE_THRESHOLD} 次已自动暂停，请检查原因`,
       )
     }
     changeBus.publish({ resource: ORGANIZE_RESOURCE })

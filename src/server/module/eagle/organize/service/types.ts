@@ -10,7 +10,7 @@ export interface OrganizePrepareParams {
 export interface OrganizeCreateTaskParams extends OrganizePrepareParams {
   count: number
   compress: boolean
-  /** 队列执行并发数（1~10，创建时固化到任务） */
+  /** 队列执行并发数（1~20，创建时固化到任务） */
   concurrency: number
 }
 

@@ -19,7 +19,7 @@ src/server/module/eagle/
 │   ├── operations.ts                    # 持久化写操作：全由 withLibraryLock 串行互斥保护，updateFolder 文件夹编辑 + updateItem/updateItems 条目更新（改名/同名序号/移动文件夹，批量合并减少 I/O）+ deleteItem/restoreItem 回收站软删除/还原 + purgeItem/purgeTrash 物理删除
 │   └── index.ts                         # 统一聚合导出入口
 └── organize/                            # 图片整理（阶段三完成：任务基建 + 用户指定并发的队列执行 + 结果确认写库）
-    ├── constants.ts                     # 模块自有常量：变更资源 ID、视觉上传压缩参数（与 common/static 的同名常量分开定义）
+    ├── constants.ts                     # 模块自有常量：变更资源 ID、视觉上传压缩参数、执行器连续失败暂停阈值与全局派发最小间隔（与 common/static 的同名常量分开定义）
     ├── storage.ts                       # 私有持久化：任务 DocumentStore（task.json，含队列 itemIds 与进度计数）+ 结果 EntityStore（items/<itemId>.json，执行完成时才落盘）+ 内存 itemsCache 索引缓存（高频 query 毫秒级响应），落盘 data/eagle/organize/，不注册通用存储；mutateTask 提供任务文档的串行读改写（service 与 executor 共用单例）
     ├── service/                         # OrganizeService 模块化服务（拆分为 types / helpers / task / queue / result / index）
     │   ├── types.ts                     # 参数与操作返回类型定义
@@ -28,7 +28,7 @@ src/server/module/eagle/
     │   ├── queue.ts                     # 队列预览与失败项集中重试/跳过
     │   ├── result.ts                    # 结果列表/详情/确认写库/清除分类/单图重试
     │   └── index.ts                     # OrganizeService 单例门面与统一导出
-    ├── executor.ts                      # 队列执行器：任务指定并发（1~10，默认 5）按序派发，全局相邻请求至少间隔 0.5 秒，支持中断 in-flight 请求的强制清空；跳过已完成项，支持「重新执行」在中途挖洞；连续 10 次单图失败后暂停派发并发送 Windows 错误通知（任意一次成功后重头计数，落盘异常仍立即暂停并通知），全部执行完 → confirming/done 并发送 Windows 完成通知；每张图完成发布变更
+    ├── executor.ts                      # 队列执行器：任务指定并发（1~20，默认 20）按序派发，全局相邻请求至少间隔 0.5 秒，支持中断 in-flight 请求的强制清空；跳过已完成项，支持「重新执行」在中途挖洞；连续 10 次单图失败后暂停派发并发送 Windows 错误通知（任意一次成功后重头计数，落盘异常仍立即暂停并通知），全部执行完 → confirming/done 并发送 Windows 完成通知；每张图完成发布变更
     └── vision.ts                        # 单图视觉判定：sharp 内存压缩（不落盘）→ 组装分类标准 prompt → requestRegistry.execute('eagle.vision') → 严格 JSON 解析（zod）+ 0～3 个 folderPaths 匹配校验，标题自动追加 _【模型第一个词】【模型数字】 后缀，支持 AbortSignal，失败抛错由执行器记为 failed
 
 src/server/api/eagle/                    # Hono 子路由，挂在 /api/eagle（拆分为 index.ts / library.ts / organize.ts）
@@ -121,7 +121,7 @@ src/client/pages/module/Eagle/           # 本目录
 | GET    | `/organize/prepare?folderId&sortBy&sortOrder`                        | 图片整理步骤 1 数据：分类标准列表 + 当前范围内可处理图片数/已入队数/剩余可追加数（已排除 gif/视频/heif/heic）                                     |
 | GET    | `/organize/status`                                                   | 图片整理轻量状态（phase/remaining/pendingConfirm/failedCount/folderId/folderName/isLocked），供按钮徽标与导航卡片轮询                             |
 | GET    | `/organize/task`                                                     | 图片整理任务详情（分类标准快照 + 进度计数 + 锁定文件夹信息，不含队列明细）                                                                        |
-| POST   | `/organize/task`                                                     | 创建整理任务 `{ folderId?, sortBy, sortOrder, count, compress, concurrency? }`；锁定选定文件夹；并发 1~10 默认 5；已有未完成任务 409；清空旧结果  |
+| POST   | `/organize/task`                                                     | 创建整理任务 `{ folderId?, sortBy, sortOrder, count, compress, concurrency? }`；锁定选定文件夹；并发 1~20 默认 20；已有未完成任务 409；清空旧结果 |
 | POST   | `/organize/task/append`                                              | 向当前锁定任务追加未入队的图片到队尾 `{ count }`；无缝扩充队列                                                                                    |
 | POST   | `/organize/task/pause` `/organize/task/resume`                       | 用户暂停（停止派发，in-flight 不受影响）/ 恢复执行，状态不符 409                                                                                  |
 | POST   | `/organize/task/sync-standards`                                      | 暂停状态下同步最新分类标准快照：严格校验 phase=paused，外部库标准与当前快照不一致时更新 task.standards，状态不符 409                              |

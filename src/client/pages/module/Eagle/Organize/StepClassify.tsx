@@ -342,10 +342,7 @@ export function StepClassify({
           </Button>
           {isLocked && isPaused && prepare?.hasStandardsMismatch && (
             <Tooltip title="检测到外部文件夹顺序或分类标准已更新，点击将最新标准同步到当前任务">
-              <Button
-                loading={syncingStandards}
-                onClick={handleSyncStandards}
-              >
+              <Button loading={syncingStandards} onClick={handleSyncStandards}>
                 同步最新文件夹
               </Button>
             </Tooltip>
