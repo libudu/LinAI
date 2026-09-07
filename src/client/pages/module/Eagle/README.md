@@ -31,7 +31,10 @@ src/server/module/eagle/
     ├── executor.ts                      # 队列执行器：任务指定并发（1~10，默认 5）按序派发，全局相邻请求至少间隔 0.5 秒，支持中断 in-flight 请求的强制清空；跳过已完成项，支持「重新执行」在中途挖洞；连续 10 次单图失败后暂停派发并发送 Windows 错误通知（任意一次成功后重头计数，落盘异常仍立即暂停并通知），全部执行完 → confirming/done 并发送 Windows 完成通知；每张图完成发布变更
     └── vision.ts                        # 单图视觉判定：sharp 内存压缩（不落盘）→ 组装分类标准 prompt → requestRegistry.execute('eagle.vision') → 严格 JSON 解析（zod）+ 0～3 个 folderPaths 匹配校验，标题自动追加 _【模型第一个词】【模型数字】 后缀，支持 AbortSignal，失败抛错由执行器记为 failed
 
-src/server/api/eagle.ts                  # Hono 子路由，挂在 /api/eagle
+src/server/api/eagle/                    # Hono 子路由，挂在 /api/eagle（拆分为 index.ts / library.ts / organize.ts）
+├── index.ts                             # 聚合路由入口，分别挂载 / 与 /organize
+├── library.ts                           # 资源库核心接口（文件夹树/列表/编辑/软硬删除/缩略图与原文件流）
+└── organize.ts                          # 图片整理接口（任务生命周期/队列控制/结果查验与写库）
 
 src/client/pages/module/Eagle/           # 本目录
 ├── index.tsx                            # 页面入口：左右分栏布局 + 未配置引导页（移动端隐藏左侧目录树），挂载时拉取 eagle 与 eagle-vision 配置
