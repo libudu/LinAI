@@ -7,7 +7,6 @@ import { GENERATED_IMAGES_DIR } from '../../common/static'
 import {
   GptImageQuality,
   GptImageSize,
-  isDragonEndpoint,
   isVeniceEndpoint,
 } from './enum'
 import { writePngGenerationInfo } from './png-meta'
@@ -46,18 +45,6 @@ function normalizeGptImageBaseUrl(baseUrl: string): string {
     .replace(/\/images\/(generations|edits)$/i, '')
 }
 
-// DragonAPI 特殊处理：不同分辨率档位使用不同模型 id
-// 1k → gpt-image-2，2k → gpt-image-2-2k，4k → gpt-image-2-4k
-function resolveDragonModelId(
-  baseUrl: string,
-  modelId: string,
-  resolution?: GptImageSize,
-): string {
-  if (!isDragonEndpoint(baseUrl)) return modelId
-  if (resolution === '2k') return `${modelId}-2k`
-  if (resolution === '4k') return `${modelId}-4k`
-  return modelId
-}
 
 export function calculateSize(
   aspectRatio: string,
@@ -176,12 +163,6 @@ export async function generateGPTImage(options: GenerateGPTImageOptions) {
     aspectRatio,
   } = options
   const normalizedBaseUrl = normalizeGptImageBaseUrl(baseUrl)
-  // DragonAPI 接入点按分辨率档位切换模型 id
-  const finalModelId = resolveDragonModelId(
-    normalizedBaseUrl,
-    modelId,
-    resolution,
-  )
 
   // Venice 接入点走原生接口（见 venice.ts），其余走标准 OpenAI 契约
   const res: OpenAI.Images.ImagesResponse = isVeniceEndpoint(normalizedBaseUrl)
@@ -199,7 +180,7 @@ export async function generateGPTImage(options: GenerateGPTImageOptions) {
     : await requestOpenAIImage({
         apiKey,
         baseUrl: normalizedBaseUrl,
-        modelId: finalModelId,
+        modelId,
         prompt,
         size,
         quality,
@@ -212,7 +193,7 @@ export async function generateGPTImage(options: GenerateGPTImageOptions) {
   // 写入 PNG 元数据的生成参数（写入失败不影响图片保存）
   const generationInfo = {
     baseUrl: normalizedBaseUrl,
-    model: finalModelId,
+    model: modelId,
     prompt,
     size,
     quality,

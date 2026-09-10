@@ -30,39 +30,21 @@ export interface CustomEndpoint {
 
 export const ENDPOINT_PRESET_INFOS: EndpointPresetInfo[] = [
   {
-    label: 'openlux gpt-image-2-c',
+    label: 'openlux gpt-image-2.5-sunburst-c',
     baseUrl: 'https://api.openlux.ai/v1',
-    modelId: 'gpt-image-2-c',
+    modelId: 'gpt-image-2.5-sunburst-c',
     currency: '$',
   },
   {
-    label: 'openlux gpt-image-2',
-    baseUrl: 'https://api.openlux.ai/v1',
-    modelId: 'gpt-image-2',
-    currency: '$',
-  },
-  {
-    label: 'DragonAPI gpt-image-2',
+    label: 'DragonAPI gpt-image-2.5-sunburst',
     baseUrl: 'https://dragon3api.com/v1',
-    modelId: 'gpt-image-2',
+    modelId: 'gpt-image-2.5-sunburst',
   },
   {
     label: 'Venice qwen-image-3-edit',
     baseUrl: 'https://api.venice.ai',
     modelId: 'qwen-image-3-edit',
     currency: '$',
-  },
-  {
-    label: '【已废弃】云雾 gpt-image-2-c',
-    baseUrl: 'https://api.oljjio.xyz/v1',
-    modelId: 'gpt-image-2-c',
-    creditRatio: 2,
-  },
-  {
-    label: '【已废弃】云雾 gpt-image-2',
-    baseUrl: 'https://api.oljjio.xyz/v1',
-    modelId: 'gpt-image-2',
-    creditRatio: 2,
   },
 ]
 
@@ -91,8 +73,12 @@ export const resolveGptImageApiKey = (
   if (preset) {
     const key =
       settings.gptImagePresetApiKeys[preset.label] ||
-      (preset.label.startsWith('【已废弃】')
-        ? settings.gptImagePresetApiKeys[preset.label.replace('【已废弃】', '')]
+      (preset.label.startsWith('openlux')
+        ? settings.gptImagePresetApiKeys['openlux gpt-image-2-c'] ||
+          settings.gptImagePresetApiKeys['openlux gpt-image-2']
+        : undefined) ||
+      (preset.label.startsWith('DragonAPI')
+        ? settings.gptImagePresetApiKeys['DragonAPI gpt-image-2']
         : undefined)
     if (key) return key
   }

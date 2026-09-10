@@ -19,6 +19,19 @@ export interface EndpointSettingRef {
   save: () => Promise<string | undefined>
 }
 
+// 获取预设接入点的 API Key，支持旧预设 key 兼容回退
+const getPresetApiKey = (
+  preset: { label: string },
+  keys: Record<string, string>,
+) =>
+  keys[preset.label] ??
+  (preset.label.startsWith('openlux')
+    ? keys['openlux gpt-image-2-c'] ?? keys['openlux gpt-image-2']
+    : undefined) ??
+  (preset.label.startsWith('DragonAPI')
+    ? keys['DragonAPI gpt-image-2']
+    : undefined)
+
 export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
   const [form] = Form.useForm()
   const {
@@ -58,12 +71,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
     if (matchedPreset) {
       form.setFieldsValue({
         apiKey:
-          gptImagePresetApiKeys[matchedPreset.label] ??
-          (matchedPreset.label.startsWith('【已废弃】')
-            ? gptImagePresetApiKeys[
-                matchedPreset.label.replace('【已废弃】', '')
-              ]
-            : undefined) ??
+          getPresetApiKey(matchedPreset, gptImagePresetApiKeys) ??
           gptImageApiKey ??
           '',
         endpoint: presetValue(matchedPreset.label),
@@ -83,7 +91,10 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
       // 既不是预设也不是有标题的自定义接入点（如旧预设已丢弃）：丢弃结果，默认选择第一个预设让用户填写
       const defaultPreset = ENDPOINT_PRESETS[0]
       form.setFieldsValue({
-        apiKey: gptImagePresetApiKeys[defaultPreset.label] ?? '',
+        apiKey:
+          getPresetApiKey(defaultPreset, gptImagePresetApiKeys) ??
+          gptImageApiKey ??
+          '',
         endpoint: presetValue(defaultPreset.label),
         title: '',
         baseUrl: defaultPreset.baseUrl,
@@ -116,12 +127,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
         title: '',
         baseUrl: preset.baseUrl,
         modelId: preset.modelId,
-        apiKey:
-          gptImagePresetApiKeys[preset.label] ??
-          (preset.label.startsWith('【已废弃】')
-            ? gptImagePresetApiKeys[preset.label.replace('【已废弃】', '')]
-            : undefined) ??
-          '',
+        apiKey: getPresetApiKey(preset, gptImagePresetApiKeys) ?? '',
       })
       return
     }

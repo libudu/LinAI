@@ -21,7 +21,7 @@ export interface EndpointPreset extends EndpointPresetInfo {
 
 // 各预设的界面说明，key 为预设 label
 const PRESET_REMARKS: Record<string, ReactNode> = {
-  'openlux gpt-image-2-c': (
+  'openlux gpt-image-2.5-sunburst-c': (
     <div>
       <div>
         官网：
@@ -29,23 +29,11 @@ const PRESET_REMARKS: Record<string, ReactNode> = {
           https://api.openlux.ai/
         </a>
       </div>
-      <div>无论1k、2k、4k，均固定计费</div>
-      <div>Gpt-image-1 分组 $0.00882（约0.06r）一张</div>
-      <div>Gpt-image-2 分组 $0.0110（约0.075r）一张</div>
+      <div>同系列高精度版本，细节与提示词还原更强，面向精品商业图像创作。</div>
+      <div>无论1k、2k、4k，均固定计费，约0.085r一张</div>
     </div>
   ),
-  'openlux gpt-image-2': (
-    <div>
-      <div>
-        官网：
-        <a href="https://openlux.ai" target="_blank">
-          https://openlux.ai/
-        </a>
-      </div>
-      <div>按量计费</div>
-    </div>
-  ),
-  'DragonAPI gpt-image-2': (
+  'DragonAPI gpt-image-2.5-sunburst': (
     <div>
       <div>
         官网：
@@ -53,8 +41,7 @@ const PRESET_REMARKS: Record<string, ReactNode> = {
           https://dragon3api.com/
         </a>
       </div>
-      <div>不同分辨率会使用不同模型id</div>
-      <div>1k 0.1r 一张，2k、4k 0.2r 一张</div>
+      <div>固定计费 0.04 一张</div>
     </div>
   ),
   'Venice qwen-image-3-edit': (
@@ -70,29 +57,6 @@ const PRESET_REMARKS: Record<string, ReactNode> = {
         <div>固定使用 qwen-image-3-edit，每张固定消耗 0.04$</div>
         <div>仅支持 1k 和 2k，部分比例不支持</div>
       </div>
-    </div>
-  ),
-  '【已废弃】云雾 gpt-image-2-c': (
-    <div>
-      <div>
-        官网：
-        <a href="https://api.oljjio.xyz" target="_blank">
-          https://api.oljjio.xyz/
-        </a>
-      </div>
-      <div>无论1k、2k、4k，均固定计费 0.075r 一张</div>
-      <div>需要 GPT绘图 分组</div>
-    </div>
-  ),
-  '【已废弃】云雾 gpt-image-2': (
-    <div>
-      <div>
-        官网：
-        <a href="https://api.oljjio.xyz" target="_blank">
-          https://api.oljjio.xyz/
-        </a>
-      </div>
-      <div>截止 26-08-01 以前，除了8倍优质官转分组外其他均不可用</div>
     </div>
   ),
 }
