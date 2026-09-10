@@ -9,6 +9,8 @@ import { ReactNode } from 'react'
 
 export {
   ENDPOINT_PRESET_INFOS,
+  findPresetEndpoint,
+  resolvePresetApiKey,
   type CustomEndpoint,
   type EndpointPresetInfo,
   type GptImageSizeFormat,

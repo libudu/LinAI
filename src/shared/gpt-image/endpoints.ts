@@ -11,6 +11,10 @@ export interface EndpointPresetInfo {
   label: string
   baseUrl: string
   modelId: string
+  /** 兼容的历史模型 ID 列表（迁移时自动匹配并复用旧配置） */
+  legacyModelIds?: string[]
+  /** 兼容的历史预设 label 列表（用于查找旧 API Key） */
+  legacyLabels?: string[]
   /** 积分比例：平台 1 元对应充值积分的倍数，余额展示时按此比例换算（不填默认 1，自定义接入点固定为 1） */
   creditRatio?: number
   /** 余额展示的货币单位（不填默认 ￥，自定义接入点固定为 ￥） */
@@ -33,12 +37,16 @@ export const ENDPOINT_PRESET_INFOS: EndpointPresetInfo[] = [
     label: 'openlux gpt-image-2.5-sunburst-c',
     baseUrl: 'https://api.openlux.ai/v1',
     modelId: 'gpt-image-2.5-sunburst-c',
+    legacyModelIds: ['gpt-image-2-c', 'gpt-image-2'],
+    legacyLabels: ['openlux gpt-image-2-c', 'openlux gpt-image-2'],
     currency: '$',
   },
   {
     label: 'DragonAPI gpt-image-2.5-sunburst',
     baseUrl: 'https://dragon3api.com/v1',
     modelId: 'gpt-image-2.5-sunburst',
+    legacyModelIds: ['gpt-image-2'],
+    legacyLabels: ['DragonAPI gpt-image-2', 'DragonAPI'],
   },
   {
     label: 'Venice qwen-image-3-edit',
@@ -47,6 +55,40 @@ export const ENDPOINT_PRESET_INFOS: EndpointPresetInfo[] = [
     currency: '$',
   },
 ]
+
+/**
+ * 根据 baseUrl 与 modelId 匹配预设接入点（优先精确匹配，未命中则按 legacyModelIds 兼容历史模型）
+ */
+export const findPresetEndpoint = (
+  baseUrl: string | null | undefined,
+  modelId: string | null | undefined,
+): EndpointPresetInfo | undefined => {
+  if (!baseUrl || !modelId) return undefined
+  return (
+    ENDPOINT_PRESET_INFOS.find(
+      (p) => p.baseUrl === baseUrl && p.modelId === modelId,
+    ) ??
+    ENDPOINT_PRESET_INFOS.find(
+      (p) => p.baseUrl === baseUrl && p.legacyModelIds?.includes(modelId),
+    )
+  )
+}
+
+/**
+ * 获取预设接入点的生效 API Key（优先当前 label，未配置时按 legacyLabels 顺序回退）
+ */
+export const resolvePresetApiKey = (
+  preset: EndpointPresetInfo | { label: string; legacyLabels?: string[] },
+  keys: Record<string, string>,
+): string | undefined => {
+  if (keys[preset.label]) return keys[preset.label]
+  if (preset.legacyLabels) {
+    for (const legacyLabel of preset.legacyLabels) {
+      if (keys[legacyLabel]) return keys[legacyLabel]
+    }
+  }
+  return undefined
+}
 
 /** 接入点与密钥设置的最小形状（GptImageSettings 与子集均满足） */
 export interface GptImageEndpointSettings {
@@ -65,21 +107,12 @@ export interface GptImageEndpointSettings {
 export const resolveGptImageApiKey = (
   settings: GptImageEndpointSettings,
 ): string | null => {
-  const preset = ENDPOINT_PRESET_INFOS.find(
-    (p) =>
-      p.baseUrl === settings.gptImageBaseUrl &&
-      p.modelId === settings.gptImageModelId,
+  const preset = findPresetEndpoint(
+    settings.gptImageBaseUrl,
+    settings.gptImageModelId,
   )
   if (preset) {
-    const key =
-      settings.gptImagePresetApiKeys[preset.label] ||
-      (preset.label.startsWith('openlux')
-        ? settings.gptImagePresetApiKeys['openlux gpt-image-2-c'] ||
-          settings.gptImagePresetApiKeys['openlux gpt-image-2']
-        : undefined) ||
-      (preset.label.startsWith('DragonAPI')
-        ? settings.gptImagePresetApiKeys['DragonAPI gpt-image-2']
-        : undefined)
+    const key = resolvePresetApiKey(preset, settings.gptImagePresetApiKeys)
     if (key) return key
   }
   const custom = settings.gptImageCustomEndpoints.find(

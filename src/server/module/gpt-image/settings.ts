@@ -1,5 +1,6 @@
 import {
   ENDPOINT_PRESET_INFOS,
+  findPresetEndpoint,
   resolveGptImageApiKey,
 } from '@/shared/gpt-image/endpoints'
 import { z } from 'zod'
@@ -85,11 +86,11 @@ export const getYunwuApiKey = async (): Promise<string | null> => {
 // 获取 GPT 图像接入点，未配置或失效时回退到默认值
 export const getGptImageEndpoint = async () => {
   const settings = await getGptImageSettings()
-  const preset = ENDPOINT_PRESET_INFOS.find(
-    (p) =>
-      p.baseUrl === settings.gptImageBaseUrl &&
-      p.modelId === settings.gptImageModelId,
+  const preset = findPresetEndpoint(
+    settings.gptImageBaseUrl,
+    settings.gptImageModelId,
   )
+
   const custom = settings.gptImageCustomEndpoints.find(
     (c) =>
       c.baseUrl === settings.gptImageBaseUrl &&

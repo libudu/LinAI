@@ -3,7 +3,11 @@ import { CloseOutlined } from '@ant-design/icons'
 import { Form, Input, message, Select } from 'antd'
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
 import { useGptImageStore } from '../../store'
-import { ENDPOINT_PRESETS } from './endpointPresets'
+import {
+  ENDPOINT_PRESETS,
+  findPresetEndpoint,
+  resolvePresetApiKey,
+} from './endpointPresets'
 
 // 「新增自定义接入点」的下拉值
 const NEW_CUSTOM_VALUE = '__new_custom__'
@@ -18,19 +22,6 @@ const generateId = () =>
 export interface EndpointSettingRef {
   save: () => Promise<string | undefined>
 }
-
-// 获取预设接入点的 API Key，支持旧预设 key 兼容回退
-const getPresetApiKey = (
-  preset: { label: string },
-  keys: Record<string, string>,
-) =>
-  keys[preset.label] ??
-  (preset.label.startsWith('openlux')
-    ? keys['openlux gpt-image-2-c'] ?? keys['openlux gpt-image-2']
-    : undefined) ??
-  (preset.label.startsWith('DragonAPI')
-    ? keys['DragonAPI gpt-image-2']
-    : undefined)
 
 export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
   const [form] = Form.useForm()
@@ -56,11 +47,9 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
   )
 
   useEffect(() => {
-    // 根据已保存的 baseUrl/modelId 反推下拉选中项：优先匹配预设，其次已保存的自定义接入点（必须有标题），
-    // 否则（如旧预设被废弃后的残留配置）直接丢弃该结果，回退到默认预设并显示让用户填写的状态
-    const matchedPreset = ENDPOINT_PRESETS.find(
-      (p) => p.baseUrl === gptImageBaseUrl && p.modelId === gptImageModelId,
-    )
+    // 根据已保存的 baseUrl/modelId 反推下拉选中项：优先匹配预设（支持 legacyModelIds 自动兼容），
+    // 其次已保存的自定义接入点（必须有标题），否则回退到默认预设
+    const matchedPreset = findPresetEndpoint(gptImageBaseUrl, gptImageModelId)
     const matchedCustom = gptImageCustomEndpoints.find(
       (c) =>
         c.baseUrl === gptImageBaseUrl &&
@@ -71,8 +60,8 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
     if (matchedPreset) {
       form.setFieldsValue({
         apiKey:
-          getPresetApiKey(matchedPreset, gptImagePresetApiKeys) ??
-          gptImageApiKey ??
+          resolvePresetApiKey(matchedPreset, gptImagePresetApiKeys) ||
+          gptImageApiKey ||
           '',
         endpoint: presetValue(matchedPreset.label),
         title: '',
@@ -88,12 +77,12 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
         modelId: matchedCustom.modelId,
       })
     } else {
-      // 既不是预设也不是有标题的自定义接入点（如旧预设已丢弃）：丢弃结果，默认选择第一个预设让用户填写
+      // 既不是预设也不是有标题的自定义接入点：回退到第一个预设
       const defaultPreset = ENDPOINT_PRESETS[0]
       form.setFieldsValue({
         apiKey:
-          getPresetApiKey(defaultPreset, gptImagePresetApiKeys) ??
-          gptImageApiKey ??
+          resolvePresetApiKey(defaultPreset, gptImagePresetApiKeys) ||
+          gptImageApiKey ||
           '',
         endpoint: presetValue(defaultPreset.label),
         title: '',
@@ -127,7 +116,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
         title: '',
         baseUrl: preset.baseUrl,
         modelId: preset.modelId,
-        apiKey: getPresetApiKey(preset, gptImagePresetApiKeys) ?? '',
+        apiKey: resolvePresetApiKey(preset, gptImagePresetApiKeys) || '',
       })
       return
     }
