@@ -110,18 +110,25 @@ const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
               <Radio.Button value="high" disabled={isPublic}>
                 High
               </Radio.Button>
+              <Radio.Button value="xhigh" disabled={isPublic}>
+                X-High
+              </Radio.Button>
+              <Radio.Button value="max" disabled={isPublic}>
+                Max
+              </Radio.Button>
             </Radio.Group>
           </Form.Item>
           <div className="mt-1 flex items-start gap-1 text-xs text-red-500">
             <ExclamationCircleOutlined className="mt-1" />
             <div>
               {isPublic ? (
-                <div>公用 API Key 无法使用 High 画质</div>
+                <div>公用 API Key 无法使用 High 及以上画质</div>
               ) : (
                 <>
-                  <div>High 画质处理小字扭曲等细节效果更好 </div>
+                  <div>仅 gpt-image-2.5 支持 xhigh 和 max</div>
+                  <div>High 及以上画质处理小字扭曲等细节效果更好</div>
                   <div>
-                    但 Token 消耗大约变为 4倍，整体性价比远不如提升画面尺寸
+                    但 Token 消耗大幅增加，整体性价比远不如提升画面尺寸
                   </div>
                   <div>更容易失败或命中高倍率的分组</div>
                 </>

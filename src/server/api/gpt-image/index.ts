@@ -45,7 +45,7 @@ const gptImageApi = new Hono()
           n: z.number().min(1).max(GPT_IMAGE_OUTPUT_MAX_N).optional(),
         }),
         size: z.enum(['1k', '2k', '4k']),
-        quality: z.enum(['medium', 'high']),
+        quality: z.enum(['medium', 'high', 'xhigh', 'max']),
         appendAspectRatio: z.boolean().optional(),
       }),
     ),
@@ -86,7 +86,10 @@ const gptImageApi = new Hono()
         aspectRatio: z.string().optional().default('1:1'),
         images: z.array(z.string()).optional(),
         size: z.enum(['1k', '2k', '4k']).optional().default('1k'),
-        quality: z.enum(['medium', 'high']).optional().default('medium'),
+        quality: z
+          .enum(['medium', 'high', 'xhigh', 'max'])
+          .optional()
+          .default('medium'),
         n: z.number().min(1).max(GPT_IMAGE_OUTPUT_MAX_N).optional().default(1),
         appendAspectRatio: z.boolean().optional(),
       }),

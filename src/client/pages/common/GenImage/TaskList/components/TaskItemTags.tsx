@@ -25,8 +25,24 @@ export function TaskItemTags({ task, downloadedIds }: TaskItemTagsProps) {
         </Tooltip>
       )}
       {task.quality && (
-        <Tag color={task.quality === 'high' ? 'red' : 'volcano'}>
-          {task.quality === 'high' ? 'High' : 'Med'}
+        <Tag
+          color={
+            task.quality === 'max'
+              ? 'purple'
+              : task.quality === 'xhigh'
+                ? 'magenta'
+                : task.quality === 'high'
+                  ? 'red'
+                  : 'volcano'
+          }
+        >
+          {task.quality === 'max'
+            ? 'Max'
+            : task.quality === 'xhigh'
+              ? 'X-High'
+              : task.quality === 'high'
+                ? 'High'
+                : 'Med'}
         </Tag>
       )}
       {downloadedIds?.includes(task.id) ? (
