@@ -2,6 +2,7 @@ import { usePlatform } from '@/client/hooks/usePlatform'
 import {
   EAGLE_TRASH_FOLDER_ID,
   EAGLE_UNCLASSIFIED_FOLDER_ID,
+  type EagleFolder,
 } from '@/shared/eagle/types'
 import {
   AppstoreOutlined,
@@ -22,7 +23,7 @@ import {
   Space,
   message,
 } from 'antd'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { purgeEagleTrash, trashAllUnclassifiedEagleItems } from './api'
 import { FolderTree } from './FolderTree'
 import { OrganizeModal } from './Organize'
@@ -32,10 +33,24 @@ import { useEagleVisionConfig } from './SettingModal/useEagleVisionConfig'
 import type { EagleImageSize } from './store'
 import { useEagleStore } from './store'
 
+const findFolder = (
+  folders: EagleFolder[],
+  folderId: string,
+): EagleFolder | null => {
+  for (const folder of folders) {
+    if (folder.id === folderId) return folder
+    const found = findFolder(folder.children, folderId)
+    if (found) return found
+  }
+  return null
+}
+
 // 资源列表顶部操作区：「展示选项」下拉面板（排序/图片大小/文件名/文件大小/文件夹描述）+ 刷新按钮 +「图片整理」入口；移动端提供文件夹抽屉入口
 export function Toolbar() {
   const {
     currentFolderId,
+    folders,
+    allTotal,
     trashTotal,
     unclassifiedTotal,
     refreshCurrentPage,
@@ -60,6 +75,43 @@ export function Toolbar() {
   const [trashingUnclassified, setTrashingUnclassified] = useState(false)
   const [folderDrawerOpen, setFolderDrawerOpen] = useState(false)
   const [organizeOpen, setOrganizeOpen] = useState(false)
+
+  const currentFolderInfo = useMemo(() => {
+    if (!currentFolderId) {
+      return {
+        name: '全部',
+        count: allTotal,
+        description: '',
+      }
+    }
+    if (currentFolderId === EAGLE_UNCLASSIFIED_FOLDER_ID) {
+      return {
+        name: '未分类',
+        count: unclassifiedTotal,
+        description: '',
+      }
+    }
+    if (currentFolderId === EAGLE_TRASH_FOLDER_ID) {
+      return {
+        name: '回收站',
+        count: trashTotal,
+        description: '',
+      }
+    }
+    const folder = findFolder(folders, currentFolderId)
+    if (folder) {
+      return {
+        name: folder.name,
+        count: folder.totalCount,
+        description: folder.description,
+      }
+    }
+    return {
+      name: '全部',
+      count: allTotal,
+      description: '',
+    }
+  }, [currentFolderId, folders, allTotal, unclassifiedTotal, trashTotal])
 
   // 徽标：队列未完成时显示剩余任务数；有待确认时显示小红点
   const organizePhase = organizeStatus?.phase
@@ -149,6 +201,29 @@ export function Toolbar() {
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-slate-200 px-4 py-2 dark:border-slate-700">
       <Space wrap>
+        {!isMobile && (
+          <div className="flex w-25 shrink-0 flex-col items-start justify-center overflow-hidden">
+            <span className="inline-flex max-w-full items-baseline gap-1">
+              <span
+                className="truncate text-sm font-medium text-slate-800 dark:text-slate-200"
+                title={currentFolderInfo.name}
+              >
+                {currentFolderInfo.name}
+              </span>
+              <span className="shrink-0 text-xs text-slate-400">
+                ({currentFolderInfo.count})
+              </span>
+            </span>
+            {currentFolderInfo.description ? (
+              <span
+                className="line-clamp-1 w-full text-xs leading-tight text-slate-400"
+                title={currentFolderInfo.description}
+              >
+                {currentFolderInfo.description}
+              </span>
+            ) : null}
+          </div>
+        )}
         {isMobile && (
           <Button
             icon={<FolderOutlined />}

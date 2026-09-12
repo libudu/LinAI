@@ -127,9 +127,7 @@ const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
                 <>
                   <div>仅 gpt-image-2.5 支持 xhigh 和 max</div>
                   <div>High 及以上画质处理小字扭曲等细节效果更好</div>
-                  <div>
-                    但 Token 消耗大幅增加，整体性价比远不如提升画面尺寸
-                  </div>
+                  <div>但 Token 消耗大幅增加，整体性价比远不如提升画面尺寸</div>
                   <div>更容易失败或命中高倍率的分组</div>
                 </>
               )}

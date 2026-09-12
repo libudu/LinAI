@@ -4,11 +4,7 @@ import { writeFile } from 'fs/promises'
 import OpenAI, { toFile } from 'openai'
 import path from 'path'
 import { GENERATED_IMAGES_DIR } from '../../common/static'
-import {
-  GptImageQuality,
-  GptImageSize,
-  isVeniceEndpoint,
-} from './enum'
+import { GptImageQuality, GptImageSize, isVeniceEndpoint } from './enum'
 import { writePngGenerationInfo } from './png-meta'
 import { requestVeniceImage } from './venice'
 
@@ -44,7 +40,6 @@ function normalizeGptImageBaseUrl(baseUrl: string): string {
     .replace(/\/+$/, '')
     .replace(/\/images\/(generations|edits)$/i, '')
 }
-
 
 export function calculateSize(
   aspectRatio: string,
