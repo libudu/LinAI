@@ -32,7 +32,7 @@ const PRESET_REMARKS: Record<string, ReactNode> = {
         </a>
       </div>
       <div>同系列高精度版本，细节与提示词还原更强，面向精品商业图像创作。</div>
-      <div>无论1k、2k、4k，均固定计费，约0.085r一张</div>
+      <div>固定计费约 0.085r 一张</div>
     </div>
   ),
   'DragonAPI gpt-image-2.5-sunburst': (
@@ -43,7 +43,7 @@ const PRESET_REMARKS: Record<string, ReactNode> = {
           https://dragon3api.com/
         </a>
       </div>
-      <div>固定计费 0.04 一张</div>
+      <div>固定计费 0.04r 一张</div>
     </div>
   ),
   'Venice qwen-image-3-edit': (

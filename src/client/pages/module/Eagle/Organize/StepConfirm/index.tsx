@@ -33,6 +33,7 @@ import { useManualFolders } from './useManualFolders'
 const CONFIRM_SORT_STORAGE_KEY = 'eagle_organize_confirm_sort'
 const CONFIRM_QUICK_MODE_STORAGE_KEY = 'eagle_organize_confirm_quick_mode'
 const CONFIRM_CATEGORY_ORDER_STORAGE_PREFIX = 'eagle_organize_category_order'
+const PRELOAD_COUNT = 5
 
 /**
  * 读取当前整理任务固化的分类排序列表。
@@ -266,16 +267,12 @@ export function StepConfirm({
     const currentIndex = results.findIndex((item) => item.itemId === selectedId)
     if (currentIndex === -1) return
 
-    // 普通模式：预加载详情与原图大图
-    const detailTargets = results.slice(currentIndex, currentIndex + 4)
-    detailTargets.forEach((item) => {
+    // 普通模式：预加载详情与原图大图（当前项及后续共 PRELOAD_COUNT 项）
+    const targets = results.slice(currentIndex, currentIndex + PRELOAD_COUNT)
+    targets.forEach((item) => {
       if (!detailsMap[item.itemId]) {
         void fetchDetail(item.itemId)
       }
-    })
-
-    const fullImageTargets = results.slice(currentIndex, currentIndex + 3)
-    fullImageTargets.forEach((item) => {
       if (!preloadedIdsRef.current.has(item.itemId)) {
         preloadedIdsRef.current.add(item.itemId)
         const img = new window.Image()
