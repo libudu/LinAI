@@ -4,7 +4,7 @@ import type {
   OrganizeQueueItemState,
   OrganizeQueueResp,
 } from '@/shared/eagle/organize'
-import { getItemEntry } from '../../library'
+import { ensureIndex } from '../../library'
 import { organizeExecutor } from '../executor'
 import { organizeRepository } from '../storage'
 import { publishOrganizeChange } from './helpers'
@@ -24,6 +24,8 @@ export class QueueService {
       results.map((item) => [item.itemId, item.status]),
     )
     const inFlight = new Set(organizeExecutor.getInFlightItemIds())
+    const index = await ensureIndex()
+    const itemMap = index?.items
 
     const items: OrganizeQueueItem[] = []
     let total = 0
@@ -50,7 +52,7 @@ export class QueueService {
           ? ((await organizeRepository.getItem(itemId))?.error ??
             '未知失败原因')
           : undefined
-      const entry = await getItemEntry(itemId)
+      const entry = itemMap?.get(itemId)
       items.push({ itemId, itemName: entry?.name ?? null, state, error })
     }
     return { items, total }
@@ -59,10 +61,12 @@ export class QueueService {
   async listFailedItems(): Promise<OrganizeFailedItem[]> {
     const items = await organizeRepository.listItems()
     const failed = items.filter((item) => item.status === 'failed')
+    const index = await ensureIndex()
+    const itemMap = index?.items
     const result = await Promise.all(
       failed.map(async (item) => {
         const record = await organizeRepository.getItem(item.itemId)
-        const entry = await getItemEntry(item.itemId)
+        const entry = itemMap?.get(item.itemId)
         return {
           itemId: item.itemId,
           itemName: entry?.name ?? null,

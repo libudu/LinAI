@@ -5,6 +5,7 @@ import type {
 } from '@/shared/eagle/organize'
 import { EAGLE_UNCLASSIFIED_FOLDER_ID } from '@/shared/eagle/types'
 import {
+  ensureIndex,
   findFolderIdByPath,
   folderExists,
   getFolderPaths,
@@ -24,36 +25,38 @@ export class ResultService {
   ): Promise<OrganizeResultListItem[]> {
     const items = await organizeRepository.listItems()
     let list = status ? items.filter((item) => item.status === status) : items
+    const index = await ensureIndex()
+    const itemMap = index?.items
 
     // 待确认项自愈：若条目在外部已被彻底物理删除（!entry），自动标记为已确认并核减任务待确认计数
     if (status === 'success') {
       const remaining: typeof list = []
-      let autoConfirmedCount = 0
+      const autoConfirmedRecords: import('@/shared/eagle/organize').OrganizeItemRecord[] = []
       const now = Date.now()
 
       for (const item of list) {
-        const entry = await getItemEntry(item.itemId)
+        const entry = itemMap?.get(item.itemId)
         if (!entry) {
           const record = await organizeRepository.getItem(item.itemId)
           if (record) {
-            await organizeRepository.saveItem({
+            autoConfirmedRecords.push({
               ...record,
               status: 'confirmed',
               updatedAt: now,
             })
-            autoConfirmedCount++
           }
         } else {
           remaining.push(item)
         }
       }
 
-      if (autoConfirmedCount > 0) {
+      if (autoConfirmedRecords.length > 0) {
+        await organizeRepository.saveItemsBatch(autoConfirmedRecords)
         await organizeRepository.mutateTask((latestTask) => {
           if (!latestTask) return null
           const pendingConfirm = Math.max(
             0,
-            latestTask.pendingConfirm - autoConfirmedCount,
+            latestTask.pendingConfirm - autoConfirmedRecords.length,
           )
           if (latestTask.phase === 'confirming' && pendingConfirm === 0) {
             return {
@@ -74,23 +77,22 @@ export class ResultService {
     const { offset = 0, limit } = options ?? {}
     if (offset > 0) list = list.slice(offset)
     if (limit !== undefined && limit >= 0) list = list.slice(0, limit)
-    return Promise.all(
-      list.map(async (item) => {
-        const entry = await getItemEntry(item.itemId)
-        return {
-          itemId: item.itemId,
-          status: item.status,
-          updatedAt: item.updatedAt,
-          folderPaths: item.folderPaths,
-          // 透传疑似低质标记，供前端待确认步骤作为首选特殊类别置顶展示
-          lowQuality: item.lowQuality,
-          mtime: entry?.mtime ?? 0,
-          width: entry?.width,
-          height: entry?.height,
-          size: entry?.size,
-        }
-      }),
-    )
+
+    return list.map((item) => {
+      const entry = itemMap?.get(item.itemId)
+      return {
+        itemId: item.itemId,
+        status: item.status,
+        updatedAt: item.updatedAt,
+        folderPaths: item.folderPaths,
+        // 透传疑似低质标记，供前端待确认步骤作为首选特殊类别置顶展示
+        lowQuality: item.lowQuality,
+        mtime: entry?.mtime ?? 0,
+        width: entry?.width,
+        height: entry?.height,
+        size: entry?.size,
+      }
+    })
   }
 
   async getResult(itemId: string): Promise<OrganizeResultDetail | null> {
