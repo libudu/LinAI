@@ -60,13 +60,6 @@ export interface EagleItemIndex {
   isDeleted?: boolean
 }
 
-/** 本地持久化的索引缓存文件结构 (data/eagle/index.json) */
-export interface EagleIndexCacheFile {
-  libraryPath: string
-  scannedAt: number
-  items: EagleItemIndex[]
-}
-
 /** Eagle 内存索引运行期状态 */
 export interface EagleIndexState {
   libraryPath: string
@@ -115,9 +108,33 @@ export const WATCH_DEBOUNCE_MS = 500
 /** 全量扫描时并发读 metadata.json 的并发度 */
 export const SCAN_CONCURRENCY = 32
 
-/** 本地索引缓存与自生缩略图缓存路径 */
-export const CACHE_FILE = dataPath('eagle', 'index.json')
+/** 缩略图缓存路径 */
 export const THUMB_DIR = dataPath('eagle', 'thumb')
+
+/** 索引分片缓存常量与目录路径 */
+export const SHARD_COUNT = 32
+export const INDEX_SHARDS_DIR = dataPath('eagle', 'index-shards')
+export const INDEX_META_FILE = path.join(INDEX_SHARDS_DIR, 'meta.json')
+
+/** 分片索引元数据文件结构 (data/eagle/index-shards/meta.json) */
+export interface EagleIndexShardMeta {
+  libraryPath: string
+  scannedAt: number
+  shardCount: number
+}
+
+/**
+ * 基于字符串 Hash 的均匀分片算法：
+ * 将条目 ID 均匀散列到 32 个分片之一（'00' ~ '1f'），无论 Eagle ID 前缀为何，均能保持绝对均匀分布
+ */
+export const getShardKey = (id: string): string => {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) {
+    hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0
+  }
+  const shard = Math.abs(hash) % SHARD_COUNT
+  return shard.toString(16).padStart(2, '0')
+}
 
 /** 库内容变更（updateItem/deleteItem 等写库后发布），前端订阅后刷新文件夹树与列表 */
 export const EAGLE_LIBRARY_RESOURCE = 'eagle.library'

@@ -18,6 +18,8 @@ import { writeJsonFile } from '../../../common/storage/json-file'
 import {
   ensureIndex,
   markInternalWrite,
+  markShardDirty,
+  markShardsDirty,
   persistCache,
   readItemMeta,
   runPool,
@@ -233,6 +235,7 @@ export const updateItems = async (
         await writeJsonFile(mtimePath, mtimeMap, { backup: false })
       }
 
+      markShardsDirty(updatedIds)
       await persistCache()
       changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
     }
@@ -297,6 +300,7 @@ export const deleteItem = async (id: string): Promise<boolean> => {
         lastModified,
       })
     }
+    markShardDirty(id)
     await persistCache()
     changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
     return true
@@ -346,6 +350,7 @@ export const restoreItem = async (id: string): Promise<boolean> => {
         lastModified,
       })
     }
+    markShardDirty(id)
     await persistCache()
     changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
     return true
@@ -384,6 +389,7 @@ export const purgeItem = async (id: string): Promise<boolean> => {
 
     // 从内存索引与缓存中移除
     index.items.delete(id)
+    markShardDirty(id)
     await persistCache()
     changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
     return true
@@ -427,6 +433,7 @@ export const purgeTrash = async (): Promise<number> => {
       await writeJsonFile(mtimePath, mtimeMap, { backup: false })
     }
 
+    markShardsDirty(trashIds)
     await persistCache()
     changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
     return trashIds.length
@@ -484,6 +491,7 @@ export const trashUnclassified = async (): Promise<number> => {
       await writeJsonFile(mtimePath, mtimeMap, { backup: false })
     }
 
+    markShardsDirty(unclassifiedIds)
     await persistCache()
     changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
     return unclassifiedIds.length
