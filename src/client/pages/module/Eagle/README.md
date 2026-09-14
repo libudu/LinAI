@@ -99,9 +99,9 @@ src/client/pages/module/Eagle/           # 本目录
 性能设计的核心，不要退化成"逐个读 2 万个 metadata.json"：
 
 1. **启动**：读 `data/eagle/index-shards/` 32 分片缓存并发载入内存（实测 1.7 万条目约 100ms）；无缓存才全量扫描（并发池 32）
-2. **增量校验**（启动后、手动刷新、watch 触发时）：读库根 `mtime.json` + `readdir images/` → 与内存索引对比 → 只重读新增/lastModified 变化/删除的条目 → 仅标记脏分片回写
+2. **增量校验**（启动后、手动刷新时）：读库根 `mtime.json` + `readdir images/` → 与内存索引对比 → 只重读新增/lastModified 变化/删除的条目 → 仅标记脏分片回写
 3. **分片持久化**（条目确认/编辑等写操作）：按 ID Hash 散列到 32 个分片，防抖落盘时仅并发重写变动的脏分片（每次仅数百 KB，消除 95% 以上的 I/O），彻底根治全库重写卡顿
-4. **fs.watch**（images/ 与库根目录）只作触发器（500ms 去抖），Windows 大目录下可能丢事件，判断一律落到 mtime 对比；`mtime.json` 缺失时降级为"新目录读 metadata，已有条目信任缓存"
+4. **外部变更同步**：外部 Eagle 客户端若有新增/修改，由用户点击工具栏右上角「刷新」按钮（`POST /refresh`）手动增量校验；本应用自身的所有写操作（确认/改名/移动/软删除）内存即时生效，0ms 阻塞
 5. 排序、文件夹计数、过滤全部在内存索引上完成；`isDeleted` 条目保留在索引中，常规查询与文件夹计数中自动排除，供回收站视图检索、恢复或彻底删除
 
 ## API（/api/eagle）
@@ -116,7 +116,7 @@ src/client/pages/module/Eagle/           # 本目录
 | DELETE | `/items/:id/purge`                                                   | 彻底删除单张图片（物理删除磁盘 `images/<id>.info` 目录与缩略图缓存，同步 mtime.json 与索引）                                                      |
 | POST   | `/trash/purge`                                                       | 全部彻底删除回收站条目（物理删除所有 `isDeleted: true` 条目磁盘文件并清空回收站）                                                                 |
 | POST   | `/items/:id/restore`                                                 | 从 Eagle 回收站恢复条目（设置 `isDeleted: false` 并同步 mtime.json 与索引）                                                                       |
-| POST   | `/refresh`                                                           | 触发增量校验（库路径变化时重建索引）                                                                                                              |
+| POST   | `/refresh`                                                           | 触发增量校验（手动强制刷新，库路径变化时重建索引）                                                                                                |
 | GET    | `/items/:id/thumbnail`                                               | 优先库内 `_thumbnail.png` → 缺失时图片用 sharp 生成 200px webp 缓存到 `data/eagle/thumb/` → 视频回退占位 SVG                                      |
 | GET    | `/items/:id/file`                                                    | 原文件流式返回，支持 Range（206），视频可拖进度条                                                                                                 |
 | GET    | `/organize/prepare?folderId&sortBy&sortOrder`                        | 图片整理步骤 1 数据：分类标准列表 + 当前范围内可处理图片数/已入队数/剩余可追加数（已排除 gif/视频/heif/heic）                                     |

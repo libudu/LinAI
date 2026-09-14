@@ -60,7 +60,7 @@ export const updateFolder = async (
     target.name = patch.name
     target.description = patch.description
     await writeJsonFile(metaPath, rawLibrary, { backup: false })
-    // 同步内存中的文件夹树（fs.watch 也会触发增量校验，这里先立即生效）
+    // 同步内存中的文件夹树
     index.folders = rawLibrary.folders ?? []
     return true
   })

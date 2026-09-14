@@ -22,13 +22,11 @@ import {
   type EagleItemIndex,
   type EagleRawFolder,
   type EagleRawItemMeta,
-  getLastInternalWriteAt,
   getShardKey,
   imagesDir,
   ITEM_ID_PATTERN,
   markInternalWrite,
   SCAN_CONCURRENCY,
-  WATCH_DEBOUNCE_MS,
   withLibraryLock,
 } from './types'
 import { ensureMtimeLoaded, flushMtime } from './mtime-state'
@@ -37,9 +35,6 @@ export { markInternalWrite }
 
 let state: EagleIndexState | null = null
 let loadingPromise: Promise<void> | null = null
-let watcher: fs.FSWatcher | null = null
-let rootWatcher: fs.FSWatcher | null = null
-let watchTimer: ReturnType<typeof setTimeout> | null = null
 
 /** 脏分片集合：记录发生了条目新增、更新、删除的分片 key */
 const dirtyShards = new Set<string>()
@@ -330,36 +325,6 @@ const syncIndex = async (libraryPath: string) => {
   }
 }
 
-/** 注册文件系统监听器（防抖触发增量刷新） */
-const scheduleWatcher = (libraryPath: string) => {
-  watcher?.close()
-  rootWatcher?.close()
-  watcher = null
-  rootWatcher = null
-  const trigger = () => {
-    if (watchTimer) clearTimeout(watchTimer)
-    watchTimer = setTimeout(() => {
-      // 若距离上一次内部写操作不足 1500ms，说明是自身写操作触发的 watcher 事件，跳过冗余的全量增量校验
-      if (Date.now() - getLastInternalWriteAt() < 1500) {
-        return
-      }
-      refreshIndex().catch((err) =>
-        console.error('[Eagle] 监听触发的增量刷新失败', err),
-      )
-    }, WATCH_DEBOUNCE_MS)
-  }
-  try {
-    // 监听 images/ 目录内条目增删改
-    watcher = fs.watch(imagesDir(libraryPath), trigger)
-    // 监听库根 metadata.json / mtime.json 变化（文件夹树或全局指纹变更）
-    rootWatcher = fs.watch(libraryPath, trigger)
-    watcher.on('error', () => {})
-    rootWatcher.on('error', () => {})
-  } catch (err) {
-    console.error('[Eagle] fs.watch 启动失败，变更检测退化为手动刷新', err)
-  }
-}
-
 /** 尝试从本地分片缓存 (data/eagle/index-shards/) 快速恢复索引 */
 const loadFromCache = async (libraryPath: string): Promise<boolean> => {
   try {
@@ -412,7 +377,6 @@ const initialLoad = async () => {
   // 缓存命中先立即可用，随后增量校验；未命中则本次同步全量扫描
   await syncIndex(libraryPath)
   await persistCache(true)
-  scheduleWatcher(libraryPath)
   console.log(
     `[Eagle] 索引就绪：${state?.items.size ?? 0} 个条目（${fromCache ? '分片缓存+增量' : '全量扫描'}）`,
   )
