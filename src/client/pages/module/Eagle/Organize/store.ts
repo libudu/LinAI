@@ -1,3 +1,4 @@
+import { subscribeStorageEvent } from '@/client/service/storage-events'
 import type { OrganizeStatus } from '@/shared/eagle/organize'
 import { useEffect } from 'react'
 import { create } from 'zustand'
@@ -10,7 +11,7 @@ interface OrganizeState {
   status: OrganizeStatus | null
   loaded: boolean
   subscriberCount: number
-  eventSource: EventSource | null
+  unsubscribe: (() => void) | null
   addSubscriber: () => void
   removeSubscriber: () => void
   refresh: () => Promise<void>
@@ -124,23 +125,17 @@ const useOrganizeStore = create<OrganizeState>((set) => ({
   status: null,
   loaded: false,
   subscriberCount: 0,
-  eventSource: null,
+  unsubscribe: null,
 
   addSubscriber: () => {
     set((state) => {
       const newCount = state.subscriberCount + 1
-      if (newCount === 1 && !state.eventSource) {
+      if (newCount === 1 && !state.unsubscribe) {
         void doFetchStatus()
-        const es = new EventSource(
-          '/api/storage/events?resources=eagle.organize',
-        )
-        es.addEventListener('change', () => {
+        const unsub = subscribeStorageEvent('eagle.organize', () => {
           scheduleThrottledRefresh()
         })
-        es.onerror = (error) => {
-          console.error('图片整理任务 SSE 连接错误', error)
-        }
-        return { subscriberCount: newCount, eventSource: es }
+        return { subscriberCount: newCount, unsubscribe: unsub }
       }
       return { subscriberCount: newCount }
     })
@@ -149,13 +144,13 @@ const useOrganizeStore = create<OrganizeState>((set) => ({
   removeSubscriber: () => {
     set((state) => {
       const newCount = Math.max(0, state.subscriberCount - 1)
-      if (newCount === 0 && state.eventSource) {
+      if (newCount === 0 && state.unsubscribe) {
         if (scheduledTimer) {
           clearTimeout(scheduledTimer)
           scheduledTimer = null
         }
-        state.eventSource.close()
-        return { subscriberCount: newCount, eventSource: null }
+        state.unsubscribe()
+        return { subscriberCount: newCount, unsubscribe: null }
       }
       return { subscriberCount: newCount }
     })

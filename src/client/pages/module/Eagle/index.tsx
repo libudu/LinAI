@@ -6,6 +6,7 @@ import { ResourceGrid } from './ResourceGrid'
 import { openEagleSettingModal } from './SettingModal'
 import { useEagleConfig } from './SettingModal/useEagleConfig'
 import { useEagleVisionConfig } from './SettingModal/useEagleVisionConfig'
+import { subscribeStorageEvent } from '@/client/service/storage-events'
 import { requestEagleLibraryRefresh, useEagleStore } from './store'
 import { Toolbar } from './Toolbar'
 
@@ -26,17 +27,14 @@ export function Eagle() {
     })
   }, [fetchEagleConfig, fetchVisionConfig, init])
 
-  // 整理确认等写库操作发布 eagle.library 变更，订阅后刷新文件夹树与当前页
+  // 整理确认等写库操作发布 eagle.library 变更，订阅后刷新文件夹树与当前页（共享单条 SSE 连接）
   useEffect(() => {
     if (!libraryPath) return
-    const es = new EventSource('/api/storage/events?resources=eagle.library')
-    es.addEventListener('change', () => {
+    return subscribeStorageEvent('eagle.library', () => {
       requestEagleLibraryRefresh().catch((error) =>
         console.error('刷新 Eagle 列表失败', error),
       )
     })
-    es.onerror = (error) => console.error('Eagle 库变更 SSE 连接错误', error)
-    return () => es.close()
   }, [libraryPath])
 
   if (!libraryPath) {

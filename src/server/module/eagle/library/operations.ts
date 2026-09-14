@@ -24,6 +24,7 @@ import {
   readItemMeta,
   runPool,
 } from './index-state'
+import { removeMtimes, updateMtimes } from './mtime-state'
 import { findRawFolder } from './query'
 import {
   EAGLE_LIBRARY_RESOURCE,
@@ -220,20 +221,8 @@ export const updateItems = async (
     }
 
     if (updatedIds.length > 0) {
-      // 批量同步库根 mtime.json（仅写一次）
-      const mtimePath = path.join(index.libraryPath, 'mtime.json')
-      if (await fs.pathExists(mtimePath)) {
-        let mtimeMap: Record<string, number> = {}
-        try {
-          mtimeMap = await fs.readJson(mtimePath)
-        } catch {
-          // 损坏则仅保留本次条目
-        }
-        for (const id of updatedIds) {
-          mtimeMap[id] = now
-        }
-        await writeJsonFile(mtimePath, mtimeMap, { backup: false })
-      }
+      // 批量同步库根 mtime.json（内存化更新 + 5 秒防抖合并落盘，0ms 阻塞）
+      await updateMtimes(index.libraryPath, updatedIds, now)
 
       markShardsDirty(updatedIds)
       await persistCache()
@@ -280,16 +269,8 @@ export const deleteItem = async (id: string): Promise<boolean> => {
     const metaPath = path.join(infoDir, 'metadata.json')
     await writeJsonFile(metaPath, nextMeta, { backup: false })
 
-    // 同步库根 mtime.json
-    const mtimePath = path.join(index.libraryPath, 'mtime.json')
-    if (await fs.pathExists(mtimePath)) {
-      let mtimeMap: Record<string, number> = {}
-      try {
-        mtimeMap = await fs.readJson(mtimePath)
-      } catch {}
-      mtimeMap[id] = lastModified
-      await writeJsonFile(mtimePath, mtimeMap, { backup: false })
-    }
+    // 同步库根 mtime.json（内存化防抖）
+    await updateMtimes(index.libraryPath, [id], lastModified)
 
     // 同步内存索引与缓存
     const entry = index.items.get(id)
@@ -330,16 +311,8 @@ export const restoreItem = async (id: string): Promise<boolean> => {
     const metaPath = path.join(infoDir, 'metadata.json')
     await writeJsonFile(metaPath, nextMeta, { backup: false })
 
-    // 同步库根 mtime.json
-    const mtimePath = path.join(index.libraryPath, 'mtime.json')
-    if (await fs.pathExists(mtimePath)) {
-      let mtimeMap: Record<string, number> = {}
-      try {
-        mtimeMap = await fs.readJson(mtimePath)
-      } catch {}
-      mtimeMap[id] = lastModified
-      await writeJsonFile(mtimePath, mtimeMap, { backup: false })
-    }
+    // 同步库根 mtime.json（内存化防抖）
+    await updateMtimes(index.libraryPath, [id], lastModified)
 
     // 同步内存索引与缓存
     const entry = index.items.get(id)
@@ -376,16 +349,8 @@ export const purgeItem = async (id: string): Promise<boolean> => {
     const thumbFile = path.join(THUMB_DIR, `${id}.webp`)
     await fs.remove(thumbFile).catch(() => {})
 
-    // 同步库根 mtime.json
-    const mtimePath = path.join(index.libraryPath, 'mtime.json')
-    if (await fs.pathExists(mtimePath)) {
-      let mtimeMap: Record<string, number> = {}
-      try {
-        mtimeMap = await fs.readJson(mtimePath)
-      } catch {}
-      delete mtimeMap[id]
-      await writeJsonFile(mtimePath, mtimeMap, { backup: false })
-    }
+    // 同步库根 mtime.json（内存化防抖）
+    await removeMtimes(index.libraryPath, [id])
 
     // 从内存索引与缓存中移除
     index.items.delete(id)
@@ -420,18 +385,8 @@ export const purgeTrash = async (): Promise<number> => {
       index.items.delete(id)
     })
 
-    // 同步库根 mtime.json
-    const mtimePath = path.join(index.libraryPath, 'mtime.json')
-    if (await fs.pathExists(mtimePath)) {
-      let mtimeMap: Record<string, number> = {}
-      try {
-        mtimeMap = await fs.readJson(mtimePath)
-      } catch {}
-      for (const id of trashIds) {
-        delete mtimeMap[id]
-      }
-      await writeJsonFile(mtimePath, mtimeMap, { backup: false })
-    }
+    // 同步库根 mtime.json（内存化防抖）
+    await removeMtimes(index.libraryPath, trashIds)
 
     markShardsDirty(trashIds)
     await persistCache()
@@ -478,18 +433,8 @@ export const trashUnclassified = async (): Promise<number> => {
       }
     })
 
-    // 同步库根 mtime.json
-    const mtimePath = path.join(index.libraryPath, 'mtime.json')
-    if (await fs.pathExists(mtimePath)) {
-      let mtimeMap: Record<string, number> = {}
-      try {
-        mtimeMap = await fs.readJson(mtimePath)
-      } catch {}
-      for (const id of unclassifiedIds) {
-        mtimeMap[id] = now
-      }
-      await writeJsonFile(mtimePath, mtimeMap, { backup: false })
-    }
+    // 同步库根 mtime.json（内存化防抖）
+    await updateMtimes(index.libraryPath, unclassifiedIds, now)
 
     markShardsDirty(unclassifiedIds)
     await persistCache()

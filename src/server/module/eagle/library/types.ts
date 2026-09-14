@@ -166,3 +166,13 @@ export const withLibraryLock = <T>(
 ): Promise<T> => {
   return resourceLock.run(`eagle.library:${libraryPath}`, action)
 }
+
+let lastInternalWriteAt = 0
+
+/** 标记最近一次由本应用自身写操作引发的库变更，供 watcher 防抖跳过增量扫描 */
+export const markInternalWrite = (): void => {
+  lastInternalWriteAt = Date.now()
+}
+
+export const getLastInternalWriteAt = (): number => lastInternalWriteAt
+

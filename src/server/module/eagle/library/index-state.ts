@@ -22,13 +22,18 @@ import {
   type EagleItemIndex,
   type EagleRawFolder,
   type EagleRawItemMeta,
+  getLastInternalWriteAt,
   getShardKey,
   imagesDir,
   ITEM_ID_PATTERN,
+  markInternalWrite,
   SCAN_CONCURRENCY,
   WATCH_DEBOUNCE_MS,
   withLibraryLock,
 } from './types'
+import { ensureMtimeLoaded, flushMtime } from './mtime-state'
+
+export { markInternalWrite }
 
 let state: EagleIndexState | null = null
 let loadingPromise: Promise<void> | null = null
@@ -145,12 +150,6 @@ export const runPool = async <T>(
   await Promise.all(lanes)
 }
 
-let lastInternalWriteAt = 0
-
-/** 标记最近一次由本应用自身写操作引发的库变更，供 watcher 防抖跳过增量扫描 */
-export const markInternalWrite = () => {
-  lastInternalWriteAt = Date.now()
-}
 
 let writeCachePromise: Promise<void> | null = null
 let hasPendingWrite = false
@@ -227,6 +226,7 @@ export const flushPersistCache = async (): Promise<void> => {
         shardCount: SHARD_COUNT,
       }
       await writeJsonFile(INDEX_META_FILE, meta, { backup: false })
+      await flushMtime(state.libraryPath)
 
       if (!hasPendingWrite) break
     }
@@ -275,13 +275,8 @@ const syncIndex = async (libraryPath: string) => {
   )) as { folders?: EagleRawFolder[] }
   const folders = rawLibrary.folders ?? []
 
-  // 2. 变更指纹表（Eagle 私有实现，可能不存在）
-  let mtimeMap: Record<string, number> | null = null
-  try {
-    mtimeMap = await fs.readJson(path.join(libraryPath, 'mtime.json'))
-  } catch {
-    mtimeMap = null
-  }
+  // 2. 变更指纹表（Eagle 私有实现，可能不存在，优先命中内存缓存）
+  const mtimeMap = await ensureMtimeLoaded(libraryPath)
 
   // 3. 目录枚举（2 万个目录名在 OS 层面仅需几十毫秒）
   const dirNames = await fs.readdir(imagesDir(libraryPath))
@@ -345,7 +340,7 @@ const scheduleWatcher = (libraryPath: string) => {
     if (watchTimer) clearTimeout(watchTimer)
     watchTimer = setTimeout(() => {
       // 若距离上一次内部写操作不足 1500ms，说明是自身写操作触发的 watcher 事件，跳过冗余的全量增量校验
-      if (Date.now() - lastInternalWriteAt < 1500) {
+      if (Date.now() - getLastInternalWriteAt() < 1500) {
         return
       }
       refreshIndex().catch((err) =>

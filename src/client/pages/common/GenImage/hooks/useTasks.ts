@@ -1,3 +1,4 @@
+import { subscribeStorageEvent } from '@/client/service/storage-events'
 import type { Task } from '@/server/common/task'
 import { useEffect } from 'react'
 import { create } from 'zustand'
@@ -20,7 +21,7 @@ interface TasksState {
   data: Task[]
   loading: boolean
   subscriberCount: number
-  eventSource: EventSource | null
+  unsubscribe: (() => void) | null
   addSubscriber: () => void
   removeSubscriber: () => void
 }
@@ -29,12 +30,12 @@ const useTasksStore = create<TasksState>((set, get) => ({
   data: [],
   loading: true,
   subscriberCount: 0,
-  eventSource: null,
+  unsubscribe: null,
   addSubscriber: () => {
     set((state) => {
       const newCount = state.subscriberCount + 1
       if (newCount === 1) {
-        if (!state.eventSource) {
+        if (!state.unsubscribe) {
           // 初始拉取 + 订阅统一变更事件：SSE 只携带资源版本信息，收到 change 后重新拉取
           fetchTasks()
             .then((tasks) => set({ data: tasks, loading: false }))
@@ -43,23 +44,15 @@ const useTasksStore = create<TasksState>((set, get) => ({
               set({ loading: false })
             })
 
-          const es = new EventSource(
-            '/api/storage/events?resources=image.tasks',
-          )
-
-          es.addEventListener('change', () => {
+          const unsub = subscribeStorageEvent('image.tasks', () => {
             fetchTasks()
               .then((tasks) => set({ data: tasks }))
               .catch((error) => console.error('Failed to refresh tasks', error))
           })
 
-          es.onerror = (error) => {
-            console.error('SSE Error:', error)
-          }
-
           return {
             subscriberCount: newCount,
-            eventSource: es,
+            unsubscribe: unsub,
             loading: get().data.length === 0,
           }
         }
@@ -70,9 +63,9 @@ const useTasksStore = create<TasksState>((set, get) => ({
   removeSubscriber: () => {
     set((state) => {
       const newCount = Math.max(0, state.subscriberCount - 1)
-      if (newCount === 0 && state.eventSource) {
-        state.eventSource.close()
-        return { subscriberCount: newCount, eventSource: null }
+      if (newCount === 0 && state.unsubscribe) {
+        state.unsubscribe()
+        return { subscriberCount: newCount, unsubscribe: null }
       }
       return { subscriberCount: newCount }
     })
