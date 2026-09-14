@@ -272,25 +272,37 @@ export class ResultService {
         })),
       )
 
+      const recordsToSave: import('@/shared/eagle/organize').OrganizeItemRecord[] =
+        []
       for (let i = 0; i < updates.length; i++) {
         if (!batchResults[i]) continue
-        const { record } = updates[i]
-        await organizeRepository.saveItem({
+        recordsToSave.push({
+          ...updates[i].record,
+          status: 'confirmed',
+          updatedAt: now,
+        })
+      }
+
+      for (const record of purgedRecords) {
+        recordsToSave.push({
           ...record,
           status: 'confirmed',
           updatedAt: now,
         })
-        confirmedCount++
       }
-    }
 
-    for (const record of purgedRecords) {
-      await organizeRepository.saveItem({
+      if (recordsToSave.length > 0) {
+        await organizeRepository.saveItemsBatch(recordsToSave)
+        confirmedCount = recordsToSave.length
+      }
+    } else if (purgedRecords.length > 0) {
+      const recordsToSave = purgedRecords.map((record) => ({
         ...record,
-        status: 'confirmed',
+        status: 'confirmed' as const,
         updatedAt: now,
-      })
-      confirmedCount++
+      }))
+      await organizeRepository.saveItemsBatch(recordsToSave)
+      confirmedCount = recordsToSave.length
     }
 
     if (confirmedCount > 0) {

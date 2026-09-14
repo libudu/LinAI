@@ -286,6 +286,44 @@ export class OrganizeRepository {
     }
   }
 
+  /**
+   * 批量落盘单图结果：
+   * 同步更新内存 itemsCache（使后续查询 0ms 立即可见），
+   * 随后通过并发池（concurrency=16）并行写盘，避免数十次串行写盘造成的严重 I/O 阻塞。
+   */
+  async saveItemsBatch(records: OrganizeItemRecord[]): Promise<void> {
+    if (records.length === 0) return
+    await this.ensureCacheLoaded()
+
+    // 1. 同步更新全部内存缓存
+    for (const record of records) {
+      this.itemsCache.set(record.itemId, structuredClone(record))
+    }
+
+    // 2. 并发池并行写入磁盘
+    await pMap(
+      records,
+      async (record) => {
+        const summary: OrganizeItemSummary = {
+          status: record.status,
+          folderPaths:
+            record.folderPaths ?? (record.folderPath ? [record.folderPath] : []),
+          lowQuality: record.lowQuality,
+        }
+        try {
+          await this.itemStore.create(record, summary, record.itemId)
+        } catch (error) {
+          if (error instanceof StorageError && error.code === 'REVISION_CONFLICT') {
+            await this.itemStore.replace(record.itemId, record, summary)
+            return
+          }
+          throw error
+        }
+      },
+      16,
+    )
+  }
+
   /** 新任务创建前清空旧结果实体：清空内存缓存并批量快速清空磁盘目录 */
   async clearItems(): Promise<void> {
     this.itemsCache.clear()

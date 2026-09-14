@@ -128,9 +128,26 @@ export const markInternalWrite = () => {
 
 let writeCachePromise: Promise<void> | null = null
 let hasPendingWrite = false
+let persistCacheTimer: ReturnType<typeof setTimeout> | null = null
 
-/** 将当前内存索引原子持久化到本地磁盘缓存 (data/eagle/index.json)，具备写入合并与重试防冲突保护 */
-export const persistCache = async (): Promise<void> => {
+/**
+ * 本地索引缓存 (data/eagle/index.json) 防抖落盘时间（毫秒）。
+ * 设置为 5000ms（5 秒）：
+ * 1. 在用户快速或连续批量确认图片时，有充足的时间窗口（5 秒静默期）将几十个批次合并为最终一次落盘；
+ * 2. 避免频繁重写包含全库上万条目、体积达数兆到十数兆的巨大 JSON 文件，极大减轻磁盘 I/O 与 Node.js 线程池压力；
+ * 3. 内存索引（state.items）始终同步即时更新，所有读请求立即可见，防抖仅延迟本地持久化缓存文件写入，不影响运行时一致性。
+ */
+const PERSIST_CACHE_DEBOUNCE_MS = 5000
+
+/**
+ * 立即将当前内存索引原子持久化到本地磁盘缓存 (data/eagle/index.json)。
+ * 具备写入合并与重试防冲突保护。
+ */
+export const flushPersistCache = async (): Promise<void> => {
+  if (persistCacheTimer) {
+    clearTimeout(persistCacheTimer)
+    persistCacheTimer = null
+  }
   if (!state) return
   if (writeCachePromise) {
     hasPendingWrite = true
@@ -154,6 +171,28 @@ export const persistCache = async (): Promise<void> => {
     writeCachePromise = null
   })
   return writeCachePromise
+}
+
+/**
+ * 将当前内存索引持久化到本地磁盘缓存 (data/eagle/index.json)。
+ * 默认采用 5 秒防抖合并落盘策略：
+ * 高频/连续批量确认期间，仅更新内存索引（查询立即可见），
+ * 将数十次全库大文件（数兆至十数兆）重写合并为最后一次落盘，消除重度 I/O 阻塞。
+ * 若指定 immediate = true 则立即同步落盘。
+ */
+export const persistCache = async (immediate = false): Promise<void> => {
+  if (immediate) {
+    return flushPersistCache()
+  }
+  if (persistCacheTimer) {
+    clearTimeout(persistCacheTimer)
+  }
+  persistCacheTimer = setTimeout(() => {
+    persistCacheTimer = null
+    flushPersistCache().catch((err) =>
+      console.error('[Eagle] 索引缓存后台防抖落盘失败', err),
+    )
+  }, PERSIST_CACHE_DEBOUNCE_MS)
 }
 
 /**
@@ -279,7 +318,7 @@ const initialLoad = async () => {
   const fromCache = await loadFromCache(libraryPath)
   // 缓存命中先立即可用，随后增量校验；未命中则本次同步全量扫描
   await syncIndex(libraryPath)
-  await persistCache()
+  await persistCache(true)
   scheduleWatcher(libraryPath)
   console.log(
     `[Eagle] 索引就绪：${state?.items.size ?? 0} 个条目（${fromCache ? '缓存+增量' : '全量扫描'}）`,
@@ -313,7 +352,7 @@ export const refreshIndex = async (): Promise<void> => {
       return
     }
     await syncIndex(libraryPath)
-    await persistCache()
+    await persistCache(true)
   })
 }
 

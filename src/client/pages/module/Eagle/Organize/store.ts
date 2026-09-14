@@ -21,6 +21,7 @@ const MIN_REFRESH_INTERVAL_MS = 3000
 let isFetching = false
 let hasPendingRefresh = false
 let hasImmediateRefresh = false
+let isSuspended = false
 let scheduledTimer: ReturnType<typeof setTimeout> | null = null
 let lastFetchedAt = 0
 
@@ -43,7 +44,10 @@ const isEqualStatus = (
 }
 
 const doFetchStatus = async (): Promise<void> => {
-  if (isFetching) {
+  if (isFetching || isSuspended) {
+    if (isSuspended) {
+      hasPendingRefresh = true
+    }
     return
   }
   if (scheduledTimer) {
@@ -78,8 +82,12 @@ const doFetchStatus = async (): Promise<void> => {
   }
 }
 
-/** 按照最快 3 秒一次的频率调度状态刷新（供高频 SSE 变更使用） */
+/** 按照最快 3 秒一次的频率调度状态刷新（供高频 SSE 变更使用；挂起状态下仅记录脏位） */
 const scheduleThrottledRefresh = () => {
+  if (isSuspended) {
+    hasPendingRefresh = true
+    return
+  }
   if (scheduledTimer) return
 
   const elapsed = Date.now() - lastFetchedAt
@@ -174,3 +182,38 @@ export function useOrganizeStatus() {
 
 /** 操作后主动刷新（SSE 之外兜底） */
 export const refreshOrganizeStatus = () => useOrganizeStore.getState().refresh()
+
+/**
+ * 挂起/恢复状态刷新轮询：
+ * 结果确认界面挂载期间调用挂起，彻底截断无意义的高频 status 网络请求；
+ * 退出确认流时恢复挂起，若期间有积攒的脏标记则自动校准一次最新状态。
+ */
+export const setOrganizeStatusSuspended = (suspended: boolean) => {
+  if (isSuspended === suspended) return
+  isSuspended = suspended
+  if (!suspended && hasPendingRefresh) {
+    hasPendingRefresh = false
+    void doFetchStatus()
+  }
+}
+
+/**
+ * 本地乐观扣减待确认数量：
+ * 确认/跳过/清除分类等操作发生时即时更新外层徽标，无需发网络请求
+ */
+export const decrementPendingConfirm = (count = 1) => {
+  if (count <= 0) return
+  useOrganizeStore.setState((state) => {
+    if (!state.status) return state
+    const nextPending = Math.max(0, state.status.pendingConfirm - count)
+    const isNowDone = state.status.phase === 'confirming' && nextPending === 0
+    return {
+      status: {
+        ...state.status,
+        pendingConfirm: nextPending,
+        phase: isNowDone ? 'done' : state.status.phase,
+        isLocked: isNowDone ? false : state.status.isLocked,
+      },
+    }
+  })
+}

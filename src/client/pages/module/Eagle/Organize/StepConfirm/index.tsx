@@ -18,6 +18,7 @@ import {
   retryOrganizeResult,
   skipOrganizeResult,
 } from '../api'
+import { decrementPendingConfirm, setOrganizeStatusSuspended } from '../store'
 import { ActionBar } from './ActionBar'
 import { ConfirmControls } from './ConfirmControls'
 import { DetailPanel } from './DetailPanel'
@@ -212,6 +213,14 @@ export function StepConfirm({
     return sorted
   }, [folders, sortType, task?.createdAt])
 
+  // 挂载时挂起 OrganizeStatus 轮询，避免确认期间高频触发 /status 请求；卸载时恢复并校准
+  useEffect(() => {
+    setOrganizeStatusSuspended(true)
+    return () => {
+      setOrganizeStatusSuspended(false)
+    }
+  }, [])
+
   // 仅在挂载时拉取一次；确认操作成功后在本地移除，避免每次 SSE 都重拉列表
   useEffect(() => {
     let cancelled = false
@@ -359,7 +368,8 @@ export function StepConfirm({
     } catch (error) {
       console.error('批量确认失败', error)
       message.error(error instanceof Error ? error.message : '确认失败')
-      // 发生错误时回退未成功的条目到待确认列表
+      // 发生错误时回退未成功的条目到待确认列表并补偿待确认计数
+      decrementPendingConfirm(-batchToProcess.length)
       const current = resultsRef.current
       const restored = [...current]
       for (const b of batchToProcess) {
@@ -422,10 +432,11 @@ export function StepConfirm({
           ? (remaining[index]?.itemId ?? remaining[0]?.itemId ?? null)
           : selectedId
 
-      // 立即乐观更新列表与选中项，界面无卡顿响应
+      // 立即乐观更新列表与选中项，界面无卡顿响应，并同步乐观扣减外层徽标
       resultsRef.current = remaining
       setResults(remaining)
       setSelectedId(nextId)
+      decrementPendingConfirm(1)
 
       inFlightActionIdsRef.current.add(itemId)
       try {
@@ -434,7 +445,8 @@ export function StepConfirm({
         await fn(itemId)
       } catch (error) {
         message.error(error instanceof Error ? error.message : '操作失败')
-        // 发生错误时回退该条目
+        // 发生错误时回退该条目并回补待确认计数
+        decrementPendingConfirm(-1)
         const latest = resultsRef.current
         if (!latest.some((r) => r.itemId === itemId)) {
           const restored = [...latest]
@@ -468,6 +480,7 @@ export function StepConfirm({
       resultsRef.current = remaining
       setResults(remaining)
       setSelectedId(nextId)
+      decrementPendingConfirm(1)
 
       pendingBatchRef.current.push({
         itemId,
@@ -523,10 +536,11 @@ export function StepConfirm({
       recordManualFolderUsage(selectedManualFolder.folderId)
     }
 
-    // 立即乐观切换下一张，界面无卡顿响应
+    // 立即乐观切换下一张，界面无卡顿响应，并同步乐观扣减外层徽标
     resultsRef.current = remaining
     setResults(remaining)
     setSelectedId(nextId)
+    decrementPendingConfirm(1)
 
     // 加入待确认批次队列
     pendingBatchRef.current.push({

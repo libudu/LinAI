@@ -14,13 +14,13 @@ src/server/module/eagle/
 ├── relay.ts                             # 注册 relay 目标 eagle.vision（POST /chat/completions，非流式），供整理执行器服务端直接调用
 ├── library/                             # 核心：Eagle 资源库索引与操作（模块化拆分，由 index.ts 统一聚合导出）
 │   ├── types.ts                         # 数据模型（原始/索引结构）、路径常量、变更资源 ID（eagle.library）与基础工具函数
-│   ├── index-state.ts                   # 内存索引生命周期（ensureIndex/refreshIndex）、增量扫描（mtime 对比与并发池）、本地缓存持久化、fs.watch 监听与文件路径解析
+│   ├── index-state.ts                   # 内存索引生命周期（ensureIndex/refreshIndex）、增量扫描（mtime 对比与并发池）、本地缓存持久化（5秒防抖合并落盘，避免写库时全量写盘 I/O 阻塞）、fs.watch 监听与文件路径解析
 │   ├── query.ts                         # 只读查询与数据投影：文件夹树/计数统计（getFolderTree）、服务端排序分页（getItems）、整理标准提取（getFolderStandards）与路径解析
 │   ├── operations.ts                    # 持久化写操作：全由 withLibraryLock 串行互斥保护，updateFolder 文件夹编辑 + updateItem/updateItems 条目更新（改名/同名序号/移动文件夹，批量合并减少 I/O）+ deleteItem/restoreItem 回收站软删除/还原 + purgeItem/purgeTrash 物理删除
 │   └── index.ts                         # 统一聚合导出入口
 └── organize/                            # 图片整理（阶段三完成：任务基建 + 用户指定并发的队列执行 + 结果确认写库）
     ├── constants.ts                     # 模块自有常量：变更资源 ID、视觉上传压缩参数、执行器连续失败暂停阈值与全局派发最小间隔（与 common/static 的同名常量分开定义）
-    ├── storage.ts                       # 私有持久化：任务 DocumentStore（task.json，含队列 itemIds 与进度计数）+ 结果 EntityStore（items/<itemId>.json，执行完成时才落盘）+ 内存 itemsCache 索引缓存（高频 query 毫秒级响应），落盘 data/eagle/organize/，不注册通用存储；mutateTask 提供任务文档的串行读改写（service 与 executor 共用单例）
+    ├── storage.ts                       # 私有持久化：任务 DocumentStore（task.json，含队列 itemIds 与进度计数）+ 结果 EntityStore（items/<itemId>.json，saveItemsBatch 并发落盘）+ 内存 itemsCache 索引缓存（高频 query 毫秒级响应），落盘 data/eagle/organize/，不注册通用存储；mutateTask 提供任务文档的串行读改写（service 与 executor 共用单例）
     ├── service/                         # OrganizeService 模块化服务（拆分为 types / helpers / task / queue / result / index）
     │   ├── types.ts                     # 参数与操作返回类型定义
     │   ├── helpers.ts                   # 视图转换与变更发布辅助函数
@@ -63,7 +63,7 @@ src/client/pages/module/Eagle/           # 本目录
 │   │   ├── QuickConfirmList.tsx         # 快速模式下居中放大的图片卡片横向滚动列表（带每项首选分类确定按钮）
 │   │   ├── DetailPanel.tsx              # 右侧条目信息与分类选择面板
 │   │   └── ActionBar.tsx                # 底部快捷操作栏
-│   └── store.ts                         # zustand：轻量 status + SSE 订阅（eagle.organize，最快 1 秒节流 + in-flight 单飞合并），Toolbar 徽标与弹窗共用
+│   └── store.ts                         # zustand：轻量 status + SSE 订阅（eagle.organize，确认流程支持挂起拦截与本地乐观扣减），Toolbar 徽标与弹窗共用
 ├── Toolbar.tsx                          # 「展示选项」下拉面板（排序/图片大小/文件名/文件大小）+ 刷新 + 「全部彻底删除」（回收站视图可用）+ 「图片整理」按钮（Badge：队列剩余数/待确认红点）+ 移动端「切换文件夹」抽屉
 └── SettingModal/
     ├── index.tsx                        # 设置弹窗（openEagleSettingModal）：资源库 / 视觉接入点两个标签页
