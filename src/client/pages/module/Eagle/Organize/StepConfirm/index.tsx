@@ -1,139 +1,38 @@
-import { ImageSizeBadge } from '@/client/pages/components/ImageSizeBadge'
 import type { EagleManualFolderItem } from '@/server/module/eagle/settings'
 import type {
-  OrganizeResultDetail,
   OrganizeResultListItem,
   OrganizeTaskView,
 } from '@/shared/eagle/organize'
-import { ExportOutlined } from '@ant-design/icons'
-import { Button, Empty, Image, Spin, message } from 'antd'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { deleteEagleItem, eagleFileUrl } from '../../api'
+import { Button, Empty, Spin, message } from 'antd'
+import { useCallback, useMemo, useState } from 'react'
+import { deleteEagleItem } from '../../api'
 import { confirmDeleteEagleItem } from '../../components/confirmDeleteModal'
 import { useEagleStore } from '../../store'
 import {
   clearOrganizeResultClassification,
-  confirmOrganizeResultsBatch,
-  fetchOrganizeResult,
-  fetchOrganizeResults,
   retryOrganizeResult,
   skipOrganizeResult,
 } from '../api'
-import { decrementPendingConfirm, setOrganizeStatusSuspended } from '../store'
-import { ActionBar } from './ActionBar'
-import { ConfirmControls } from './ConfirmControls'
-import { DetailPanel, type PinnedFolderOption } from './DetailPanel'
-import { QuickConfirmList } from './QuickConfirmList'
+import { ActionBar } from './components/ActionBar'
+import { ConfirmControls } from './components/ConfirmControls'
+import { ConfirmImageViewer } from './components/ConfirmImageViewer'
+import { DetailPanel } from './components/DetailPanel'
+import { QuickConfirmList } from './components/QuickConfirmList'
+import { ThumbnailBar } from './components/ThumbnailBar'
+import { useConfirmQueue } from './hooks/useConfirmQueue'
+import { useConfirmShortcuts } from './hooks/useConfirmShortcuts'
+import { useManualFolders } from './hooks/useManualFolders'
+import { useOrganizePreload } from './hooks/useOrganizePreload'
+import type { PinnedFolderOption } from './types'
 import {
-  ThumbnailBar,
-  getOrUpdateCategoryOrder,
-  sortOrganizeResults,
-  type OrganizeSortType,
-} from './ThumbnailBar'
-import { useManualFolders } from './useManualFolders'
-
-const CONFIRM_SORT_STORAGE_KEY = 'eagle_organize_confirm_sort'
-const CONFIRM_QUICK_MODE_STORAGE_KEY = 'eagle_organize_confirm_quick_mode'
-const CONFIRM_CATEGORY_ORDER_STORAGE_PREFIX = 'eagle_organize_category_order'
-const CONFIRM_PINNED_OPTION_STORAGE_KEY = 'eagle_organize_pinned_option'
-const PRELOAD_COUNT = 5
-
-const getSavedPinnedOption = (
-  taskCreatedAt?: number,
-): PinnedFolderOption | null => {
-  try {
-    const raw = sessionStorage.getItem(CONFIRM_PINNED_OPTION_STORAGE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    if (parsed && typeof parsed.folderPath === 'string') {
-      if (!taskCreatedAt || parsed.taskCreatedAt === taskCreatedAt) {
-        return {
-          key: parsed.key,
-          type: parsed.type,
-          folderPath: parsed.folderPath,
-          folderId: parsed.folderId,
-          count: parsed.count,
-        }
-      }
-    }
-  } catch {
-    // 忽略异常
-  }
-  return null
-}
-
-const savePinnedOption = (
-  taskCreatedAt: number | undefined,
-  option: PinnedFolderOption | null,
-) => {
-  try {
-    if (option) {
-      sessionStorage.setItem(
-        CONFIRM_PINNED_OPTION_STORAGE_KEY,
-        JSON.stringify({ ...option, taskCreatedAt }),
-      )
-    } else {
-      sessionStorage.removeItem(CONFIRM_PINNED_OPTION_STORAGE_KEY)
-    }
-  } catch {
-    // 忽略异常
-  }
-}
-
-/**
- * 读取当前整理任务固化的分类排序列表。
- * 以 taskCreatedAt 作为存储键的后缀，确保：
- * 1. 同一个任务内多次打开弹窗或刷新页面时，始终复用已固化的分类先后顺序；
- * 2. 任务清空并创建新任务后，因 taskCreatedAt 变更而自动使用全新的分类顺序，互不干扰。
- */
-const getSavedCategoryOrder = (taskCreatedAt?: number): string[] => {
-  try {
-    const key = taskCreatedAt
-      ? `${CONFIRM_CATEGORY_ORDER_STORAGE_PREFIX}_${taskCreatedAt}`
-      : CONFIRM_CATEGORY_ORDER_STORAGE_PREFIX
-    const raw = localStorage.getItem(key)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed) && parsed.every((s) => typeof s === 'string')) {
-        return parsed
-      }
-    }
-  } catch {
-    // 忽略损坏的本地存储
-  }
-  return []
-}
-
-/**
- * 持久化保存当前任务的分类先后顺序列表。
- */
-const saveCategoryOrder = (
-  taskCreatedAt: number | undefined,
-  order: string[],
-) => {
-  try {
-    const key = taskCreatedAt
-      ? `${CONFIRM_CATEGORY_ORDER_STORAGE_PREFIX}_${taskCreatedAt}`
-      : CONFIRM_CATEGORY_ORDER_STORAGE_PREFIX
-    localStorage.setItem(key, JSON.stringify(order))
-  } catch {
-    // 忽略写入异常
-  }
-}
-
-interface PendingConfirmItem {
-  itemId: string
-  folderPath: string
-  withTitle: boolean
-  folderId?: string
-  originalItem: OrganizeResultListItem
-  index: number
-}
+  CONFIRM_QUICK_MODE_STORAGE_KEY,
+  getSavedPinnedOption,
+  savePinnedOption,
+} from './utils/storage'
 
 // 步骤 3 结果确认：纯净查验判定成功的结果（status === 'success'）
-// 顶部缩略图条 + 左大图右信息面板 + 底部操作（A/S/D 与重新执行）
-// 支持「快速模式」：只展示居中放大列表与卡片底部确定按钮，跳过原图与详情拉取
-// 完成当前结果后自动选中下一张；重新执行单图送回步骤 2 队列，步骤 3 继续确认下一张
+// 普通模式（顶部缩略图条 + 左大图右信息面板 + 底部快捷操作）与快速模式（居中放大列表 + 卡片底部直接确定）
+// 预加载后续 5 张大图与详情（普通模式），重新执行不打断确认流
 export function StepConfirm({
   task,
   onSwitchToRunning,
@@ -141,25 +40,7 @@ export function StepConfirm({
   task?: OrganizeTaskView | null
   onSwitchToRunning?: () => void
 }) {
-  const [results, setResults] = useState<OrganizeResultListItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [sortType, setSortType] = useState<OrganizeSortType>(() => {
-    try {
-      const saved = localStorage.getItem(CONFIRM_SORT_STORAGE_KEY)
-      if (
-        saved === 'completion' ||
-        saved === 'category' ||
-        saved === 'mtime_desc' ||
-        saved === 'mtime_asc'
-      ) {
-        return saved
-      }
-    } catch {
-      // 忽略损坏的本地缓存
-    }
-    return 'category'
-  })
+  const folders = useEagleStore((s) => s.folders)
   const [quickMode, setQuickMode] = useState<boolean>(() => {
     try {
       return localStorage.getItem(CONFIRM_QUICK_MODE_STORAGE_KEY) === 'true'
@@ -168,47 +49,14 @@ export function StepConfirm({
     }
   })
 
-  const folders = useEagleStore((s) => s.folders)
-  const [detailsMap, setDetailsMap] = useState<
-    Record<string, OrganizeResultDetail>
-  >({})
   const [titleDisabledIds, setTitleDisabledIds] = useState<Set<string>>(
     () => new Set(),
   )
   const [selectedOptionKeys, setSelectedOptionKeys] = useState<
     Record<string, string>
   >({})
-
-  const resultsRef = useRef<OrganizeResultListItem[]>([])
-  const inFlightActionIdsRef = useRef(new Set<string>())
-  const preloadedIdsRef = useRef(new Set<string>())
-  const preloadImagesRef = useRef<HTMLImageElement[]>([])
-  const fetchingDetailIdsRef = useRef(new Set<string>())
-  const failedDetailIdsRef = useRef(new Set<string>())
-  const pendingBatchRef = useRef<PendingConfirmItem[]>([])
-  const batchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isFlushingRef = useRef(false)
-
-  const handleSortTypeChange = useCallback(
-    (newSort: OrganizeSortType) => {
-      setSortType(newSort)
-      try {
-        localStorage.setItem(CONFIRM_SORT_STORAGE_KEY, newSort)
-      } catch {
-        // 忽略损坏的本地缓存
-      }
-      const existingOrder = getSavedCategoryOrder(task?.createdAt)
-      const nextSorted = sortOrganizeResults(
-        resultsRef.current,
-        newSort,
-        folders,
-        existingOrder,
-      )
-      resultsRef.current = nextSorted
-      setResults(nextSorted)
-      setSelectedId(nextSorted[0]?.itemId ?? null)
-    },
-    [folders, task?.createdAt],
+  const [pinnedOption, setPinnedOption] = useState<PinnedFolderOption | null>(
+    () => getSavedPinnedOption(task?.createdAt),
   )
 
   const handleQuickModeChange = useCallback((newQuickMode: boolean) => {
@@ -220,6 +68,31 @@ export function StepConfirm({
     }
   }, [])
 
+  // 1. 结果列表与批次防抖调度队列
+  const {
+    results,
+    selectedId,
+    setSelectedId,
+    selectedItem,
+    loading,
+    sortType,
+    handleSortTypeChange,
+    confirmItemQuick,
+    confirmCurrentItem,
+    runAction,
+  } = useConfirmQueue({
+    taskCreatedAt: task?.createdAt,
+    folders,
+  })
+
+  // 2. 详情拉取与原图预加载对象池
+  const { detail, detailLoading } = useOrganizePreload({
+    results,
+    selectedId,
+    quickMode,
+  })
+
+  // 3. 手动选择文件夹历史
   const {
     manualFolders,
     sortedManualFolders,
@@ -231,126 +104,7 @@ export function StepConfirm({
     setSelectedOptionKeys,
   })
 
-  const [pinnedOption, setPinnedOption] = useState<PinnedFolderOption | null>(
-    () => getSavedPinnedOption(task?.createdAt),
-  )
-
-  // 仅拉取判定成功的结果，结合当前任务固化的分类顺序组织队列
-  const refreshResults = useCallback(async (): Promise<
-    OrganizeResultListItem[]
-  > => {
-    const succeeded = await fetchOrganizeResults('success')
-    // 1. 读取当前任务已固化的分类先后排位
-    const existingOrder = getSavedCategoryOrder(task?.createdAt)
-    // 2. 补全新追加的分类并持久化（确保已有分类排位绝对稳定，避免数量减少后排位跳动）
-    const updatedOrder = getOrUpdateCategoryOrder(
-      succeeded,
-      folders,
-      existingOrder,
-    )
-    saveCategoryOrder(task?.createdAt, updatedOrder)
-    // 3. 执行多维排序（疑似低质绝对置顶 -> 未分类次高置顶 -> 常规分类按固化顺序 -> updatedAt 正序）
-    const sorted = sortOrganizeResults(
-      succeeded,
-      sortType,
-      folders,
-      updatedOrder,
-    )
-    resultsRef.current = sorted
-    setResults(sorted)
-    return sorted
-  }, [folders, sortType, task?.createdAt])
-
-  // 挂载时挂起 OrganizeStatus 轮询，避免确认期间高频触发 /status 请求；卸载时恢复并校准
-  useEffect(() => {
-    setOrganizeStatusSuspended(true)
-    return () => {
-      setOrganizeStatusSuspended(false)
-    }
-  }, [])
-
-  // 仅在挂载时拉取一次；确认操作成功后在本地移除，避免每次 SSE 都重拉列表
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    refreshResults()
-      .then((sorted) => {
-        if (cancelled) return
-        setSelectedId((prev) =>
-          prev && sorted.some((r) => r.itemId === prev)
-            ? prev
-            : (sorted[0]?.itemId ?? null),
-        )
-      })
-      .catch((error) => {
-        console.error('拉取待确认结果失败', error)
-        message.error('拉取待确认结果失败')
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [refreshResults])
-
-  const fetchDetail = useCallback(async (itemId: string) => {
-    if (
-      fetchingDetailIdsRef.current.has(itemId) ||
-      failedDetailIdsRef.current.has(itemId)
-    ) {
-      return
-    }
-    fetchingDetailIdsRef.current.add(itemId)
-    try {
-      const data = await fetchOrganizeResult(itemId)
-      if (data) {
-        setDetailsMap((prev) => ({ ...prev, [itemId]: data }))
-      } else {
-        failedDetailIdsRef.current.add(itemId)
-      }
-    } catch (error) {
-      console.error(`拉取条目 ${itemId} 详情失败`, error)
-      failedDetailIdsRef.current.add(itemId)
-    } finally {
-      fetchingDetailIdsRef.current.delete(itemId)
-    }
-  }, [])
-
-  // 预加载当前项及接下来几张图片（仅在普通模式预加载详情与原图大图；快速模式由 IntersectionObserver 视口按需懒加载）
-  useEffect(() => {
-    if (quickMode || !selectedId || results.length === 0) return
-
-    const currentIndex = results.findIndex((item) => item.itemId === selectedId)
-    if (currentIndex === -1) return
-
-    // 普通模式：预加载详情与原图大图（当前项及后续共 PRELOAD_COUNT 项）
-    const targets = results.slice(currentIndex, currentIndex + PRELOAD_COUNT)
-    targets.forEach((item) => {
-      if (!detailsMap[item.itemId]) {
-        void fetchDetail(item.itemId)
-      }
-      if (!preloadedIdsRef.current.has(item.itemId)) {
-        preloadedIdsRef.current.add(item.itemId)
-        const img = new window.Image()
-        img.src = eagleFileUrl(item.itemId)
-        preloadImagesRef.current.push(img)
-        if (preloadImagesRef.current.length > 20) {
-          preloadImagesRef.current.shift()
-        }
-      }
-    })
-  }, [quickMode, selectedId, results, detailsMap, fetchDetail])
-
-  const detail = selectedId ? (detailsMap[selectedId] ?? null) : null
-  const selectedItem = useMemo(
-    () => (selectedId ? results.find((r) => r.itemId === selectedId) : null),
-    [results, selectedId],
-  )
-  const detailLoading = Boolean(
-    selectedId && !detail && !failedDetailIdsRef.current.has(selectedId),
-  )
-
+  // 4. 目标文件夹与选项计算
   const folderPaths = detail?.folderPaths ?? []
 
   // 若手动选择的文件夹已出现在当前图片的 AI 推荐选项中，则不在下方重复展示
@@ -360,7 +114,6 @@ export function StepConfirm({
   }, [folderPaths, sortedManualFolders])
 
   // 当前选中项的唯一 key（例如 "ai:角色/插画" 或 "manual:folderId"）
-  // 若存在置顶选项，下一张图（新图）默认优先选中该置顶选项
   const defaultOptionKey = pinnedOption
     ? pinnedOption.key
     : folderPaths[0]
@@ -473,177 +226,12 @@ export function StepConfirm({
   )
   const withTitle = selectedId ? !titleDisabledIds.has(selectedId) : true
 
-  // 批量提交待确认批次
-  const flushPendingBatch = useCallback(async () => {
-    if (batchTimerRef.current) {
-      clearTimeout(batchTimerRef.current)
-      batchTimerRef.current = null
-    }
-    if (pendingBatchRef.current.length === 0) return
-    if (isFlushingRef.current) return
-
-    isFlushingRef.current = true
-    const batchToProcess = [...pendingBatchRef.current]
-    pendingBatchRef.current = []
-
-    try {
-      await confirmOrganizeResultsBatch(
-        batchToProcess.map((b) => ({
-          itemId: b.itemId,
-          folderPath: b.folderPath,
-          withTitle: b.withTitle,
-          folderId: b.folderId,
-        })),
-      )
-    } catch (error) {
-      console.error('批量确认失败', error)
-      message.error(error instanceof Error ? error.message : '确认失败')
-      // 发生错误时回退未成功的条目到待确认列表并补偿待确认计数
-      decrementPendingConfirm(-batchToProcess.length)
-      const current = resultsRef.current
-      const restored = [...current]
-      for (const b of batchToProcess) {
-        if (!restored.some((r) => r.itemId === b.itemId)) {
-          restored.splice(Math.min(b.index, restored.length), 0, b.originalItem)
-        }
-      }
-      resultsRef.current = restored
-      setResults(restored)
-      setSelectedId((curr) => curr ?? batchToProcess[0]?.itemId ?? null)
-    } finally {
-      isFlushingRef.current = false
-      if (pendingBatchRef.current.length >= 20) {
-        void flushPendingBatch()
-      } else if (pendingBatchRef.current.length > 0 && !batchTimerRef.current) {
-        batchTimerRef.current = setTimeout(() => {
-          void flushPendingBatch()
-        }, 3000)
-      }
-    }
-  }, [])
-
-  // 组件卸载时自动提交剩余的待确认队列
-  useEffect(() => {
-    return () => {
-      if (batchTimerRef.current) {
-        clearTimeout(batchTimerRef.current)
-        batchTimerRef.current = null
-      }
-      if (pendingBatchRef.current.length > 0) {
-        const batch = [...pendingBatchRef.current]
-        pendingBatchRef.current = []
-        void confirmOrganizeResultsBatch(
-          batch.map((b) => ({
-            itemId: b.itemId,
-            folderPath: b.folderPath,
-            withTitle: b.withTitle,
-            folderId: b.folderId,
-          })),
-        ).catch((err) => {
-          console.error('组件卸载时批量确认失败', err)
-        })
-      }
-    }
-  }, [])
-
-  const runAction = useCallback(
-    async (fn: (itemId: string) => Promise<void>, targetId?: string) => {
-      const itemId = targetId ?? selectedId
-      if (!itemId || inFlightActionIdsRef.current.has(itemId)) return
-
-      const current = resultsRef.current
-      const item = current.find((r) => r.itemId === itemId)
-      if (!item) return
-
-      const index = current.findIndex((result) => result.itemId === itemId)
-      const remaining = current.filter((result) => result.itemId !== itemId)
-      const nextId =
-        itemId === selectedId
-          ? (remaining[index]?.itemId ?? remaining[0]?.itemId ?? null)
-          : selectedId
-
-      // 立即乐观更新列表与选中项，界面无卡顿响应，并同步乐观扣减外层徽标
-      resultsRef.current = remaining
-      setResults(remaining)
-      setSelectedId(nextId)
-      decrementPendingConfirm(1)
-
-      inFlightActionIdsRef.current.add(itemId)
-      try {
-        // 先冲刷待确认队列中积攒的项目，确保时序一致且避免并发写库冲突
-        await flushPendingBatch()
-        await fn(itemId)
-      } catch (error) {
-        message.error(error instanceof Error ? error.message : '操作失败')
-        // 发生错误时回退该条目并回补待确认计数
-        decrementPendingConfirm(-1)
-        const latest = resultsRef.current
-        if (!latest.some((r) => r.itemId === itemId)) {
-          const restored = [...latest]
-          restored.splice(Math.min(index, restored.length), 0, item)
-          resultsRef.current = restored
-          setResults(restored)
-          setSelectedId((curr) => curr ?? itemId)
-        }
-      } finally {
-        inFlightActionIdsRef.current.delete(itemId)
-      }
-    },
-    [flushPendingBatch, selectedId],
-  )
-
-  // 快速模式下单项确认（直接按第一推荐分类确认）
-  const confirmItemQuick = useCallback(
-    (item: OrganizeResultListItem) => {
-      const itemId = item.itemId
-      const current = resultsRef.current
-      const foundIndex = current.findIndex((r) => r.itemId === itemId)
-      if (foundIndex === -1) return
-
-      const remaining = current.filter((r) => r.itemId !== itemId)
-      const nextId =
-        remaining[foundIndex]?.itemId ?? remaining[0]?.itemId ?? null
-
-      const targetFolderPath = item.folderPaths?.[0] || '未分类'
-      const itemWithTitle = !titleDisabledIds.has(itemId)
-
-      resultsRef.current = remaining
-      setResults(remaining)
-      setSelectedId(nextId)
-      decrementPendingConfirm(1)
-
-      pendingBatchRef.current.push({
-        itemId,
-        folderPath: targetFolderPath,
-        withTitle: itemWithTitle,
-        originalItem: item,
-        index: foundIndex,
-      })
-
-      if (batchTimerRef.current) {
-        clearTimeout(batchTimerRef.current)
-        batchTimerRef.current = null
-      }
-
-      if (pendingBatchRef.current.length >= 20) {
-        void flushPendingBatch()
-      } else {
-        batchTimerRef.current = setTimeout(() => {
-          void flushPendingBatch()
-        }, 3000)
-      }
-    },
-    [flushPendingBatch, titleDisabledIds],
-  )
-
-  const runConfirm = useCallback(async () => {
+  // 5. 确认操作分流
+  const handleRunConfirm = useCallback(async () => {
     // 快速模式：直接按首选推荐分类确认当前选中项
     if (quickMode) {
-      if (!selectedId) return
-      const current = resultsRef.current
-      const item = current.find((result) => result.itemId === selectedId)
-      if (item) {
-        confirmItemQuick(item)
+      if (selectedItem) {
+        confirmItemQuick(selectedItem, !titleDisabledIds.has(selectedItem.itemId))
       }
       return
     }
@@ -652,62 +240,31 @@ export function StepConfirm({
       return
     }
 
-    const itemId = selectedId
-    const current = resultsRef.current
-    const item = current.find((result) => result.itemId === itemId)
-    if (!item) return
-
-    const index = current.findIndex((result) => result.itemId === itemId)
-    const remaining = current.filter((result) => result.itemId !== itemId)
-    const nextId = remaining[index]?.itemId ?? remaining[0]?.itemId ?? null
-
     // 检查是否为手动选择的文件夹，如果是则计数 +1 并持久化
     if (selectedManualFolder) {
       recordManualFolderUsage(selectedManualFolder.folderId)
     }
 
-    // 立即乐观切换下一张，界面无卡顿响应，并同步乐观扣减外层徽标
-    resultsRef.current = remaining
-    setResults(remaining)
-    setSelectedId(nextId)
-    decrementPendingConfirm(1)
-
-    // 加入待确认批次队列
-    pendingBatchRef.current.push({
-      itemId,
+    confirmCurrentItem({
       folderPath: selectedFolderPath,
       withTitle,
       folderId: selectedManualFolder?.folderId,
-      originalItem: item,
-      index,
     })
-
-    // 清除已有防抖定时器
-    if (batchTimerRef.current) {
-      clearTimeout(batchTimerRef.current)
-      batchTimerRef.current = null
-    }
-
-    // 累积满 20 个立即发送，否则 3 秒防抖后发送
-    if (pendingBatchRef.current.length >= 20) {
-      void flushPendingBatch()
-    } else {
-      batchTimerRef.current = setTimeout(() => {
-        void flushPendingBatch()
-      }, 3000)
-    }
   }, [
     canConfirm,
+    confirmCurrentItem,
     confirmItemQuick,
-    flushPendingBatch,
     quickMode,
     recordManualFolderUsage,
     selectedFolderPath,
     selectedId,
+    selectedItem,
     selectedManualFolder,
+    titleDisabledIds,
     withTitle,
   ])
 
+  // 6. 移到回收站操作
   const handleDelete = useCallback(() => {
     if (!selectedId) return
     confirmDeleteEagleItem({
@@ -725,36 +282,13 @@ export function StepConfirm({
     })
   }, [detail?.itemName, runAction, selectedId])
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return
-      const target = event.target
-      if (
-        target instanceof HTMLElement &&
-        (target.isContentEditable ||
-          target.tagName === 'TEXTAREA' ||
-          target.tagName === 'SELECT' ||
-          (target instanceof HTMLInputElement &&
-            !['radio', 'checkbox'].includes(target.type)))
-      ) {
-        return
-      }
-
-      if (event.key.toLowerCase() === 'a') {
-        event.preventDefault()
-        void runAction(clearOrganizeResultClassification)
-      } else if (event.key.toLowerCase() === 's') {
-        event.preventDefault()
-        void runAction(skipOrganizeResult)
-      } else if (event.key.toLowerCase() === 'd') {
-        event.preventDefault()
-        void runConfirm()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [runAction, runConfirm])
+  // 7. 绑定快捷键（A: 清除分类, S: 不处理, D: 确认）
+  useConfirmShortcuts({
+    onClear: () => runAction(clearOrganizeResultClassification),
+    onSkip: () => runAction(skipOrganizeResult),
+    onConfirm: () => void handleRunConfirm(),
+    disabled: results.length === 0,
+  })
 
   const handleClearClassification = useCallback(
     (item: OrganizeResultListItem) => {
@@ -768,6 +302,13 @@ export function StepConfirm({
       void runAction(skipOrganizeResult, item.itemId)
     },
     [runAction],
+  )
+
+  const handleQuickItemConfirm = useCallback(
+    (item: OrganizeResultListItem) => {
+      confirmItemQuick(item, !titleDisabledIds.has(item.itemId))
+    },
+    [confirmItemQuick, titleDisabledIds],
   )
 
   if (loading && results.length === 0) {
@@ -819,7 +360,7 @@ export function StepConfirm({
             results={results}
             selectedId={selectedId}
             onSelect={setSelectedId}
-            onConfirmItem={confirmItemQuick}
+            onConfirmItem={handleQuickItemConfirm}
             onClearClassification={handleClearClassification}
             onSkipItem={handleSkipItem}
             sortType={sortType}
@@ -840,46 +381,11 @@ export function StepConfirm({
 
           {/* 中部：左大图 + 右信息面板 */}
           <div className="grid min-h-0 flex-1 grid-cols-[6fr_4fr] gap-3">
-            <div className="relative flex h-full items-center justify-center overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800/60">
-              {selectedId && (
-                <>
-                  <Image
-                    key={selectedId}
-                    src={eagleFileUrl(selectedId)}
-                    classNames={{
-                      root: 'h-full w-full flex items-center justify-center',
-                      image: 'h-full! w-full! object-contain!',
-                    }}
-                    preview={{
-                      src: eagleFileUrl(selectedId),
-                      toolbarRender: (originalNode) => (
-                        <div className="flex items-center gap-2">
-                          {originalNode}
-                          <button
-                            type="button"
-                            title="在新标签页查看原图"
-                            aria-label="在新标签页查看原图"
-                            className="flex cursor-pointer items-center gap-1 rounded-full bg-black/40 px-3 py-1.5 text-xs text-white/85 backdrop-blur-sm transition-colors hover:bg-black/60 hover:text-white"
-                            onClick={() =>
-                              window.open(eagleFileUrl(selectedId), '_blank')
-                            }
-                          >
-                            <ExportOutlined />
-                            <span>查看原图</span>
-                          </button>
-                        </div>
-                      ),
-                    }}
-                  />
-                  <ImageSizeBadge
-                    src={eagleFileUrl(selectedId)}
-                    width={selectedItem?.width ?? detail?.width}
-                    height={selectedItem?.height ?? detail?.height}
-                    fileSize={selectedItem?.size ?? detail?.size}
-                  />
-                </>
-              )}
-            </div>
+            <ConfirmImageViewer
+              selectedId={selectedId}
+              item={selectedItem}
+              detail={detail}
+            />
 
             <DetailPanel
               loading={detailLoading}
@@ -921,7 +427,7 @@ export function StepConfirm({
             }
             onSkip={() => runAction(skipOrganizeResult)}
             onRetry={() => runAction(retryOrganizeResult)}
-            onConfirm={() => void runConfirm()}
+            onConfirm={() => void handleRunConfirm()}
           />
         </>
       )}

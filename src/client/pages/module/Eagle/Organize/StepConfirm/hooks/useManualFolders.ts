@@ -4,7 +4,7 @@ import type {
   EagleManualFoldersSettings,
 } from '@/server/module/eagle/settings'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { SelectedFolderInfo } from '../../components/FolderSelectModal'
+import type { SelectedFolderInfo } from '../../../components/FolderSelectModal'
 
 const manualFoldersClient = settingsClient<EagleManualFoldersSettings>(
   'eagle-manual-folders',

@@ -1,6 +1,6 @@
 import { SortAscendingOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { Select, Switch } from 'antd'
-import type { OrganizeSortType } from './ThumbnailBar'
+import type { OrganizeSortType } from '../types'
 
 interface ConfirmControlsProps {
   sortType: OrganizeSortType

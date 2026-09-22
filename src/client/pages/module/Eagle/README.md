@@ -55,14 +55,12 @@ src/client/pages/module/Eagle/           # 本目录
 │   │   ├── QueueList.tsx                # 排队与执行中列表
 │   │   ├── FailedList.tsx               # 失败待处理列表与单项重试/跳过
 │   │   └── BottomBar.tsx                # 底部操作栏（清空任务、暂停/继续、去确认结果）
-│   ├── StepConfirm/                     # 步骤 3：纯净结果确认（拆分为主入口 index / useManualFolders / ThumbnailBar / ConfirmControls / QuickConfirmList / DetailPanel / ActionBar）
-│   │   ├── index.tsx                    # 主入口：纯净结果确认——仅查验判定成功项，支持普通模式（顶部缩略图条 + 左大图右信息面板 + 底部快捷操作）与快速模式（居中放大列表 + 卡片底部直接确定），预加载后续 3 张大图与详情（普通模式），重新执行不打断确认流
-│   │   ├── useManualFolders.ts          # 手动选择文件夹历史记录 Hook
-│   │   ├── ThumbnailBar.tsx             # 顶部缩略图滚动列表（右侧集成 ConfirmControls）
-│   │   ├── ConfirmControls.tsx          # 排序方式切换与快速模式开关控件
-│   │   ├── QuickConfirmList.tsx         # 快速模式下居中放大的图片卡片横向滚动列表（带每项首选分类确定按钮）
-│   │   ├── DetailPanel.tsx              # 右侧条目信息与分类选择面板
-│   │   └── ActionBar.tsx                # 底部快捷操作栏
+│   ├── StepConfirm/                     # 步骤 3：纯净结果确认（模块化分层：index 主装配 / types / components / hooks / utils）
+│   │   ├── index.tsx                    # 主入口：纯净结果确认装配器——查验判定成功项，普通模式（顶部缩略图条 + 左大图右信息面板 + 底部快捷操作）与快速模式（居中放大列表 + 卡片底部直接确定），调度批次队列与预加载
+│   │   ├── types.ts                     # 共享类型与常量（OrganizeSortType, PinnedFolderOption, SPECIAL_CATEGORY_*）
+│   │   ├── components/                  # 纯 UI 与视口组件（ConfirmImageViewer 原图大图 / ThumbnailBar 缩略图条 / ConfirmControls / QuickConfirmList / DetailPanel / ActionBar）
+│   │   ├── hooks/                       # 核心业务逻辑与调度 Hook（useConfirmQueue 批次防抖与乐观更新 / useOrganizePreload / useConfirmShortcuts / useManualFolders）
+│   │   └── utils/                       # 纯计算与持久化辅助（sort.ts 分类顺序锁与多维排序算法 / storage.ts 存储读写纯函数）
 │   └── store.ts                         # zustand：轻量 status + SSE 订阅（eagle.organize，确认流程支持挂起拦截与本地乐观扣减），Toolbar 徽标与弹窗共用
 ├── Toolbar.tsx                          # 「展示选项」下拉面板（排序/图片大小/文件名/文件大小）+ 刷新 + 「全部彻底删除」（回收站视图可用）+ 「图片整理」按钮（Badge：队列剩余数/待确认红点）+ 移动端「切换文件夹」抽屉
 └── SettingModal/

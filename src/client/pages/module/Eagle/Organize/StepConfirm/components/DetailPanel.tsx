@@ -11,15 +11,10 @@ import { useMemo, useState } from 'react'
 import {
   FolderSelectModal,
   type SelectedFolderInfo,
-} from '../../components/FolderSelectModal'
+} from '../../../components/FolderSelectModal'
+import type { PinnedFolderOption } from '../types'
 
-export interface PinnedFolderOption {
-  key: string
-  type: 'ai' | 'manual'
-  folderPath: string
-  folderId?: string
-  count?: number
-}
+export type { PinnedFolderOption } from '../types'
 
 interface DetailPanelProps {
   loading: boolean

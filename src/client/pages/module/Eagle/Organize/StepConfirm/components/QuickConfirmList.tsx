@@ -10,13 +10,13 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Button, Image } from 'antd'
 import React, { useEffect, useMemo, useRef } from 'react'
-import { eagleFileUrl, eagleThumbnailUrl } from '../../api'
+import { eagleFileUrl, eagleThumbnailUrl } from '../../../api'
 import {
-  getOrganizeItemCategory,
   SPECIAL_CATEGORY_LOW_QUALITY,
   SPECIAL_CATEGORY_UNCLASSIFIED,
   type OrganizeSortType,
-} from './ThumbnailBar'
+} from '../types'
+import { getOrganizeItemCategory } from '../utils/sort'
 
 const QUICK_CARD_HEIGHT = 450
 
