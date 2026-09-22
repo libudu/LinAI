@@ -43,7 +43,7 @@ src/client/pages/module/Eagle/           # 本目录
 ├── FolderTree/                          # 左侧 antd Tree（展开状态持久化到后端设置，节点带文件夹图标与图片数）；「全部」下含「未分类」与「回收站」虚拟节点，真实文件夹支持右键/长按编辑名称/描述
 ├── ResourceGrid.tsx                     # 右侧网格 + 分页 + 图片预览 + 视频 Modal，可按需在格子底部叠加文件名/文件大小，卡片支持右键/长按弹出菜单（修改文件夹/移到回收站/彻底删除）
 ├── components/                          # 模块公共组件与弹窗
-│   ├── FolderSelectModal.tsx            # 树形选择文件夹弹窗
+│   ├── FolderSelectModal.tsx            # 树形选择文件夹弹窗（打开自动居中定位至目标文件夹节点）
 │   └── confirmDeleteModal.ts            # 移到 Eagle 回收站统一二次确认函数
 ├── Organize/                            # 「图片整理」弹窗（左侧导航卡片 + 三步骤非互斥协同，依赖视觉接入点配置）
 │   ├── index.tsx                        # Modal 壳：标题栏展示锁定文件夹，左侧 StepNavBar 导航卡片 + 右侧步骤组件，支持智能默认与非互斥自由切换
@@ -148,7 +148,7 @@ src/client/pages/module/Eagle/           # 本目录
 1. `index.tsx` 挂载 → `fetchEagleConfig()` → 有 `libraryPath` 才 `store.init()`，否则显示「去配置」引导
 2. `store.init()` 并行拉 `/folders` + 第一页 `/items`（每页 100）
 3. 切换文件夹 / 排序 / 翻页 → 重拉对应页；排序偏好、图片大小档位、展示选项（文件名/文件大小）分别持久化在 localStorage `eagle_sort` / `eagle_image_size` / `eagle_display_options`
-4. `ResourceGrid` 底部 antd `Pagination` 翻页（移动端 simple 模式），翻页后网格滚动回顶部
+4. `ResourceGrid` 底部 antd `Pagination` 翻页（移动端 simple 模式），翻页后网格滚动回顶部；条目写操作（修改文件夹/移到回收站/彻底删除）后通过 `refreshCurrentPage` 静默拉取更新，保持网格容器稳定不卸载，滚动条位置维持且前台图片无闪烁；右键「修改文件夹」自动优先选择当前图片所属文件夹，由 `FolderSelectModal` 自动居中滚动到该节点；点击确定后立即关闭模态框并在后台异步执行修改与静默刷新，彻底避免关闭延迟与选中态过期闪烁
 5. 预览：图片进 `Image.PreviewGroup`（items 只含非视频）；视频点击开 Modal 内 `<video>`（依赖 file 接口的 Range 支持）
 6. 设置弹窗保存库路径后调用 `store.reload()`（= POST /refresh + 重拉数据）；视觉接入点标签页挂载时拉取 `eagle-vision` 配置
 7. 目录树展开/收起状态持久化在后端设置 `eagle-folder-tree`（首次读取会迁移 localStorage `eagle_folder_expanded`，无记录时默认全展开）；「全部」下方的「未分类」与「回收站」虚拟节点分别筛选 `folders` 为空的条目与已删除条目并显示实时数量；移动端（`usePlatform().isMobile`）不渲染左侧栏，由工具栏「切换文件夹」按钮开抽屉展示同一棵 `FolderTree`

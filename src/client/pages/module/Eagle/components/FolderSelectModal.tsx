@@ -5,7 +5,7 @@ import {
 import { FolderOpenOutlined, FolderOutlined } from '@ant-design/icons'
 import type { TreeDataNode } from 'antd'
 import { Modal, Tree } from 'antd'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useEagleStore } from '../store'
 
 export interface SelectedFolderInfo {
@@ -66,7 +66,8 @@ export function FolderSelectModal({
     initialFolderId ?? EAGLE_UNCLASSIFIED_FOLDER_ID,
   )
   const [expandedKeys, setExpandedKeys] = useState<string[]>([])
-  const [confirming, setConfirming] = useState(false)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const prevOpenRef = useRef(false)
 
   const folderMap = useMemo(() => {
     const map = buildFolderMap(folders)
@@ -90,23 +91,50 @@ export function FolderSelectModal({
     [folders],
   )
 
+  const scrollToSelected = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    const selected = container.querySelector<HTMLElement>(
+      '.ant-tree-node-selected, .ant-tree-treenode-selected',
+    )
+    if (!selected) return
+    const containerRect = container.getBoundingClientRect()
+    const selectedRect = selected.getBoundingClientRect()
+    container.scrollTo({
+      top:
+        container.scrollTop +
+        selectedRect.top -
+        containerRect.top -
+        (container.clientHeight - selectedRect.height) / 2,
+    })
+  }, [])
+
   useEffect(() => {
     if (open) {
-      setSelectedKey(initialFolderId ?? EAGLE_UNCLASSIFIED_FOLDER_ID)
-      setExpandedKeys(collectFolderKeys(folders))
-    }
-  }, [open, initialFolderId, folders])
+      if (!prevOpenRef.current) {
+        const targetKey =
+          initialFolderId && folderMap.has(initialFolderId)
+            ? initialFolderId
+            : EAGLE_UNCLASSIFIED_FOLDER_ID
+        setSelectedKey(targetKey)
+        setExpandedKeys(collectFolderKeys(folders))
 
-  const handleOk = async () => {
+        const timer1 = setTimeout(scrollToSelected, 50)
+        const timer2 = setTimeout(scrollToSelected, 200)
+        return () => {
+          clearTimeout(timer1)
+          clearTimeout(timer2)
+        }
+      }
+    }
+    prevOpenRef.current = open
+  }, [open, initialFolderId, folders, folderMap, scrollToSelected])
+
+  const handleOk = () => {
     const info = folderMap.get(selectedKey)
     if (!info) return
-    setConfirming(true)
-    try {
-      await onConfirm(info)
-      onClose()
-    } finally {
-      setConfirming(false)
-    }
+    onClose()
+    void onConfirm(info)
   }
 
   return (
@@ -115,13 +143,18 @@ export function FolderSelectModal({
       title={title}
       onCancel={onClose}
       onOk={handleOk}
-      confirmLoading={confirming}
       okButtonProps={{ disabled: !selectedKey }}
+      afterOpenChange={(visible) => {
+        if (visible) scrollToSelected()
+      }}
       destroyOnClose
       centered
       width={460}
     >
-      <div className="my-3 max-h-[55vh] min-h-[180px] overflow-y-auto rounded border border-slate-200 p-2 dark:border-slate-700">
+      <div
+        ref={scrollContainerRef}
+        className="my-3 max-h-[55vh] min-h-[180px] overflow-y-auto rounded border border-slate-200 p-2 dark:border-slate-700"
+      >
         <Tree
           treeData={treeData}
           expandedKeys={expandedKeys}

@@ -27,6 +27,8 @@ export interface EagleItem {
   height: number
   /** 文件修改时间（排序依据） */
   mtime: number
+  /** 所属 Eagle 文件夹 ID 列表（未归档为空数组） */
+  folders: string[]
   isVideo: boolean
   isGif: boolean
   hasThumbnail: boolean

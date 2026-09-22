@@ -37,6 +37,7 @@ export const toEagleItem = (entry: EagleItemIndex): EagleItem => ({
   width: entry.width,
   height: entry.height,
   mtime: entry.mtime,
+  folders: entry.folders ?? [],
   isVideo: VIDEO_EXTS.has(entry.ext),
   isGif: entry.ext === 'gif',
   hasThumbnail: entry.thumbnailName !== null,

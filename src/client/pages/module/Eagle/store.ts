@@ -147,9 +147,11 @@ const persistViewOptions = (state: {
 }
 
 export const useEagleStore = create<EagleState>()((set, get) => {
-  const loadPage = async (page: number) => {
+  const loadPage = async (page: number, options?: { silent?: boolean }) => {
     const { currentFolderId, sortBy, sortOrder } = get()
-    set({ listLoading: true })
+    if (!options?.silent) {
+      set({ listLoading: true })
+    }
     try {
       const resp = await fetchEagleItems({
         folderId: currentFolderId || undefined,
@@ -165,7 +167,9 @@ export const useEagleStore = create<EagleState>()((set, get) => {
       else if (currentFolderId === EAGLE_TRASH_FOLDER_ID)
         set({ trashTotal: resp.total })
     } finally {
-      set({ listLoading: false })
+      if (!options?.silent) {
+        set({ listLoading: false })
+      }
     }
   }
 
@@ -292,9 +296,14 @@ export const useEagleStore = create<EagleState>()((set, get) => {
     },
 
     refreshCurrentPage: async () => {
-      await Promise.all([loadFolders(), loadPage(get().page)])
+      await Promise.all([
+        loadFolders(),
+        loadPage(get().page, { silent: true }),
+      ])
       // 条目被移出当前文件夹后当前页可能被清空，回到第一页
-      if (get().items.length === 0 && get().page > 1) await loadPage(1)
+      if (get().items.length === 0 && get().page > 1) {
+        await loadPage(1)
+      }
     },
   }
 })

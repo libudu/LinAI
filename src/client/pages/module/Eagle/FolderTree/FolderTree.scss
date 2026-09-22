@@ -1,5 +1,9 @@
 // 文件夹树大号节点：加大行高、字号与节点间距
 .eagle-folder-tree {
+  .ant-tree-indent-unit {
+    width: 12px;
+  }
+
   .ant-tree-treenode {
     margin-bottom: 0;
   }

@@ -147,6 +147,26 @@ function ResourceGridItem({
   )
 }
 
+/** 获取修改文件夹弹窗的初始选中文件夹 ID */
+const getInitialFolderId = (
+  item: EagleItem | null,
+  currentFolderId: string,
+): string => {
+  if (!item) return EAGLE_UNCLASSIFIED_FOLDER_ID
+  if (item.folders && item.folders.length > 0) {
+    if (
+      currentFolderId &&
+      currentFolderId !== EAGLE_UNCLASSIFIED_FOLDER_ID &&
+      currentFolderId !== EAGLE_TRASH_FOLDER_ID &&
+      item.folders.includes(currentFolderId)
+    ) {
+      return currentFolderId
+    }
+    return item.folders[0]
+  }
+  return EAGLE_UNCLASSIFIED_FOLDER_ID
+}
+
 // 右侧资源网格：固定大小格子 + object-cover 缩略图，底部分页翻页
 export function ResourceGrid() {
   const {
@@ -187,12 +207,14 @@ export function ResourceGrid() {
   }
 
   const handleMoveFolder = async (folder: SelectedFolderInfo) => {
-    if (!movingItem) return
+    const item = movingItem
+    setMovingItem(null)
+    if (!item) return
     const folderIds =
       folder.id === EAGLE_UNCLASSIFIED_FOLDER_ID ? [] : [folder.id]
     try {
-      await updateEagleItem(movingItem.id, { folderIds })
-      message.success('已修改文件夹')
+      await updateEagleItem(item.id, { folderIds })
+      message.success(`已移至「${folder.name}」`)
       await refreshCurrentPage()
     } catch (error) {
       message.error(error instanceof Error ? error.message : '修改文件夹失败')
@@ -227,19 +249,15 @@ export function ResourceGrid() {
     })
   }
 
-  if (listLoading) {
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <Spin size="large" />
-      </div>
-    )
-  }
-
   const isTrash = currentFolderId === EAGLE_TRASH_FOLDER_ID
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {items.length === 0 ? (
+      {listLoading && items.length === 0 ? (
+        <div className="flex flex-1 items-center justify-center">
+          <Spin size="large" />
+        </div>
+      ) : items.length === 0 ? (
         <div className="flex flex-1 items-center justify-center text-slate-400">
           暂无资源
         </div>
@@ -267,7 +285,7 @@ export function ResourceGrid() {
         open={movingItem !== null}
         onClose={() => setMovingItem(null)}
         onConfirm={handleMoveFolder}
-        initialFolderId={currentFolderId || EAGLE_UNCLASSIFIED_FOLDER_ID}
+        initialFolderId={getInitialFolderId(movingItem, currentFolderId)}
       />
 
       {/* 底部分页栏 */}
