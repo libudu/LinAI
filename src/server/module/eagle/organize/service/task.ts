@@ -15,6 +15,15 @@ import type {
   OrganizePrepareParams,
 } from './types'
 
+/**
+ * 按图片 ID 计算当前文件夹中尚未进入任务的条目。
+ * 已确认图片可能已经移出锁定文件夹，因此不能用「当前总数 - 历史入队总数」估算。
+ */
+const getAvailableItemIds = (itemIds: string[], enqueuedIds: string[]) => {
+  const enqueued = new Set(enqueuedIds)
+  return itemIds.filter((id) => !enqueued.has(id))
+}
+
 export class TaskService {
   /** 服务重启后，正在执行的任务标记为已暂停（请求中断，in-flight 结果未落盘） */
   async recoverInterruptedTask(): Promise<void> {
@@ -60,7 +69,10 @@ export class TaskService {
           sortBy: 'mtime',
           sortOrder: 'desc',
         })
-        availableCount = Math.max(0, allItems.total - task.itemIds.length)
+        availableCount = getAvailableItemIds(
+          allItems.itemIds,
+          task.itemIds,
+        ).length
       } catch {
         availableCount = undefined
       }
@@ -83,7 +95,10 @@ export class TaskService {
       ])
       const imageCount = allItems.total
       const enqueuedCount = task.itemIds.length
-      const availableCount = Math.max(0, imageCount - enqueuedCount)
+      const availableCount = getAvailableItemIds(
+        allItems.itemIds,
+        task.itemIds,
+      ).length
       const hasStandardsMismatch = !areStandardsEqual(
         task.standards,
         latestStandards,
@@ -176,10 +191,10 @@ export class TaskService {
       sortBy: 'mtime',
       sortOrder: 'desc',
     })
-    const existing = new Set(task.itemIds)
-    const toAppend = allAvailable
-      .filter((id) => !existing.has(id))
-      .slice(0, count)
+    const toAppend = getAvailableItemIds(allAvailable, task.itemIds).slice(
+      0,
+      count,
+    )
     if (toAppend.length === 0) {
       return { ok: false, status: 400, error: '没有更多可追加的图片' }
     }
