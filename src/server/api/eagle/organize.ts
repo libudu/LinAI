@@ -132,7 +132,7 @@ organizeApi.post('/task/resume', async (c) => {
   return c.json({ success: true as const, data: null })
 })
 
-// 暂停状态下同步最新分类标准：将外部库最新文件夹标准快照更新进当前任务
+// 非运行状态（暂停或已运行完待确认等）下同步最新分类标准：将外部库最新文件夹标准快照更新进当前任务
 organizeApi.post('/task/sync-standards', async (c) => {
   const result = await organizeService.syncStandards()
   if (!result.ok) {

@@ -98,7 +98,7 @@ export const resumeOrganizeTask = async (): Promise<void> => {
   })
 }
 
-// 任务暂停时同步最新分类标准
+// 任务非运行状态（如暂停或已运行完毕）下同步最新分类标准
 export const syncOrganizeStandards = async (): Promise<void> => {
   await apiRequest<null>('/api/eagle/organize/task/sync-standards', {
     method: 'POST',

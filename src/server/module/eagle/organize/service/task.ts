@@ -241,16 +241,19 @@ export class TaskService {
 
   /**
    * 同步最新分类标准：
-   * 仅在任务处于 paused 状态时允许。
+   * 只要任务不是正在运行状态（非 running，且任务未结束 done）即可同步（如 paused、confirming 等）。
    * 将当前外部最新的文件夹标准快照原子写回 task.standards 并发布变更。
    */
   async syncStandards(): Promise<OrganizeActionResult> {
     const task = await organizeRepository.getTask()
-    if (!task || task.phase !== 'paused') {
+    if (!task || task.phase === 'running' || task.phase === 'done') {
       return {
         ok: false,
         status: 409,
-        error: '仅在任务处于暂停状态时允许同步分类标准',
+        error:
+          task?.phase === 'running'
+            ? '任务正在执行中，请先暂停后再同步分类标准'
+            : '当前没有正在进行或待确认的整理任务',
       }
     }
     const latestStandards = await getFolderStandards()
@@ -262,7 +265,7 @@ export class TaskService {
       }
     }
     const updated = await organizeRepository.mutateTask((current) => {
-      if (!current || current.phase !== 'paused') return null
+      if (!current || current.phase === 'running' || current.phase === 'done') return null
       return {
         ...current,
         standards: latestStandards,
