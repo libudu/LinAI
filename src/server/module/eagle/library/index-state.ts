@@ -13,23 +13,23 @@ import fs from 'fs-extra'
 import path from 'path'
 import { writeJsonFile } from '../../../common/storage/json-file'
 import { getEagleSettings } from '../settings'
+import { ensureMtimeLoaded, flushMtime } from './mtime-state'
 import {
+  getShardKey,
+  imagesDir,
   INDEX_META_FILE,
   INDEX_SHARDS_DIR,
+  ITEM_ID_PATTERN,
+  markInternalWrite,
+  SCAN_CONCURRENCY,
   SHARD_COUNT,
+  withLibraryLock,
   type EagleIndexShardMeta,
   type EagleIndexState,
   type EagleItemIndex,
   type EagleRawFolder,
   type EagleRawItemMeta,
-  getShardKey,
-  imagesDir,
-  ITEM_ID_PATTERN,
-  markInternalWrite,
-  SCAN_CONCURRENCY,
-  withLibraryLock,
 } from './types'
-import { ensureMtimeLoaded, flushMtime } from './mtime-state'
 
 export { markInternalWrite }
 
@@ -144,7 +144,6 @@ export const runPool = async <T>(
   )
   await Promise.all(lanes)
 }
-
 
 let writeCachePromise: Promise<void> | null = null
 let hasPendingWrite = false
@@ -340,8 +339,9 @@ const loadFromCache = async (libraryPath: string): Promise<boolean> => {
           const shardPath = path.join(INDEX_SHARDS_DIR, `${shardKey}.json`)
           try {
             if (await fs.pathExists(shardPath)) {
-              const shardItems =
-                (await fs.readJson(shardPath)) as EagleItemIndex[]
+              const shardItems = (await fs.readJson(
+                shardPath,
+              )) as EagleItemIndex[]
               if (Array.isArray(shardItems)) {
                 for (const item of shardItems) {
                   if (item?.id) items.set(item.id, item)

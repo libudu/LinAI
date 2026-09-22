@@ -175,4 +175,3 @@ export const markInternalWrite = (): void => {
 }
 
 export const getLastInternalWriteAt = (): number => lastInternalWriteAt
-

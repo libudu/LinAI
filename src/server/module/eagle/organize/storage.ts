@@ -307,13 +307,17 @@ export class OrganizeRepository {
         const summary: OrganizeItemSummary = {
           status: record.status,
           folderPaths:
-            record.folderPaths ?? (record.folderPath ? [record.folderPath] : []),
+            record.folderPaths ??
+            (record.folderPath ? [record.folderPath] : []),
           lowQuality: record.lowQuality,
         }
         try {
           await this.itemStore.create(record, summary, record.itemId)
         } catch (error) {
-          if (error instanceof StorageError && error.code === 'REVISION_CONFLICT') {
+          if (
+            error instanceof StorageError &&
+            error.code === 'REVISION_CONFLICT'
+          ) {
             await this.itemStore.replace(record.itemId, record, summary)
             return
           }

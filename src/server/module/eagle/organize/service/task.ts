@@ -265,7 +265,8 @@ export class TaskService {
       }
     }
     const updated = await organizeRepository.mutateTask((current) => {
-      if (!current || current.phase === 'running' || current.phase === 'done') return null
+      if (!current || current.phase === 'running' || current.phase === 'done')
+        return null
       return {
         ...current,
         standards: latestStandards,

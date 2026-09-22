@@ -1,4 +1,5 @@
 import { ImageSizeBadge } from '@/client/pages/components/ImageSizeBadge'
+import type { EagleManualFolderItem } from '@/server/module/eagle/settings'
 import type {
   OrganizeResultDetail,
   OrganizeResultListItem,
@@ -21,7 +22,7 @@ import {
 import { decrementPendingConfirm, setOrganizeStatusSuspended } from '../store'
 import { ActionBar } from './ActionBar'
 import { ConfirmControls } from './ConfirmControls'
-import { DetailPanel } from './DetailPanel'
+import { DetailPanel, type PinnedFolderOption } from './DetailPanel'
 import { QuickConfirmList } from './QuickConfirmList'
 import {
   ThumbnailBar,
@@ -34,7 +35,50 @@ import { useManualFolders } from './useManualFolders'
 const CONFIRM_SORT_STORAGE_KEY = 'eagle_organize_confirm_sort'
 const CONFIRM_QUICK_MODE_STORAGE_KEY = 'eagle_organize_confirm_quick_mode'
 const CONFIRM_CATEGORY_ORDER_STORAGE_PREFIX = 'eagle_organize_category_order'
+const CONFIRM_PINNED_OPTION_STORAGE_KEY = 'eagle_organize_pinned_option'
 const PRELOAD_COUNT = 5
+
+const getSavedPinnedOption = (
+  taskCreatedAt?: number,
+): PinnedFolderOption | null => {
+  try {
+    const raw = sessionStorage.getItem(CONFIRM_PINNED_OPTION_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed.folderPath === 'string') {
+      if (!taskCreatedAt || parsed.taskCreatedAt === taskCreatedAt) {
+        return {
+          key: parsed.key,
+          type: parsed.type,
+          folderPath: parsed.folderPath,
+          folderId: parsed.folderId,
+          count: parsed.count,
+        }
+      }
+    }
+  } catch {
+    // 忽略异常
+  }
+  return null
+}
+
+const savePinnedOption = (
+  taskCreatedAt: number | undefined,
+  option: PinnedFolderOption | null,
+) => {
+  try {
+    if (option) {
+      sessionStorage.setItem(
+        CONFIRM_PINNED_OPTION_STORAGE_KEY,
+        JSON.stringify({ ...option, taskCreatedAt }),
+      )
+    } else {
+      sessionStorage.removeItem(CONFIRM_PINNED_OPTION_STORAGE_KEY)
+    }
+  } catch {
+    // 忽略异常
+  }
+}
 
 /**
  * 读取当前整理任务固化的分类排序列表。
@@ -187,6 +231,39 @@ export function StepConfirm({
     setSelectedOptionKeys,
   })
 
+  const [pinnedOption, setPinnedOption] = useState<PinnedFolderOption | null>(
+    () => getSavedPinnedOption(task?.createdAt),
+  )
+
+  const handleTogglePin = useCallback(
+    (option: PinnedFolderOption) => {
+      setPinnedOption((current) => {
+        const isUnpinning = current?.key === option.key
+        const next = isUnpinning ? null : option
+        savePinnedOption(task?.createdAt, next)
+        return next
+      })
+      if (selectedId) {
+        setSelectedOptionKeys((current) => ({
+          ...current,
+          [selectedId]: option.key,
+        }))
+      }
+    },
+    [selectedId, task?.createdAt],
+  )
+
+  const onRemoveManualFolder = useCallback(
+    (folder: EagleManualFolderItem) => {
+      handleRemoveManualFolder(folder)
+      if (pinnedOption?.folderId === folder.folderId) {
+        setPinnedOption(null)
+        savePinnedOption(task?.createdAt, null)
+      }
+    },
+    [handleRemoveManualFolder, pinnedOption, task?.createdAt],
+  )
+
   // 仅拉取判定成功的结果，结合当前任务固化的分类顺序组织队列
   const refreshResults = useCallback(async (): Promise<
     OrganizeResultListItem[]
@@ -312,16 +389,31 @@ export function StepConfirm({
   }, [folderPaths, sortedManualFolders])
 
   // 当前选中项的唯一 key（例如 "ai:角色/插画" 或 "manual:folderId"）
+  // 若存在置顶选项，下一张图（新图）默认优先选中该置顶选项
+  const defaultOptionKey = pinnedOption
+    ? pinnedOption.key
+    : folderPaths[0]
+      ? `ai:${folderPaths[0]}`
+      : null
+
   const activeOptionKey = selectedId
-    ? (selectedOptionKeys[selectedId] ??
-      (folderPaths[0] ? `ai:${folderPaths[0]}` : null))
+    ? (selectedOptionKeys[selectedId] ?? defaultOptionKey)
     : null
 
   const selectedManualFolder = useMemo(() => {
     if (!activeOptionKey?.startsWith('manual:')) return null
     const folderId = activeOptionKey.slice('manual:'.length)
-    return manualFolders.find((f) => f.folderId === folderId) ?? null
-  }, [activeOptionKey, manualFolders])
+    const found = manualFolders.find((f) => f.folderId === folderId)
+    if (found) return found
+    if (pinnedOption?.folderId === folderId) {
+      return {
+        folderId: pinnedOption.folderId,
+        folderPath: pinnedOption.folderPath,
+        count: pinnedOption.count ?? 0,
+      }
+    }
+    return null
+  }, [activeOptionKey, manualFolders, pinnedOption])
 
   const selectedFolderPath = useMemo(() => {
     if (!activeOptionKey) return null
@@ -774,8 +866,10 @@ export function StepConfirm({
               }}
               folderPaths={folderPaths}
               displayedManualFolders={displayedManualFolders}
-              onRemoveManualFolder={handleRemoveManualFolder}
+              onRemoveManualFolder={onRemoveManualFolder}
               onManualFolderSelect={handleManualFolderSelect}
+              pinnedOption={pinnedOption}
+              onTogglePin={handleTogglePin}
             />
           </div>
 

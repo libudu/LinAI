@@ -1,4 +1,5 @@
 import { usePlatform } from '@/client/hooks/usePlatform'
+import { subscribeStorageEvent } from '@/client/service/storage-events'
 import { Button, Empty } from 'antd'
 import { useEffect } from 'react'
 import { FolderTree } from './FolderTree'
@@ -6,7 +7,6 @@ import { ResourceGrid } from './ResourceGrid'
 import { openEagleSettingModal } from './SettingModal'
 import { useEagleConfig } from './SettingModal/useEagleConfig'
 import { useEagleVisionConfig } from './SettingModal/useEagleVisionConfig'
-import { subscribeStorageEvent } from '@/client/service/storage-events'
 import { requestEagleLibraryRefresh, useEagleStore } from './store'
 import { Toolbar } from './Toolbar'
 

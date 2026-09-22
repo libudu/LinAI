@@ -31,7 +31,8 @@ export class ResultService {
     // 待确认项自愈：若条目在外部已被彻底物理删除（!entry），自动标记为已确认并核减任务待确认计数
     if (status === 'success') {
       const remaining: typeof list = []
-      const autoConfirmedRecords: import('@/shared/eagle/organize').OrganizeItemRecord[] = []
+      const autoConfirmedRecords: import('@/shared/eagle/organize').OrganizeItemRecord[] =
+        []
       const now = Date.now()
 
       for (const item of list) {
