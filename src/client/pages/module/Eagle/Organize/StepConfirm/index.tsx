@@ -235,35 +235,6 @@ export function StepConfirm({
     () => getSavedPinnedOption(task?.createdAt),
   )
 
-  const handleTogglePin = useCallback(
-    (option: PinnedFolderOption) => {
-      setPinnedOption((current) => {
-        const isUnpinning = current?.key === option.key
-        const next = isUnpinning ? null : option
-        savePinnedOption(task?.createdAt, next)
-        return next
-      })
-      if (selectedId) {
-        setSelectedOptionKeys((current) => ({
-          ...current,
-          [selectedId]: option.key,
-        }))
-      }
-    },
-    [selectedId, task?.createdAt],
-  )
-
-  const onRemoveManualFolder = useCallback(
-    (folder: EagleManualFolderItem) => {
-      handleRemoveManualFolder(folder)
-      if (pinnedOption?.folderId === folder.folderId) {
-        setPinnedOption(null)
-        savePinnedOption(task?.createdAt, null)
-      }
-    },
-    [handleRemoveManualFolder, pinnedOption, task?.createdAt],
-  )
-
   // 仅拉取判定成功的结果，结合当前任务固化的分类顺序组织队列
   const refreshResults = useCallback(async (): Promise<
     OrganizeResultListItem[]
@@ -425,6 +396,73 @@ export function StepConfirm({
     }
     return null
   }, [activeOptionKey, selectedManualFolder])
+
+  const handleTogglePin = useCallback(
+    (option: PinnedFolderOption) => {
+      setPinnedOption((current) => {
+        const isUnpinning = current?.key === option.key
+        const next = isUnpinning ? null : option
+        savePinnedOption(task?.createdAt, next)
+
+        if (selectedId) {
+          if (isUnpinning) {
+            // 取消置顶时，自动选中当前图片推荐选项的第一个
+            const firstRecommendedKey = folderPaths[0]
+              ? `ai:${folderPaths[0]}`
+              : null
+            setSelectedOptionKeys((keys) => {
+              const copy = { ...keys }
+              if (firstRecommendedKey) {
+                copy[selectedId] = firstRecommendedKey
+              } else {
+                delete copy[selectedId]
+              }
+              return copy
+            })
+          } else {
+            setSelectedOptionKeys((keys) => ({
+              ...keys,
+              [selectedId]: option.key,
+            }))
+          }
+        }
+
+        return next
+      })
+    },
+    [folderPaths, selectedId, task?.createdAt],
+  )
+
+  const onRemoveManualFolder = useCallback(
+    (folder: EagleManualFolderItem) => {
+      handleRemoveManualFolder(folder)
+      if (pinnedOption?.folderId === folder.folderId) {
+        setPinnedOption(null)
+        savePinnedOption(task?.createdAt, null)
+        if (selectedId) {
+          const firstRecommendedKey = folderPaths[0]
+            ? `ai:${folderPaths[0]}`
+            : null
+          setSelectedOptionKeys((keys) => {
+            const copy = { ...keys }
+            if (firstRecommendedKey) {
+              copy[selectedId] = firstRecommendedKey
+            } else {
+              delete copy[selectedId]
+            }
+            return copy
+          })
+        }
+      }
+    },
+    [
+      folderPaths,
+      handleRemoveManualFolder,
+      pinnedOption?.folderId,
+      selectedId,
+      task?.createdAt,
+    ],
+  )
 
   const canConfirm = Boolean(
     !detailLoading &&
