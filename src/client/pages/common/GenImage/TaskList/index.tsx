@@ -125,6 +125,9 @@ export function TaskList() {
       ) : (
         <>
           <Image.PreviewGroup
+            items={gptImageTasks
+              .slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
+              .flatMap((task) => task.outputUrls)}
             classNames={{ popup: { root: 'task-list-image-preview' } }}
           >
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
