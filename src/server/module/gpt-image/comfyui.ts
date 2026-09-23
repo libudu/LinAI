@@ -31,12 +31,11 @@ const checkedInputPath = async (images: string[]): Promise<string> => {
   return file
 }
 
-const request = async (url: string, init?: RequestInit, timeout = 30000) => {
+const request = async (url: string, init?: RequestInit) => {
   try {
     return await fetch(url, {
       ...init,
       redirect: 'error',
-      signal: AbortSignal.timeout(timeout),
     })
   } catch (error) {
     throw new Error(
@@ -69,8 +68,8 @@ const responseJson = async (
 }
 
 const waitHistory = async (baseUrl: string, promptId: string) => {
-  const deadline = Date.now() + 10 * 60 * 1000
-  while (Date.now() < deadline) {
+  // ComfyUI 可能长时间排队，持续等待工作流完成或明确失败。
+  while (true) {
     const response = await request(
       `${baseUrl}/history/${encodeURIComponent(promptId)}`,
     )
@@ -91,7 +90,6 @@ const waitHistory = async (baseUrl: string, promptId: string) => {
     }
     await new Promise((resolve) => setTimeout(resolve, 2000))
   }
-  throw new Error('等待 ComfyUI 工作流超时（10 分钟）')
 }
 
 async function runComfyTask(
