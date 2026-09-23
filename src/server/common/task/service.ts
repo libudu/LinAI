@@ -57,6 +57,7 @@ export class TaskService {
   }
 
   async createTaskFromSnapshot(options: {
+    id?: string
     snapshot: TaskInputSnapshot
     source: string
     size?: GptImageSize
@@ -64,14 +65,17 @@ export class TaskService {
     metadata?: Record<string, unknown>
   }): Promise<Task> {
     await this.ready
-    const task = await this.repository.create({
-      inputSnapshot: options.snapshot,
-      source: options.source,
-      size: options.size,
-      quality: options.quality,
-      ...options.metadata,
-      status: 'pending',
-    })
+    const task = await this.repository.create(
+      {
+        inputSnapshot: options.snapshot,
+        source: options.source,
+        size: options.size,
+        quality: options.quality,
+        ...options.metadata,
+        status: 'pending',
+      },
+      options.id,
+    )
     this.publishChange()
     return task
   }

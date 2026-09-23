@@ -2,6 +2,8 @@ import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { taskService } from '../../common/task'
+import { cancelComfyTaskForDeletion } from '../../module/gpt-image/comfyui'
+import { COMFY_IMAGE_SOURCE } from '../../module/gpt-image/enum'
 
 /**
  * 任务接口：任务由后端 TaskService 生成和流转，前端只能读取列表与删除。
@@ -20,7 +22,43 @@ const taskApi = new Hono()
     async (c) => {
       const { id } = c.req.valid('param')
       const { keepImage } = c.req.valid('query')
-      const deleted = await taskService.deleteTask(id, keepImage === 'true')
+      const task = (await taskService.getTasks()).find((item) => item.id === id)
+      if (!task) {
+        return c.json({ success: false as const, error: 'Task not found' }, 404)
+      }
+      const cancelling =
+        task.source === COMFY_IMAGE_SOURCE &&
+        (task.status === 'pending' || task.status === 'running')
+      if (cancelling) {
+        try {
+          await cancelComfyTaskForDeletion(task)
+        } catch (error) {
+          return c.json(
+            {
+              success: false as const,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : '取消 ComfyUI 任务失败',
+            },
+            502,
+          )
+        }
+      }
+      let deleted: boolean
+      try {
+        deleted = await taskService.deleteTask(id, keepImage === 'true')
+      } catch (error) {
+        if (cancelling) {
+          await taskService
+            .updateActiveTask(id, {
+              status: 'failed',
+              error: '[服务] ComfyUI 已取消，但删除任务记录失败',
+            })
+            .catch(console.error)
+        }
+        throw error
+      }
       if (!deleted) {
         return c.json({ success: false as const, error: 'Task not found' }, 404)
       }

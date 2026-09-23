@@ -289,6 +289,7 @@ export function TaskList() {
                             <TaskItemDeleteButton
                               id={task.id}
                               status={task.status}
+                              source={task.source}
                             />
                           </div>
                         </div>

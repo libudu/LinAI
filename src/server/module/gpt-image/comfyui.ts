@@ -1,16 +1,16 @@
 import { normalizeComfyBaseUrl } from '@/shared/gpt-image/comfyui'
-import type { ComfyEndpoint } from '@/shared/gpt-image/endpoints'
 import type { TaskInputSnapshot } from '@/shared/image/template'
 import { randomBytes, randomUUID } from 'crypto'
 import fs from 'fs-extra'
 import path from 'path'
 import sharp from 'sharp'
+import { setTimeout as sleep } from 'timers/promises'
 import { GENERATED_IMAGES_DIR, INPUT_IMAGES_DIR } from '../../common/static'
 import {
   GENERATED_IMAGES_API_PATH,
   INPUT_IMAGES_API_PATH,
 } from '../../common/static/enum'
-import { taskService } from '../../common/task'
+import { taskService, type Task } from '../../common/task'
 import {
   loadComfyWorkflow,
   type Workflow,
@@ -18,6 +18,84 @@ import {
 } from './comfyui-workflow'
 import { COMFY_IMAGE_SOURCE } from './enum'
 import { getComfyEndpoint } from './settings'
+
+interface ComfyTaskRun {
+  baseUrl: string
+  promptId: string
+  controller: AbortController
+  submission?: Promise<any>
+  cancelRequested: boolean
+  cancelPromise?: Promise<void>
+}
+
+const activeRuns = new Map<string, ComfyTaskRun>()
+
+class ComfyTaskCancelled extends Error {}
+
+const waitForCancellation = async (run: ComfyTaskRun) => {
+  if (run.cancelRequested) await run.cancelPromise?.catch(() => {})
+  if (run.cancelRequested) throw new ComfyTaskCancelled()
+}
+
+const cancelPrompt = async (baseUrl: string, promptId: string) => {
+  const response = await request(
+    `${baseUrl}/api/jobs/${encodeURIComponent(promptId)}/cancel`,
+    { method: 'POST' },
+  )
+  if (!response.ok) {
+    throw new Error(`取消 ComfyUI 任务失败：HTTP ${response.status}`)
+  }
+  const result = await responseJson(response, '取消 ComfyUI 任务')
+  if (typeof result?.cancelled !== 'boolean') {
+    throw new Error('取消 ComfyUI 任务返回无效结果')
+  }
+}
+
+const cancelRun = (run: ComfyTaskRun): Promise<void> => {
+  if (run.cancelPromise) return run.cancelPromise
+  run.cancelRequested = true
+  run.cancelPromise = (async () => {
+    try {
+      // 提交请求已发出时，等它结束后再按已知 prompt_id 取消。
+      // 即使响应丢失，也可用提交前指定的 ID 查询并取消。
+      if (run.submission) {
+        await run.submission.catch(() => {})
+        await cancelPrompt(run.baseUrl, run.promptId)
+      }
+      run.controller.abort()
+    } catch (error) {
+      run.cancelRequested = false
+      run.cancelPromise = undefined
+      throw error
+    }
+  })()
+  return run.cancelPromise
+}
+
+/** 删除进行中的 ComfyUI 任务前，先取消对应的远端工作流。 */
+export async function cancelComfyTaskForDeletion(task: Task): Promise<void> {
+  if (
+    task.source !== COMFY_IMAGE_SOURCE ||
+    (task.status !== 'pending' && task.status !== 'running')
+  ) {
+    return
+  }
+  const run = activeRuns.get(task.id)
+  if (run) {
+    await cancelRun(run)
+    return
+  }
+  if (!task.comfyPromptId) {
+    throw new Error('ComfyUI 任务缺少 prompt_id，无法安全取消')
+  }
+  const baseUrl = task.comfyBaseUrl
+    ? normalizeComfyBaseUrl(task.comfyBaseUrl)
+    : normalizeComfyBaseUrl(
+        (await getComfyEndpoint(task.comfyEndpointId)).baseUrl,
+      )
+  await cancelPrompt(baseUrl, task.comfyPromptId)
+}
+
 const checkedInputPath = async (images: string[]): Promise<string> => {
   if (images.length !== 1) throw new Error('ComfyUI 生成必须恰好提供一张参考图')
   const match = images[0].match(
@@ -67,14 +145,17 @@ const responseJson = async (
   return data
 }
 
-const waitHistory = async (baseUrl: string, promptId: string) => {
+const waitHistory = async (run: ComfyTaskRun) => {
   // ComfyUI 可能长时间排队，持续等待工作流完成或明确失败。
   while (true) {
+    await waitForCancellation(run)
     const response = await request(
-      `${baseUrl}/history/${encodeURIComponent(promptId)}`,
+      `${run.baseUrl}/history/${encodeURIComponent(run.promptId)}`,
+      { signal: run.controller.signal },
     )
     const data = await responseJson(response, '查询历史')
-    const item = data?.[promptId]
+    await waitForCancellation(run)
+    const item = data?.[run.promptId]
     if (item) {
       const status = item.status
       if (status?.status_str === 'error' || status?.completed === false) {
@@ -88,24 +169,26 @@ const waitHistory = async (baseUrl: string, promptId: string) => {
       if (status?.completed || status?.status_str === 'success') return item
       if (!status && item.outputs) return item
     }
-    await new Promise((resolve) => setTimeout(resolve, 2000))
+    await sleep(2000, undefined, { signal: run.controller.signal })
   }
 }
 
 async function runComfyTask(
   taskId: string,
   snapshot: TaskInputSnapshot,
-  endpoint: ComfyEndpoint,
   inputPath: string,
   workflow: Workflow,
   ids: WorkflowMarkerIds,
+  run: ComfyTaskRun,
 ) {
   const saved: string[] = []
   const start = Date.now()
+  let completed = false
   try {
     if (!(await taskService.updateActiveTask(taskId, { status: 'running' })))
       return
-    const baseUrl = normalizeComfyBaseUrl(endpoint.baseUrl)
+    await waitForCancellation(run)
+    const baseUrl = run.baseUrl
     const upload = new FormData()
     const image = await fs.readFile(inputPath)
     const extension = path.extname(inputPath).toLowerCase()
@@ -125,9 +208,11 @@ async function runComfyTask(
       await request(`${baseUrl}/upload/image`, {
         method: 'POST',
         body: upload,
+        signal: run.controller.signal,
       }),
       '参考图上传',
     )
+    await waitForCancellation(run)
     if (typeof uploaded?.name !== 'string' || !uploaded.name)
       throw new Error('ComfyUI 上传未返回图片文件名')
     const copy = structuredClone(workflow)
@@ -138,27 +223,39 @@ async function runComfyTask(
       copy[seedId].inputs.seed = Number(
         randomBytes(8).readBigUInt64BE() & BigInt(Number.MAX_SAFE_INTEGER),
       )
-    const submitted = await responseJson(
-      await request(`${baseUrl}/prompt`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ prompt: copy, client_id: randomUUID() }),
-      }),
-      '工作流提交',
-    )
+    await waitForCancellation(run)
+    run.submission = (async () =>
+      responseJson(
+        await request(`${baseUrl}/prompt`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            prompt: copy,
+            client_id: randomUUID(),
+            prompt_id: run.promptId,
+          }),
+        }),
+        '工作流提交',
+      ))()
+    const submitted = await run.submission
     if (typeof submitted?.prompt_id !== 'string' || !submitted.prompt_id)
       throw new Error('ComfyUI 未返回 prompt_id')
+    if (submitted.prompt_id !== run.promptId)
+      throw new Error('ComfyUI 返回的 prompt_id 与提交时指定的不一致')
+    await waitForCancellation(run)
     if (
       !(await taskService.updateActiveTask(taskId, {
         comfyPromptId: submitted.prompt_id,
       }))
     )
       return
-    const history = await waitHistory(baseUrl, submitted.prompt_id)
+    const history = await waitHistory(run)
+    await waitForCancellation(run)
     const images = history?.outputs?.[ids['LinAI@output']]?.images
     if (!Array.isArray(images) || !images.length)
       throw new Error('LinAI@output 节点没有输出图片，请检查工作流最终保存节点')
     for (const item of images) {
+      await waitForCancellation(run)
       if (
         typeof item?.filename !== 'string' ||
         !item.filename ||
@@ -172,7 +269,9 @@ async function runComfyTask(
       view.searchParams.set('filename', item.filename)
       view.searchParams.set('subfolder', item.subfolder)
       view.searchParams.set('type', item.type)
-      const response = await request(view.href)
+      const response = await request(view.href, {
+        signal: run.controller.signal,
+      })
       if (!response.ok)
         throw new Error(`下载 ComfyUI 输出图片失败：HTTP ${response.status}`)
       const bytes = Buffer.from(await response.arrayBuffer())
@@ -191,23 +290,34 @@ async function runComfyTask(
       saved.push(filename)
       await fs.writeFile(path.join(GENERATED_IMAGES_DIR, filename), bytes)
     }
-    const completed = await taskService.updateActiveTask(taskId, {
+    await waitForCancellation(run)
+    const savedTask = await taskService.updateActiveTask(taskId, {
       status: 'completed',
       duration: Date.now() - start,
       outputUrls: saved.map((file) => `${GENERATED_IMAGES_API_PATH}/${file}`),
     })
-    if (completed) return
+    if (savedTask) {
+      completed = true
+      return
+    }
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error)
-    await taskService
-      .updateActiveTask(taskId, { status: 'failed', error: reason })
-      .catch(console.error)
+    if (run.cancelRequested) await run.cancelPromise?.catch(() => {})
+    if (!run.cancelRequested) {
+      const reason = error instanceof Error ? error.message : String(error)
+      await taskService
+        .updateActiveTask(taskId, { status: 'failed', error: reason })
+        .catch(console.error)
+    }
+  } finally {
+    activeRuns.delete(taskId)
+    if (!completed) {
+      await Promise.all(
+        saved.map((file) =>
+          fs.remove(path.join(GENERATED_IMAGES_DIR, file)).catch(console.error),
+        ),
+      )
+    }
   }
-  await Promise.all(
-    saved.map((file) =>
-      fs.remove(path.join(GENERATED_IMAGES_DIR, file)).catch(console.error),
-    ),
-  )
 }
 
 export async function submitComfyTask(
@@ -217,16 +327,27 @@ export async function submitComfyTask(
   if (!snapshot.prompt.trim()) throw new Error('请填写提示词')
   const inputPath = await checkedInputPath(snapshot.images)
   const endpoint = await getComfyEndpoint(endpointId)
-  normalizeComfyBaseUrl(endpoint.baseUrl)
   const { workflow, ids } = await loadComfyWorkflow(endpoint.workflowId)
+  const baseUrl = normalizeComfyBaseUrl(endpoint.baseUrl)
+  const taskId = randomUUID()
   const task = await taskService.createTaskFromSnapshot({
+    id: taskId,
     snapshot,
     source: COMFY_IMAGE_SOURCE,
     metadata: {
       comfyEndpointId: endpoint.id,
       comfyWorkflowId: endpoint.workflowId,
+      comfyBaseUrl: baseUrl,
+      comfyPromptId: taskId,
     },
   })
-  void runComfyTask(task.id, snapshot, endpoint, inputPath, workflow, ids)
+  const run: ComfyTaskRun = {
+    baseUrl,
+    promptId: task.id,
+    controller: new AbortController(),
+    cancelRequested: false,
+  }
+  activeRuns.set(task.id, run)
+  void runComfyTask(task.id, snapshot, inputPath, workflow, ids, run)
   return task.id
 }

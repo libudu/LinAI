@@ -1,5 +1,6 @@
 import { useLocalSetting } from '@/client/hooks/useLocalSetting'
 import type { AppType } from '@/server'
+import { COMFY_IMAGE_SOURCE } from '@/server/module/gpt-image/enum'
 import { DeleteOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { Button, Checkbox, message, Modal, Tooltip } from 'antd'
@@ -10,12 +11,14 @@ const client = hc<AppType>('/')
 interface DeleteTaskButtonProps {
   id: string
   status?: string
+  source?: string
   onSuccess?: () => void
 }
 
 export function TaskItemDeleteButton({
   id,
   status,
+  source,
   onSuccess,
 }: DeleteTaskButtonProps) {
   const { gptImageSettings } = useLocalSetting()
@@ -55,6 +58,9 @@ export function TaskItemDeleteButton({
     }
 
     let skipNext = false
+    const cancelsComfy =
+      source === COMFY_IMAGE_SOURCE &&
+      (status === 'pending' || status === 'running')
 
     Modal.confirm({
       title: '确认删除任务？',
@@ -65,6 +71,7 @@ export function TaskItemDeleteButton({
               ? '删除任务不会删除其生成的图片文件。'
               : '删除任务将同时删除其生成的图片文件，且不可恢复。'}
           </p>
+          {cancelsComfy && <p>删除后也会终止 ComfyUI 中的生成任务。</p>}
           <Checkbox
             onChange={(e) => {
               skipNext = e.target.checked
