@@ -25,6 +25,8 @@ export function openCommonSettingModal(options: {
   initialTab?: string
   okText?: string
   width?: number
+  /** 固定内容区高度，页签较长时仅滚动右侧内容 */
+  scrollContent?: boolean
   /** 保存成功且有返回值时触发（如接入点保存后返回 apiKey） */
   onSuccess?: (result: unknown) => void
 }) {
@@ -71,12 +73,40 @@ export function openCommonSettingModal(options: {
         footer={activeItem?.hideFooter ? null : undefined}
         destroyOnHidden
         width={options.width ?? 620}
+        centered
+        styles={
+          options.scrollContent
+            ? {
+                body: {
+                  height: 'min(560px, calc(100dvh - 160px))',
+                  overflow: 'hidden',
+                },
+              }
+            : undefined
+        }
       >
-        <div className="min-h-[200px] pt-4">
+        <div
+          className={
+            options.scrollContent
+              ? 'flex h-full min-h-0 flex-col pt-4'
+              : 'min-h-[200px] pt-4'
+          }
+        >
           {singleTab ? (
-            activeItem?.children
+            options.scrollContent ? (
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {activeItem?.children}
+              </div>
+            ) : (
+              activeItem?.children
+            )
           ) : (
             <Tabs
+              className={
+                options.scrollContent
+                  ? 'min-h-0 flex-1 [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:overflow-y-auto'
+                  : undefined
+              }
               tabPlacement="start"
               activeKey={activeTab}
               onChange={setActiveTab}

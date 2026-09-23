@@ -46,13 +46,14 @@
 
 生图接入点设置在 `SettingModal/Endpoint/`：`EndpointSetting.tsx` 管理表单展示，`useEndpointActions.ts` 管理保存、删除和工作流导入，`endpointPresets.tsx` 管理预设的前端说明和下拉值。`store.ts` 的 `saveConfig` 一次提交完整设置并使用 revision 检测冲突；不要把一次接入点操作拆成多次设置写入。共享类型和预设定义位于 `src/shared/gpt-image/endpoints.ts`。
 
-ComfyUI 只允许本机 HTTP 回环地址，规则统一在 `src/shared/gpt-image/comfyui.ts`。导入必须使用 **ComfyUI API 格式 JSON**，并有三个 `_meta.title` 完全匹配的节点：
+ComfyUI 只允许本机 HTTP 回环地址，规则统一在 `src/shared/gpt-image/comfyui.ts`。导入必须使用 **ComfyUI API 格式 JSON**，并有三个必需的 `_meta.title` 标记；标题匹配忽略大小写和首尾空格：
 
 | 节点标题       | 用途                                                       |
 | -------------- | ---------------------------------------------------------- |
 | `LinAI@prompt` | `inputs.prompt` 每次替换为用户提示词。                     |
 | `LinAI@image1` | `inputs.image` 每次替换为上传到 ComfyUI 的参考图文件名。   |
 | `LinAI@output` | 从该节点的 `history.outputs[节点ID].images` 读取最终图片。 |
+| `LinAI@seed`   | 可选；每次提交前将 `inputs.seed` 替换为随机整数。         |
 
 导入与节点校验在 `src/server/module/gpt-image/comfyui-workflow.ts`；节点 ID 从导入文件扫描，不能写死。任务执行在同目录 `comfyui.ts`，每个任务复制工作流后再替换输入，不能修改磁盘模板或共用对象。最终输出要保存到 LinAI 的生成图目录。工作流更详细的约定见 `docs/comfyui/本地工作流接入生图实现方案.md`。
 

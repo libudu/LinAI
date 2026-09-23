@@ -1,7 +1,7 @@
 import { normalizeComfyBaseUrl } from '@/shared/gpt-image/comfyui'
 import type { ComfyEndpoint } from '@/shared/gpt-image/endpoints'
 import type { TaskInputSnapshot } from '@/shared/image/template'
-import { randomUUID } from 'crypto'
+import { randomBytes, randomUUID } from 'crypto'
 import fs from 'fs-extra'
 import path from 'path'
 import sharp from 'sharp'
@@ -13,8 +13,8 @@ import {
 import { taskService } from '../../common/task'
 import {
   loadComfyWorkflow,
-  type Marker,
   type Workflow,
+  type WorkflowMarkerIds,
 } from './comfyui-workflow'
 import { COMFY_IMAGE_SOURCE } from './enum'
 import { getComfyEndpoint } from './settings'
@@ -100,7 +100,7 @@ async function runComfyTask(
   endpoint: ComfyEndpoint,
   inputPath: string,
   workflow: Workflow,
-  ids: Record<Marker, string>,
+  ids: WorkflowMarkerIds,
 ) {
   const saved: string[] = []
   const start = Date.now()
@@ -135,6 +135,11 @@ async function runComfyTask(
     const copy = structuredClone(workflow)
     copy[ids['LinAI@prompt']].inputs.prompt = snapshot.prompt
     copy[ids['LinAI@image1']].inputs.image = uploaded.name
+    const seedId = ids['LinAI@seed']
+    if (seedId)
+      copy[seedId].inputs.seed = Number(
+        randomBytes(8).readBigUInt64BE() & BigInt(Number.MAX_SAFE_INTEGER),
+      )
     const submitted = await responseJson(
       await request(`${baseUrl}/prompt`, {
         method: 'POST',
