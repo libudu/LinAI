@@ -7,10 +7,8 @@ import { Hono } from 'hono'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { handleImageGeneration } from '../../module/gpt-image'
-import {
-  importComfyWorkflow,
-  submitComfyTask,
-} from '../../module/gpt-image/comfyui'
+import { submitComfyTask } from '../../module/gpt-image/comfyui'
+import { importComfyWorkflow } from '../../module/gpt-image/comfyui-workflow'
 import { GPT_IMAGE_OUTPUT_MAX_N } from '../../module/gpt-image/enum'
 import {
   getGptImageEndpoint,

@@ -1,159 +1,23 @@
+import { normalizeComfyBaseUrl } from '@/shared/gpt-image/comfyui'
 import type { ComfyEndpoint } from '@/shared/gpt-image/endpoints'
 import type { TaskInputSnapshot } from '@/shared/image/template'
 import { randomUUID } from 'crypto'
 import fs from 'fs-extra'
 import path from 'path'
 import sharp from 'sharp'
-import { settingsRegistry } from '../../common/settings/registry'
 import { GENERATED_IMAGES_DIR, INPUT_IMAGES_DIR } from '../../common/static'
 import {
   GENERATED_IMAGES_API_PATH,
   INPUT_IMAGES_API_PATH,
 } from '../../common/static/enum'
-import { dataPath } from '../../common/storage/data-path'
-import { readJsonFile, writeJsonFile } from '../../common/storage/json-file'
 import { taskService } from '../../common/task'
+import {
+  loadComfyWorkflow,
+  type Marker,
+  type Workflow,
+} from './comfyui-workflow'
 import { COMFY_IMAGE_SOURCE } from './enum'
-import { GptImageSettings, getComfyEndpoint } from './settings'
-
-const WORKFLOW_DIR = dataPath('images', 'workflows')
-const MARKERS = ['LinAI@prompt', 'LinAI@image1', 'LinAI@output'] as const
-type Marker = (typeof MARKERS)[number]
-type WorkflowNode = {
-  inputs: Record<string, unknown>
-  class_type: string
-  _meta?: { title?: string }
-}
-type Workflow = Record<string, WorkflowNode>
-
-export function validateComfyBaseUrl(value: string): string {
-  let url: URL
-  try {
-    url = new URL(value)
-  } catch {
-    throw new Error('ComfyUI 地址不是有效 URL')
-  }
-  if (
-    url.protocol !== 'http:' ||
-    !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) ||
-    url.username ||
-    url.password ||
-    url.search ||
-    url.hash ||
-    (url.pathname !== '/' && url.pathname !== '')
-  ) {
-    throw new Error('ComfyUI 地址仅允许本机 HTTP 回环地址及端口')
-  }
-  return url.origin
-}
-
-export function validateWorkflow(raw: unknown): {
-  workflow: Workflow
-  ids: Record<Marker, string>
-} {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
-    throw new Error('工作流必须是 ComfyUI API 格式 JSON 对象')
-  const entries = Object.entries(raw)
-  if (!entries.length || 'nodes' in raw || 'links' in raw)
-    throw new Error('请从 ComfyUI 导出 API 格式工作流，而非普通画布 JSON')
-  const ids = {} as Record<Marker, string>
-  for (const [id, value] of entries) {
-    if (
-      !value ||
-      typeof value !== 'object' ||
-      Array.isArray(value) ||
-      !('inputs' in value) ||
-      !('class_type' in value) ||
-      !value.inputs ||
-      typeof value.inputs !== 'object' ||
-      Array.isArray(value.inputs) ||
-      typeof value.class_type !== 'string' ||
-      !value.class_type.trim()
-    ) {
-      throw new Error(`节点 ${id} 缺少 API 格式要求的 inputs/class_type`)
-    }
-    const title = (value as WorkflowNode)._meta?.title
-    if (!MARKERS.includes(title as Marker)) continue
-    const marker = title as Marker
-    if (ids[marker]) throw new Error(`工作流标记 ${marker} 重复`)
-    ids[marker] = id
-  }
-  for (const marker of MARKERS)
-    if (!ids[marker]) throw new Error(`工作流缺少标记 ${marker}`)
-  const workflow = raw as Workflow
-  if (typeof workflow[ids['LinAI@prompt']].inputs.prompt !== 'string')
-    throw new Error('LinAI@prompt 节点的 inputs.prompt 必须是字符串')
-  if (typeof workflow[ids['LinAI@image1']].inputs.image !== 'string')
-    throw new Error('LinAI@image1 节点的 inputs.image 必须是文件名字符串')
-  return { workflow, ids }
-}
-
-const workflowPath = (id: string) => {
-  if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error('工作流 ID 无效')
-  return path.join(WORKFLOW_DIR, `${id}.json`)
-}
-
-/** 导入并切换设置引用；新文件写入失败时不会覆盖旧工作流。 */
-export async function importComfyWorkflow(input: {
-  endpointId?: string
-  title: string
-  baseUrl: string
-  workflowName: string
-  content: string
-}) {
-  const baseUrl = validateComfyBaseUrl(input.baseUrl)
-  const title = input.title.trim()
-  if (!title) throw new Error('请输入接入点名称')
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(input.content)
-  } catch {
-    throw new Error('工作流不是有效 JSON')
-  }
-  validateWorkflow(parsed)
-  const snapshot = await settingsRegistry.get<GptImageSettings>('gpt-image')
-  const existing = input.endpointId
-    ? snapshot.value.gptImageComfyEndpoints.find(
-        (item) => item.id === input.endpointId,
-      )
-    : undefined
-  if (input.endpointId && !existing)
-    throw new Error('要更新的 ComfyUI 接入点不存在')
-  const workflowId = randomUUID()
-  const endpoint: ComfyEndpoint = {
-    id: existing?.id ?? randomUUID(),
-    protocol: 'comfyui',
-    title,
-    baseUrl,
-    workflowId,
-    workflowName: input.workflowName.trim() || '工作流',
-  }
-  const file = workflowPath(workflowId)
-  await writeJsonFile(file, parsed, { backup: false })
-  try {
-    await settingsRegistry.put<GptImageSettings>(
-      'gpt-image',
-      {
-        ...snapshot.value,
-        gptImageEndpointKind: 'comfyui',
-        gptImageEndpointId: endpoint.id,
-        gptImageComfyEndpoints: existing
-          ? snapshot.value.gptImageComfyEndpoints.map((item) =>
-              item.id === endpoint.id ? endpoint : item,
-            )
-          : [...snapshot.value.gptImageComfyEndpoints, endpoint],
-      },
-      snapshot.revision,
-    )
-  } catch (error) {
-    await fs.remove(file).catch(() => undefined)
-    throw error
-  }
-  if (existing)
-    await fs.remove(workflowPath(existing.workflowId)).catch(() => undefined)
-  return endpoint
-}
-
+import { getComfyEndpoint } from './settings'
 const checkedInputPath = async (images: string[]): Promise<string> => {
   if (images.length !== 1) throw new Error('ComfyUI 生成必须恰好提供一张参考图')
   const match = images[0].match(
@@ -243,7 +107,7 @@ async function runComfyTask(
   try {
     if (!(await taskService.updateActiveTask(taskId, { status: 'running' })))
       return
-    const baseUrl = validateComfyBaseUrl(endpoint.baseUrl)
+    const baseUrl = normalizeComfyBaseUrl(endpoint.baseUrl)
     const upload = new FormData()
     const image = await fs.readFile(inputPath)
     const extension = path.extname(inputPath).toLowerCase()
@@ -350,10 +214,8 @@ export async function submitComfyTask(
   if (!snapshot.prompt.trim()) throw new Error('请填写提示词')
   const inputPath = await checkedInputPath(snapshot.images)
   const endpoint = await getComfyEndpoint(endpointId)
-  validateComfyBaseUrl(endpoint.baseUrl)
-  const raw = await readJsonFile<unknown>(workflowPath(endpoint.workflowId))
-  if (!raw) throw new Error('工作流文件已删除，请重新导入')
-  const { workflow, ids } = validateWorkflow(raw)
+  normalizeComfyBaseUrl(endpoint.baseUrl)
+  const { workflow, ids } = await loadComfyWorkflow(endpoint.workflowId)
   const task = await taskService.createTaskFromSnapshot({
     snapshot,
     source: COMFY_IMAGE_SOURCE,

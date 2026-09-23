@@ -1,3 +1,4 @@
+import { isValidComfyBaseUrl } from '@/shared/gpt-image/comfyui'
 import {
   ENDPOINT_PRESET_INFOS,
   findPresetEndpoint,
@@ -36,22 +37,9 @@ export const gptImageSettingsSchema = z.object({
       id: z.string().uuid(),
       protocol: z.literal('comfyui'),
       title: z.string().trim().min(1),
-      baseUrl: z.string().refine((value) => {
-        try {
-          const url = new URL(value)
-          return (
-            url.protocol === 'http:' &&
-            ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) &&
-            !url.username &&
-            !url.password &&
-            !url.search &&
-            !url.hash &&
-            (url.pathname === '/' || url.pathname === '')
-          )
-        } catch {
-          return false
-        }
-      }, 'ComfyUI 地址仅允许本机 HTTP 回环地址'),
+      baseUrl: z
+        .string()
+        .refine(isValidComfyBaseUrl, 'ComfyUI 地址仅允许本机 HTTP 回环地址'),
       workflowId: z.string().uuid(),
       workflowName: z.string().min(1),
     }),

@@ -21,6 +21,14 @@ export interface EndpointPreset extends EndpointPresetInfo {
   remark?: ReactNode
 }
 
+export const NEW_CUSTOM_VALUE = '__new_custom__'
+export const NEW_COMFY_VALUE = '__new_comfy__'
+export const presetValue = (label: string) => `preset:${label}`
+export const customValue = (id: string) => `custom:${id}`
+export const comfyValue = (id: string) => `comfy:${id}`
+export const isComfyValue = (value: string) =>
+  value === NEW_COMFY_VALUE || value.startsWith('comfy:')
+
 // 各预设的界面说明，key 为预设 label
 const PRESET_REMARKS: Record<string, ReactNode> = {
   'openlux gpt-image-2.5-sunburst-c': (

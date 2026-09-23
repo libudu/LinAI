@@ -1,50 +1,39 @@
 import { settingsClient } from '@/client/service/settings'
 import type { GptImageSettings } from '@/server/module/gpt-image/settings'
-import {
-  resolveGptImageApiKey,
-  type ComfyEndpoint,
-} from '@/shared/gpt-image/endpoints'
+import { resolveGptImageApiKey } from '@/shared/gpt-image/endpoints'
 import { message } from 'antd'
 import { create } from 'zustand'
-import type { CustomEndpoint } from './SettingModal/Endpoint/endpointPresets'
 
 const client = settingsClient<GptImageSettings>('gpt-image')
 
 // GPT 图像模块设置状态：与服务端注册式设置同步（/api/settings/gpt-image）
+type GptImageConfigPatch = Partial<
+  Pick<
+    GptImageSettings,
+    | 'gptImageBaseUrl'
+    | 'gptImageModelId'
+    | 'gptImageCustomEndpoints'
+    | 'gptImagePresetApiKeys'
+    | 'gptImageEndpointKind'
+    | 'gptImageEndpointId'
+    | 'gptImageComfyEndpoints'
+  >
+>
+
 interface GptImageState {
   /** 当前接入点生效的 API Key（从 keychain 派生，用于"是否已配置"判断与表单回填） */
   gptImageApiKey: string | null
   gptImageBaseUrl: string | null
   gptImageModelId: string | null
-  gptImageCustomEndpoints: CustomEndpoint[]
+  gptImageCustomEndpoints: GptImageSettings['gptImageCustomEndpoints']
   gptImagePresetApiKeys: Record<string, string>
   gptImageEndpointKind: 'openai' | 'comfyui'
   gptImageEndpointId: string | null
-  gptImageComfyEndpoints: ComfyEndpoint[]
+  gptImageComfyEndpoints: GptImageSettings['gptImageComfyEndpoints']
   revision: number
-  setGptImageEndpoint: (
-    baseUrl: string | null,
-    modelId: string | null,
-    id?: string | null,
-  ) => Promise<void>
-  setGptImageCustomEndpoints: (endpoints: CustomEndpoint[]) => Promise<void>
-  setGptImagePresetApiKeys: (keys: Record<string, string>) => Promise<void>
-  setGptImageComfyEndpoints: (endpoints: ComfyEndpoint[]) => Promise<void>
-  selectComfyEndpoint: (id: string) => Promise<void>
+  saveConfig: (patch: GptImageConfigPatch) => Promise<void>
   fetchConfig: () => Promise<void>
 }
-
-type GptImageConfigData = Pick<
-  GptImageState,
-  | 'gptImageApiKey'
-  | 'gptImageBaseUrl'
-  | 'gptImageModelId'
-  | 'gptImageCustomEndpoints'
-  | 'gptImagePresetApiKeys'
-  | 'gptImageEndpointKind'
-  | 'gptImageEndpointId'
-  | 'gptImageComfyEndpoints'
->
 
 export const useGptImageStore = create<GptImageState>()((set, get) => {
   // 应用服务端返回的设置：gptImageApiKey 按当前接入点从 keychain 派生
@@ -57,7 +46,7 @@ export const useGptImageStore = create<GptImageState>()((set, get) => {
   }
 
   // 整体替换提交（含本地修订号做冲突检测），成功后用服务端返回覆盖本地状态
-  const postConfig = async (patch: Partial<GptImageConfigData>) => {
+  const postConfig = async (patch: GptImageConfigPatch) => {
     try {
       const state = get()
       const next: GptImageSettings = {
@@ -92,21 +81,7 @@ export const useGptImageStore = create<GptImageState>()((set, get) => {
     gptImageEndpointId: null,
     gptImageComfyEndpoints: [],
     revision: 0,
-    setGptImageEndpoint: (baseUrl, modelId, id = null) =>
-      postConfig({
-        gptImageBaseUrl: baseUrl,
-        gptImageModelId: modelId,
-        gptImageEndpointKind: 'openai',
-        gptImageEndpointId: id,
-      }),
-    setGptImageCustomEndpoints: (endpoints) =>
-      postConfig({ gptImageCustomEndpoints: endpoints }),
-    setGptImagePresetApiKeys: (keys) =>
-      postConfig({ gptImagePresetApiKeys: keys }),
-    setGptImageComfyEndpoints: (endpoints) =>
-      postConfig({ gptImageComfyEndpoints: endpoints }),
-    selectComfyEndpoint: (id) =>
-      postConfig({ gptImageEndpointKind: 'comfyui', gptImageEndpointId: id }),
+    saveConfig: postConfig,
     fetchConfig: async () => {
       try {
         const res = await client.get()
