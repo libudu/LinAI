@@ -2,7 +2,10 @@ import { useLocalSetting } from '@/client/hooks/useLocalSetting'
 import { useGlobalStore } from '@/client/store/global'
 import type { AppType } from '@/server'
 import type { Task } from '@/server/common/task'
-import { GPT_IMAGE_SOURCE_MODEL } from '@/server/module/gpt-image/enum'
+import {
+  COMFY_IMAGE_SOURCE,
+  GPT_IMAGE_SOURCE_MODEL,
+} from '@/server/module/gpt-image/enum'
 import { TRIAL_TEMPLATE_TITLE } from '@/shared/image/template'
 import {
   RedoOutlined,
@@ -42,27 +45,53 @@ export function TaskList() {
   )
 
   const handleRetry = async (task: Task) => {
+    if (task.source === COMFY_IMAGE_SOURCE && !task.comfyEndpointId) {
+      message.error('原 ComfyUI 接入点信息缺失，无法重试')
+      return
+    }
     // 用任务创建时的模板快照重试，不再依赖模板存储中的当前内容
     const snapshot = task.inputSnapshot
-    await client.api.gptImage.generate.$post({
-      json: {
-        input: {
-          title: snapshot?.title,
-          prompt: snapshot?.prompt || '',
-          images: snapshot?.images || [],
-          aspectRatio: snapshot?.aspectRatio,
-          n: snapshot?.n,
+    try {
+      const response = await client.api.gptImage.generate.$post({
+        json: {
+          input: {
+            title: snapshot?.title,
+            prompt: snapshot?.prompt || '',
+            images: snapshot?.images || [],
+            aspectRatio:
+              task.source === COMFY_IMAGE_SOURCE
+                ? undefined
+                : snapshot?.aspectRatio,
+            n: task.source === COMFY_IMAGE_SOURCE ? undefined : snapshot?.n,
+          },
+          size:
+            task.source === COMFY_IMAGE_SOURCE
+              ? undefined
+              : (task.size as any) || '2k',
+          quality:
+            task.source === COMFY_IMAGE_SOURCE
+              ? undefined
+              : (task.quality as any) || 'medium',
+          endpointId:
+            task.source === COMFY_IMAGE_SOURCE
+              ? task.comfyEndpointId
+              : undefined,
         },
-        size: (task.size as any) || '2k',
-        quality: (task.quality as any) || 'medium',
-      },
-    })
-    message.success('已创建重试任务')
+      })
+      const result = await response.json()
+      if (result.success) message.success('已创建重试任务')
+      else message.error(result.error || '重试失败')
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '重试请求失败')
+    }
   }
 
   // 暂时仅显示 GPT-Image 任务
   const gptImageTasks = tasks
-    .filter((t) => t.source === GPT_IMAGE_SOURCE_MODEL)
+    .filter(
+      (t) =>
+        t.source === GPT_IMAGE_SOURCE_MODEL || t.source === COMFY_IMAGE_SOURCE,
+    )
     .map((t) => ({
       ...t,
       outputUrls: t.outputUrls
@@ -238,8 +267,9 @@ export function TaskList() {
                               }}
                             />
                           )}
-                          {task.inputSnapshot?.title !==
-                            TRIAL_TEMPLATE_TITLE && (
+                          {(task.source === COMFY_IMAGE_SOURCE ||
+                            task.inputSnapshot?.title !==
+                              TRIAL_TEMPLATE_TITLE) && (
                             <Tooltip title="重试">
                               <Button
                                 type="text"

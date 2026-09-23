@@ -1,6 +1,7 @@
 import { isAdmin } from '@/client/utils/admin'
 import type { AppType } from '@/server'
 import type { GPTImageQuotaResponse } from '@/server/api/gpt-image/endpoint'
+import { COMFY_IMAGE_SOURCE } from '@/server/module/gpt-image/enum'
 import { hc } from 'hono/client'
 import { useEffect, useMemo, useRef } from 'react'
 import { create } from 'zustand'
@@ -87,6 +88,9 @@ export const isPublicApiKey = (name?: string | null) =>
 export function useGPTImageQuota() {
   const gptImageApiKey = useGptImageStore((state) => state.gptImageApiKey)
   const gptImageBaseUrl = useGptImageStore((state) => state.gptImageBaseUrl)
+  const isComfy = useGptImageStore(
+    (state) => state.gptImageEndpointKind === 'comfyui',
+  )
   const { data: tasks } = useTasks()
   const knownCompletedTasks = useRef<Set<string> | null>(null)
 
@@ -102,7 +106,7 @@ export function useGPTImageQuota() {
   )
 
   useEffect(() => {
-    if (!gptImageApiKey) {
+    if (isComfy || !gptImageApiKey) {
       fetchQuota(null)
       return
     }
@@ -115,7 +119,7 @@ export function useGPTImageQuota() {
       fetchQuota(gptImageApiKey, true)
     }, 500)
     return () => clearTimeout(timer)
-  }, [gptImageApiKey, gptImageBaseUrl, fetchQuota, beginSwitch])
+  }, [gptImageApiKey, gptImageBaseUrl, isComfy, fetchQuota, beginSwitch])
 
   useEffect(() => {
     if (!tasks) return
@@ -138,22 +142,23 @@ export function useGPTImageQuota() {
     for (const task of recentTasks) {
       if (task.status === 'completed') {
         if (!knownCompletedTasks.current.has(task.id)) {
-          hasNewCompletedTask = true
+          if (task.source !== COMFY_IMAGE_SOURCE) hasNewCompletedTask = true
           knownCompletedTasks.current.add(task.id)
         }
       }
     }
 
-    if (hasNewCompletedTask) {
+    if (hasNewCompletedTask && !isComfy) {
       fetchQuota(gptImageApiKey, true)
     }
-  }, [tasks, gptImageApiKey, fetchQuota])
+  }, [tasks, gptImageApiKey, isComfy, fetchQuota])
 
   return {
     quota: data,
     loading,
     error,
     isPublic,
-    refresh: () => fetchQuota(gptImageApiKey, true),
+    refresh: () =>
+      isComfy ? Promise.resolve() : fetchQuota(gptImageApiKey, true),
   }
 }

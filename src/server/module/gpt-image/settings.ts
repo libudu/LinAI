@@ -29,6 +29,33 @@ export const gptImageSettingsSchema = z.object({
   ),
   /** 预设接入点各自的 API Key，按预设 label 存储 */
   gptImagePresetApiKeys: z.record(z.string(), z.string()),
+  gptImageEndpointKind: z.enum(['openai', 'comfyui']),
+  gptImageEndpointId: z.string().nullable(),
+  gptImageComfyEndpoints: z.array(
+    z.object({
+      id: z.string().uuid(),
+      protocol: z.literal('comfyui'),
+      title: z.string().trim().min(1),
+      baseUrl: z.string().refine((value) => {
+        try {
+          const url = new URL(value)
+          return (
+            url.protocol === 'http:' &&
+            ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) &&
+            !url.username &&
+            !url.password &&
+            !url.search &&
+            !url.hash &&
+            (url.pathname === '/' || url.pathname === '')
+          )
+        } catch {
+          return false
+        }
+      }, 'ComfyUI 地址仅允许本机 HTTP 回环地址'),
+      workflowId: z.string().uuid(),
+      workflowName: z.string().min(1),
+    }),
+  ),
 })
 
 export type GptImageSettings = z.infer<typeof gptImageSettingsSchema>
@@ -42,6 +69,9 @@ const DEFAULT_GPT_IMAGE_SETTINGS: GptImageSettings = {
   gptImageModelId: DEFAULT_ENDPOINT.modelId,
   gptImageCustomEndpoints: [],
   gptImagePresetApiKeys: {},
+  gptImageEndpointKind: 'openai',
+  gptImageEndpointId: null,
+  gptImageComfyEndpoints: [],
 }
 
 const KNOWN_KEYS = Object.keys(
@@ -83,9 +113,38 @@ export const getYunwuApiKey = async (): Promise<string | null> => {
   return decryptApiKey(resolveGptImageApiKey(await getGptImageSettings()) || '')
 }
 
+export const getComfyEndpoint = async (id?: string | null) => {
+  const settings = await getGptImageSettings()
+  const endpointId = id ?? settings.gptImageEndpointId
+  const endpoint = settings.gptImageComfyEndpoints.find(
+    (item) => item.id === endpointId,
+  )
+  if (!endpoint) throw new Error('ComfyUI 接入点已删除或未配置')
+  return endpoint
+}
+
 // 获取 GPT 图像接入点，未配置或失效时回退到默认值
 export const getGptImageEndpoint = async () => {
   const settings = await getGptImageSettings()
+  if (
+    settings.gptImageEndpointKind === 'openai' &&
+    settings.gptImageEndpointId
+  ) {
+    if (settings.gptImageEndpointId.startsWith('preset:')) {
+      const presetById = ENDPOINT_PRESET_INFOS.find(
+        (item) => item.label === settings.gptImageEndpointId?.slice(7),
+      )
+      if (presetById)
+        return { baseUrl: presetById.baseUrl, modelId: presetById.modelId }
+    }
+    if (settings.gptImageEndpointId.startsWith('custom:')) {
+      const customById = settings.gptImageCustomEndpoints.find(
+        (item) => item.id === settings.gptImageEndpointId?.slice(7),
+      )
+      if (customById)
+        return { baseUrl: customById.baseUrl, modelId: customById.modelId }
+    }
+  }
   const preset = findPresetEndpoint(
     settings.gptImageBaseUrl,
     settings.gptImageModelId,

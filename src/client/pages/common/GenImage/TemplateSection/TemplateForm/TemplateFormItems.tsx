@@ -16,6 +16,7 @@ import {
 import classnames from 'classnames'
 import React, { useState } from 'react'
 import { openGPTImageSettingModal } from '../../SettingModal'
+import { useGptImageStore } from '../../store'
 import { useVisionStore } from '../../visionStore'
 import { FolderFormItem } from './FolderSelectInput'
 import { ImageUpload } from './ImageUpload'
@@ -79,6 +80,9 @@ function PromptFormItem({
 }) {
   const [openPromptOptimizeModal, setOpenPromptOptimizeModal] = useState(false)
   const visionApiKey = useVisionStore((state) => state.visionApiKey)
+  const isComfy = useGptImageStore(
+    (state) => state.gptImageEndpointKind === 'comfyui',
+  )
   const {
     promptOptimizeEnabled,
     appendAspectRatioEnabled,
@@ -108,7 +112,7 @@ function PromptFormItem({
           <div className="flex w-full items-center justify-between gap-4">
             <span>{label}</span>
             <span className="flex items-center gap-3">
-              {appendAspectRatioEnabled && (
+              {!isComfy && appendAspectRatioEnabled && (
                 <div>
                   <Tooltip title="对于default等较便宜的分组可能不支持分辨率和比例选项，勾选此选项后提交时会额外追加一行“图片比例X：Y”用于指定比例">
                     <Button
@@ -188,13 +192,16 @@ export function TemplateFormFields({
   isEdit?: boolean
 }) {
   const { gptImageSettings, autoFillAspectRatio } = useLocalSetting()
+  const isComfy = useGptImageStore(
+    (state) => state.gptImageEndpointKind === 'comfyui',
+  )
 
   return (
     <>
       <div className="flex gap-4">
         <TitleFormItem className="flex-1" />
         <FolderFormItem className="w-1/4" />
-        <AspectRatioFormItem className="w-1/5" />
+        {!isComfy && <AspectRatioFormItem className="w-1/5" />}
       </div>
 
       <div className="flex gap-4">
@@ -215,7 +222,9 @@ export function TemplateFormFields({
             }
           />
         </Form.Item>
-        {gptImageSettings.enableMultiple && <CountFormItem className="w-1/5" />}
+        {!isComfy && gptImageSettings.enableMultiple && (
+          <CountFormItem className="w-1/5" />
+        )}
       </div>
 
       <PromptFormItem

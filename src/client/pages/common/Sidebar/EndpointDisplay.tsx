@@ -12,10 +12,18 @@ export function EndpointDisplay() {
     gptImageModelId,
     gptImageCustomEndpoints,
     gptImageApiKey,
+    gptImageEndpointKind,
+    gptImageEndpointId,
+    gptImageComfyEndpoints,
   } = useGptImageStore()
   const { quota, loading, error } = useGPTImageQuota()
 
   const currentEndpointName = useMemo(() => {
+    if (gptImageEndpointKind === 'comfyui')
+      return (
+        gptImageComfyEndpoints.find((item) => item.id === gptImageEndpointId)
+          ?.title || 'ComfyUI 未配置'
+      )
     const preset = ENDPOINT_PRESETS.find(
       (p) => p.baseUrl === gptImageBaseUrl && p.modelId === gptImageModelId,
     )
@@ -28,7 +36,14 @@ export function EndpointDisplay() {
     )
     if (custom?.title) return custom.title.trim()
     return '未配置'
-  }, [gptImageBaseUrl, gptImageModelId, gptImageCustomEndpoints])
+  }, [
+    gptImageBaseUrl,
+    gptImageModelId,
+    gptImageCustomEndpoints,
+    gptImageEndpointKind,
+    gptImageEndpointId,
+    gptImageComfyEndpoints,
+  ])
 
   // 当前接入点的积分比例与货币单位：仅预设可配置，自定义接入点与未匹配时按默认处理
   const { creditRatio, currency } = useMemo(() => {
@@ -42,7 +57,14 @@ export function EndpointDisplay() {
   }, [gptImageBaseUrl, gptImageModelId])
 
   return (
-    <Tooltip title={error || '点击切换接入点'} placement="bottom">
+    <Tooltip
+      title={
+        gptImageEndpointKind === 'comfyui'
+          ? '点击切换接入点'
+          : error || '点击切换接入点'
+      }
+      placement="bottom"
+    >
       <div
         className="flex w-full cursor-pointer flex-col gap-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-gray-500 transition-colors hover:border-slate-300 hover:bg-slate-100"
         onClick={() =>
@@ -57,30 +79,40 @@ export function EndpointDisplay() {
             {currentEndpointName}
           </span>
         </div>
-        {gptImageApiKey && (loading || error || quota) && (
+        {gptImageEndpointKind === 'comfyui' && (
           <div className="truncate">
-            {loading ? (
-              <span>
-                余额：<span className="text-gray-400">查询中...</span>
-              </span>
-            ) : error ? (
-              <span className="text-red-500">余额: {error}</span>
-            ) : quota ? (
-              <span>
-                余额：
-                <span className="font-semibold text-gray-700">
-                  {quota.unlimited_quota
-                    ? '不限'
-                    : (
-                        (quota.total_available * 0.000002) /
-                        creditRatio
-                      ).toFixed(2)}
-                  {currency}
-                </span>
-              </span>
-            ) : null}
+            本地工作流：
+            {gptImageComfyEndpoints.find(
+              (item) => item.id === gptImageEndpointId,
+            )?.workflowName || '未导入'}
           </div>
         )}
+        {gptImageEndpointKind !== 'comfyui' &&
+          gptImageApiKey &&
+          (loading || error || quota) && (
+            <div className="truncate">
+              {loading ? (
+                <span>
+                  余额：<span className="text-gray-400">查询中...</span>
+                </span>
+              ) : error ? (
+                <span className="text-red-500">余额: {error}</span>
+              ) : quota ? (
+                <span>
+                  余额：
+                  <span className="font-semibold text-gray-700">
+                    {quota.unlimited_quota
+                      ? '不限'
+                      : (
+                          (quota.total_available * 0.000002) /
+                          creditRatio
+                        ).toFixed(2)}
+                    {currency}
+                  </span>
+                </span>
+              ) : null}
+            </div>
+          )}
       </div>
     </Tooltip>
   )

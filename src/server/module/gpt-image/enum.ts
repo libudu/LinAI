@@ -1,4 +1,5 @@
 export const GPT_IMAGE_SOURCE_MODEL = 'gpt-image-2'
+export const COMFY_IMAGE_SOURCE = 'comfyui'
 
 // 尺寸/质量档位定义已移至 @/shared/image/params（common/task 等共用），此处再导出保持既有引用不变
 export type { GptImageQuality, GptImageSize } from '@/shared/image/params'

@@ -7,9 +7,14 @@ import { Hono } from 'hono'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { handleImageGeneration } from '../../module/gpt-image'
+import {
+  importComfyWorkflow,
+  submitComfyTask,
+} from '../../module/gpt-image/comfyui'
 import { GPT_IMAGE_OUTPUT_MAX_N } from '../../module/gpt-image/enum'
 import {
   getGptImageEndpoint,
+  getGptImageSettings,
   getYunwuApiKey,
 } from '../../module/gpt-image/settings'
 import gptImageEndpointApi from './endpoint'
@@ -30,6 +35,36 @@ function withAspectRatioLine(
 const gptImageApi = new Hono()
   // 接入点相关（余额查询等）
   .route('/endpoint', gptImageEndpointApi)
+  .post(
+    '/comfyui/import',
+    zValidator(
+      'json',
+      z.object({
+        endpointId: z.string().optional(),
+        title: z.string().min(1),
+        baseUrl: z.string().min(1),
+        workflowName: z.string(),
+        content: z
+          .string()
+          .min(1)
+          .max(10 * 1024 * 1024),
+      }),
+    ),
+    async (c) => {
+      try {
+        const endpoint = await importComfyWorkflow(c.req.valid('json'))
+        return c.json({ success: true as const, endpoint })
+      } catch (error) {
+        return c.json(
+          {
+            success: false as const,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          400,
+        )
+      }
+    },
+  )
   // 模块配置走注册式设置接口：GET/PUT /api/settings/gpt-image
   .post(
     '/generate',
@@ -44,13 +79,42 @@ const gptImageApi = new Hono()
           aspectRatio: z.string().optional(),
           n: z.number().min(1).max(GPT_IMAGE_OUTPUT_MAX_N).optional(),
         }),
-        size: z.enum(['1k', '2k', '4k']),
-        quality: z.enum(['medium', 'high', 'xhigh', 'max']),
+        size: z.enum(['1k', '2k', '4k']).optional().default('1k'),
+        quality: z
+          .enum(['medium', 'high', 'xhigh', 'max'])
+          .optional()
+          .default('medium'),
         appendAspectRatio: z.boolean().optional(),
+        endpointId: z.string().optional(),
       }),
     ),
     async (c) => {
-      const { input, size, quality, appendAspectRatio } = c.req.valid('json')
+      const { input, size, quality, appendAspectRatio, endpointId } =
+        c.req.valid('json')
+      const settings = await getGptImageSettings()
+      const comfy =
+        Boolean(endpointId) || settings.gptImageEndpointKind === 'comfyui'
+      if (comfy) {
+        try {
+          const snapshot: TaskInputSnapshot = {
+            id: uuidv4(),
+            createdAt: Date.now(),
+            title: input.title,
+            prompt: input.prompt,
+            images: input.images || [],
+          }
+          const taskId = await submitComfyTask(snapshot, endpointId)
+          return c.json({ success: true as const, taskId, outputUrls: [] })
+        } catch (error) {
+          return c.json(
+            {
+              success: false as const,
+              error: error instanceof Error ? error.message : String(error),
+            },
+            400,
+          )
+        }
+      }
       const apiKey = await getYunwuApiKey()
       if (!apiKey) {
         return c.json(
@@ -104,6 +168,28 @@ const gptImageApi = new Hono()
         n,
         appendAspectRatio,
       } = c.req.valid('json')
+      const settings = await getGptImageSettings()
+      if (settings.gptImageEndpointKind === 'comfyui') {
+        try {
+          const snapshot: TaskInputSnapshot = {
+            id: uuidv4(),
+            createdAt: Date.now(),
+            prompt,
+            images: images || [],
+            title: TRIAL_TEMPLATE_TITLE,
+          }
+          const taskId = await submitComfyTask(snapshot)
+          return c.json({ success: true as const, taskId, outputUrls: [] })
+        } catch (error) {
+          return c.json(
+            {
+              success: false as const,
+              error: error instanceof Error ? error.message : String(error),
+            },
+            400,
+          )
+        }
+      }
       const apiKey = await getYunwuApiKey()
       if (!apiKey) {
         return c.json(

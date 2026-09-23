@@ -1,7 +1,7 @@
 import { isVeniceEndpoint } from '@/server/module/gpt-image/enum'
 import { CloseOutlined } from '@ant-design/icons'
 import { Form, Input, message, Select } from 'antd'
-import { forwardRef, useEffect, useImperativeHandle } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 import { useGptImageStore } from '../../store'
 import {
   ENDPOINT_PRESETS,
@@ -11,10 +11,12 @@ import {
 
 // 「新增自定义接入点」的下拉值
 const NEW_CUSTOM_VALUE = '__new_custom__'
+const NEW_COMFY_VALUE = '__new_comfy__'
 
 // 下拉值与接入点的互转（不同预设可能共用 baseUrl/modelId，必须用 label 做值）
 const presetValue = (label: string) => `preset:${label}`
 const customValue = (id: string) => `custom:${id}`
+const comfyValue = (id: string) => `comfy:${id}`
 
 const generateId = () =>
   `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
@@ -25,35 +27,66 @@ export interface EndpointSettingRef {
 
 export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
   const [form] = Form.useForm()
+  const [workflowFile, setWorkflowFile] = useState<File | null>(null)
   const {
     gptImageApiKey,
     gptImageBaseUrl,
     gptImageModelId,
     gptImageCustomEndpoints,
     gptImagePresetApiKeys,
+    gptImageEndpointKind,
+    gptImageEndpointId,
+    gptImageComfyEndpoints,
     setGptImageEndpoint,
     setGptImageCustomEndpoints,
     setGptImagePresetApiKeys,
+    setGptImageComfyEndpoints,
+    selectComfyEndpoint,
+    fetchConfig,
   } = useGptImageStore()
 
   const endpoint = Form.useWatch('endpoint', form)
   const baseUrlValue = Form.useWatch('baseUrl', form)
   const isNewCustom = endpoint === NEW_CUSTOM_VALUE
+  const isNewComfy = endpoint === NEW_COMFY_VALUE
   const selectedPreset = ENDPOINT_PRESETS.find(
     (p) => presetValue(p.label) === endpoint,
   )
   const selectedCustom = gptImageCustomEndpoints.find(
     (c) => customValue(c.id) === endpoint,
   )
+  const selectedComfy = gptImageComfyEndpoints.find(
+    (c) => comfyValue(c.id) === endpoint,
+  )
 
   useEffect(() => {
+    if (gptImageEndpointKind === 'comfyui') {
+      const comfy = gptImageComfyEndpoints.find(
+        (item) => item.id === gptImageEndpointId,
+      )
+      if (comfy) {
+        form.setFieldsValue({
+          endpoint: comfyValue(comfy.id),
+          title: comfy.title,
+          baseUrl: comfy.baseUrl,
+          workflowName: comfy.workflowName,
+          apiKey: '',
+          modelId: '',
+        })
+        return
+      }
+    }
     // 根据已保存的 baseUrl/modelId 反推下拉选中项：优先匹配预设（支持 legacyModelIds 自动兼容），
     // 其次已保存的自定义接入点（必须有标题），否则回退到默认预设
-    const matchedPreset = findPresetEndpoint(gptImageBaseUrl, gptImageModelId)
+    const matchedPreset = gptImageEndpointId?.startsWith('custom:')
+      ? undefined
+      : (ENDPOINT_PRESETS.find(
+          (item) => `preset:${item.label}` === gptImageEndpointId,
+        ) ?? findPresetEndpoint(gptImageBaseUrl, gptImageModelId))
     const matchedCustom = gptImageCustomEndpoints.find(
       (c) =>
-        c.baseUrl === gptImageBaseUrl &&
-        c.modelId === gptImageModelId &&
+        (gptImageEndpointId === `custom:${c.id}` ||
+          (c.baseUrl === gptImageBaseUrl && c.modelId === gptImageModelId)) &&
         Boolean(c.title?.trim()),
     )
 
@@ -96,11 +129,38 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
     gptImageModelId,
     gptImageCustomEndpoints,
     gptImagePresetApiKeys,
+    gptImageEndpointKind,
+    gptImageEndpointId,
+    gptImageComfyEndpoints,
     form,
   ])
 
   // 切换下拉选项时，同步填充/清空接入点信息与对应的 API Key
   const handleEndpointChange = (value: string) => {
+    setWorkflowFile(null)
+    if (value === NEW_COMFY_VALUE) {
+      form.setFieldsValue({
+        title: '',
+        baseUrl: 'http://127.0.0.1:8188',
+        workflowName: '',
+        modelId: '',
+        apiKey: '',
+      })
+      return
+    }
+    const comfy = gptImageComfyEndpoints.find(
+      (item) => comfyValue(item.id) === value,
+    )
+    if (comfy) {
+      form.setFieldsValue({
+        title: comfy.title,
+        baseUrl: comfy.baseUrl,
+        workflowName: comfy.workflowName,
+        modelId: '',
+        apiKey: '',
+      })
+      return
+    }
     if (value === NEW_CUSTOM_VALUE) {
       form.setFieldsValue({
         title: '',
@@ -145,14 +205,78 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
       target.modelId === gptImageModelId
     ) {
       const preset = ENDPOINT_PRESETS[0]
-      await setGptImageEndpoint(preset.baseUrl, preset.modelId)
+      await setGptImageEndpoint(
+        preset.baseUrl,
+        preset.modelId,
+        `preset:${preset.label}`,
+      )
     }
     message.success('已删除自定义接入点')
+  }
+
+  const handleDeleteComfy = async (id: string) => {
+    await setGptImageComfyEndpoints(
+      gptImageComfyEndpoints.filter((item) => item.id !== id),
+    )
+    if (gptImageEndpointKind === 'comfyui' && gptImageEndpointId === id) {
+      const preset = ENDPOINT_PRESETS[0]
+      await setGptImageEndpoint(
+        preset.baseUrl,
+        preset.modelId,
+        `preset:${preset.label}`,
+      )
+    }
+    message.success('已删除 ComfyUI 接入点')
   }
 
   useImperativeHandle(ref, () => ({
     save: async () => {
       const values = await form.validateFields()
+      if (
+        values.endpoint === NEW_COMFY_VALUE ||
+        values.endpoint?.startsWith('comfy:')
+      ) {
+        const current = gptImageComfyEndpoints.find(
+          (item) => comfyValue(item.id) === values.endpoint,
+        )
+        if (!current && !workflowFile)
+          throw new Error('请选择 API 格式工作流 JSON')
+        if (workflowFile) {
+          const response = await fetch('/api/gptImage/comfyui/import', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              endpointId: current?.id,
+              title: values.title.trim(),
+              baseUrl: values.baseUrl.trim(),
+              workflowName: workflowFile.name,
+              content: await workflowFile.text(),
+            }),
+          })
+          const result = await response.json()
+          if (!result.success) {
+            message.error(result.error || '工作流导入失败')
+            throw new Error(result.error || '工作流导入失败')
+          }
+          await fetchConfig()
+          setWorkflowFile(null)
+        } else if (current) {
+          await setGptImageComfyEndpoints(
+            gptImageComfyEndpoints.map((item) =>
+              item.id === current.id
+                ? {
+                    ...item,
+                    title: values.title.trim(),
+                    baseUrl: values.baseUrl.trim(),
+                  }
+                : item,
+            ),
+          )
+          await selectComfyEndpoint(current.id)
+        }
+        message.success('ComfyUI 接入点已保存')
+        return 'comfyui'
+      }
       if (!values.apiKey) {
         message.warning('请输入 API Key')
         throw new Error('No API Key')
@@ -160,6 +284,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
 
       let baseUrl: string
       let modelId: string
+      let selectedId: string
       const apiKey: string = values.apiKey
       if (values.endpoint === NEW_CUSTOM_VALUE) {
         baseUrl = values.baseUrl.trim()
@@ -169,6 +294,11 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
         const existingIndex = gptImageCustomEndpoints.findIndex(
           (c) => c.baseUrl === baseUrl && c.modelId === modelId,
         )
+        const newId =
+          existingIndex >= 0
+            ? gptImageCustomEndpoints[existingIndex].id
+            : generateId()
+        selectedId = `custom:${newId}`
         const nextCustomEndpoints =
           existingIndex >= 0
             ? gptImageCustomEndpoints.map((c, i) =>
@@ -178,13 +308,14 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
                 ...gptImageCustomEndpoints.filter((c) =>
                   Boolean(c.title?.trim()),
                 ),
-                { id: generateId(), title, baseUrl, modelId, apiKey },
+                { id: newId, title, baseUrl, modelId, apiKey },
               ]
         await setGptImageCustomEndpoints(nextCustomEndpoints)
       } else if (values.endpoint.startsWith('custom:')) {
         const custom = gptImageCustomEndpoints.find(
           (c) => customValue(c.id) === values.endpoint,
         )!
+        selectedId = `custom:${custom.id}`
         baseUrl = values.baseUrl.trim()
         modelId = values.modelId.trim()
         const title = values.title.trim()
@@ -202,6 +333,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
         const preset = ENDPOINT_PRESETS.find(
           (p) => presetValue(p.label) === values.endpoint,
         )!
+        selectedId = `preset:${preset.label}`
         baseUrl = preset.baseUrl
         modelId = preset.modelId
         // 预设接入点的 API Key 按预设 label 持久化到 config
@@ -213,7 +345,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
 
       // 生效密钥按接入点从 keychain 解析与读写（shared/gpt-image/endpoints.ts），
       // 无需再单独维护 gptImageApiKey 平铺字段
-      await setGptImageEndpoint(baseUrl, modelId)
+      await setGptImageEndpoint(baseUrl, modelId, selectedId)
       message.success('配置保存成功')
       return values.apiKey
     },
@@ -244,8 +376,9 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
             // 选中结果只展示纯文本标题；删除按钮仅通过 optionRender 渲染在下拉选项中
             optionRender={(option) => {
               const value = String(option.value)
-              if (!value.startsWith('custom:')) return option.label
-              const id = value.slice('custom:'.length)
+              if (!value.startsWith('custom:') && !value.startsWith('comfy:'))
+                return option.label
+              const id = value.split(':')[1]
               return (
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate">{option.label}</span>
@@ -259,7 +392,8 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
                     }}
                     onClick={(e) => {
                       e.stopPropagation()
-                      handleDeleteCustom(id)
+                      if (value.startsWith('comfy:')) handleDeleteComfy(id)
+                      else handleDeleteCustom(id)
                     }}
                   />
                 </div>
@@ -276,11 +410,16 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
                   label: c.title,
                   value: customValue(c.id),
                 })),
+              ...gptImageComfyEndpoints.map((c) => ({
+                label: `${c.title} · ComfyUI`,
+                value: comfyValue(c.id),
+              })),
               { label: '新增自定义接入点', value: NEW_CUSTOM_VALUE },
+              { label: '新增本地 ComfyUI 工作流', value: NEW_COMFY_VALUE },
             ]}
           />
         </Form.Item>
-        {(isNewCustom || selectedCustom) && (
+        {(isNewCustom || selectedCustom || isNewComfy || selectedComfy) && (
           <>
             <Form.Item
               name="title"
@@ -294,32 +433,84 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
               label="Base URL"
               rules={[
                 { required: true, message: '请输入 Base URL' },
-                { type: 'url', message: '请输入合法的 URL' },
+                ...(isNewComfy || selectedComfy
+                  ? [
+                      {
+                        validator: (_: unknown, value: string) => {
+                          try {
+                            const url = new URL(value)
+                            if (
+                              url.protocol === 'http:' &&
+                              ['127.0.0.1', 'localhost', '[::1]'].includes(
+                                url.hostname,
+                              ) &&
+                              !url.username &&
+                              !url.password &&
+                              !url.search &&
+                              !url.hash &&
+                              url.pathname === '/'
+                            )
+                              return Promise.resolve()
+                          } catch {
+                            /* 由下方提示处理 */
+                          }
+                          return Promise.reject(
+                            new Error('仅允许本机 HTTP 回环地址'),
+                          )
+                        },
+                      },
+                    ]
+                  : [{ type: 'url' as const, message: '请输入合法的 URL' }]),
               ]}
               extra={
-                isVeniceEndpoint(baseUrlValue)
-                  ? '已识别为 Venice 特殊适配接入点：带参考图时将自动使用 image/multi-edit 接口'
-                  : undefined
+                isNewComfy || selectedComfy
+                  ? '仅支持本机 http://127.0.0.1、localhost 或 [::1] 地址'
+                  : isVeniceEndpoint(baseUrlValue)
+                    ? '已识别为 Venice 特殊适配接入点：带参考图时将自动使用 image/multi-edit 接口'
+                    : undefined
               }
             >
               <Input placeholder="例如 https://api.example.com/v1" />
             </Form.Item>
-            <Form.Item
-              name="modelId"
-              label="模型 ID"
-              rules={[{ required: true, message: '请输入模型 ID' }]}
-            >
-              <Input placeholder="例如 gpt-image-2" />
-            </Form.Item>
+            {!(isNewComfy || selectedComfy) && (
+              <Form.Item
+                name="modelId"
+                label="模型 ID"
+                rules={[{ required: true, message: '请输入模型 ID' }]}
+              >
+                <Input placeholder="例如 gpt-image-2" />
+              </Form.Item>
+            )}
           </>
         )}
-        <Form.Item
-          name="apiKey"
-          label="API Key"
-          rules={[{ required: true, message: '请输入 API Key' }]}
-        >
-          <Input.Password placeholder="输入 API Key" />
-        </Form.Item>
+        {(isNewComfy || selectedComfy) && (
+          <Form.Item
+            label="API 格式工作流 JSON"
+            required={isNewComfy}
+            extra={
+              selectedComfy
+                ? `当前：${selectedComfy.workflowName}；选择新文件可更新工作流`
+                : '在 ComfyUI 中导出 API 格式 JSON，并为三个节点设置 LinAI@ 标题'
+            }
+          >
+            <Input
+              type="file"
+              accept=".json,application/json"
+              onChange={(event) =>
+                setWorkflowFile(event.target.files?.[0] ?? null)
+              }
+            />
+          </Form.Item>
+        )}
+        {!(isNewComfy || selectedComfy) && (
+          <Form.Item
+            name="apiKey"
+            label="API Key"
+            rules={[{ required: true, message: '请输入 API Key' }]}
+          >
+            <Input.Password placeholder="输入 API Key" />
+          </Form.Item>
+        )}
       </Form>
     </div>
   )

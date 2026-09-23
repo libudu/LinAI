@@ -32,6 +32,16 @@ export interface CustomEndpoint {
   apiKey?: string
 }
 
+/** 本地 ComfyUI 接入点；工作流内容独立保存在服务端。 */
+export interface ComfyEndpoint {
+  id: string
+  protocol: 'comfyui'
+  title: string
+  baseUrl: string
+  workflowId: string
+  workflowName: string
+}
+
 export const ENDPOINT_PRESET_INFOS: EndpointPresetInfo[] = [
   {
     label: 'openlux gpt-image-2.5-sunburst-c',
@@ -97,6 +107,9 @@ export interface GptImageEndpointSettings {
   gptImageModelId: string | null
   gptImageCustomEndpoints: CustomEndpoint[]
   gptImagePresetApiKeys: Record<string, string>
+  gptImageEndpointKind?: 'openai' | 'comfyui'
+  gptImageEndpointId?: string | null
+  gptImageComfyEndpoints?: ComfyEndpoint[]
 }
 
 /**
@@ -107,6 +120,24 @@ export interface GptImageEndpointSettings {
 export const resolveGptImageApiKey = (
   settings: GptImageEndpointSettings,
 ): string | null => {
+  if (settings.gptImageEndpointKind === 'comfyui') return null
+  if (settings.gptImageEndpointId?.startsWith('preset:')) {
+    const preset = ENDPOINT_PRESET_INFOS.find(
+      (item) => item.label === settings.gptImageEndpointId?.slice(7),
+    )
+    if (preset)
+      return (
+        resolvePresetApiKey(preset, settings.gptImagePresetApiKeys) ||
+        settings.gptImageApiKey ||
+        null
+      )
+  }
+  if (settings.gptImageEndpointId?.startsWith('custom:')) {
+    const custom = settings.gptImageCustomEndpoints.find(
+      (item) => item.id === settings.gptImageEndpointId?.slice(7),
+    )
+    if (custom) return custom.apiKey || settings.gptImageApiKey || null
+  }
   const preset = findPresetEndpoint(
     settings.gptImageBaseUrl,
     settings.gptImageModelId,

@@ -61,6 +61,7 @@ export class TaskService {
     source: string
     size?: GptImageSize
     quality?: GptImageQuality
+    metadata?: Record<string, unknown>
   }): Promise<Task> {
     await this.ready
     const task = await this.repository.create({
@@ -68,6 +69,7 @@ export class TaskService {
       source: options.source,
       size: options.size,
       quality: options.quality,
+      ...options.metadata,
       status: 'pending',
     })
     this.publishChange()
@@ -97,6 +99,29 @@ export class TaskService {
     error?: string,
   ): Promise<boolean> {
     return this.updateTask(id, error ? { status, error } : { status })
+  }
+
+  /** 后台任务仅能从未结束状态写入；删除或重启恢复后不得重新完成。 */
+  async updateActiveTask(id: string, updates: Partial<Task>): Promise<boolean> {
+    await this.ready
+    try {
+      await this.repository.update(id, (record) => {
+        if (record.status !== 'pending' && record.status !== 'running') {
+          throw new Error('TASK_NOT_ACTIVE')
+        }
+        const { id: _id, createdAt: _createdAt, ...rest } = updates
+        return { ...record, ...rest }
+      })
+    } catch (error) {
+      if (
+        (error instanceof StorageError && error.code === 'NOT_FOUND') ||
+        (error instanceof Error && error.message === 'TASK_NOT_ACTIVE')
+      )
+        return false
+      throw error
+    }
+    this.publishChange()
+    return true
   }
 
   /** 删除任务；keepImage 为 false 时同时删除已生成的输出图片 */

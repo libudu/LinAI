@@ -1,5 +1,6 @@
 import { usePlatform } from '@/client/hooks/usePlatform'
 import type { Task } from '@/server/common/task'
+import { COMFY_IMAGE_SOURCE } from '@/server/module/gpt-image/enum'
 import { ClockCircleOutlined } from '@ant-design/icons'
 import { Tag, Tooltip } from 'antd'
 
@@ -13,10 +14,12 @@ export function TaskItemTags({ task, downloadedIds }: TaskItemTagsProps) {
 
   return (
     <div className="mb-2 flex flex-wrap gap-1">
-      {task.inputSnapshot?.aspectRatio && (
-        <Tag color="blue">{task.inputSnapshot.aspectRatio}</Tag>
-      )}
-      {task.size && (
+      {task.source === COMFY_IMAGE_SOURCE && <Tag color="green">ComfyUI</Tag>}
+      {task.source !== COMFY_IMAGE_SOURCE &&
+        task.inputSnapshot?.aspectRatio && (
+          <Tag color="blue">{task.inputSnapshot.aspectRatio}</Tag>
+        )}
+      {task.source !== COMFY_IMAGE_SOURCE && task.size && (
         <Tooltip
           title="该尺寸仅为输入时设置的尺寸，实际会受到模型最大像素限制、比例调整和分组分辨率可用性，以实际图片比例为准"
           className="cursor-pointer"
@@ -24,7 +27,7 @@ export function TaskItemTags({ task, downloadedIds }: TaskItemTagsProps) {
           <Tag color="magenta">{task.size}</Tag>
         </Tooltip>
       )}
-      {task.quality && (
+      {task.source !== COMFY_IMAGE_SOURCE && task.quality && (
         <Tag
           color={
             task.quality === 'max'

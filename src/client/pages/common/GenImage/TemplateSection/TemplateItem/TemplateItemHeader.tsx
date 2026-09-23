@@ -20,8 +20,15 @@ export const TemplateItemGenerateButtons: React.FC<{
 }> = ({ template }) => {
   const { gptImageSettings, appendAspectRatio } = useLocalSetting()
   const gptImageApiKey = useGptImageStore((state) => state.gptImageApiKey)
+  const isComfy = useGptImageStore(
+    (state) => state.gptImageEndpointKind === 'comfyui',
+  )
 
   const doGenerate = async (template: FlatTemplate, size: GptImageSize) => {
+    if (isComfy && (template.images || []).length !== 1) {
+      message.warning('ComfyUI 生成必须恰好提供一张参考图')
+      return
+    }
     try {
       const res = await client.api.gptImage.generate.$post({
         json: {
@@ -30,12 +37,12 @@ export const TemplateItemGenerateButtons: React.FC<{
             title: template.title,
             prompt: template.prompt,
             images: template.images || [],
-            aspectRatio: template.aspectRatio,
-            n: template.n,
+            aspectRatio: isComfy ? undefined : template.aspectRatio,
+            n: isComfy ? undefined : template.n,
           },
-          size,
-          quality: gptImageSettings.quality,
-          appendAspectRatio,
+          size: isComfy ? undefined : size,
+          quality: isComfy ? undefined : gptImageSettings.quality,
+          appendAspectRatio: isComfy ? undefined : appendAspectRatio,
         },
       })
       const data = await res.json()
@@ -52,7 +59,7 @@ export const TemplateItemGenerateButtons: React.FC<{
 
   const handleGenerate = (template: FlatTemplate, size: GptImageSize) => {
     const apiKey = gptImageApiKey
-    if (!apiKey) {
+    if (!isComfy && !apiKey) {
       openGPTImageSettingModal({
         initialTab: 'endpoint',
         initialOnly: true,
@@ -82,6 +89,9 @@ export const TemplateItemHeader = ({
   draggable: boolean
 }) => {
   const { refresh: refreshTemplates } = useTemplates()
+  const isComfy = useGptImageStore(
+    (state) => state.gptImageEndpointKind === 'comfyui',
+  )
 
   const handleDelete = async (id: string) => {
     try {
@@ -97,12 +107,12 @@ export const TemplateItemHeader = ({
     <div>
       <div className="flex items-center justify-between">
         <Space size={4}>
-          {template.aspectRatio && (
+          {!isComfy && template.aspectRatio && (
             <Tag color="blue" className="m-0">
               {template.aspectRatio}
             </Tag>
           )}
-          {template.n && template.n > 1 && (
+          {!isComfy && template.n && template.n > 1 && (
             <Tag color="cyan" className="m-0">
               {template.n}张
             </Tag>

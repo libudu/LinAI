@@ -27,6 +27,9 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
   const [imageUrls, setImageUrls] = useState<string[]>([])
   const [uploadingCount, setUploadingCount] = useState(0)
   const gptImageApiKey = useGptImageStore((state) => state.gptImageApiKey)
+  const isComfy = useGptImageStore(
+    (state) => state.gptImageEndpointKind === 'comfyui',
+  )
   const { fillTemplateData, setFillTemplateData } = useGlobalStore(
     useShallow((state) => ({
       fillTemplateData: state.fillTemplateData,
@@ -65,19 +68,22 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
       message.warning('请先填写提示词')
       return
     }
+    if (isComfy && imageUrls.length !== 1) {
+      message.warning('ComfyUI 试生成必须恰好提供一张参考图')
+      return
+    }
     const aspectRatio = form.getFieldValue('aspectRatio') || '1:1'
 
-    message.success('任务提交成功')
     try {
       const res = await client.api.gptImage.trial.$post({
         json: {
           prompt,
-          aspectRatio,
+          aspectRatio: isComfy ? undefined : aspectRatio,
           images: imageUrls,
-          size,
-          quality: gptImageSettings.quality,
-          n,
-          appendAspectRatio,
+          size: isComfy ? undefined : size,
+          quality: isComfy ? undefined : gptImageSettings.quality,
+          n: isComfy ? undefined : n,
+          appendAspectRatio: isComfy ? undefined : appendAspectRatio,
         },
       })
 
@@ -85,6 +91,8 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
 
       if (!data.success) {
         message.error(data.error || '生成失败')
+      } else {
+        message.success('任务提交成功')
       }
     } catch (error) {
       message.error('请求失败')
@@ -99,7 +107,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
     }
 
     const apiKey = gptImageApiKey
-    if (!apiKey) {
+    if (!isComfy && !apiKey) {
       openGPTImageSettingModal({
         initialTab: 'endpoint',
         initialOnly: true,

@@ -1,6 +1,9 @@
 import { settingsClient } from '@/client/service/settings'
 import type { GptImageSettings } from '@/server/module/gpt-image/settings'
-import { resolveGptImageApiKey } from '@/shared/gpt-image/endpoints'
+import {
+  resolveGptImageApiKey,
+  type ComfyEndpoint,
+} from '@/shared/gpt-image/endpoints'
 import { message } from 'antd'
 import { create } from 'zustand'
 import type { CustomEndpoint } from './SettingModal/Endpoint/endpointPresets'
@@ -15,13 +18,19 @@ interface GptImageState {
   gptImageModelId: string | null
   gptImageCustomEndpoints: CustomEndpoint[]
   gptImagePresetApiKeys: Record<string, string>
+  gptImageEndpointKind: 'openai' | 'comfyui'
+  gptImageEndpointId: string | null
+  gptImageComfyEndpoints: ComfyEndpoint[]
   revision: number
   setGptImageEndpoint: (
     baseUrl: string | null,
     modelId: string | null,
+    id?: string | null,
   ) => Promise<void>
   setGptImageCustomEndpoints: (endpoints: CustomEndpoint[]) => Promise<void>
   setGptImagePresetApiKeys: (keys: Record<string, string>) => Promise<void>
+  setGptImageComfyEndpoints: (endpoints: ComfyEndpoint[]) => Promise<void>
+  selectComfyEndpoint: (id: string) => Promise<void>
   fetchConfig: () => Promise<void>
 }
 
@@ -32,6 +41,9 @@ type GptImageConfigData = Pick<
   | 'gptImageModelId'
   | 'gptImageCustomEndpoints'
   | 'gptImagePresetApiKeys'
+  | 'gptImageEndpointKind'
+  | 'gptImageEndpointId'
+  | 'gptImageComfyEndpoints'
 >
 
 export const useGptImageStore = create<GptImageState>()((set, get) => {
@@ -56,6 +68,9 @@ export const useGptImageStore = create<GptImageState>()((set, get) => {
         gptImageModelId: state.gptImageModelId,
         gptImageCustomEndpoints: state.gptImageCustomEndpoints,
         gptImagePresetApiKeys: state.gptImagePresetApiKeys,
+        gptImageEndpointKind: state.gptImageEndpointKind,
+        gptImageEndpointId: state.gptImageEndpointId,
+        gptImageComfyEndpoints: state.gptImageComfyEndpoints,
         ...patch,
       }
       const res = await client.put(next, state.revision)
@@ -63,6 +78,7 @@ export const useGptImageStore = create<GptImageState>()((set, get) => {
     } catch (error) {
       console.error('Failed to update config', error)
       message.error('设置保存失败')
+      throw error
     }
   }
 
@@ -72,13 +88,25 @@ export const useGptImageStore = create<GptImageState>()((set, get) => {
     gptImageModelId: null,
     gptImageCustomEndpoints: [],
     gptImagePresetApiKeys: {},
+    gptImageEndpointKind: 'openai',
+    gptImageEndpointId: null,
+    gptImageComfyEndpoints: [],
     revision: 0,
-    setGptImageEndpoint: (baseUrl, modelId) =>
-      postConfig({ gptImageBaseUrl: baseUrl, gptImageModelId: modelId }),
+    setGptImageEndpoint: (baseUrl, modelId, id = null) =>
+      postConfig({
+        gptImageBaseUrl: baseUrl,
+        gptImageModelId: modelId,
+        gptImageEndpointKind: 'openai',
+        gptImageEndpointId: id,
+      }),
     setGptImageCustomEndpoints: (endpoints) =>
       postConfig({ gptImageCustomEndpoints: endpoints }),
     setGptImagePresetApiKeys: (keys) =>
       postConfig({ gptImagePresetApiKeys: keys }),
+    setGptImageComfyEndpoints: (endpoints) =>
+      postConfig({ gptImageComfyEndpoints: endpoints }),
+    selectComfyEndpoint: (id) =>
+      postConfig({ gptImageEndpointKind: 'comfyui', gptImageEndpointId: id }),
     fetchConfig: async () => {
       try {
         const res = await client.get()
