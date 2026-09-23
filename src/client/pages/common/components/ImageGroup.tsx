@@ -1,15 +1,22 @@
 import { Image } from 'antd'
+import { Fragment } from 'react'
 
 interface ImageGroupProps {
   images: string[]
   width: number
   height: number
+  previewGroup?: boolean
 }
 
 const MAX_VISIBLE_IMAGES = 8
 const WARP_MAX_IMAGE_COUNT = 3
 
-export function ImageGroup({ images, width, height }: ImageGroupProps) {
+export function ImageGroup({
+  images,
+  width,
+  height,
+  previewGroup = true,
+}: ImageGroupProps) {
   if (!images || images.length === 0) return null
 
   const visibleImages = images.slice(0, MAX_VISIBLE_IMAGES)
@@ -25,13 +32,14 @@ export function ImageGroup({ images, width, height }: ImageGroupProps) {
   const cardHeight = rows === 1 ? height : height * 0.6
   const cardWidth = Math.round(cardHeight * 0.6)
   const stepY = rows > 1 ? (height - cardHeight) / (rows - 1) : 0
+  const PreviewGroup = previewGroup ? Image.PreviewGroup : Fragment
 
   return (
     <div
       className="relative shrink-0 rounded-lg bg-gray-200"
       style={{ width: `${width}px`, height: `${height}px` }}
     >
-      <Image.PreviewGroup>
+      <PreviewGroup>
         {visibleImages.map((url, index) => {
           const rowIndex = rows === 1 ? 0 : index < rowCounts[0] ? 0 : 1
           const colIndex =
@@ -96,7 +104,7 @@ export function ImageGroup({ images, width, height }: ImageGroupProps) {
             ))}
           </div>
         )}
-      </Image.PreviewGroup>
+      </PreviewGroup>
       <div className="absolute right-1 bottom-0 z-20 rounded bg-black/50 px-1 text-[10px] text-white">
         {images.length}张
       </div>

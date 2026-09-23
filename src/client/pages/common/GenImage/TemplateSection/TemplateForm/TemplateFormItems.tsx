@@ -213,7 +213,7 @@ export function TemplateFormFields({
               setUploadingCount(isUploading ? 1 : 0)
             }
             onFirstImageRatio={
-              !isEdit && autoFillAspectRatio
+              !isComfy && !isEdit && autoFillAspectRatio
                 ? (ratio) => {
                     form.setFieldsValue({ aspectRatio: ratio })
                     message.info(`已根据首图自动设置比例为 ${ratio}`)
