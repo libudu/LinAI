@@ -50,7 +50,7 @@ export function SideSetting() {
           </>
         }
       />
-      <SettingItem
+      {/* <SettingItem
         title="图片风格提取"
         checked={styleExtractEnabled}
         onChange={setStyleExtractEnabled}
@@ -60,7 +60,7 @@ export function SideSetting() {
             <div>使用“视觉接入点”中单独配置的模型和 API Key</div>
           </>
         }
-      />
+      /> */}
       <div className="mt-4">
         <div className="flex items-center justify-between gap-2">
           <div className="text-sm text-gray-600">比例拼接</div>

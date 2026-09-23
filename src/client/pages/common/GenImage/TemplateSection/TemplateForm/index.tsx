@@ -2,7 +2,7 @@ import { useLocalSetting } from '@/client/hooks/useLocalSetting'
 import { useGlobalStore } from '@/client/store/global'
 import type { AppType } from '@/server'
 import type { GptImageSize } from '@/server/module/gpt-image/enum'
-import { ExperimentOutlined, PlusOutlined } from '@ant-design/icons'
+import { PlusOutlined } from '@ant-design/icons'
 import { Button, Form, message } from 'antd'
 import { hc } from 'hono/client'
 import { useEffect, useRef, useState } from 'react'
@@ -143,7 +143,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
     <>
       <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-800">
         <PlusOutlined className="text-emerald-500" /> 新增模板
-        {styleExtractEnabled && (
+        {/* {styleExtractEnabled && (
           <Button
             type="link"
             size="small"
@@ -153,7 +153,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
           >
             图片风格提取
           </Button>
-        )}
+        )} */}
       </h3>
       <Form
         form={form}
