@@ -1,5 +1,6 @@
-import { Modal, Spin, Tabs } from 'antd'
-import { useEffect, useMemo, useState } from 'react'
+import { subscribeStorageEvent } from '@/client/service/storage-events'
+import { Modal, Spin, Tabs, message } from 'antd'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
   MAX_VISIBLE_RECENT_IMAGES,
@@ -25,16 +26,15 @@ interface GalleryModalProps {
 export type GalleryImageSelection = Pick<GalleryImageItem, 'url' | 'type'>
 
 function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
-  const [activeKey, setActiveKey] = useState(
-    usePendingImages.getState().urls.length > 0 ? 'pending' : 'recent',
-  )
+  const [activeKey, setActiveKey] = useState('pending')
   const [selectedUrls, setSelectedUrls] = useState<string[]>([])
   const [selectedInputFolder, setSelectedInputFolder] = useState<string | null>(
     null,
   )
   const { recentImages, removeRecentImages } = useRecentImages()
   const storedPendingUrls = usePendingImages((s) => s.urls)
-  const retainPendingUrls = usePendingImages((s) => s.retain)
+  const loadPendingImages = usePendingImages((s) => s.load)
+  const removePendingImages = usePendingImages((s) => s.remove)
   const {
     images,
     loading,
@@ -50,6 +50,20 @@ function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
     fetchImages,
     resolveImageType,
   } = useGalleryImages(visible)
+  const fetchImagesRef = useRef(fetchImages)
+  fetchImagesRef.current = fetchImages
+
+  useEffect(() => {
+    if (!visible) return
+    void loadPendingImages().catch((error) => {
+      message.error(error instanceof Error ? error.message : '待使用图片加载失败')
+    })
+    return subscribeStorageEvent('image.pending', () => {
+      void Promise.all([loadPendingImages(), fetchImagesRef.current()]).catch(
+        (error) => console.error('刷新待使用图片失败', error),
+      )
+    })
+  }, [visible, loadPendingImages])
 
   const validRecentImages = useMemo(() => {
     if (!imagesLoadSucceeded) {
@@ -78,12 +92,6 @@ function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
     (!imagesLoadSucceeded || pendingUrls.length > 0)
   const currentActiveKey =
     activeKey === 'pending' && !pendingTabVisible ? 'recent' : activeKey
-
-  useEffect(() => {
-    if (imagesLoadSucceeded) {
-      retainPendingUrls(new Set(images.map((image) => image.url)))
-    }
-  }, [images, imagesLoadSucceeded, retainPendingUrls])
 
   const invalidRecentImages = useMemo(() => {
     if (!imagesLoadSucceeded) {
@@ -156,6 +164,10 @@ function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
       return
     }
     const existingUrlSet = new Set(nextImages.map((image) => image.url))
+    const removedPendingUrls = urls.filter(
+      (url) => storedPendingUrls.includes(url) && !existingUrlSet.has(url),
+    )
+    await removePendingImages(removedPendingUrls)
 
     setSelectedUrls((prev) =>
       prev.filter((url) => !urls.includes(url) || existingUrlSet.has(url)),

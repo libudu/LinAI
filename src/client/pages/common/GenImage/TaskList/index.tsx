@@ -26,6 +26,7 @@ import {
 import copy from 'copy-to-clipboard'
 import dayjs from 'dayjs'
 import { hc } from 'hono/client'
+import { useEffect, useState } from 'react'
 import { ImageGroup } from '../../components/ImageGroup'
 import { useTasks } from '../hooks/useTasks'
 import { TaskImage } from './components/TaskImage'
@@ -34,8 +35,8 @@ import { TaskItemDownloadButton } from './components/TaskItemDownloadButton'
 import { TaskItemTags } from './components/TaskItemTags'
 import { TaskListHeader } from './TaskListHeader'
 
-import { useState } from 'react'
 const client = hc<AppType>('/')
+const PAGE_SIZE = 10
 
 export function TaskList() {
   const { data: tasks = [], loading } = useTasks()
@@ -102,7 +103,16 @@ export function TaskList() {
           : [],
     }))
   const [page, setPage] = useState(0)
-  const PAGE_SIZE = 10
+  const lastPage = Math.max(0, Math.ceil(gptImageTasks.length / PAGE_SIZE) - 1)
+  const currentPage = Math.min(page, lastPage)
+  const pageTasks = gptImageTasks.slice(
+    currentPage * PAGE_SIZE,
+    (currentPage + 1) * PAGE_SIZE,
+  )
+
+  useEffect(() => {
+    if (page > lastPage) setPage(lastPage)
+  }, [page, lastPage])
   return (
     <Card
       className="w-full border-slate-200 shadow-sm"
@@ -125,14 +135,15 @@ export function TaskList() {
       ) : (
         <>
           <Image.PreviewGroup
-            items={gptImageTasks
-              .slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
-              .flatMap((task) => task.outputUrls)}
+            items={pageTasks.flatMap((task) => task.outputUrls)}
             classNames={{ popup: { root: 'task-list-image-preview' } }}
           >
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {gptImageTasks
-                .slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
+                .slice(
+                  currentPage * PAGE_SIZE,
+                  (currentPage + 1) * PAGE_SIZE,
+                )
                 .map((task) => (
                   <Card
                     key={task.id}
@@ -302,7 +313,7 @@ export function TaskList() {
           {gptImageTasks.length > 10 && (
             <div className="mt-4 flex justify-center">
               <Pagination
-                current={page + 1}
+                current={currentPage + 1}
                 pageSize={PAGE_SIZE}
                 total={gptImageTasks.length}
                 onChange={(p) => setPage(p - 1)}

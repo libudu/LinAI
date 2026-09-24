@@ -249,7 +249,7 @@ export function ResourceGrid() {
   const handleAddToGallery = async (item: EagleItem) => {
     try {
       const url = await addEagleItemToGallery(item.id)
-      addPendingImage(url)
+      await addPendingImage(url)
       message.success('已添加到图库待使用')
     } catch (error) {
       message.error(error instanceof Error ? error.message : '添加失败')

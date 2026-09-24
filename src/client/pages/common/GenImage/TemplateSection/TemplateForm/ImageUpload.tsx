@@ -5,6 +5,7 @@ import { hc } from 'hono/client'
 import { useEffect, useRef } from 'react'
 import { useRecentImages } from '../hooks/useRecentImages'
 import { openGallery, type GalleryImageSelection } from './Gallery'
+import { usePendingImages } from './Gallery/pendingImages'
 import { ImageCropModal } from './ImageCrop/ImageCropModal'
 import { ImageUploadItem } from './ImageCrop/ImageUploadItem'
 import { ImageDrawModal } from './ImageDraw/ImageDrawModal'
@@ -263,6 +264,23 @@ export function ImageUpload({
                   latestValueRef.current = newUrls
                   onChange?.(newUrls)
                   addRecentImages(processedUrls)
+                  const usedPendingUrls = selected
+                    .filter(
+                      ({ type }, index) =>
+                        type === 'input' && newUrls.includes(processedUrls[index]),
+                    )
+                    .map(({ url }) => url)
+                  if (usedPendingUrls.length > 0) {
+                    try {
+                      await usePendingImages.getState().remove(usedPendingUrls)
+                    } catch (error) {
+                      message.error(
+                        error instanceof Error
+                          ? `图片已添加，但移出待使用失败：${error.message}`
+                          : '图片已添加，但移出待使用失败',
+                      )
+                    }
+                  }
                 } catch (error) {
                   message.error(
                     error instanceof Error ? error.message : '图库图片处理失败',

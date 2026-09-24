@@ -27,6 +27,7 @@
 | ComfyUI 工作流 JSON                          | 服务端 `data/images/workflows/<workflowId>.json`，不放进设置值或每次生成请求。                                                    | `POST /api/gptImage/comfyui/import` 专用导入接口。                                                          |
 | 任务、状态、输入快照                         | 服务端 `TaskService`，文件 `data/tasks.json`；任务不是前端可写的通用存储资源。                                                    | `GET /api/task`、`DELETE /api/task/:id`；`hooks/useTasks.ts` 订阅 `image.tasks` 变更事件后重新拉取。        |
 | 输入图、生成图                               | 服务端 `data/images/input/`、`data/images/generated/`。                                                                           | 上传接口返回 `/api/static/images/input/...`；任务输出为 `/api/static/images/generated/...`。                |
+| 图库待使用图片列表                           | 通用存储资源 `image.pending`，服务端文件 `data/images/pending.json`。                                                              | `TemplateSection/TemplateForm/Gallery/pendingImages.ts`。                                                   |
 | 尺寸开关、画质、删除任务时保留图片等界面偏好 | 浏览器 `localStorage` 的 `gpt-image-settings`。                                                                                   | `src/client/hooks/useLocalSetting.tsx`。这些值不是服务端接入点配置。                                        |
 | 最近使用的输入图                             | 浏览器 `localStorage` 的 `recent_uploaded_images`。                                                                               | `TemplateSection/hooks/useRecentImages.ts`。                                                                |
 

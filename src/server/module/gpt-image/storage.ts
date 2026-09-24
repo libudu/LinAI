@@ -35,3 +35,9 @@ storageRegistry.register('image.templates', {
   file: dataPath('templates.json'),
   migrateLegacy: migrateLegacyTemplates,
 })
+
+// 图库「待使用」图片跨设备共享，条目只保存输入图库 URL。
+storageRegistry.register('image.pending', {
+  kind: 'collection',
+  file: dataPath('images', 'pending.json'),
+})
