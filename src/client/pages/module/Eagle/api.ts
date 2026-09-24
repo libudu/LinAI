@@ -109,3 +109,11 @@ export const eagleThumbnailUrl = (id: string) =>
   `/api/eagle/items/${id}/thumbnail`
 
 export const eagleFileUrl = (id: string) => `/api/eagle/items/${id}/file`
+
+export const addEagleItemToGallery = async (id: string): Promise<string> => {
+  const json = await apiRequest<{ url: string }>(
+    `/api/eagle/items/${id}/add-to-gallery`,
+    { method: 'POST' },
+  )
+  return json.data.url
+}

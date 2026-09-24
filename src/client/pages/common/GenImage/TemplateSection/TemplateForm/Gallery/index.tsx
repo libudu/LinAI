@@ -9,6 +9,7 @@ import type { GalleryDeleteSuccessPayload } from './Footer'
 import { GalleryFooter } from './Footer'
 import { GalleryImageGrid } from './GalleryImageGrid'
 import { InputImageGallery } from './InputImageGallery'
+import { usePendingImages } from './pendingImages'
 import {
   type GalleryImageItem,
   normalizeComparableUrl,
@@ -24,12 +25,16 @@ interface GalleryModalProps {
 export type GalleryImageSelection = Pick<GalleryImageItem, 'url' | 'type'>
 
 function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
-  const [activeKey, setActiveKey] = useState('recent')
+  const [activeKey, setActiveKey] = useState(
+    usePendingImages.getState().urls.length > 0 ? 'pending' : 'recent',
+  )
   const [selectedUrls, setSelectedUrls] = useState<string[]>([])
   const [selectedInputFolder, setSelectedInputFolder] = useState<string | null>(
     null,
   )
   const { recentImages, removeRecentImages } = useRecentImages()
+  const storedPendingUrls = usePendingImages((s) => s.urls)
+  const retainPendingUrls = usePendingImages((s) => s.retain)
   const {
     images,
     loading,
@@ -57,6 +62,28 @@ function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
       )
       .slice(0, MAX_VISIBLE_RECENT_IMAGES)
   }, [availableComparableUrlSet, imagesLoadSucceeded, recentImages])
+
+  const pendingUrls = useMemo(
+    () =>
+      images
+        .filter(
+          (image) =>
+            image.type === 'input' && storedPendingUrls.includes(image.url),
+        )
+        .map((image) => image.url),
+    [images, storedPendingUrls],
+  )
+  const pendingTabVisible =
+    storedPendingUrls.length > 0 &&
+    (!imagesLoadSucceeded || pendingUrls.length > 0)
+  const currentActiveKey =
+    activeKey === 'pending' && !pendingTabVisible ? 'recent' : activeKey
+
+  useEffect(() => {
+    if (imagesLoadSucceeded) {
+      retainPendingUrls(new Set(images.map((image) => image.url)))
+    }
+  }, [images, imagesLoadSucceeded, retainPendingUrls])
 
   const invalidRecentImages = useMemo(() => {
     if (!imagesLoadSucceeded) {
@@ -143,8 +170,9 @@ function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
       footer={
         referencesReady ? (
           <GalleryFooter
-            activeKey={activeKey}
+            activeKey={currentActiveKey}
             selectedUrls={selectedUrls}
+            pendingUrls={pendingUrls}
             images={images}
             onCancel={onClose}
             onConfirm={handleConfirm}
@@ -156,9 +184,33 @@ function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
       destroyOnHidden
     >
       <Tabs
-        activeKey={activeKey}
+        activeKey={currentActiveKey}
         onChange={setActiveKey}
         items={[
+          ...(pendingTabVisible
+            ? [
+                {
+                  key: 'pending',
+                  label: '待使用',
+                  children:
+                    loading || !imagesLoaded || !referencesReady ? (
+                      <div className="p-8 text-center">
+                        <Spin />
+                      </div>
+                    ) : !imagesLoadSucceeded ? (
+                      <div className="p-8 text-center text-slate-400">
+                        图片加载失败，请关闭图库后重试
+                      </div>
+                    ) : (
+                      <GalleryImageGrid
+                        urls={pendingUrls}
+                        selectedUrls={selectedUrls}
+                        onSelect={handleSelect}
+                      />
+                    ),
+                },
+              ]
+            : []),
           {
             key: 'recent',
             label: '最近使用',

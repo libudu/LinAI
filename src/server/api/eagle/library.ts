@@ -6,6 +6,7 @@ import { Readable } from 'node:stream'
 import path from 'path'
 import sharp from 'sharp'
 import { z } from 'zod'
+import { importInputImage } from '../../common/static'
 import { dataPath } from '../../common/storage/data-path'
 import {
   deleteItem,
@@ -224,6 +225,25 @@ libraryApi.get('/items/:id/thumbnail', async (c) => {
 })
 
 // 原文件：图片整读，视频走 Range 流式（支持进度条拖动）
+libraryApi.post('/items/:id/add-to-gallery', async (c) => {
+  const id = c.req.param('id')
+  const entry = await getItemEntry(id)
+  if (!entry || isVideoExt(entry.ext)) {
+    return c.json({ success: false as const, error: '图片不存在' }, 404)
+  }
+  const filePath = await getItemFilePath(id)
+  if (!filePath || !(await fs.pathExists(filePath))) {
+    return c.json({ success: false as const, error: '文件不存在' }, 404)
+  }
+  try {
+    const result = await importInputImage(await fs.readFile(filePath))
+    return c.json({ success: true as const, data: result })
+  } catch (error) {
+    console.error('添加 Eagle 图片到图库失败', error)
+    return c.json({ success: false as const, error: '图片处理失败' }, 500)
+  }
+})
+
 libraryApi.get('/items/:id/file', async (c) => {
   const id = c.req.param('id')
   const entry = await getItemEntry(id)

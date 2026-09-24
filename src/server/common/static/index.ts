@@ -117,6 +117,11 @@ export async function uploadInputImage(image: string) {
   }
 
   const buffer = Buffer.from(matches[2], 'base64')
+  return importInputImage(buffer)
+}
+
+/** 将已有的本地图片转为输入图库图片，复用上传时的压缩与去重规则。 */
+export async function importInputImage(buffer: Buffer) {
   const webpBuffer = await sharp(buffer, { failOn: 'none' })
     .resize(IMAGE_MAX_DIMENSION, IMAGE_MAX_DIMENSION, {
       fit: 'inside',

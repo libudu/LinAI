@@ -45,7 +45,7 @@ const findFolder = (
   return null
 }
 
-// 资源列表顶部操作区：「展示选项」下拉面板（排序/图片大小/文件名/文件大小/文件夹描述）+ 刷新按钮 +「图片整理」入口；移动端提供文件夹抽屉入口
+// 资源列表顶部操作区：展示选项、刷新、图片整理；移动端提供文件夹抽屉入口
 export function Toolbar() {
   const {
     currentFolderId,
@@ -273,7 +273,7 @@ export function Toolbar() {
                   checked={showFolderDescription}
                   onChange={(e) => setShowFolderDescription(e.target.checked)}
                 >
-                  显示文件夹描述
+                  展示文件夹描述
                 </Checkbox>
                 <Checkbox
                   checked={showFileName}

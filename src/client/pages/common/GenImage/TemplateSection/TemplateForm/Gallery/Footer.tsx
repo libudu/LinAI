@@ -15,6 +15,7 @@ const client = hc<AppType>('/')
 interface GalleryFooterProps {
   activeKey: string
   selectedUrls: string[]
+  pendingUrls: string[]
   images: Array<{
     url: string
     type: GalleryImageType
@@ -26,11 +27,16 @@ interface GalleryFooterProps {
 }
 
 const getTabType = (activeKey: string): GalleryImageType | null =>
-  activeKey === 'input' || activeKey === 'generated' ? activeKey : null
+  activeKey === 'pending'
+    ? 'input'
+    : activeKey === 'input' || activeKey === 'generated'
+      ? activeKey
+      : null
 
 export function GalleryFooter({
   activeKey,
   selectedUrls,
+  pendingUrls,
   images,
   onCancel,
   onConfirm,
@@ -38,7 +44,11 @@ export function GalleryFooter({
 }: GalleryFooterProps) {
   const currentTabType = getTabType(activeKey)
   const currentTabImages = currentTabType
-    ? images.filter((image) => image.type === currentTabType)
+    ? images.filter(
+        (image) =>
+          image.type === currentTabType &&
+          (activeKey !== 'pending' || pendingUrls.includes(image.url)),
+      )
     : []
   const selectedCurrentTabUrls = currentTabImages
     .filter((image) => selectedUrls.includes(image.url))
@@ -51,7 +61,18 @@ export function GalleryFooter({
       return ''
     }
 
-    const imageTypeLabel = currentTabType === 'input' ? '输入' : '生成'
+    if (activeKey === 'pending') {
+      return hasSelectedImagesInCurrentTab
+        ? '删除选中的待使用图片'
+        : '删除待使用图片'
+    }
+
+    const imageTypeLabel =
+      activeKey === 'pending'
+        ? '待使用'
+        : currentTabType === 'input'
+          ? '输入'
+          : '生成'
 
     return hasSelectedImagesInCurrentTab
       ? `删除选中的无引用${imageTypeLabel}图片`

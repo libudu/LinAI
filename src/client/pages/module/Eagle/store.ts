@@ -20,7 +20,7 @@ let libraryRefreshPending = false
 
 export type EagleImageSize = 'small' | 'medium' | 'large'
 
-// 纯前端视觉选项（展示文件名 / 展示文件大小 / 展示文件夹描述）持久化，默认均不勾选
+// 纯前端展示选项持久化，默认均不勾选
 const loadViewOptions = (): Pick<
   EagleState,
   'showFileName' | 'showFileSize' | 'showFolderDescription'

@@ -1,5 +1,6 @@
 import { useLongPressContextMenu } from '@/client/hooks/useLongPressContextMenu'
 import { usePlatform } from '@/client/hooks/usePlatform'
+import { usePendingImages } from '@/client/pages/common/GenImage/TemplateSection/TemplateForm/Gallery/pendingImages'
 import {
   EAGLE_TRASH_FOLDER_ID,
   EAGLE_UNCLASSIFIED_FOLDER_ID,
@@ -9,10 +10,12 @@ import {
   DeleteOutlined,
   FolderOutlined,
   PlayCircleOutlined,
+  PlusOutlined,
 } from '@ant-design/icons'
 import { Dropdown, Image, Modal, Pagination, Spin, message } from 'antd'
 import { useRef, useState } from 'react'
 import {
+  addEagleItemToGallery,
   eagleFileUrl,
   eagleThumbnailUrl,
   purgeEagleItem,
@@ -49,6 +52,7 @@ interface ResourceGridItemProps {
   onMove: (item: EagleItem) => void
   onDelete: (item: EagleItem) => void
   onPurge: (item: EagleItem) => void
+  onAddToGallery: (item: EagleItem) => Promise<void>
 }
 
 // 单个资源卡片：支持鼠标右键 / 移动端长按弹出操作菜单
@@ -61,6 +65,7 @@ function ResourceGridItem({
   onMove,
   onDelete,
   onPurge,
+  onAddToGallery,
 }: ResourceGridItemProps) {
   const longPressHandlers = useLongPressContextMenu()
 
@@ -79,6 +84,15 @@ function ResourceGridItem({
         },
       ]
     : [
+        ...(!item.isVideo
+          ? [
+              {
+                key: 'add-to-gallery',
+                icon: <PlusOutlined />,
+                label: '添加到待使用',
+              },
+            ]
+          : []),
         {
           key: 'move',
           icon: <FolderOutlined />,
@@ -101,6 +115,8 @@ function ResourceGridItem({
           domEvent.stopPropagation()
           if (key === 'move') {
             onMove(item)
+          } else if (key === 'add-to-gallery') {
+            void onAddToGallery(item)
           } else if (key === 'delete') {
             onDelete(item)
           } else if (key === 'purge') {
@@ -181,6 +197,7 @@ export function ResourceGrid() {
   } = useEagleStore()
   const showFileName = useEagleStore((s) => s.showFileName)
   const showFileSize = useEagleStore((s) => s.showFileSize)
+  const addPendingImage = usePendingImages((s) => s.add)
   const { isMobile } = usePlatform()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -229,6 +246,16 @@ export function ResourceGrid() {
     })
   }
 
+  const handleAddToGallery = async (item: EagleItem) => {
+    try {
+      const url = await addEagleItemToGallery(item.id)
+      addPendingImage(url)
+      message.success('已添加到图库待使用')
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '添加失败')
+    }
+  }
+
   const handlePurgeItem = (item: EagleItem) => {
     Modal.confirm({
       title: '彻底删除',
@@ -275,6 +302,7 @@ export function ResourceGrid() {
                 onMove={(targetItem) => setMovingItem(targetItem)}
                 onDelete={handleDeleteItem}
                 onPurge={handlePurgeItem}
+                onAddToGallery={handleAddToGallery}
               />
             ))}
           </div>
