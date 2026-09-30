@@ -1,7 +1,7 @@
 import { isAdmin } from '@/client/utils/admin'
 import type { AppType } from '@/server'
 import type { GPTImageQuotaResponse } from '@/server/api/gpt-image/endpoint'
-import { COMFY_IMAGE_SOURCE } from '@/server/module/gpt-image/enum'
+import { COMFY_IMAGE_SOURCE } from '@/shared/image/sources'
 import { hc } from 'hono/client'
 import { useEffect, useMemo, useRef } from 'react'
 import { create } from 'zustand'

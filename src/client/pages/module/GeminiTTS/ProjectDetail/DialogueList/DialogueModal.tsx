@@ -1,6 +1,6 @@
-import type { TTSCharacter, TTSDialogue } from '@/shared/tts/project'
 import { Form, Input, Modal, Select } from 'antd'
 import { forwardRef, useImperativeHandle, useState } from 'react'
+import type { TTSCharacter, TTSDialogue } from '../../types'
 
 const { TextArea } = Input
 const { Option } = Select

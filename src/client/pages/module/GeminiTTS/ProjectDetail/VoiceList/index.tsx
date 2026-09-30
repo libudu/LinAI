@@ -1,4 +1,3 @@
-import type { TTSCharacter } from '@/shared/tts/project'
 import {
   LoadingOutlined,
   PauseCircleOutlined,
@@ -9,6 +8,7 @@ import { Button, Empty, Input, Spin, Tag, Tooltip, message } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { openTTSSettingModal } from '../../SettingModal'
 import { useTTSStore } from '../../store'
+import type { TTSCharacter } from '../../types'
 import { previewVoice } from '../generate'
 
 export const inworldSourceMap: Record<string, string> = {

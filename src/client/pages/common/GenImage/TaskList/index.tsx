@@ -5,7 +5,7 @@ import type { Task } from '@/server/common/task'
 import {
   COMFY_IMAGE_SOURCE,
   GPT_IMAGE_SOURCE_MODEL,
-} from '@/server/module/gpt-image/enum'
+} from '@/shared/image/sources'
 import { TRIAL_TEMPLATE_TITLE } from '@/shared/image/template'
 import {
   RedoOutlined,
@@ -140,10 +140,7 @@ export function TaskList() {
           >
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {gptImageTasks
-                .slice(
-                  currentPage * PAGE_SIZE,
-                  (currentPage + 1) * PAGE_SIZE,
-                )
+                .slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE)
                 .map((task) => (
                   <Card
                     key={task.id}

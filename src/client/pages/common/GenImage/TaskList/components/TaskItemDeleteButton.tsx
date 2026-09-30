@@ -1,6 +1,6 @@
 import { useLocalSetting } from '@/client/hooks/useLocalSetting'
 import type { AppType } from '@/server'
-import { COMFY_IMAGE_SOURCE } from '@/server/module/gpt-image/enum'
+import { COMFY_IMAGE_SOURCE } from '@/shared/image/sources'
 import { DeleteOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { Button, Checkbox, message, Modal, Tooltip } from 'antd'

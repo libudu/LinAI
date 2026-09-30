@@ -1,6 +1,6 @@
 import { useLocalSetting } from '@/client/hooks/useLocalSetting'
 import type { AppType } from '@/server'
-import type { GptImageSize } from '@/server/module/gpt-image/enum'
+import type { GptImageSize } from '@/shared/image/params'
 import { FlatTemplate } from '@/shared/image/template'
 import { DeleteOutlined, HolderOutlined } from '@ant-design/icons'
 import { Button, message, Popconfirm, Space, Tag, Tooltip } from 'antd'

@@ -1,8 +1,3 @@
-import type {
-  TTSCharacter,
-  TTSDialogue,
-  TTSProject,
-} from '@/shared/tts/project'
 import {
   DeleteOutlined,
   EditOutlined,
@@ -12,6 +7,7 @@ import {
 import { Button, message, Space, Table, Tag, Tooltip } from 'antd'
 import { useMemo, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
+import type { TTSCharacter, TTSDialogue, TTSProject } from '../../types'
 import { CustomAudio } from '../components/Audio'
 import { generateTTS } from '../generate'
 import { DialogueModal, DialogueModalRef } from './DialogueModal'

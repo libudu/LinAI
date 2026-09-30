@@ -1,5 +1,4 @@
 import type { AppType } from '@/server'
-import type { TTSCharacter, TTSDialogue } from '@/shared/tts/project'
 import {
   FolderOpenOutlined,
   PlusOutlined,
@@ -11,6 +10,7 @@ import {
 import { Button, Input, Modal, message } from 'antd'
 import { hc } from 'hono/client'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { TTSCharacter, TTSDialogue } from '../../types'
 import { ExportAudioButton } from './ExportAudioButton'
 import { ImportRenpyModal, ImportRenpyModalRef } from './ImportRenpyModal'
 

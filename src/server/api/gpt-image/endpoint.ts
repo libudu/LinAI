@@ -1,5 +1,5 @@
+import { isVeniceEndpoint } from '@/shared/gpt-image/endpoints'
 import { Hono } from 'hono'
-import { isVeniceEndpoint } from '../../module/gpt-image/enum'
 import {
   getGptImageEndpoint,
   getGptImageSettings,

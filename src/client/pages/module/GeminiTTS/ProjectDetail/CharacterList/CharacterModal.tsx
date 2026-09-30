@@ -1,9 +1,9 @@
-import type { TTSCharacter } from '@/shared/tts/project'
 import { PlayCircleOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { AutoComplete, Button, Card, Form, Input, message, Modal } from 'antd'
 import { forwardRef, useImperativeHandle, useMemo, useState } from 'react'
 import { useTTSStore } from '../../store'
+import type { TTSCharacter } from '../../types'
 import { CustomAudio } from '../components/Audio'
 import { generateTTS } from '../generate'
 

@@ -1,8 +1,8 @@
-import type { TTSCharacter, TTSDialogue } from '@/shared/tts/project'
 import { ExclamationCircleFilled, PlusOutlined } from '@ant-design/icons'
 import { Button, Modal } from 'antd'
 import { useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
+import type { TTSCharacter, TTSDialogue } from '../../types'
 import { CharacterCard } from './CharacterCard'
 import { CharacterModal, CharacterModalRef } from './CharacterModal'
 

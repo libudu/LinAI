@@ -1,5 +1,5 @@
 import { useLocalSetting } from '@/client/hooks/useLocalSetting'
-import type { GptImageSize } from '@/server/module/gpt-image/enum'
+import type { GptImageSize } from '@/shared/image/params'
 import { DownOutlined } from '@ant-design/icons'
 import type { ButtonProps, MenuProps } from 'antd'
 import { Button, Dropdown, Tooltip } from 'antd'

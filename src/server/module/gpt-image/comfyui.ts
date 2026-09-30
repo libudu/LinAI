@@ -1,4 +1,5 @@
 import { normalizeComfyBaseUrl } from '@/shared/gpt-image/comfyui'
+import { COMFY_IMAGE_SOURCE } from '@/shared/image/sources'
 import type { TaskInputSnapshot } from '@/shared/image/template'
 import { randomBytes, randomUUID } from 'crypto'
 import fs from 'fs-extra'
@@ -16,7 +17,6 @@ import {
   type Workflow,
   type WorkflowMarkerIds,
 } from './comfyui-workflow'
-import { COMFY_IMAGE_SOURCE } from './enum'
 import { getComfyEndpoint } from './settings'
 
 interface ComfyTaskRun {

@@ -1,10 +1,11 @@
+import { isVeniceEndpoint } from '@/shared/gpt-image/endpoints'
+import type { GptImageQuality, GptImageSize } from '@/shared/image/params'
 import crypto from 'crypto'
 import fs from 'fs-extra'
 import { writeFile } from 'fs/promises'
 import OpenAI, { toFile } from 'openai'
 import path from 'path'
 import { GENERATED_IMAGES_DIR } from '../../common/static'
-import { GptImageQuality, GptImageSize, isVeniceEndpoint } from './enum'
 import { writePngGenerationInfo } from './png-meta'
 import { requestVeniceImage } from './venice'
 

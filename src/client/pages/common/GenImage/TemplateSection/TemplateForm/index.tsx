@@ -1,7 +1,7 @@
 import { useLocalSetting } from '@/client/hooks/useLocalSetting'
 import { useGlobalStore } from '@/client/store/global'
 import type { AppType } from '@/server'
-import type { GptImageSize } from '@/server/module/gpt-image/enum'
+import type { GptImageSize } from '@/shared/image/params'
 import { PlusOutlined } from '@ant-design/icons'
 import { Button, Form, message } from 'antd'
 import { hc } from 'hono/client'

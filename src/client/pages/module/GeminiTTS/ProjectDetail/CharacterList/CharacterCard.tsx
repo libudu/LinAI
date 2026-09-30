@@ -1,4 +1,3 @@
-import type { TTSCharacter } from '@/shared/tts/project'
 import {
   AudioOutlined,
   DeleteOutlined,
@@ -8,6 +7,7 @@ import {
 import { Button, Tooltip } from 'antd'
 import classNames from 'classnames'
 import { useTTSStore } from '../../store'
+import type { TTSCharacter } from '../../types'
 
 interface CharacterCardProps {
   character: TTSCharacter

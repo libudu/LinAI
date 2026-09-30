@@ -39,7 +39,7 @@
   - `common/relay/`：受限请求中继（RequestRegistry：origin/方法/路径白名单 + 服务端凭据注入 + SSE 透传），通用路由 `POST /api/relay/:target`，目标在各模块 `relay.ts` 注册（`common/relay/resources.ts` 副作用导入汇总；当前为 novel.openai、inworld）；带文件副作用或业务预处理的请求保留专用适配器，不开放任意 URL 代理
   - `common/task/`：生成任务（TaskRepository 私有复用 CollectionStore 持久化 `data/tasks.json`，不注册到通用存储；TaskService 负责状态流转、输出文件清理、启动恢复，变更发布到 change bus 的 `image.tasks`）
   - `migrate.ts`：版本迁移脚本，供最终用户拖入新版压缩包升级
-- `src/shared/`：前后端共享的类型与常量（无 UI、无 Node 依赖），如 `gpt-image/endpoints.ts`（接入点预设）、`image/template.ts`（模板业务类型）、`storage/types.ts`（通用存储信封）、`novel/types.ts`（小说数据类型）、`tts/project.ts` + `tts/inworld.ts`（TTS 项目与音色类型）
+- `src/shared/`：前后端实际共用的契约、常量与纯函数（无 UI、无 Node 依赖），如 `gpt-image/endpoints.ts`（接入点预设与识别规则）、`image/template.ts`（模板与任务快照）、`image/params.ts`（尺寸与质量）、`image/sources.ts`（任务来源）、`storage/types.ts`（通用存储信封）、`eagle/`（接口与设置契约）、`tts/inworld.ts`（音色响应）。小说与 TTS 项目模型由前端拥有，分别定义在 `client/pages/module/Novel/types.ts` 和 `client/pages/module/GeminiTTS/types.ts`；仅落盘或经通用存储传输不构成共享理由。设置继续从服务端 schema 推导类型，Hono RPC 继续复用 `AppType`，不手写重复契约
 - `data/`：运行时数据（不入库的用户数据），服务以 `process.cwd()/data` 定位
 - `data-template/`、`dist-template/`：发布模板（后者含便携 Node 运行时与启动/迁移 bat）
 - `scripts/post-build.ts`：构建后处理（git tag、复制模板、dist 内安装生产依赖、打 zip）

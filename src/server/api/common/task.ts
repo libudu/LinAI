@@ -1,9 +1,9 @@
+import { COMFY_IMAGE_SOURCE } from '@/shared/image/sources'
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { taskService } from '../../common/task'
 import { cancelComfyTaskForDeletion } from '../../module/gpt-image/comfyui'
-import { COMFY_IMAGE_SOURCE } from '../../module/gpt-image/enum'
 
 /**
  * 任务接口：任务由后端 TaskService 生成和流转，前端只能读取列表与删除。

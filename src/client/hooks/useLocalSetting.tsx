@@ -1,4 +1,4 @@
-import type { GptImageQuality } from '@/server/module/gpt-image/enum'
+import type { GptImageQuality } from '@/shared/image/params'
 import { useMemo } from 'react'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'

@@ -1,5 +1,5 @@
-import { isVeniceEndpoint } from '@/server/module/gpt-image/enum'
 import { normalizeComfyBaseUrl } from '@/shared/gpt-image/comfyui'
+import { isVeniceEndpoint } from '@/shared/gpt-image/endpoints'
 import { CloseOutlined, UploadOutlined } from '@ant-design/icons'
 import { Button, Form, Input, Select, Tag, Upload } from 'antd'
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
@@ -199,16 +199,20 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
           <div className="font-medium text-blue-700">接入本地 ComfyUI</div>
           <ol className="mt-1 list-decimal space-y-1 pl-4">
             <li>
-              在 ComfyUI 中打开并试运行工作流，确认参考图由加载图像节点读取，最终图片由保存图像节点输出。
+              在 ComfyUI
+              中打开并试运行工作流，确认参考图由加载图像节点读取，最终图片由保存图像节点输出。
             </li>
             <li>
-              在画布中把提示词、参考图加载、最终保存节点的标题依次改为“LinAI@prompt”“LinAI@image1”“LinAI@output”。前两个节点分别需要 prompt、image 输入；标题不区分大小写。
+              在画布中把提示词、参考图加载、最终保存节点的标题依次改为“LinAI@prompt”“LinAI@image1”“LinAI@output”。前两个节点分别需要
+              prompt、image 输入；标题不区分大小写。
             </li>
             <li>
-              如需随机种子，把带整数 seed 输入的采样器标题改为“LinAI@seed”，LinAI 每次提交时会替换 seed。
+              如需随机种子，把带整数 seed
+              输入的采样器标题改为“LinAI@seed”，LinAI 每次提交时会替换 seed。
             </li>
             <li>
-              在 ComfyUI 的“文件”菜单选择“导出工作流（API）”，将 JSON 上传到这里并保存。普通保存的工作流不能导入；生成时需提供一张参考图。修改工作流后请重新导出、导入。
+              在 ComfyUI 的“文件”菜单选择“导出工作流（API）”，将 JSON
+              上传到这里并保存。普通保存的工作流不能导入；生成时需提供一张参考图。修改工作流后请重新导出、导入。
             </li>
           </ol>
         </div>

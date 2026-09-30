@@ -1,6 +1,6 @@
 import { usePlatform } from '@/client/hooks/usePlatform'
 import type { Task } from '@/server/common/task'
-import { COMFY_IMAGE_SOURCE } from '@/server/module/gpt-image/enum'
+import { COMFY_IMAGE_SOURCE } from '@/shared/image/sources'
 import { ClockCircleOutlined } from '@ant-design/icons'
 import { Tag, Tooltip } from 'antd'
 

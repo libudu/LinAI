@@ -1,5 +1,5 @@
 // 文段类型（ArtifactType）的按类型事实注册表：UI 标签、tag 配色、生成温度、版本快照上限。
-// 类型联合本身在 src/shared/novel/types.ts（属于落盘数据契约），本文件是纯前端的行为/展示定义。
+// 类型联合在本模块 types.ts，本文件集中定义各文段类型的行为与展示信息。
 // 新增类型时在 ARTIFACT_TYPE_DEFS 加一项，标签/配色/温度/版本上限全部自动跟随；
 // 各类型自己的生成 prompt 任务段仍在 service/prompts.ts（prompt 文本的家）
 import type { ArtifactType, Novel, NovelArtifact } from './types'

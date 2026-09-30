@@ -159,3 +159,22 @@ export const resolveGptImageApiKey = (
   }
   return settings.gptImageApiKey || null
 }
+
+// 特殊适配服务商的主机名，前后端共用同一识别规则。
+export const VENICE_API_HOST = 'api.venice.ai'
+
+/** 判断 baseUrl 的主机名是否为指定服务商 */
+export function isGptImageEndpointHost(
+  url: string | undefined,
+  host: string,
+): boolean {
+  try {
+    return !!url && new URL(url).hostname === host
+  } catch {
+    return false
+  }
+}
+
+/** Venice 特殊适配接入点：走 Venice 原生接口（见 venice.ts） */
+export const isVeniceEndpoint = (url?: string): boolean =>
+  isGptImageEndpointHost(url, VENICE_API_HOST)

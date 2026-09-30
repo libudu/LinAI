@@ -1,6 +1,5 @@
-// TTS 项目数据类型（前后端共享；前端在 src/client/pages/module/GeminiTTS 复用）
-// 项目数据已由前端通过通用实体接口（/api/storage/entities/tts.projects）整体读写，
-// 后端不再提供项目 CRUD，本文件只保留类型与旧格式迁移所需的结构定义
+// TTS 项目业务模型由前端维护，通过通用实体存储整体读写。
+// 后端只管理存储信封，不依赖完整项目结构。
 
 export interface TTSCharacter {
   id: string

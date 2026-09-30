@@ -1,3 +1,5 @@
+import type { GptImageQuality, GptImageSize } from '@/shared/image/params'
+import { GPT_IMAGE_SOURCE_MODEL } from '@/shared/image/sources'
 import type { TaskInputSnapshot } from '@/shared/image/template'
 import fs from 'fs-extra'
 import path from 'path'
@@ -6,7 +8,6 @@ import { INPUT_IMAGES_DIR } from '../../common/static'
 import { GENERATED_IMAGES_API_PATH } from '../../common/static/enum'
 import { StorageError } from '../../common/storage/errors'
 import { taskService } from '../../common/task'
-import { GPT_IMAGE_SOURCE_MODEL, GptImageQuality, GptImageSize } from './enum'
 import { calculateSize, generateGPTImage, GptImageUsage } from './generate'
 
 export async function handleImageGeneration(options: {
