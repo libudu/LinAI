@@ -1,6 +1,5 @@
 import { settingsClient } from '@/client/service/settings'
 import type { EagleSettings } from '@/server/module/eagle/settings'
-import { message } from 'antd'
 import { create } from 'zustand'
 
 const client = settingsClient<EagleSettings>('eagle')
@@ -24,12 +23,7 @@ export const useEagleConfig = create<EagleConfigState>()((set, get) => ({
     }
   },
   setEagleConfig: async (libraryPath) => {
-    try {
-      const res = await client.put({ libraryPath }, get().revision)
-      set({ ...res.value, revision: res.revision })
-    } catch (error) {
-      console.error('Failed to update eagle config', error)
-      message.error('设置保存失败')
-    }
+    const res = await client.put({ libraryPath }, get().revision)
+    set({ ...res.value, revision: res.revision })
   },
 }))

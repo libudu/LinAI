@@ -16,22 +16,10 @@ import {
   SPECIAL_CATEGORY_UNCLASSIFIED,
   type OrganizeSortType,
 } from '../types'
+import { buildConfirmListItems } from '../utils/list'
 import { getOrganizeItemCategory } from '../utils/sort'
 
 const QUICK_CARD_HEIGHT = 450
-
-type VirtualQuickItem =
-  | {
-      type: 'category'
-      id: string
-      categoryName: string
-      remainingCount: number
-    }
-  | {
-      type: 'card'
-      id: string
-      result: OrganizeResultListItem
-    }
 
 interface QuickCardProps {
   result: OrganizeResultListItem
@@ -161,42 +149,10 @@ export function QuickConfirmList({
 
   // 将分类标题与卡片项平铺为虚拟列表数据源：
   // 仅在图片分类模式下，在每个分类的首张图片前插入该分类的标题卡片（包含「疑似低质」与「未分类」特殊卡片）
-  const flatItems = useMemo<VirtualQuickItem[]>(() => {
-    const categoryRemainingCounts = new Map<string, number>()
-    for (const item of results) {
-      const cat = getOrganizeItemCategory(item)
-      categoryRemainingCounts.set(
-        cat,
-        (categoryRemainingCounts.get(cat) ?? 0) + 1,
-      )
-    }
-
-    const list: VirtualQuickItem[] = []
-    for (let i = 0; i < results.length; i++) {
-      const result = results[i]
-      const categoryName = getOrganizeItemCategory(result)
-      const isFirstOfCategory =
-        sortType === 'category' &&
-        (i === 0 || getOrganizeItemCategory(results[i - 1]) !== categoryName)
-
-      if (isFirstOfCategory) {
-        list.push({
-          type: 'category',
-          id: `cat_${categoryName}_${i}`,
-          categoryName,
-          remainingCount: categoryRemainingCounts.get(categoryName) ?? 0,
-        })
-      }
-
-      list.push({
-        type: 'card',
-        id: result.itemId,
-        result,
-      })
-    }
-
-    return list
-  }, [results, sortType])
+  const flatItems = useMemo(
+    () => buildConfirmListItems(results, sortType),
+    [results, sortType],
+  )
 
   // 水平虚拟列表：卡片宽度 256px + gap 16px = 272px；分类卡片宽度 208px + gap 16px = 224px
   const virtualizer = useVirtualizer({

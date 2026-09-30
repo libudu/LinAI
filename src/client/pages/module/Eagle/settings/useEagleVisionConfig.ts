@@ -6,7 +6,7 @@ import { create } from 'zustand'
 
 const client = settingsClient<EagleVisionSettings>('eagle-vision')
 
-// Eagle 模块的视觉接入点配置（/api/settings/eagle-vision），与图片生成的 vision 配置互相独立
+// Eagle 模块级视觉接入点配置（/api/settings/eagle-vision），与图片生成的 vision 配置互相独立
 interface EagleVisionConfigState extends EagleVisionSettings {
   /** 当前接入点从独立 keychain 派生出的生效密钥 */
   visionApiKey: string | null

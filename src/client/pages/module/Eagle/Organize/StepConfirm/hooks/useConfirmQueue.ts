@@ -1,5 +1,9 @@
+import { StorageApiError } from '@/client/service/storage'
 import type { OrganizeResultListItem } from '@/shared/eagle/organize'
+import { message } from 'antd'
 import { useCallback } from 'react'
+import { deleteEagleItem } from '../../../api'
+import { skipOrganizeResult } from '../../api'
 import { beginOptimisticItem, cancelOptimisticItems } from '../../store'
 import type { PendingConfirmItem } from '../types'
 import {
@@ -79,11 +83,32 @@ export function useConfirmQueue(options: UseConfirmResultsOptions) {
     [selectedId, submitAction, takeItem],
   )
 
+  /** 删除成功或条目已不存在后才跳过；其他失败由提交层恢复待确认项。 */
+  const trashItem = useCallback(
+    (itemId: string) =>
+      runAction(async (id) => {
+        let missing = false
+        try {
+          await deleteEagleItem(id)
+        } catch (error) {
+          if (!(error instanceof StorageApiError) || error.status !== 404)
+            throw error
+          missing = true
+        }
+        await skipOrganizeResult(id)
+        message.success(
+          missing ? '图片已不存在，已跳过整理结果' : '已移至回收站',
+        )
+      }, itemId),
+    [runAction],
+  )
+
   return {
     ...list,
     confirmItemQuick,
     confirmCurrentItem,
     runAction,
+    trashItem,
     flushPendingBatch,
   }
 }

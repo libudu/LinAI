@@ -23,6 +23,7 @@ src/server/module/eagle/
 │   ├── scan.ts                          # 元数据读取/索引条目构造与 mtime 增量扫描，默认并发 32
 │   ├── shard-cache.ts                   # 可重建的 32 个 Hash 分片：恢复、脏分片局部写入、5 秒防抖，失败保留脏标记
 │   ├── mtime-state.ts                   # 库根修改指纹：已加载读取与磁盘重载分开，保留本应用待写 ID，保存时合并磁盘其他 ID
+│   ├── folders.ts                       # 基于传入目录树的纯逻辑：展示树、节点查找、完整路径与后序分类标准，查询和写操作共用
 │   ├── query.ts                         # 只读查询与数据投影：目录概览、文件夹树、排序分页、整理标准与路径解析；getItemDetail 的业务详情和归属路径来自同一索引，getItemMediaSource 一次解析媒体路径与扩展名
 │   ├── operations.ts                    # 写操作聚合门面
 │   ├── folder-operations.ts             # 文件夹编辑：原子写回库根元数据并发布变更
@@ -55,6 +56,9 @@ src/client/pages/module/Eagle/           # 本目录
 ├── index.tsx                            # 页面入口：左右分栏布局 + 未配置引导页（移动端隐藏左侧目录树），挂载时拉取 eagle 与 eagle-vision 配置
 ├── api.ts                               # /api/eagle/* fetch 封装 + 文件 URL 辅助
 ├── store.ts                             # zustand：资源列表与展示状态，请求序号防止旧响应覆盖当前列表
+├── settings/                            # 模块级配置状态，页面入口、工具栏与设置表单共用
+│   ├── useEagleConfig.ts                 # 资源库配置 zustand store（/api/settings/eagle），保存失败抛给表单处理
+│   └── useEagleVisionConfig.ts           # 视觉接入点 zustand store（/api/settings/eagle-vision，独立 keychain）
 ├── preferences.ts                       # 排序/大小/展示选项/选中文件夹的 localStorage 读写，保留原有键
 ├── preferenceDocument.ts                # UI 偏好文档：共享加载/版本与订阅，加载中修改按实际数据重放，串行保存并合并等待中的最新状态，保存响应不覆盖后续操作
 ├── folders.ts                           # 前端文件夹纯逻辑：查找、key 收集、完整路径映射与分类顺序；拥有 SelectedFolderInfo 业务类型
@@ -85,16 +89,14 @@ src/client/pages/module/Eagle/           # 本目录
 │   │   ├── index.tsx                    # 主入口：纯净结果确认装配器——查验判定成功项，普通模式（顶部缩略图条 + 左大图右信息面板 + 底部快捷操作）与快速模式（居中放大列表 + 卡片底部直接确定），调度批次队列与预加载
 │   │   ├── types.ts                     # 共享类型与常量（OrganizeSortType, PinnedFolderOption, SPECIAL_CATEGORY_*）
 │   │   ├── components/                  # 纯 UI 与视口组件（ConfirmImageViewer 原图大图 / ThumbnailBar 缩略图条 / ConfirmControls / QuickConfirmList / DetailPanel / ActionBar）
-│   │   ├── hooks/                       # useConfirmQueue 门面 / useConfirmResults 列表、排序与移除恢复 / useConfirmSubmission 提交、逐项失败反馈与状态校准 / useConfirmSelection 默认推荐、每图选择/标题开关与置顶 / useOrganizePreload / useConfirmShortcuts / useManualFolders
-│   │   └── utils/                       # sort.ts 分类顺序与多维排序 / storage.ts 本地存储 / submissionQueue.ts 批次防抖与单图操作的串行队列
+│   │   ├── hooks/                       # useConfirmQueue 决策门面与删除后跳过命令 / useConfirmResults 列表、排序与移除恢复 / useConfirmSubmission 提交、逐项失败反馈与状态校准 / useConfirmSelection 默认推荐、每图选择/标题开关与置顶 / useOrganizePreload / useConfirmShortcuts / useManualFolders
+│   │   └── utils/                       # list.ts 两种确认视图共用的平铺列表类型与构造 / sort.ts 分类顺序与多维排序 / storage.ts 本地存储 / submissionQueue.ts 批次防抖与单图操作的串行队列
 │   ├── statusModel.ts                   # 纯计算：乐观记录转换、快照校准与展示计数派生
 │   ├── statusRefresh.ts                 # 状态刷新控制器：订阅计数/SSE 节流/过期快照保护/提交后校准
 │   └── store.ts                         # zustand 状态与公共操作门面，组合状态模型和刷新控制器
 ├── Toolbar.tsx                          # 「展示选项」下拉面板（排序/图片大小/文件名/文件大小）+ 刷新 + 「全部彻底删除」（回收站视图可用）+ 「图片整理」按钮（Badge：队列剩余数/待确认红点）+ 移动端「切换文件夹」抽屉
 └── SettingModal/
     ├── index.tsx                        # 设置弹窗（openEagleSettingModal）：资源库 / 视觉接入点两个标签页
-    ├── useEagleConfig.ts                # 资源库配置 zustand store（/api/settings/eagle）
-    ├── useEagleVisionConfig.ts          # 视觉接入点 zustand store（/api/settings/eagle-vision，独立 keychain）
     └── VisionEndpointSetting.tsx        # 视觉接入点薄封装，绑定公共组件 common/components/VisionEndpoint
 ```
 
@@ -217,6 +219,9 @@ src/client/pages/module/Eagle/           # 本目录
 
 ## 修改指南
 
+- **配置状态**：模块级 store 位于 `settings/`，`SettingModal/` 仅负责表单和弹窗。资源库配置保存失败向上传递，由表单提示并保留弹窗，不触发成功提示或列表刷新。
+- **确认视图与删除**：两种确认视图通过 `StepConfirm/utils/list.ts` 构造分类标题和图片的平铺列表，组件只负责展示和视口尺寸；排序工具直接从 `utils/sort.ts` 导入，不经 UI 组件转导出。删除后跳过由 `useConfirmQueue.trashItem` 统一串行提交，绑定弹窗打开时的条目 ID；仅条目缺失（HTTP 404）可继续跳过，资源库不可用返回 409，网络或写盘失败恢复待确认项，不显示删除成功。请求错误通过 `StorageApiError.status` 保留 HTTP 状态。
+- **目录纯逻辑**：库内节点查找、目录树投影、完整路径和分类标准构造放在 `library/folders.ts`，输入目录快照，不读取索引或磁盘。`query.ts` 负责获取索引和组织查询，文件夹写操作直接复用纯函数。
 - **加列表字段**：改 `src/shared/eagle/types.ts` 的 `EagleItem` + `src/server/module/eagle/library/query.ts` 的 `toEagleItem`；若需持久化到索引缓存，同步改 `src/server/module/eagle/library/types.ts` 的 `EagleItemIndex` 和 `scan.ts` 的 `buildIndexEntry`（旧缓存缺字段时要有默认值兜底，或考虑清缓存逻辑）
 - **加排序维度**：扩展 `EagleSortBy` + `library/query.ts` 中 `getItems` 排序逻辑 + `Toolbar` 选项（注意 localStorage 里旧值要能正常解析）
 - **媒体处理**：业务逻辑放在 `module/eagle/media/`；路由仅处理参数、HTTP 条件请求、Range 与响应。回退缩略图生成和删除统一使用 `media/cache.ts`，避免缓存路径各自维护。

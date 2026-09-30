@@ -3,7 +3,7 @@ import {
   type VisionEndpointSettingRef,
 } from '@/client/pages/common/components/VisionEndpoint/VisionEndpointSetting'
 import { forwardRef, useEffect } from 'react'
-import { useEagleVisionConfig } from './useEagleVisionConfig'
+import { useEagleVisionConfig } from '../settings/useEagleVisionConfig'
 
 export type { VisionEndpointSettingRef }
 

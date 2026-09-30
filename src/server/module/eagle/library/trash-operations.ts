@@ -1,3 +1,4 @@
+import { StorageError } from '@/server/common/storage/errors'
 import { writeJsonFile } from '@/server/common/storage/json-file'
 import fs from 'fs-extra'
 import path from 'path'
@@ -33,11 +34,18 @@ const setDeleted = async (
 
 const setItemDeleted = async (id: string, isDeleted: boolean) => {
   if (!ITEM_ID_PATTERN.test(id)) return false
-  return withLibraryMutation(false, async (index, changes) => {
-    const ok = await setDeleted(index, id, isDeleted, changes.timestamp)
-    if (ok) changes.updated.add(id)
-    return ok
-  })
+  const result = await withLibraryMutation<boolean | null>(
+    null,
+    async (index, changes) => {
+      const ok = await setDeleted(index, id, isDeleted, changes.timestamp)
+      if (ok) changes.updated.add(id)
+      return ok
+    },
+  )
+  // 不可用的资源库不能伪装成条目缺失，否则整理确认会误跳过结果。
+  if (result === null)
+    throw new StorageError('REVISION_CONFLICT', 'Eagle 资源库当前不可用')
+  return result
 }
 
 export const deleteItem = (id: string): Promise<boolean> =>

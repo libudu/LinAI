@@ -2,9 +2,8 @@ import type {
   OrganizeResultListItem,
   OrganizeTaskView,
 } from '@/shared/eagle/organize'
-import { Button, Empty, Spin, message } from 'antd'
+import { Button, Empty, Spin } from 'antd'
 import { useCallback, useState } from 'react'
-import { deleteEagleItem } from '../../api'
 import { confirmDeleteEagleItem } from '../../components/confirmDeleteModal'
 import { useEagleStore } from '../../store'
 import {
@@ -64,6 +63,7 @@ export function StepConfirm({
     confirmItemQuick,
     confirmCurrentItem,
     runAction,
+    trashItem,
   } = useConfirmQueue({
     taskCreatedAt: task?.createdAt,
     folders,
@@ -148,18 +148,9 @@ export function StepConfirm({
     if (!selectedId) return
     confirmDeleteEagleItem({
       name: detail?.itemName,
-      onConfirm: () =>
-        runAction(async (itemId) => {
-          try {
-            await deleteEagleItem(itemId)
-          } catch {
-            // 若外部已删除则容错继续标记跳过
-          }
-          await skipOrganizeResult(itemId)
-          message.success('已移至回收站')
-        }),
+      onConfirm: () => trashItem(selectedId),
     })
-  }, [detail?.itemName, runAction, selectedId])
+  }, [detail?.itemName, selectedId, trashItem])
 
   // 7. 绑定快捷键（A: 清除分类, S: 不处理, D: 确认）
   useConfirmShortcuts({

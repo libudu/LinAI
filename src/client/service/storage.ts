@@ -15,11 +15,12 @@ interface ApiErrorBody {
   error?: { code?: string; message?: string } | string
 }
 
-/** 存储接口错误：message 为服务端中文信息，code 为结构化错误码（如 REVISION_CONFLICT） */
+/** 接口错误：保留服务端信息、结构化错误码和 HTTP 状态，以区分缺失与其他失败。 */
 export class StorageApiError extends Error {
   constructor(
     message: string,
     readonly code?: string,
+    readonly status?: number,
   ) {
     super(message)
     this.name = 'StorageApiError'
@@ -42,7 +43,7 @@ export const apiRequest = async <T>(
         ? error
         : error?.message || `请求失败（${res.status}）`
     const code = typeof error === 'string' ? undefined : error?.code
-    throw new StorageApiError(message, code)
+    throw new StorageApiError(message, code, res.status)
   }
   return json
 }

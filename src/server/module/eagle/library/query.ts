@@ -23,6 +23,13 @@ import {
   type EagleLibraryOverview,
 } from '@/shared/eagle/types'
 import path from 'path'
+import {
+  buildFolderStandards,
+  buildFolderTree,
+  findRawFolder,
+  findRawFolderIdByPath,
+  resolveFolderPaths,
+} from './folders'
 import { ensureIndex } from './index-state'
 import { imagesDir, ITEM_ID_PATTERN, VIDEO_EXTS } from './runtime'
 import {
@@ -30,7 +37,6 @@ import {
   type EagleItemIndex,
   type EagleItemMediaSource,
   type EagleItemSnapshot,
-  type EagleRawFolder,
   type GetItemsParams,
 } from './types'
 
@@ -48,38 +54,6 @@ export const toEagleItem = (entry: EagleItemIndex): EagleItem => ({
   isGif: entry.ext === 'gif',
   hasThumbnail: entry.thumbnailName !== null,
 })
-
-/** 递归构造文件夹树，计算各节点的直接包含数 count 与递归累计总数 totalCount */
-export const buildFolderTree = (
-  raw: EagleRawFolder[],
-  counts: Map<string, number>,
-): EagleFolder[] =>
-  raw.map((folder) => {
-    const children = buildFolderTree(folder.children ?? [], counts)
-    const count = counts.get(folder.id) ?? 0
-    return {
-      id: folder.id,
-      name: folder.name,
-      description: folder.description ?? '',
-      children,
-      count,
-      totalCount:
-        count + children.reduce((sum, child) => sum + child.totalCount, 0),
-    }
-  })
-
-/** 在原始文件夹嵌套树中按 ID 递归查找指定节点 */
-export const findRawFolder = (
-  raw: EagleRawFolder[],
-  id: string,
-): EagleRawFolder | null => {
-  for (const folder of raw) {
-    if (folder.id === id) return folder
-    const hit = findRawFolder(folder.children ?? [], id)
-    if (hit) return hit
-  }
-  return null
-}
 
 /** 获取构建完成的完整文件夹树（含数量统计） */
 export const getFolderTree = async (): Promise<EagleFolder[]> =>
@@ -152,37 +126,13 @@ export const getFolderStandards = async (): Promise<
   OrganizeFolderStandard[]
 > => {
   const index = await ensureIndex()
-  if (!index) return []
-  const standards: OrganizeFolderStandard[] = []
-  const walk = (folders: EagleRawFolder[], parentPath: string) => {
-    for (const folder of folders) {
-      const folderPath = parentPath
-        ? `${parentPath}/${folder.name}`
-        : folder.name
-      walk(folder.children ?? [], folderPath)
-      if (folder.description && folder.description.trim()) {
-        standards.push({
-          folderId: folder.id,
-          folderPath,
-          name: folder.name,
-          description: folder.description,
-        })
-      }
-    }
-  }
-  walk(index.folders, '')
-  return standards
+  return index ? buildFolderStandards(index.folders) : []
 }
 
 /** 图片整理专用：校验指定文件夹 ID 当前是否依然存在于库中（防御性检查快照失效） */
 export const folderExists = async (folderId: string): Promise<boolean> => {
   const index = await ensureIndex()
-  if (!index) return false
-  const walk = (folders: EagleRawFolder[]): boolean =>
-    folders.some(
-      (folder) => folder.id === folderId || walk(folder.children ?? []),
-    )
-  return walk(index.folders)
+  return index ? findRawFolder(index.folders, folderId) !== null : false
 }
 
 /**
@@ -220,44 +170,7 @@ export const findFolderIdByPath = async (
   folderPath: string,
 ): Promise<string | null> => {
   const index = await ensureIndex()
-  if (!index) return null
-  let foundId: string | null = null
-  const walk = (folders: EagleRawFolder[], parentPath: string) => {
-    for (const folder of folders) {
-      const currentPath = parentPath
-        ? `${parentPath}/${folder.name}`
-        : folder.name
-      if (currentPath === folderPath) {
-        foundId = folder.id
-        return
-      }
-      walk(folder.children ?? [], currentPath)
-    }
-  }
-  walk(index.folders, '')
-  return foundId
-}
-
-/** 基于给定目录快照解析路径，单图详情与公共路径查询共用。 */
-const resolveFolderPaths = (
-  folders: EagleRawFolder[],
-  folderIds: string[],
-): string[] => {
-  const paths = new Map<string, string>()
-  const walk = (folders: EagleRawFolder[], parentPath: string) => {
-    for (const folder of folders) {
-      const folderPath = parentPath
-        ? `${parentPath}/${folder.name}`
-        : folder.name
-      paths.set(folder.id, folderPath)
-      walk(folder.children ?? [], folderPath)
-    }
-  }
-  walk(folders, '')
-  return folderIds.flatMap((id) => {
-    const folderPath = paths.get(id)
-    return folderPath ? [folderPath] : []
-  })
+  return index ? findRawFolderIdByPath(index.folders, folderPath) : null
 }
 
 /** 按文件夹 ID 列表解析其完整路径名，保留传入 ID 的顺序并忽略不存在的文件夹 */

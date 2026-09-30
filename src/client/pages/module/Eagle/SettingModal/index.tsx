@@ -4,8 +4,8 @@ import {
   openCommonSettingModal,
   type CommonSettingTab,
 } from '../../../common/components/SettingModal'
+import { useEagleConfig } from '../settings/useEagleConfig'
 import { useEagleStore } from '../store'
-import { useEagleConfig } from './useEagleConfig'
 import {
   VisionEndpointSetting,
   type VisionEndpointSettingRef,
@@ -27,7 +27,12 @@ const EagleSetting = forwardRef<EagleSettingRef>((_props, ref) => {
   useImperativeHandle(ref, () => ({
     save: async () => {
       const values = await form.validateFields()
-      await setEagleConfig(values.libraryPath?.trim() || null)
+      try {
+        await setEagleConfig(values.libraryPath?.trim() || null)
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : '设置保存失败')
+        throw error
+      }
       message.success('配置保存成功')
       // 库路径变化后重建索引并刷新页面数据
       await reload()

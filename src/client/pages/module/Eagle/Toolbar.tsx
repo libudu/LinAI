@@ -29,7 +29,7 @@ import { FolderTree } from './FolderTree'
 import { OrganizeModal } from './Organize'
 import { useOrganizeStatus } from './Organize/store'
 import { openEagleSettingModal } from './SettingModal'
-import { useEagleVisionConfig } from './SettingModal/useEagleVisionConfig'
+import { useEagleVisionConfig } from './settings/useEagleVisionConfig'
 import type { EagleImageSize } from './store'
 import { requestEagleLibraryRefresh, useEagleStore } from './store'
 

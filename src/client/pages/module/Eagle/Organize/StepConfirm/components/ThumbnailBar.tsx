@@ -12,32 +12,8 @@ import {
   SPECIAL_CATEGORY_UNCLASSIFIED,
   type OrganizeSortType,
 } from '../types'
-import { getOrganizeItemCategory } from '../utils/sort'
+import { buildConfirmListItems } from '../utils/list'
 import { ConfirmControls } from './ConfirmControls'
-
-export {
-  getOrganizeItemCategory,
-  getOrUpdateCategoryOrder,
-  sortOrganizeResults,
-} from '../utils/sort'
-export {
-  SPECIAL_CATEGORY_LOW_QUALITY,
-  SPECIAL_CATEGORY_UNCLASSIFIED,
-  type OrganizeSortType,
-} from '../types'
-
-type VirtualThumbItem =
-  | {
-      type: 'category'
-      id: string
-      categoryName: string
-      remainingCount: number
-    }
-  | {
-      type: 'card'
-      id: string
-      result: OrganizeResultListItem
-    }
 
 interface ThumbnailBarProps {
   results: OrganizeResultListItem[]
@@ -61,42 +37,10 @@ export function ThumbnailBar({
   const parentRef = useRef<HTMLDivElement>(null)
 
   // 平铺分类标题与缩略图卡片项
-  const flatItems = useMemo<VirtualThumbItem[]>(() => {
-    const categoryRemainingCounts = new Map<string, number>()
-    for (const item of results) {
-      const cat = getOrganizeItemCategory(item)
-      categoryRemainingCounts.set(
-        cat,
-        (categoryRemainingCounts.get(cat) ?? 0) + 1,
-      )
-    }
-
-    const list: VirtualThumbItem[] = []
-    for (let i = 0; i < results.length; i++) {
-      const result = results[i]
-      const categoryName = getOrganizeItemCategory(result)
-      const isFirstOfCategory =
-        sortType === 'category' &&
-        (i === 0 || getOrganizeItemCategory(results[i - 1]) !== categoryName)
-
-      if (isFirstOfCategory) {
-        list.push({
-          type: 'category',
-          id: `cat_${categoryName}_${i}`,
-          categoryName,
-          remainingCount: categoryRemainingCounts.get(categoryName) ?? 0,
-        })
-      }
-
-      list.push({
-        type: 'card',
-        id: result.itemId,
-        result,
-      })
-    }
-
-    return list
-  }, [results, sortType])
+  const flatItems = useMemo(
+    () => buildConfirmListItems(results, sortType),
+    [results, sortType],
+  )
 
   // 水平虚拟列表：卡片宽度 96px + gap 8px = 104px
   const virtualizer = useVirtualizer({
