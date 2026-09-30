@@ -18,10 +18,10 @@ export interface PinnedFolderOption {
 }
 
 export interface PendingConfirmItem {
+  taskCreatedAt: number
   itemId: string
   folderPath: string
   withTitle: boolean
   folderId?: string
   originalItem: OrganizeResultListItem
-  index: number
 }

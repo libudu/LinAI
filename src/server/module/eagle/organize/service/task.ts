@@ -7,6 +7,7 @@ import {
 import { getClassifiableItems, getFolderStandards } from '../../library'
 import { organizeExecutor } from '../executor'
 import { organizeRepository, type OrganizeTaskRecord } from '../storage'
+import { transitionTask } from '../transitions'
 import { publishOrganizeChange, resolveFolderName, toTaskView } from './helpers'
 import type {
   CreateTaskResult,
@@ -31,11 +32,15 @@ export class TaskService {
     try {
       const task = await organizeRepository.getTask()
       if (task && task.phase === 'running') {
-        await organizeRepository.saveTask({
-          ...task,
-          phase: 'paused',
-          pausedReason: 'restart',
-        })
+        await organizeRepository.mutateTask((latest) =>
+          transitionTask(latest, { type: 'pause', reason: 'restart' }),
+        )
+        publishOrganizeChange()
+      } else if (task?.phase === 'done' && task.failedCount > 0) {
+        // 兼容旧版本将「仅剩失败项」误标为 done 的任务，保留失败处理入口。
+        await organizeRepository.mutateTask((latest) =>
+          transitionTask(latest, { type: 'items-changed', changes: [] }),
+        )
         publishOrganizeChange()
       }
     } catch (error) {
@@ -48,6 +53,7 @@ export class TaskService {
     const task = await organizeRepository.getTask()
     if (!task) return null
     return {
+      createdAt: task.createdAt,
       phase: task.phase,
       total: task.itemIds.length,
       remaining: Math.max(0, task.itemIds.length - task.executed),
@@ -187,11 +193,7 @@ export class TaskService {
         noAvailableItems = true
         return null
       }
-      return {
-        ...latest,
-        itemIds: [...latest.itemIds, ...toAppend],
-        phase: latest.phase === 'confirming' ? 'running' : latest.phase,
-      }
+      return transitionTask(latest, { type: 'append', itemIds: toAppend })
     })
     if (!updated) {
       return noAvailableItems
@@ -207,9 +209,7 @@ export class TaskService {
   async pauseTask(): Promise<boolean> {
     organizeExecutor.stop()
     const updated = await organizeRepository.mutateTask((task) =>
-      task.phase === 'running'
-        ? { ...task, phase: 'paused', pausedReason: 'user' }
-        : null,
+      transitionTask(task, { type: 'pause', reason: 'user' }),
     )
     if (!updated) return false
     publishOrganizeChange()
@@ -218,9 +218,7 @@ export class TaskService {
 
   async resumeTask(): Promise<boolean> {
     const updated = await organizeRepository.mutateTask((task) =>
-      task.phase === 'paused'
-        ? { ...task, phase: 'running', pausedReason: null }
-        : null,
+      transitionTask(task, { type: 'resume' }),
     )
     if (!updated) return false
     publishOrganizeChange()

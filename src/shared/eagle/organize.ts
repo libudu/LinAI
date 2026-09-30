@@ -4,14 +4,14 @@
 export type OrganizePhase =
   | 'running' // 队列执行中
   | 'paused' // 已暂停（用户暂停 / 执行出错 / 服务重启）
-  | 'confirming' // 全部执行过一遍，有待确认结果
-  | 'done' // 无待确认且无待执行，可创建新任务
+  | 'confirming' // 全部执行过一遍，有待确认结果或失败待处理项
+  | 'done' // 无待执行、待确认或失败项，可创建新任务
 
 /** 单图结果状态：结果实体在执行完成时才落盘，pending 仅用于「重新执行」 */
 export type OrganizeItemStatus =
   | 'pending'
   | 'success' // 判定成功，待确认
-  | 'failed' // 判定失败，待确认（上游错误 / 非 JSON / 响应结构或分类路径非法）
+  | 'failed' // 判定失败，在步骤 2 处理（上游错误 / 非 JSON / 响应结构或分类路径非法）
   | 'skipped' // 用户选择「不处理」
   | 'confirmed' // 已确认（改文件夹；是否同时修改标题由确认操作参数决定，不区分状态）
 
@@ -26,6 +26,8 @@ export interface OrganizeFolderStandard {
 
 /** 按钮徽标与进度用的轻量状态（GET /api/eagle/organize/status） */
 export interface OrganizeStatus {
+  /** 用于区分任务轮次，避免旧操作影响新任务的展示 */
+  createdAt: number
   phase: OrganizePhase
   /** 本轮队列总数（追加后实时更新） */
   total: number
@@ -36,6 +38,27 @@ export interface OrganizeStatus {
   /** 步骤 2 失败待重试/待处理数量 */
   failedCount: number
   pausedReason: 'user' | 'error' | 'restart' | null
+}
+
+/** 单张和批量确认共用的请求项 */
+export interface OrganizeConfirmItem {
+  itemId: string
+  folderPath: string
+  withTitle: boolean
+  folderId?: string
+}
+
+/** 批量确认逐项反馈；已确认项可安全重放，不重复扣减计数。 */
+export type OrganizeConfirmItemResult =
+  | {
+      itemId: string
+      ok: true
+      outcome: 'confirmed' | 'already-confirmed' | 'purged'
+    }
+  | { itemId: string; ok: false; status: 400 | 404 | 409; error: string }
+
+export interface OrganizeConfirmBatchResult {
+  items: OrganizeConfirmItemResult[]
 }
 
 /** 任务详情视图（不含队列明细，GET /api/eagle/organize/task） */
@@ -50,8 +73,9 @@ export interface OrganizeTaskView {
   total: number
   executed: number
   pendingConfirm: number
-  /** 判定成功 / 失败数量（执行器维护） */
+  /** 本轮判定成功数，包含已确认/跳过的成功项；重新执行会撤回该项上一轮成功 */
   successCount: number
+  /** 当前失败待处理数 */
   failedCount: number
 }
 

@@ -1,7 +1,6 @@
 import type {
   OrganizeFolderStandard,
   OrganizeItemRecord,
-  OrganizeItemStatus,
 } from '@/shared/eagle/organize'
 import { sendWindowsNotification } from '../../../common/notify'
 import { changeBus } from '../../../common/storage/change-bus'
@@ -11,12 +10,13 @@ import {
   REQUEST_INTERVAL_MS,
 } from './constants'
 import { organizeRepository } from './storage'
+import { transitionTask } from './transitions'
 import { judgeItem } from './vision'
 
 /**
  * 整理队列执行器：按队列顺序以任务指定的并发数派发视觉判定。
  * - 单图连续失败达到 10 次后停止派发（任意一次成功后重头计数），in-flight 请求继续完成并落盘
- * - 全部执行过一遍后 phase → confirming（有待确认）/ done（无待确认）
+ * - 全部执行过一遍后 phase → confirming（有待确认/失败）/ done（全部处理完毕）
  * - 由 service 在任务创建 / 恢复时 kick；用户暂停与失败停止都只停派发
  * - 强制清空（abort）：epoch 递增 + AbortController 中断 in-flight 上游请求，
  *   过期轮次的结果不再落盘，也不会在收尾时重启队列
@@ -171,7 +171,7 @@ class OrganizeExecutor {
       this.stopping = false
       return this.runQueue(epoch, signal)
     }
-    const finalized = await this.finalize(itemsAfter)
+    const finalized = await this.finalize()
     if (!finalized) return this.runQueue(epoch, signal)
   }
 
@@ -250,9 +250,10 @@ class OrganizeExecutor {
     }
     // 强制清空（epoch 已变）后丢弃过期结果，不再落盘
     if (options.epoch !== this.epoch) return
-    await organizeRepository.saveItem(record)
     let didPauseOnError = false
-    await organizeRepository.mutateTask((task) => {
+    await organizeRepository.mutateTask(async (task) => {
+      if (options.epoch !== this.epoch) return null
+      await organizeRepository.saveItem(record)
       if (record.status === 'success') {
         this.consecutiveErrors = 0
       } else if (record.status === 'failed') {
@@ -260,24 +261,18 @@ class OrganizeExecutor {
       }
 
       const isFailed = record.status === 'failed'
-      const nextFailedCount = task.failedCount + (isFailed ? 1 : 0)
       const shouldPause =
         isFailed &&
         this.consecutiveErrors >= ERROR_PAUSE_THRESHOLD &&
         task.phase === 'running'
 
-      const next = {
-        ...task,
-        executed: task.executed + 1,
-        pendingConfirm:
-          task.pendingConfirm + (record.status === 'success' ? 1 : 0),
-        successCount: task.successCount + (record.status === 'success' ? 1 : 0),
-        failedCount: nextFailedCount,
-      }
+      const next = transitionTask(task, {
+        type: 'items-changed',
+        changes: [{ from: previous?.status, to: record.status }],
+      })!
       if (shouldPause) {
-        next.phase = 'paused'
-        next.pausedReason = 'error'
         didPauseOnError = true
+        return transitionTask(next, { type: 'pause', reason: 'error' })
       }
       return next
     })
@@ -293,42 +288,15 @@ class OrganizeExecutor {
 
   /**
    * 全部执行过一遍：以结果实体为准重算任务计数（计数可能因写盘异常与实体脱节），
-   * 有待确认 → confirming，否则 → done。复用调用方已取的实体列表避免重复全量扫描
+   * 有待确认/失败 → confirming，否则 → done。在任务串行更新内读取最新结果快照。
    */
-  private async finalize(
-    items: Array<{ itemId: string; status: OrganizeItemStatus }>,
-  ): Promise<boolean> {
-    const updated = await organizeRepository.mutateTask((task) => {
-      if (task.phase !== 'running') return null
-      const statusById = new Map(
-        items.map((item) => [item.itemId, item.status]),
-      )
-      let executed = 0
-      let pendingConfirm = 0
-      let successCount = 0
-      let failedCount = 0
-      for (const itemId of task.itemIds) {
-        const status = statusById.get(itemId)
-        // 追加/重试可能发生在收尾检查后，串行更新内再次确认队列已全部执行。
-        if (!status || status === 'pending') return null
-        executed++
-        if (status === 'success') {
-          pendingConfirm++
-          successCount++
-        } else if (status === 'failed') {
-          failedCount++
-        }
-      }
-      return {
-        ...task,
-        executed,
-        pendingConfirm,
-        successCount,
-        failedCount,
-        phase: pendingConfirm > 0 ? 'confirming' : 'done',
-        pausedReason: null,
-      }
-    })
+  private async finalize(): Promise<boolean> {
+    const updated = await organizeRepository.mutateTask(async (task) =>
+      transitionTask(task, {
+        type: 'finalize',
+        items: await organizeRepository.getProgressItems(),
+      }),
+    )
     if (updated) {
       this.consecutiveErrors = 0
       changeBus.publish({ resource: ORGANIZE_RESOURCE })
@@ -354,7 +322,7 @@ class OrganizeExecutor {
     await organizeRepository.mutateTask((task) => {
       if (task.phase === 'running') {
         didPause = true
-        return { ...task, phase: 'paused', pausedReason: reason }
+        return transitionTask(task, { type: 'pause', reason })
       }
       return null
     })

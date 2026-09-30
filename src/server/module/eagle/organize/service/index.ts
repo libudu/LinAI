@@ -1,4 +1,8 @@
+import { changeBus } from '@/server/common/storage/change-bus'
+import { resourceLock } from '@/server/common/storage/resource-lock'
 import type {
+  OrganizeConfirmBatchResult,
+  OrganizeConfirmItem,
   OrganizeFailedItem,
   OrganizeItemStatus,
   OrganizePrepareResp,
@@ -8,7 +12,6 @@ import type {
   OrganizeStatus,
   OrganizeTaskView,
 } from '@/shared/eagle/organize'
-import { changeBus } from '../../../../common/storage/change-bus'
 import { ORGANIZE_RESOURCE } from '../constants'
 import { queueService } from './queue'
 import { resultService } from './result'
@@ -42,6 +45,12 @@ class OrganizeService {
     this.ready = taskService.recoverInterruptedTask()
   }
 
+  /** 用户命令串行执行，防止两个确认请求读到同一份旧结果并重复扣减。 */
+  private async runCommand<T>(action: () => Promise<T>): Promise<T> {
+    await this.ready
+    return resourceLock.run(`${ORGANIZE_RESOURCE}:commands`, action)
+  }
+
   // --- Task 生命周期与准备 ---
   async getStatus(): Promise<OrganizeStatus | null> {
     await this.ready
@@ -61,35 +70,29 @@ class OrganizeService {
   async createTask(
     params: OrganizeCreateTaskParams,
   ): Promise<CreateTaskResult> {
-    await this.ready
-    return taskService.createTask(params)
+    return this.runCommand(() => taskService.createTask(params))
   }
 
   async appendItems(
     params: OrganizeAppendParams,
   ): Promise<OrganizeActionResult> {
-    await this.ready
-    return taskService.appendItems(params)
+    return this.runCommand(() => taskService.appendItems(params))
   }
 
   async pauseTask(): Promise<boolean> {
-    await this.ready
-    return taskService.pauseTask()
+    return this.runCommand(() => taskService.pauseTask())
   }
 
   async resumeTask(): Promise<boolean> {
-    await this.ready
-    return taskService.resumeTask()
+    return this.runCommand(() => taskService.resumeTask())
   }
 
   async syncStandards(): Promise<OrganizeActionResult> {
-    await this.ready
-    return taskService.syncStandards()
+    return this.runCommand(() => taskService.syncStandards())
   }
 
   async clearTask(): Promise<void> {
-    await this.ready
-    return taskService.clearTask()
+    return this.runCommand(() => taskService.clearTask())
   }
 
   // --- Queue 队列预览与失败处理 ---
@@ -104,18 +107,15 @@ class OrganizeService {
   }
 
   async retryFailedItems(): Promise<OrganizeActionResult> {
-    await this.ready
-    return queueService.retryFailedItems()
+    return this.runCommand(() => queueService.retryFailedItems())
   }
 
   async skipFailedItems(): Promise<OrganizeActionResult> {
-    await this.ready
-    return queueService.skipFailedItems()
+    return this.runCommand(() => queueService.skipFailedItems())
   }
 
   async classifySuccessfulItems(): Promise<OrganizeActionResult> {
-    await this.ready
-    return queueService.classifySuccessfulItems()
+    return this.runCommand(() => queueService.classifySuccessfulItems())
   }
 
   // --- Result 结果管理与单图决策 ---
@@ -123,8 +123,8 @@ class OrganizeService {
     status?: OrganizeItemStatus,
     options?: { offset?: number; limit?: number },
   ): Promise<OrganizeResultListItem[]> {
-    await this.ready
-    return resultService.listResults(status, options)
+    // success 列表会自愈已删除项，作为命令与用户决策串行。
+    return this.runCommand(() => resultService.listResults(status, options))
   }
 
   async getResult(itemId: string): Promise<OrganizeResultDetail | null> {
@@ -138,35 +138,30 @@ class OrganizeService {
     withTitle: boolean,
     folderId?: string,
   ): Promise<OrganizeActionResult> {
-    await this.ready
-    return resultService.confirmItem(itemId, folderPath, withTitle, folderId)
+    return this.runCommand(() =>
+      resultService.confirmItem(itemId, folderPath, withTitle, folderId),
+    )
   }
 
   async confirmBatch(
-    items: Array<{
-      itemId: string
-      folderPath: string
-      withTitle: boolean
-      folderId?: string
-    }>,
-  ): Promise<OrganizeActionResult> {
-    await this.ready
-    return resultService.confirmBatch(items)
+    items: OrganizeConfirmItem[],
+    taskCreatedAt?: number,
+  ): Promise<OrganizeConfirmBatchResult> {
+    return this.runCommand(() =>
+      resultService.confirmBatch(items, taskCreatedAt),
+    )
   }
 
   async clearItemClassification(itemId: string): Promise<OrganizeActionResult> {
-    await this.ready
-    return resultService.clearItemClassification(itemId)
+    return this.runCommand(() => resultService.clearItemClassification(itemId))
   }
 
   async skipItem(itemId: string): Promise<OrganizeActionResult> {
-    await this.ready
-    return resultService.skipItem(itemId)
+    return this.runCommand(() => resultService.skipItem(itemId))
   }
 
   async retryItem(itemId: string): Promise<OrganizeActionResult> {
-    await this.ready
-    return resultService.retryItem(itemId)
+    return this.runCommand(() => resultService.retryItem(itemId))
   }
 }
 

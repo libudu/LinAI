@@ -67,9 +67,9 @@ export interface OrganizeTaskRecord {
   executed: number
   /** 待确认数量（仅 success 且未确认/未跳过） */
   pendingConfirm: number
-  /** 判定成功数量（执行器维护，旧任务文档可能缺失，读取时兜底为 0） */
+  /** 本轮成功数，保留已确认/跳过的成功；重新执行会撤回上一轮成功，旧文档兜底为 0 */
   successCount: number
-  /** 判定失败数量（执行器维护，同上） */
+  /** 当前失败待处理数，旧文档兜底为 0 */
   failedCount: number
 }
 
@@ -208,12 +208,14 @@ export class OrganizeRepository {
    * 服务与执行器所有任务状态变更必须经由此方法，避免并发覆盖 phase / 计数
    */
   async mutateTask(
-    mutate: (task: OrganizeTaskRecord) => OrganizeTaskRecord | null,
+    mutate: (
+      task: OrganizeTaskRecord,
+    ) => OrganizeTaskRecord | null | Promise<OrganizeTaskRecord | null>,
   ): Promise<OrganizeTaskRecord | null> {
     const run = async (): Promise<OrganizeTaskRecord | null> => {
       const task = await this.getTask()
       if (!task) return null
-      const next = mutate(task)
+      const next = await mutate(task)
       if (next && next !== task) {
         await this.saveTask(next)
         return next
@@ -241,6 +243,19 @@ export class OrganizeRepository {
         updatedAt: record.updatedAt,
       }))
       .sort((a, b) => b.updatedAt - a.updatedAt)
+  }
+
+  /** 收尾校准所需的轻量快照，保留标题以识别已跳过的成功项，不排序。 */
+  async getProgressItems() {
+    await this.ensureCacheLoaded()
+    return Array.from(
+      this.itemsCache.values(),
+      ({ itemId, status, title }) => ({
+        itemId,
+        status,
+        title,
+      }),
+    )
   }
 
   async getItem(itemId: string): Promise<OrganizeItemRecord | null> {

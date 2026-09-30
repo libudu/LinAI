@@ -7,6 +7,7 @@ import type {
 import { ensureIndex } from '../../library'
 import { organizeExecutor } from '../executor'
 import { organizeRepository } from '../storage'
+import { transitionTask, type ItemStatusChange } from '../transitions'
 import { publishOrganizeChange } from './helpers'
 import type { OrganizeActionResult } from './types'
 
@@ -96,16 +97,8 @@ export class QueueService {
       return { ok: true }
     }
 
-    const failedCount = failedIds.length
-    await organizeRepository.mutateTask((latest) => ({
-      ...latest,
-      phase: 'running',
-      pausedReason: null,
-      executed: Math.max(0, latest.executed - failedCount),
-      failedCount: Math.max(0, latest.failedCount - failedCount),
-    }))
-
-    try {
+    await organizeRepository.mutateTask(async (latest) => {
+      const changes: ItemStatusChange[] = []
       for (const itemId of failedIds) {
         const record = await organizeRepository.getItem(itemId)
         if (!record || record.status !== 'failed') continue
@@ -114,11 +107,16 @@ export class QueueService {
           status: 'pending',
           updatedAt: Date.now(),
         })
+        changes.push({ from: record.status, to: 'pending' })
       }
-    } finally {
-      publishOrganizeChange()
-      organizeExecutor.kick()
-    }
+      return transitionTask(latest, {
+        type: 'items-changed',
+        changes,
+        resume: true,
+      })
+    })
+    publishOrganizeChange()
+    organizeExecutor.kick()
 
     return { ok: true }
   }
@@ -128,25 +126,23 @@ export class QueueService {
     const items = await organizeRepository.listItems()
     const failedItems = items.filter((item) => item.status === 'failed')
     if (failedItems.length === 0) return { ok: true }
-    for (const item of failedItems) {
-      const record = await organizeRepository.getItem(item.itemId)
-      if (record && record.status === 'failed') {
-        await organizeRepository.saveItem({
-          ...record,
-          status: 'skipped',
-          updatedAt: Date.now(),
-        })
+    await organizeRepository.mutateTask(async (latest) => {
+      const changes: ItemStatusChange[] = []
+      for (const item of failedItems) {
+        const record = await organizeRepository.getItem(item.itemId)
+        if (record && record.status === 'failed') {
+          await organizeRepository.saveItem({
+            ...record,
+            status: 'skipped',
+            updatedAt: Date.now(),
+          })
+          changes.push({ from: record.status, to: 'skipped' })
+        }
       }
-    }
-    await organizeRepository.mutateTask((latest) => {
-      const next = {
-        ...latest,
-        failedCount: 0,
-      }
-      if (next.phase === 'confirming' && next.pendingConfirm === 0) {
-        return { ...next, phase: 'done', pausedReason: null }
-      }
-      return next
+      return transitionTask(latest, {
+        type: 'items-changed',
+        changes,
+      })
     })
     publishOrganizeChange()
     return { ok: true }
@@ -186,18 +182,7 @@ export class QueueService {
     }
 
     const updated = await organizeRepository.mutateTask((latest) =>
-      latest.phase === 'paused'
-        ? {
-            ...latest,
-            phase: 'confirming',
-            pausedReason: null,
-            itemIds: successIds,
-            executed: successIds.length,
-            pendingConfirm: successIds.length,
-            successCount: successIds.length,
-            failedCount: 0,
-          }
-        : null,
+      transitionTask(latest, { type: 'keep-successful', itemIds: successIds }),
     )
     if (!updated) {
       return { ok: false, status: 409, error: '任务当前不在暂停状态' }

@@ -214,6 +214,7 @@ organizeApi.post(
   zValidator(
     'json',
     z.object({
+      taskCreatedAt: z.number().optional(),
       items: z
         .array(
           z.object({
@@ -228,14 +229,11 @@ organizeApi.post(
   ),
   async (c) => {
     const body = c.req.valid('json')
-    const result = await organizeService.confirmBatch(body.items)
-    if (!result.ok) {
-      return c.json(
-        { success: false as const, error: result.error },
-        result.status,
-      )
-    }
-    return c.json({ success: true as const, data: null })
+    const result = await organizeService.confirmBatch(
+      body.items,
+      body.taskCreatedAt,
+    )
+    return c.json({ success: true as const, data: result })
   },
 )
 

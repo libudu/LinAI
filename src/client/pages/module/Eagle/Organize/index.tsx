@@ -83,7 +83,11 @@ export function OrganizeModal({
       hasInitializedStepRef.current = true
       if (status?.pendingConfirm && status.pendingConfirm > 0) {
         setCurrentStep('confirm')
-      } else if (phase === 'running' || phase === 'paused') {
+      } else if (
+        phase === 'running' ||
+        phase === 'paused' ||
+        (status?.failedCount ?? 0) > 0
+      ) {
         setCurrentStep('running')
       } else {
         setCurrentStep('classify')

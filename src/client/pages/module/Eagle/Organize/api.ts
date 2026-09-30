@@ -1,5 +1,7 @@
 import { apiRequest } from '@/client/service/storage'
 import type {
+  OrganizeConfirmBatchResult,
+  OrganizeConfirmItem,
   OrganizeItemStatus,
   OrganizePrepareResp,
   OrganizeQueueResp,
@@ -174,21 +176,21 @@ export const confirmOrganizeResult = async (
   })
 }
 
-export interface OrganizeBatchConfirmItem {
-  itemId: string
-  folderPath: string
-  withTitle: boolean
-  folderId?: string
-}
+export type OrganizeBatchConfirmItem = OrganizeConfirmItem
 
 // 批量确认结果
 export const confirmOrganizeResultsBatch = async (
   items: OrganizeBatchConfirmItem[],
-): Promise<void> => {
-  await apiRequest<null>('/api/eagle/organize/results/confirm-batch', {
-    method: 'POST',
-    body: JSON.stringify({ items }),
-  })
+  taskCreatedAt?: number,
+): Promise<OrganizeConfirmBatchResult> => {
+  const json = await apiRequest<OrganizeConfirmBatchResult>(
+    '/api/eagle/organize/results/confirm-batch',
+    {
+      method: 'POST',
+      body: JSON.stringify({ items, taskCreatedAt }),
+    },
+  )
+  return json.data
 }
 
 // 不处理：不做任何修改

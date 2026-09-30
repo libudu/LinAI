@@ -1,13 +1,14 @@
 import type {
+  OrganizeConfirmBatchResult,
+  OrganizeConfirmItem,
+  OrganizeConfirmItemResult,
+  OrganizeItemRecord,
   OrganizeItemStatus,
   OrganizeResultDetail,
   OrganizeResultListItem,
 } from '@/shared/eagle/organize'
-import { EAGLE_UNCLASSIFIED_FOLDER_ID } from '@/shared/eagle/types'
 import {
   ensureIndex,
-  findFolderIdByPath,
-  folderExists,
   getFolderPaths,
   getItemEntry,
   updateItem,
@@ -15,10 +16,30 @@ import {
 } from '../../library'
 import { organizeExecutor } from '../executor'
 import { organizeRepository } from '../storage'
+import { transitionTask } from '../transitions'
+import { prepareConfirmation, type ConfirmationPlan } from './confirmation'
 import { publishOrganizeChange } from './helpers'
 import type { OrganizeActionResult } from './types'
 
 export class ResultService {
+  /** 结果状态落盘与任务计数转换共用任务串行队列，收尾不会读到半次决策。 */
+  private async saveDecisions(
+    records: OrganizeItemRecord[],
+    status: 'confirmed' | 'skipped',
+  ) {
+    if (records.length === 0) return
+    await organizeRepository.mutateTask(async (task) => {
+      await organizeRepository.saveItemsBatch(
+        records.map((record) => ({ ...record, status, updatedAt: Date.now() })),
+      )
+      return transitionTask(task, {
+        type: 'items-changed',
+        changes: records.map((record) => ({ from: record.status, to: status })),
+      })
+    })
+    publishOrganizeChange()
+  }
+
   async listResults(
     status?: OrganizeItemStatus,
     options?: { offset?: number; limit?: number },
@@ -26,68 +47,27 @@ export class ResultService {
     const items = await organizeRepository.listItems()
     let list = status ? items.filter((item) => item.status === status) : items
     const index = await ensureIndex()
-    const itemMap = index?.items
-
-    // 待确认项自愈：若条目在外部已被彻底物理删除（!entry），自动标记为已确认并核减任务待确认计数
-    if (status === 'success') {
+    // 未配置/不可用索引不等于图片已删除，只有索引有效时才做自愈。
+    if (status === 'success' && index) {
+      const purged: OrganizeItemRecord[] = []
       const remaining: typeof list = []
-      const autoConfirmedRecords: import('@/shared/eagle/organize').OrganizeItemRecord[] =
-        []
-      const now = Date.now()
-
       for (const item of list) {
-        const entry = itemMap?.get(item.itemId)
-        if (!entry) {
+        if (index.items.has(item.itemId)) remaining.push(item)
+        else {
           const record = await organizeRepository.getItem(item.itemId)
-          if (record) {
-            autoConfirmedRecords.push({
-              ...record,
-              status: 'confirmed',
-              updatedAt: now,
-            })
-          }
-        } else {
-          remaining.push(item)
+          if (record?.status === 'success') purged.push(record)
         }
       }
-
-      if (autoConfirmedRecords.length > 0) {
-        await organizeRepository.saveItemsBatch(autoConfirmedRecords)
-        await organizeRepository.mutateTask((latestTask) => {
-          if (!latestTask) return null
-          const pendingConfirm = Math.max(
-            0,
-            latestTask.pendingConfirm - autoConfirmedRecords.length,
-          )
-          if (latestTask.phase === 'confirming' && pendingConfirm === 0) {
-            return {
-              ...latestTask,
-              pendingConfirm,
-              phase: 'done',
-              pausedReason: null,
-            }
-          }
-          return { ...latestTask, pendingConfirm }
-        })
-        publishOrganizeChange()
-      }
+      await this.saveDecisions(purged, 'confirmed')
       list = remaining
     }
-
-    // 列表按 updatedAt 倒序（EntityStore.list），offset/limit 在过滤后切片
     const { offset = 0, limit } = options ?? {}
     if (offset > 0) list = list.slice(offset)
     if (limit !== undefined && limit >= 0) list = list.slice(0, limit)
-
     return list.map((item) => {
-      const entry = itemMap?.get(item.itemId)
+      const entry = index?.items.get(item.itemId)
       return {
-        itemId: item.itemId,
-        status: item.status,
-        updatedAt: item.updatedAt,
-        folderPaths: item.folderPaths,
-        // 透传疑似低质标记，供前端待确认步骤作为首选特殊类别置顶展示
-        lowQuality: item.lowQuality,
+        ...item,
         mtime: entry?.mtime ?? 0,
         width: entry?.width,
         height: entry?.height,
@@ -100,356 +80,137 @@ export class ResultService {
     const record = await organizeRepository.getItem(itemId)
     if (!record) return null
     const entry = await getItemEntry(itemId)
-    const itemFolderPaths = await getFolderPaths(entry?.folders ?? [])
     return {
       ...record,
       folderPaths:
         record.folderPaths ?? (record.folderPath ? [record.folderPath] : []),
       itemName: entry?.name ?? null,
-      itemFolderPaths,
+      itemFolderPaths: await getFolderPaths(entry?.folders ?? []),
       width: entry?.width,
       height: entry?.height,
       size: entry?.size,
     }
   }
 
-  /**
-   * 确认结果：写 Eagle 库（移入目标文件夹，withTitle 决定是否同时改标题），状态 → confirmed。
-   * 支持 AI 推荐候选项与用户手动选择的分类文件夹。
-   * 若条目在外部已被彻底物理删除，自动记为确认成功并直接推进流程。
-   */
+  /** 单张走同一套批量确认流程，保留专用接口的 HTTP 错误语义。 */
   async confirmItem(
     itemId: string,
     folderPath: string,
     withTitle: boolean,
     folderId?: string,
   ): Promise<OrganizeActionResult> {
-    const record = await organizeRepository.getItem(itemId)
-    if (!record) return { ok: false, status: 404, error: '结果不存在' }
-    if (record.status !== 'success') {
-      return { ok: false, status: 409, error: '仅判定成功的结果可以确认' }
-    }
+    const batch = await this.confirmBatch([
+      { itemId, folderPath, withTitle, folderId },
+    ])
+    const result = batch.items[0]
+    return result.ok
+      ? { ok: true }
+      : { ok: false, status: result.status, error: result.error }
+  }
 
-    // 若条目在外部已彻底物理删除，直接算作确认成功并结束
-    const entry = await getItemEntry(itemId)
-    if (!entry) {
-      await organizeRepository.saveItem({
-        ...record,
-        status: 'confirmed',
-        updatedAt: Date.now(),
-      })
-      await this.settleAfterDecision()
-      publishOrganizeChange()
-      return { ok: true }
-    }
-
-    let targetFolderId: string | null = null
+  /** 每项都有反馈；重复请求已确认项视为成功，不重复写库或扣减计数。 */
+  async confirmBatch(
+    items: OrganizeConfirmItem[],
+    taskCreatedAt?: number,
+  ): Promise<OrganizeConfirmBatchResult> {
     const task = await organizeRepository.getTask()
-    const standard = task?.standards.find((s) => s.folderPath === folderPath)
-
-    if (standard) {
-      targetFolderId = standard.folderId
-    } else if (folderId) {
-      targetFolderId = folderId
-    } else if (
-      folderPath === '未分类' ||
-      folderPath === EAGLE_UNCLASSIFIED_FOLDER_ID
+    if (
+      !task ||
+      (taskCreatedAt !== undefined && task.createdAt !== taskCreatedAt)
     ) {
-      targetFolderId = EAGLE_UNCLASSIFIED_FOLDER_ID
-    } else {
-      targetFolderId = await findFolderIdByPath(folderPath)
-    }
-
-    const isUnclassified =
-      targetFolderId === EAGLE_UNCLASSIFIED_FOLDER_ID ||
-      folderPath === '未分类' ||
-      folderPath === EAGLE_UNCLASSIFIED_FOLDER_ID
-
-    if (!isUnclassified) {
-      if (!targetFolderId || !(await folderExists(targetFolderId))) {
-        return {
+      return {
+        items: items.map(({ itemId }) => ({
+          itemId,
           ok: false,
           status: 409,
-          error: '目标文件夹已不存在（可能已被删除），请重新选择后再确认',
-        }
-      }
-    }
-
-    const folderIds = isUnclassified ? [] : [targetFolderId!]
-    const updated = await updateItem(itemId, {
-      folderIds,
-      name: withTitle ? record.title : undefined,
-    })
-    if (!updated) return { ok: false, status: 404, error: 'Eagle 条目不存在' }
-    await organizeRepository.saveItem({
-      ...record,
-      status: 'confirmed',
-      updatedAt: Date.now(),
-    })
-    await this.settleAfterDecision()
-    publishOrganizeChange()
-    return { ok: true }
-  }
-
-  /**
-   * 批量确认结果：写 Eagle 库（移入目标文件夹，withTitle 决定是否同时改标题），状态 → confirmed。
-   * 合并批量更新任务计数与状态，最后发布一次变更事件。
-   * 若条目在外部已被彻底物理删除，自动作为已确认收集，避免 404 导致整个批次失败。
-   */
-  async confirmBatch(
-    items: Array<{
-      itemId: string
-      folderPath: string
-      withTitle: boolean
-      folderId?: string
-    }>,
-  ): Promise<OrganizeActionResult> {
-    if (items.length === 0) return { ok: true }
-    const task = await organizeRepository.getTask()
-    const updates: Array<{
-      item: (typeof items)[number]
-      record: import('@/shared/eagle/organize').OrganizeItemRecord
-      folderIds: string[]
-    }> = []
-    const purgedRecords: import('@/shared/eagle/organize').OrganizeItemRecord[] =
-      []
-
-    for (const item of items) {
-      const record = await organizeRepository.getItem(item.itemId)
-      if (!record || record.status !== 'success') continue
-
-      // 若条目在外部已彻底物理删除，直接作为已确认收集
-      const entry = await getItemEntry(item.itemId)
-      if (!entry) {
-        purgedRecords.push(record)
-        continue
-      }
-
-      let targetFolderId: string | null = null
-      const standard = task?.standards.find(
-        (s) => s.folderPath === item.folderPath,
-      )
-
-      if (standard) {
-        targetFolderId = standard.folderId
-      } else if (item.folderId) {
-        targetFolderId = item.folderId
-      } else if (
-        item.folderPath === '未分类' ||
-        item.folderPath === EAGLE_UNCLASSIFIED_FOLDER_ID
-      ) {
-        targetFolderId = EAGLE_UNCLASSIFIED_FOLDER_ID
-      } else {
-        targetFolderId = await findFolderIdByPath(item.folderPath)
-      }
-
-      const isUnclassified =
-        targetFolderId === EAGLE_UNCLASSIFIED_FOLDER_ID ||
-        item.folderPath === '未分类' ||
-        item.folderPath === EAGLE_UNCLASSIFIED_FOLDER_ID
-
-      if (!isUnclassified) {
-        if (!targetFolderId || !(await folderExists(targetFolderId))) {
-          continue
-        }
-      }
-
-      const folderIds = isUnclassified ? [] : [targetFolderId!]
-      updates.push({ item, record, folderIds })
-    }
-
-    if (updates.length === 0 && purgedRecords.length === 0) return { ok: true }
-
-    let confirmedCount = 0
-    const now = Date.now()
-
-    if (updates.length > 0) {
-      // 一次性批量写 Eagle 库（仅写一次 mtime.json 与 index.json）
-      const batchResults = await updateItems(
-        updates.map(({ item, record, folderIds }) => ({
-          id: item.itemId,
-          patch: {
-            folderIds,
-            name: item.withTitle ? record.title : undefined,
-          },
+          error: '整理任务已变更，请重新打开确认列表',
         })),
-      )
-
-      const recordsToSave: import('@/shared/eagle/organize').OrganizeItemRecord[] =
-        []
-      for (let i = 0; i < updates.length; i++) {
-        if (!batchResults[i]) continue
-        recordsToSave.push({
-          ...updates[i].record,
-          status: 'confirmed',
-          updatedAt: now,
-        })
       }
-
-      for (const record of purgedRecords) {
-        recordsToSave.push({
-          ...record,
-          status: 'confirmed',
-          updatedAt: now,
-        })
-      }
-
-      if (recordsToSave.length > 0) {
-        await organizeRepository.saveItemsBatch(recordsToSave)
-        confirmedCount = recordsToSave.length
-      }
-    } else if (purgedRecords.length > 0) {
-      const recordsToSave = purgedRecords.map((record) => ({
-        ...record,
-        status: 'confirmed' as const,
-        updatedAt: now,
-      }))
-      await organizeRepository.saveItemsBatch(recordsToSave)
-      confirmedCount = recordsToSave.length
     }
-
-    if (confirmedCount > 0) {
-      await organizeRepository.mutateTask((latestTask) => {
-        if (!latestTask) return null
-        const pendingConfirm = Math.max(
-          0,
-          latestTask.pendingConfirm - confirmedCount,
-        )
-        if (latestTask.phase === 'confirming' && pendingConfirm === 0) {
-          return {
-            ...latestTask,
-            pendingConfirm,
-            phase: 'done',
-            pausedReason: null,
-          }
-        }
-        return { ...latestTask, pendingConfirm }
-      })
-      publishOrganizeChange()
+    const plans = new Map<string, ConfirmationPlan>()
+    for (const item of items) {
+      if (!plans.has(item.itemId))
+        plans.set(item.itemId, await prepareConfirmation(item, task.standards))
     }
-
-    return { ok: true }
+    const results = new Map<string, OrganizeConfirmItemResult>()
+    const records: OrganizeItemRecord[] = []
+    const ready: Extract<ConfirmationPlan, { kind: 'ready' }>[] = []
+    for (const [itemId, plan] of plans) {
+      if (plan.kind === 'resolved') results.set(itemId, plan.result)
+      else if (plan.kind === 'purged') {
+        records.push(plan.record)
+        results.set(itemId, { itemId, ok: true, outcome: 'purged' })
+      } else ready.push(plan)
+    }
+    const written = await updateItems(
+      ready.map(({ record, patch }) => ({ id: record.itemId, patch })),
+    )
+    for (const [index, plan] of ready.entries()) {
+      const itemId = plan.record.itemId
+      if (written[index]) {
+        records.push(plan.record)
+        results.set(itemId, { itemId, ok: true, outcome: 'confirmed' })
+      } else if (!(await getItemEntry(itemId))) {
+        records.push(plan.record)
+        results.set(itemId, { itemId, ok: true, outcome: 'purged' })
+      } else
+        results.set(itemId, {
+          itemId,
+          ok: false,
+          status: 409,
+          error: 'Eagle 条目更新失败，请重新确认',
+        })
+    }
+    await this.saveDecisions(records, 'confirmed')
+    return { items: items.map(({ itemId }) => results.get(itemId)!) }
   }
 
-  /** 清除全部文件夹归属并结束该结果，留给用户在「未分类」中手动处理 */
   async clearItemClassification(itemId: string): Promise<OrganizeActionResult> {
     const record = await organizeRepository.getItem(itemId)
     if (!record) return { ok: false, status: 404, error: '结果不存在' }
-    if (record.status !== 'success' && record.status !== 'failed') {
+    if (record.status !== 'success' && record.status !== 'failed')
       return { ok: false, status: 409, error: '该结果当前不需要确认' }
+    if (await getItemEntry(itemId)) {
+      if (!(await updateItem(itemId, { folderIds: [] })))
+        return { ok: false, status: 404, error: 'Eagle 条目不存在' }
     }
-    const entry = await getItemEntry(itemId)
-    if (!entry) {
-      await organizeRepository.saveItem({
-        ...record,
-        status: 'skipped',
-        updatedAt: Date.now(),
-      })
-      await this.settleAfterDecision()
-      publishOrganizeChange()
-      return { ok: true }
-    }
-    const updated = await updateItem(itemId, { folderIds: [] })
-    if (!updated) return { ok: false, status: 404, error: 'Eagle 条目不存在' }
-    await organizeRepository.saveItem({
-      ...record,
-      status: 'skipped',
-      updatedAt: Date.now(),
-    })
-    await this.settleAfterDecision()
-    publishOrganizeChange()
+    await this.saveDecisions([record], 'skipped')
     return { ok: true }
   }
 
-  /** 不处理：不做任何修改，状态 → skipped */
   async skipItem(itemId: string): Promise<OrganizeActionResult> {
     const record = await organizeRepository.getItem(itemId)
     if (!record) return { ok: false, status: 404, error: '结果不存在' }
-    if (record.status !== 'success' && record.status !== 'failed') {
+    if (record.status !== 'success' && record.status !== 'failed')
       return { ok: false, status: 409, error: '该结果当前不需要处理' }
-    }
-    const wasSuccess = record.status === 'success'
-    const wasFailed = record.status === 'failed'
-    await organizeRepository.saveItem({
-      ...record,
-      status: 'skipped',
-      updatedAt: Date.now(),
-    })
-    await organizeRepository.mutateTask((task) => {
-      const next = {
-        ...task,
-        pendingConfirm: wasSuccess
-          ? Math.max(0, task.pendingConfirm - 1)
-          : task.pendingConfirm,
-        failedCount: wasFailed
-          ? Math.max(0, task.failedCount - 1)
-          : task.failedCount,
-      }
-      if (next.phase === 'confirming' && next.pendingConfirm === 0) {
-        return { ...next, phase: 'done', pausedReason: null }
-      }
-      return next
-    })
-    publishOrganizeChange()
+    await this.saveDecisions([record], 'skipped')
     return { ok: true }
   }
 
-  /**
-   * 重新执行单图：状态 → pending、phase → running（仅该图入队）。
-   * attempts 与 executed 由执行器在真正执行时推进（executed 先减一回补），
-   * 保证 remaining = total - executed 徽标语义。
-   * 先改任务计数再落盘结果：后半步写盘失败时 kick 会经 finalize 以实体为准
-   * 自愈回 confirming（旧结果仍在，计数被权威重算），不会卡死在 running
-   */
   async retryItem(itemId: string): Promise<OrganizeActionResult> {
     const record = await organizeRepository.getItem(itemId)
     if (!record) return { ok: false, status: 404, error: '结果不存在' }
-    if (record.status !== 'success' && record.status !== 'failed') {
+    if (record.status !== 'success' && record.status !== 'failed')
       return {
         ok: false,
         status: 409,
         error: '仅待确认或失败的结果可以重新执行',
       }
-    }
-    const wasSuccess = record.status === 'success'
-    const wasFailed = record.status === 'failed'
-    await organizeRepository.mutateTask((task) => ({
-      ...task,
-      phase: 'running',
-      pausedReason: null,
-      pendingConfirm: wasSuccess
-        ? Math.max(0, task.pendingConfirm - 1)
-        : task.pendingConfirm,
-      successCount: wasSuccess
-        ? Math.max(0, task.successCount - 1)
-        : task.successCount,
-      failedCount: wasFailed
-        ? Math.max(0, task.failedCount - 1)
-        : task.failedCount,
-      executed: Math.max(0, task.executed - 1),
-    }))
-    try {
+    await organizeRepository.mutateTask(async (task) => {
       await organizeRepository.saveItem({
         ...record,
         status: 'pending',
         updatedAt: Date.now(),
       })
-    } finally {
-      publishOrganizeChange()
-      organizeExecutor.kick()
-    }
-    return { ok: true }
-  }
-
-  /** 一张待确认结果处理完（确认 / 不处理）：待确认计数减一，全部处理完且非执行中 → done */
-  private async settleAfterDecision(): Promise<void> {
-    await organizeRepository.mutateTask((task) => {
-      const pendingConfirm = Math.max(0, task.pendingConfirm - 1)
-      if (task.phase === 'confirming' && pendingConfirm === 0) {
-        return { ...task, pendingConfirm, phase: 'done', pausedReason: null }
-      }
-      return { ...task, pendingConfirm }
+      return transitionTask(task, {
+        type: 'items-changed',
+        changes: [{ from: record.status, to: 'pending' }],
+        resume: true,
+      })
     })
+    publishOrganizeChange()
+    organizeExecutor.kick()
+    return { ok: true }
   }
 }
 
