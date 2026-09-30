@@ -1,5 +1,3 @@
-import { settingsClient } from '@/client/service/settings'
-import type { EagleFolderTreeSettings } from '@/shared/eagle/settings'
 import {
   EAGLE_TRASH_FOLDER_ID,
   EAGLE_UNCLASSIFIED_FOLDER_ID,
@@ -17,10 +15,7 @@ import { requestEagleLibraryRefresh, useEagleStore } from '../store'
 import { EditFolderModal } from './EditFolderModal'
 import { FolderContextMenu } from './FolderContextMenu'
 import './FolderTree.scss'
-
-const EXPANDED_STORAGE_KEY = 'eagle_folder_expanded'
-const folderTreeClient =
-  settingsClient<EagleFolderTreeSettings>('eagle-folder-tree')
+import { useFolderExpansion } from './useFolderExpansion'
 
 // 节点标题：名称 + 灰色图片数（含子孙累计），开启展示时在名称下方加一行浅灰描述（单行超长省略）
 const renderTitle = (
@@ -65,10 +60,6 @@ const toTreeData = (
     children: toTreeData(folder.children, onEdit, showDescription),
   }))
 
-// 收集全部文件夹 key（首次无本地记录时默认全展开）
-const collectKeys = (folders: EagleFolder[]): string[] =>
-  folders.flatMap((folder) => [folder.id, ...collectKeys(folder.children)])
-
 const findAncestorKeys = (
   folders: EagleFolder[],
   folderId: string,
@@ -81,21 +72,6 @@ const findAncestorKeys = (
       folder.id,
     ])
     if (found) return found
-  }
-  return null
-}
-
-// 读取旧版 localStorage 记录（仅用于向后端迁移一次），无记录返回 null
-const loadLegacyExpandedKeys = (): string[] | null => {
-  try {
-    const raw = localStorage.getItem(EXPANDED_STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed))
-        return parsed.filter((k) => typeof k === 'string')
-    }
-  } catch {
-    // 忽略损坏的本地缓存
   }
   return null
 }
@@ -115,17 +91,11 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
     trashTotal,
     showFolderDescription,
   } = useEagleStore()
-  // null = 尚无记录（未加载到或从未保存），回退为全展开
-  const [storedKeys, setStoredKeys] = useState<string[] | null>(null)
-  const [expandedStateLoaded, setExpandedStateLoaded] = useState(false)
+  const { expandedKeys, expandedStateLoaded, handleExpand, revealAncestors } =
+    useFolderExpansion(folders)
   const [editingFolder, setEditingFolder] = useState<EagleFolder | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const initialSelectionRevealedRef = useRef(false)
-  // 后端文档版本，PUT 时带上做冲突检测；undefined = 尚未加载
-  const revisionRef = useRef<number | undefined>(undefined)
-  // 用户在加载完成前手动展开/收起时，放弃应用后端拉回的旧状态
-  const interactedRef = useRef(false)
-
   const treeData = useMemo<TreeDataNode[]>(
     () => [
       { key: '', title: renderTitle('全部', allTotal), children: undefined },
@@ -144,51 +114,6 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
     [folders, allTotal, showFolderDescription, unclassifiedTotal, trashTotal],
   )
 
-  const allKeys = useMemo(() => collectKeys(folders), [folders])
-  const expandedKeys = storedKeys ?? allKeys
-
-  const saveExpanded = async (keys: string[]) => {
-    try {
-      const res = await folderTreeClient.put(
-        { expandedFolderIds: keys },
-        revisionRef.current,
-      )
-      revisionRef.current = res.revision
-    } catch (error) {
-      console.error('Failed to save folder tree expanded state', error)
-    }
-  }
-
-  // 初始加载：读取后端记录的展开状态；后端无记录时迁移旧 localStorage 缓存（若有）
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      let keys: string[] | null = null
-      try {
-        const res = await folderTreeClient.get()
-        if (cancelled) return
-        revisionRef.current = res.revision
-        keys = res.value.expandedFolderIds
-      } catch (error) {
-        console.error('Failed to load folder tree expanded state', error)
-      }
-      if (keys === null) {
-        const legacy = loadLegacyExpandedKeys()
-        if (legacy) {
-          keys = legacy
-          localStorage.removeItem(EXPANDED_STORAGE_KEY)
-          void saveExpanded(legacy)
-        }
-      }
-      if (!cancelled && keys !== null && !interactedRef.current)
-        setStoredKeys(keys)
-      if (!cancelled) setExpandedStateLoaded(true)
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
   // 文件夹与展开状态就绪后，确保历史选中项可见并滚动到其位置
   useEffect(() => {
     if (
@@ -202,9 +127,7 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
     const ancestorKeys = findAncestorKeys(folders, currentFolderId)
     if (!ancestorKeys) return
     initialSelectionRevealedRef.current = true
-    setStoredKeys((current) =>
-      current === null ? null : [...new Set([...current, ...ancestorKeys])],
-    )
+    revealAncestors(ancestorKeys)
 
     requestAnimationFrame(() => {
       const container = scrollContainerRef.current
@@ -222,14 +145,13 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
           (container.clientHeight - selectedRect.height) / 2,
       })
     })
-  }, [currentFolderId, expandedStateLoaded, folders, foldersLoading])
-
-  const handleExpand = (keys: React.Key[]) => {
-    const next = keys.map(String)
-    interactedRef.current = true
-    setStoredKeys(next)
-    void saveExpanded(next)
-  }
+  }, [
+    currentFolderId,
+    expandedStateLoaded,
+    folders,
+    foldersLoading,
+    revealAncestors,
+  ])
 
   return (
     <div className="flex h-full flex-col">

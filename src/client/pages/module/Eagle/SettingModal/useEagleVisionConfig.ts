@@ -1,5 +1,5 @@
 import { settingsClient } from '@/client/service/settings'
-import type { EagleVisionSettings } from '@/shared/eagle/settings'
+import type { EagleVisionSettings } from '@/server/module/eagle/settings'
 import { resolveVisionApiKey } from '@/shared/vision/endpoints'
 import { message } from 'antd'
 import { create } from 'zustand'

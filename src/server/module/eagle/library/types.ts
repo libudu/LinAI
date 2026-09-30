@@ -67,6 +67,15 @@ export type EagleItemSnapshot = Readonly<
   Pick<EagleItemIndex, 'name' | 'mtime' | 'width' | 'height' | 'size'>
 >
 
+/** 单图详情投影：名称、尺寸和归属路径来自同一份索引，不包含缓存实现字段。 */
+export interface EagleItemDetail {
+  readonly name: string
+  readonly width: number
+  readonly height: number
+  readonly size: number
+  readonly folderPaths: string[]
+}
+
 /** 获取条目列表的分页与排序参数 */
 export interface GetItemsParams {
   folderId?: string

@@ -8,8 +8,8 @@ import type {
   OrganizeResultListItem,
 } from '@/shared/eagle/organize'
 import {
-  getFolderPaths,
-  getItemEntry,
+  getItemDetail,
+  getItemPresence,
   getItemSnapshots,
   updateItem,
   updateItems,
@@ -79,11 +79,11 @@ export class ResultService {
   async getResult(itemId: string): Promise<OrganizeResultDetail | null> {
     const record = await organizeRepository.getItem(itemId)
     if (!record) return null
-    const entry = await getItemEntry(itemId)
+    const entry = await getItemDetail(itemId)
     return {
       ...record,
       itemName: entry?.name ?? null,
-      itemFolderPaths: await getFolderPaths(entry?.folders ?? []),
+      itemFolderPaths: entry?.folderPaths ?? [],
       width: entry?.width,
       height: entry?.height,
       size: entry?.size,
@@ -170,7 +170,10 @@ export class ResultService {
     if (!record) return { ok: false, status: 404, error: '结果不存在' }
     if (record.status !== 'success' && record.status !== 'failed')
       return { ok: false, status: 409, error: '该结果当前不需要确认' }
-    if (await getItemEntry(itemId)) {
+    const presence = await getItemPresence(itemId)
+    if (presence === 'unavailable')
+      return { ok: false, status: 409, error: 'Eagle 资源库当前不可用' }
+    if (presence === 'present') {
       if (!(await updateItem(itemId, { folderIds: [] })))
         return { ok: false, status: 404, error: 'Eagle 条目不存在' }
     }

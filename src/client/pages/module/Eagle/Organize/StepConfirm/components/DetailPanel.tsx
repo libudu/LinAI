@@ -1,5 +1,6 @@
+import type { SelectedFolderInfo } from '@/client/pages/module/Eagle/folders'
+import type { EagleManualFolderItem } from '@/server/module/eagle/settings'
 import type { OrganizeResultDetail } from '@/shared/eagle/organize'
-import type { EagleManualFolderItem } from '@/shared/eagle/settings'
 import {
   DeleteOutlined,
   FolderAddOutlined,
@@ -8,10 +9,7 @@ import {
 } from '@ant-design/icons'
 import { Button, Checkbox, Radio, Spin } from 'antd'
 import { useMemo, useState } from 'react'
-import {
-  FolderSelectModal,
-  type SelectedFolderInfo,
-} from '../../../components/FolderSelectModal'
+import { FolderSelectModal } from '../../../components/FolderSelectModal'
 import type { PinnedFolderOption } from '../types'
 
 export type { PinnedFolderOption } from '../types'

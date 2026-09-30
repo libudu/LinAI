@@ -26,6 +26,7 @@ import path from 'path'
 import { ensureIndex } from './index-state'
 import { imagesDir, ITEM_ID_PATTERN, VIDEO_EXTS } from './runtime'
 import {
+  type EagleItemDetail,
   type EagleItemIndex,
   type EagleItemMediaSource,
   type EagleItemSnapshot,
@@ -237,13 +238,11 @@ export const findFolderIdByPath = async (
   return foundId
 }
 
-/** 按文件夹 ID 列表解析其完整路径名，保留传入 ID 的顺序并忽略不存在的文件夹 */
-export const getFolderPaths = async (
+/** 基于给定目录快照解析路径，单图详情与公共路径查询共用。 */
+const resolveFolderPaths = (
+  folders: EagleRawFolder[],
   folderIds: string[],
-): Promise<string[]> => {
-  const index = await ensureIndex()
-  if (!index || folderIds.length === 0) return []
-
+): string[] => {
   const paths = new Map<string, string>()
   const walk = (folders: EagleRawFolder[], parentPath: string) => {
     for (const folder of folders) {
@@ -254,21 +253,38 @@ export const getFolderPaths = async (
       walk(folder.children ?? [], folderPath)
     }
   }
-  walk(index.folders, '')
+  walk(folders, '')
   return folderIds.flatMap((id) => {
     const folderPath = paths.get(id)
     return folderPath ? [folderPath] : []
   })
 }
 
-/** 公共查询只返回条目快照，调用方无法修改内部 Map 或 folders 数组。 */
-export const getItemEntry = async (
+/** 按文件夹 ID 列表解析其完整路径名，保留传入 ID 的顺序并忽略不存在的文件夹 */
+export const getFolderPaths = async (
+  folderIds: string[],
+): Promise<string[]> => {
+  const index = await ensureIndex()
+  return index && folderIds.length > 0
+    ? resolveFolderPaths(index.folders, folderIds)
+    : []
+}
+
+/** 公共查询仅投影业务详情，调用方不依赖内部索引结构。 */
+export const getItemDetail = async (
   id: string,
-): Promise<EagleItemIndex | null> => {
+): Promise<EagleItemDetail | null> => {
   if (!ITEM_ID_PATTERN.test(id)) return null
   const index = await ensureIndex()
   const item = index?.items.get(id)
-  return item ? structuredClone(item) : null
+  if (!index || !item) return null
+  return {
+    name: item.name,
+    width: item.width,
+    height: item.height,
+    size: item.size,
+    folderPaths: resolveFolderPaths(index.folders, item.folders),
+  }
 }
 
 /** 按需投影指定 ID 的摘要，null 区分索引不可用与有效索引中的缺失条目。 */
@@ -294,15 +310,6 @@ export const getItemPresence = async (
   const index = await ensureIndex()
   if (!index) return 'unavailable'
   return ITEM_ID_PATTERN.test(id) && index.items.has(id) ? 'present' : 'missing'
-}
-
-export const getItemFilePath = async (id: string): Promise<string | null> => {
-  if (!ITEM_ID_PATTERN.test(id)) return null
-  const index = await ensureIndex()
-  const entry = index?.items.get(id)
-  return index && entry
-    ? path.join(imagesDir(index.libraryPath), `${id}.info`, entry.fileName)
-    : null
 }
 
 export const getItemMediaSource = async (

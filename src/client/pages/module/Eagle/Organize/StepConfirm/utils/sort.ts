@@ -1,3 +1,4 @@
+import { buildFolderOrderMap } from '@/client/pages/module/Eagle/folders'
 import type { OrganizeResultListItem } from '@/shared/eagle/organize'
 import type { EagleFolder } from '@/shared/eagle/types'
 import {
@@ -64,18 +65,7 @@ export function getOrUpdateCategoryOrder(
   }
 
   // 构建 Eagle 文件夹树深度优先遍历顺序，作为同数量新分类排位的依据
-  const folderOrderMap = new Map<string, number>()
-  let orderIndex = 0
-  const walkFolders = (nodes: EagleFolder[], parentPath = '') => {
-    for (const node of nodes) {
-      const fullPath = parentPath ? `${parentPath}/${node.name}` : node.name
-      folderOrderMap.set(fullPath, orderIndex++)
-      if (node.children?.length) {
-        walkFolders(node.children, fullPath)
-      }
-    }
-  }
-  walkFolders(folders)
+  const folderOrderMap = buildFolderOrderMap(folders)
 
   // 对新分类排序：1. 数量降序；2. 文件夹树顺序；3. 拼音顺序兜底
   newCategories.sort((catA, catB) => {
@@ -142,18 +132,7 @@ export function sortOrganizeResults(
     }
 
     // 构建 Eagle 文件夹树深度优先遍历顺序
-    const folderOrderMap = new Map<string, number>()
-    let orderIndex = 0
-    const walkFolders = (nodes: EagleFolder[], parentPath = '') => {
-      for (const node of nodes) {
-        const fullPath = parentPath ? `${parentPath}/${node.name}` : node.name
-        folderOrderMap.set(fullPath, orderIndex++)
-        if (node.children?.length) {
-          walkFolders(node.children, fullPath)
-        }
-      }
-    }
-    walkFolders(folders)
+    const folderOrderMap = buildFolderOrderMap(folders)
 
     // 特殊置顶分类优先级定义
     const getCategoryPriority = (cat: string): number => {

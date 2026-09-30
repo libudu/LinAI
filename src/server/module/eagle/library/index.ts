@@ -17,8 +17,7 @@ export {
   getFolderPaths,
   getFolderStandards,
   getFolderTree,
-  getItemEntry,
-  getItemFilePath,
+  getItemDetail,
   getItemMediaSource,
   getItemPresence,
   getItemSnapshots,
@@ -27,6 +26,7 @@ export {
 } from './query'
 export { isVideoExt } from './runtime'
 export type {
+  EagleItemDetail,
   EagleItemMediaSource,
   EagleItemSnapshot,
   GetItemsParams,

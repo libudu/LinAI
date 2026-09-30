@@ -8,7 +8,7 @@ import { Modal, message } from 'antd'
 import { useState } from 'react'
 import { addEagleItemToGallery, purgeEagleItem, updateEagleItem } from '../api'
 import { confirmDeleteEagleItem } from '../components/confirmDeleteModal'
-import type { SelectedFolderInfo } from '../components/FolderSelectModal'
+import type { SelectedFolderInfo } from '../folders'
 import { requestEagleLibraryRefresh } from '../store'
 
 /** 获取修改文件夹弹窗的初始选中文件夹 ID */

@@ -1,6 +1,6 @@
-import type { EagleManualFolderItem } from '@/shared/eagle/settings'
+import type { SelectedFolderInfo } from '@/client/pages/module/Eagle/folders'
+import type { EagleManualFolderItem } from '@/server/module/eagle/settings'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { SelectedFolderInfo } from '../../../components/FolderSelectModal'
 import type { PinnedFolderOption } from '../types'
 import { getSavedPinnedOption, savePinnedOption } from '../utils/storage'
 import { useManualFolders } from './useManualFolders'

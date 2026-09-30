@@ -6,13 +6,12 @@ import { FolderOpenOutlined, FolderOutlined } from '@ant-design/icons'
 import type { TreeDataNode } from 'antd'
 import { Modal, Tree } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  buildFolderMap,
+  collectFolderKeys,
+  type SelectedFolderInfo,
+} from '../folders'
 import { useEagleStore } from '../store'
-
-export interface SelectedFolderInfo {
-  id: string
-  name: string
-  path: string
-}
 
 interface FolderSelectModalProps {
   open: boolean
@@ -22,31 +21,6 @@ interface FolderSelectModalProps {
   title?: string
   /** 整理来源选择可包含「全部」，归档目标选择默认不包含 */
   includeAll?: boolean
-}
-
-const collectFolderKeys = (folders: EagleFolder[]): string[] =>
-  folders.flatMap((folder) => [
-    folder.id,
-    ...collectFolderKeys(folder.children),
-  ])
-
-const buildFolderMap = (
-  folders: EagleFolder[],
-  parentPath = '',
-  map = new Map<string, SelectedFolderInfo>(),
-): Map<string, SelectedFolderInfo> => {
-  for (const folder of folders) {
-    const currentPath = parentPath
-      ? `${parentPath}/${folder.name}`
-      : folder.name
-    map.set(folder.id, {
-      id: folder.id,
-      name: folder.name,
-      path: currentPath,
-    })
-    buildFolderMap(folder.children, currentPath, map)
-  }
-  return map
 }
 
 const toSelectTreeData = (folders: EagleFolder[]): TreeDataNode[] =>

@@ -1,10 +1,3 @@
-import type {
-  EagleFolderTreeSettings,
-  EagleManualFolderItem,
-  EagleManualFoldersSettings,
-  EagleSettings,
-  EagleVisionSettings,
-} from '@/shared/eagle/settings'
 import {
   VISION_ENDPOINT_PRESET_INFOS,
   resolveVisionApiKey,
@@ -18,10 +11,12 @@ import { dataPath } from '../../common/storage/data-path'
 import { visionSettingsSchema } from '../vision/settings'
 
 // Eagle 图片管理模块设置：注册式存储，落盘 data/eagle/config.json
-export const eagleSettingsSchema: z.ZodType<EagleSettings> = z.object({
+export const eagleSettingsSchema = z.object({
   /** Eagle 资源库（.library 目录）的绝对路径 */
   libraryPath: z.string().nullable(),
 })
+
+export type EagleSettings = z.infer<typeof eagleSettingsSchema>
 
 const DEFAULT_EAGLE_SETTINGS: EagleSettings = {
   libraryPath: null,
@@ -45,11 +40,12 @@ export const getEagleSettings = async (): Promise<EagleSettings> =>
   (await settingsRegistry.get<EagleSettings>('eagle')).value
 
 // Eagle 目录树展开状态：前端消费的 UI 偏好，借注册式设置落盘到后端，data/eagle/folder-tree.json
-export const eagleFolderTreeSchema: z.ZodType<EagleFolderTreeSettings> =
-  z.object({
-    /** 展开的文件夹 id 列表；null 表示从未记录（首次进入默认全展开） */
-    expandedFolderIds: z.array(z.string()).nullable(),
-  })
+export const eagleFolderTreeSchema = z.object({
+  /** 展开的文件夹 id 列表；null 表示从未记录（首次进入默认全展开） */
+  expandedFolderIds: z.array(z.string()).nullable(),
+})
+
+export type EagleFolderTreeSettings = z.infer<typeof eagleFolderTreeSchema>
 
 settingsRegistry.register<EagleFolderTreeSettings>('eagle-folder-tree', {
   file: dataPath('eagle', 'folder-tree.json'),
@@ -58,17 +54,21 @@ settingsRegistry.register<EagleFolderTreeSettings>('eagle-folder-tree', {
 })
 
 // Eagle 手动选择文件夹记录：前端在整理步骤手动选择文件夹的记录与计数，data/eagle/manual-folders.json
-export const eagleManualFolderItemSchema: z.ZodType<EagleManualFolderItem> =
-  z.object({
-    folderId: z.string(),
-    folderPath: z.string(),
-    count: z.number().int().nonnegative(),
-  })
+export const eagleManualFolderItemSchema = z.object({
+  folderId: z.string(),
+  folderPath: z.string(),
+  count: z.number().int().nonnegative(),
+})
 
-export const eagleManualFoldersSchema: z.ZodType<EagleManualFoldersSettings> =
-  z.object({
-    folders: z.array(eagleManualFolderItemSchema),
-  })
+export const eagleManualFoldersSchema = z.object({
+  folders: z.array(eagleManualFolderItemSchema),
+})
+
+export type EagleManualFolderItem = z.infer<typeof eagleManualFolderItemSchema>
+export type EagleManualFoldersSettings = z.infer<
+  typeof eagleManualFoldersSchema
+>
+export type EagleVisionSettings = z.infer<typeof visionSettingsSchema>
 
 settingsRegistry.register<EagleManualFoldersSettings>('eagle-manual-folders', {
   file: dataPath('eagle', 'manual-folders.json'),

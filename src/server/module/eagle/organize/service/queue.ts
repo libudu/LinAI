@@ -4,7 +4,7 @@ import type {
   OrganizeQueueItemState,
   OrganizeQueueResp,
 } from '@/shared/eagle/organize'
-import { getItemEntry, getItemSnapshots } from '../../library'
+import { getItemSnapshots } from '../../library'
 import { organizeExecutor } from '../executor'
 import { organizeRepository } from '../storage'
 import { transitionTask, type ItemStatusChange } from '../transitions'
@@ -51,9 +51,11 @@ export class QueueService {
           ? ((await organizeRepository.getItem(itemId))?.error ??
             '未知失败原因')
           : undefined
-      const entry = await getItemEntry(itemId)
-      items.push({ itemId, itemName: entry?.name ?? null, state, error })
+      items.push({ itemId, itemName: null, state, error })
     }
+    const itemMap = await getItemSnapshots(items.map((item) => item.itemId))
+    for (const item of items)
+      item.itemName = itemMap?.get(item.itemId)?.name ?? null
     return { items, total }
   }
 

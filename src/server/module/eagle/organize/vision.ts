@@ -7,7 +7,7 @@ import fs from 'fs-extra'
 import sharp from 'sharp'
 import { z } from 'zod'
 import { requestRegistry } from '../../../common/relay'
-import { getItemEntry, getItemFilePath } from '../library'
+import { getItemMediaSource } from '../library'
 import { getEagleVisionEndpoint } from '../settings'
 import {
   EAGLE_VISION_IMAGE_MAX_DIMENSION,
@@ -136,14 +136,17 @@ export const judgeItem = async (
     signal?: AbortSignal
   },
 ): Promise<VisionJudgeOutcome> => {
-  const entry = await getItemEntry(itemId)
-  if (!entry) throw new Error('条目不存在或已从库中删除')
-  const filePath = await getItemFilePath(itemId)
-  if (!filePath || !(await fs.pathExists(filePath))) {
+  const source = await getItemMediaSource(itemId)
+  if (!source) throw new Error('条目不存在或已从库中删除')
+  if (!(await fs.pathExists(source.filePath))) {
     throw new Error('条目原文件不存在')
   }
 
-  const dataUrl = await loadImageDataUrl(filePath, entry.ext, options.compress)
+  const dataUrl = await loadImageDataUrl(
+    source.filePath,
+    source.ext,
+    options.compress,
+  )
 
   const response = await requestRegistry.execute(
     'eagle.vision',

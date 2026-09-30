@@ -2,7 +2,6 @@ import { usePlatform } from '@/client/hooks/usePlatform'
 import {
   EAGLE_TRASH_FOLDER_ID,
   EAGLE_UNCLASSIFIED_FOLDER_ID,
-  type EagleFolder,
 } from '@/shared/eagle/types'
 import {
   AppstoreOutlined,
@@ -25,6 +24,7 @@ import {
 } from 'antd'
 import { useMemo, useState } from 'react'
 import { purgeEagleTrash, trashAllUnclassifiedEagleItems } from './api'
+import { findFolder } from './folders'
 import { FolderTree } from './FolderTree'
 import { OrganizeModal } from './Organize'
 import { useOrganizeStatus } from './Organize/store'
@@ -32,18 +32,6 @@ import { openEagleSettingModal } from './SettingModal'
 import { useEagleVisionConfig } from './SettingModal/useEagleVisionConfig'
 import type { EagleImageSize } from './store'
 import { requestEagleLibraryRefresh, useEagleStore } from './store'
-
-const findFolder = (
-  folders: EagleFolder[],
-  folderId: string,
-): EagleFolder | null => {
-  for (const folder of folders) {
-    if (folder.id === folderId) return folder
-    const found = findFolder(folder.children, folderId)
-    if (found) return found
-  }
-  return null
-}
 
 // 资源列表顶部操作区：展示选项、刷新、图片整理；移动端提供文件夹抽屉入口
 export function Toolbar() {

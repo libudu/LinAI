@@ -8,6 +8,7 @@ import {
 } from '@/shared/eagle/types'
 import { create } from 'zustand'
 import { fetchEagleItems, fetchEagleOverview, refreshEagleIndex } from './api'
+import { findFolder } from './folders'
 import { LibraryRefreshController } from './libraryRefresh'
 import {
   loadImageSize,
@@ -26,9 +27,7 @@ export const PAGE_SIZE = 100
 const hasFolder = (folders: EagleFolder[], folderId: string): boolean =>
   folderId === EAGLE_UNCLASSIFIED_FOLDER_ID ||
   folderId === EAGLE_TRASH_FOLDER_ID ||
-  folders.some(
-    (folder) => folder.id === folderId || hasFolder(folder.children, folderId),
-  )
+  findFolder(folders, folderId) !== null
 
 // Eagle 图片管理页面状态：文件夹树 + 当前文件夹的资源列表（分批加载）
 interface EagleState {

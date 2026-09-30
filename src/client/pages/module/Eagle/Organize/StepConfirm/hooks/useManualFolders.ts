@@ -1,89 +1,75 @@
-import { settingsClient } from '@/client/service/settings'
+import type { SelectedFolderInfo } from '@/client/pages/module/Eagle/folders'
+import { EaglePreferenceDocument } from '@/client/pages/module/Eagle/preferenceDocument'
 import type {
   EagleManualFolderItem,
   EagleManualFoldersSettings,
-} from '@/shared/eagle/settings'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { SelectedFolderInfo } from '../../../components/FolderSelectModal'
+} from '@/server/module/eagle/settings'
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 
-const manualFoldersClient = settingsClient<EagleManualFoldersSettings>(
-  'eagle-manual-folders',
-)
+const manualFoldersDocument =
+  new EaglePreferenceDocument<EagleManualFoldersSettings>(
+    'eagle-manual-folders',
+    { folders: [] },
+  )
 
 /** 手动目标历史及使用频次；当前图片的选项由 useConfirmSelection 管理。 */
 export function useManualFolders() {
-  const [manualFolders, setManualFolders] = useState<EagleManualFolderItem[]>(
-    [],
+  const {
+    value: { folders: manualFolders },
+  } = useSyncExternalStore(
+    manualFoldersDocument.subscribe,
+    manualFoldersDocument.getSnapshot,
   )
-  const manualRevisionRef = useRef<number | undefined>(undefined)
 
-  // 加载手动选择文件夹的历史记录
   useEffect(() => {
-    let cancelled = false
-    manualFoldersClient
-      .get()
-      .then((res) => {
-        if (cancelled) return
-        manualRevisionRef.current = res.revision
-        setManualFolders(res.value.folders ?? [])
-      })
-      .catch((error) => {
-        console.error('加载手动文件夹历史失败', error)
-      })
-    return () => {
-      cancelled = true
-    }
+    void manualFoldersDocument
+      .load()
+      .catch((error) => console.error('加载手动文件夹历史失败', error))
   }, [])
 
-  const saveManualFolders = useCallback(
-    async (folders: EagleManualFolderItem[]) => {
-      try {
-        const res = await manualFoldersClient.put(
-          { folders },
-          manualRevisionRef.current,
-        )
-        manualRevisionRef.current = res.revision
-        setManualFolders(res.value.folders ?? [])
-      } catch (error) {
-        console.error('保存手动文件夹历史失败', error)
-      }
+  const updateFolders = useCallback(
+    (mutate: (folders: EagleManualFolderItem[]) => EagleManualFolderItem[]) => {
+      void manualFoldersDocument
+        .update((current) => ({ folders: mutate(current.folders) }))
+        .catch((error) => console.error('保存手动文件夹历史失败', error))
     },
     [],
   )
 
   const handleManualFolderSelect = useCallback(
     (folder: SelectedFolderInfo) => {
-      const existing = manualFolders.find((f) => f.folderId === folder.id)
-      if (!existing) {
-        const next = [
-          ...manualFolders,
-          { folderId: folder.id, folderPath: folder.path, count: 0 },
-        ]
-        setManualFolders(next)
-        void saveManualFolders(next)
-      }
+      updateFolders((folders) =>
+        folders.some((item) => item.folderId === folder.id)
+          ? folders
+          : [
+              ...folders,
+              { folderId: folder.id, folderPath: folder.path, count: 0 },
+            ],
+      )
     },
-    [manualFolders, saveManualFolders],
+    [updateFolders],
   )
 
   const handleRemoveManualFolder = useCallback(
     (target: EagleManualFolderItem) => {
-      const next = manualFolders.filter((f) => f.folderId !== target.folderId)
-      setManualFolders(next)
-      void saveManualFolders(next)
+      updateFolders((folders) =>
+        folders.filter((item) => item.folderId !== target.folderId),
+      )
     },
-    [manualFolders, saveManualFolders],
+    [updateFolders],
   )
 
   const recordManualFolderUsage = useCallback(
     (folderId: string) => {
-      const nextManuals = manualFolders.map((f) =>
-        f.folderId === folderId ? { ...f, count: f.count + 1 } : f,
+      updateFolders((folders) =>
+        folders.map((folder) =>
+          folder.folderId === folderId
+            ? { ...folder, count: folder.count + 1 }
+            : folder,
+        ),
       )
-      setManualFolders(nextManuals)
-      void saveManualFolders(nextManuals)
     },
-    [manualFolders, saveManualFolders],
+    [updateFolders],
   )
 
   const sortedManualFolders = useMemo(
