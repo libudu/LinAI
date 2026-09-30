@@ -8,24 +8,18 @@ import { getFolderPaths } from '../../library'
 import { ORGANIZE_RESOURCE } from '../constants'
 import type { OrganizeTaskRecord } from '../storage'
 
-export const toTaskView = (
-  record: OrganizeTaskRecord,
-  availableCount?: number,
-): OrganizeTaskView => ({
+export const toTaskView = (record: OrganizeTaskRecord): OrganizeTaskView => ({
   phase: record.phase,
   pausedReason: record.pausedReason,
   compress: record.compress,
   concurrency: record.concurrency,
   createdAt: record.createdAt,
   standards: record.standards,
-  folderId: record.folderId,
-  folderName: record.folderName ?? '全部',
   total: record.itemIds.length,
   executed: record.executed,
   pendingConfirm: record.pendingConfirm,
   successCount: record.successCount,
   failedCount: record.failedCount,
-  availableCount,
 })
 
 export const publishOrganizeChange = (): void => {

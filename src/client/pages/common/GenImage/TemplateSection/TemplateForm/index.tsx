@@ -36,8 +36,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
       setFillTemplateData: state.setFillTemplateData,
     })),
   )
-  const { gptImageSettings, appendAspectRatio, styleExtractEnabled } =
-    useLocalSetting()
+  const { gptImageSettings, appendAspectRatio } = useLocalSetting()
   const [openStyleExtractModal, setOpenStyleExtractModal] = useState(false)
 
   // 触发填入模板数据

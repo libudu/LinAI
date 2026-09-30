@@ -1,5 +1,5 @@
 import type { OrganizeTaskView } from '@/shared/eagle/organize'
-import { Modal, Spin, Tooltip } from 'antd'
+import { Modal, Spin } from 'antd'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { setEagleLibraryRefreshSuspended } from '../store'
 import { StepClassify } from './StepClassify'
@@ -10,7 +10,7 @@ import { fetchOrganizeTask } from './api'
 import { useOrganizeStatus } from './store'
 
 // 图片整理弹窗：左侧/顶部导航卡片栏 + 主操作区
-// 支持在当前锁定文件夹下非互斥自由切换与随时追加图片
+// 支持非互斥自由切换步骤与跨文件夹追加图片
 export function OrganizeModal({
   open,
   onClose,
@@ -24,13 +24,12 @@ export function OrganizeModal({
   const hasInitializedStepRef = useRef(false)
 
   const phase = status?.phase
-  const isLocked = status?.isLocked ?? false
-  const lockedFolderName = status?.folderName
   const isFetchingTaskRef = useRef(false)
   const pendingTaskFetchRef = useRef(false)
   const taskSequenceRef = useRef(0)
   const prevPhaseRef = useRef(phase)
   const prevOpenRef = useRef(open)
+  const prevTotalRef = useRef(status?.total ?? 0)
 
   // 拉取任务快照以同步导航卡片展示（带单飞保护）
   const doLoadTask = useCallback(async () => {
@@ -58,18 +57,21 @@ export function OrganizeModal({
     }
   }, [])
 
-  // 仅在弹窗打开、phase 发生阶段性跳变（如新建/完成/清空等）或无 task 时拉取
+  // 弹窗打开、阶段变化、追加/调整队列使总数变化或无 task 时拉取
   // 队列执行中（phase 为 running 期间的数值变动）无需重复拉取整包 task
   useEffect(() => {
     const isJustOpened = open && !prevOpenRef.current
     const isPhaseChanged = open && phase !== prevPhaseRef.current
+    const total = status?.total ?? 0
+    const isQueueChanged = open && total !== prevTotalRef.current
     prevOpenRef.current = open
     prevPhaseRef.current = phase
+    prevTotalRef.current = total
 
-    if (isJustOpened || isPhaseChanged || (open && !task)) {
+    if (isJustOpened || isPhaseChanged || isQueueChanged || (open && !task)) {
       void doLoadTask()
     }
-  }, [open, phase, task, doLoadTask])
+  }, [open, phase, status?.total, task, doLoadTask])
 
   // 打开弹窗或状态首次加载时，智能推荐初始展示步骤
   useEffect(() => {
@@ -101,22 +103,9 @@ export function OrganizeModal({
     }
   }, [])
 
-  const modalTitle = (
-    <div className="flex items-center gap-2 pr-6">
-      <span>图片整理</span>
-      {isLocked && lockedFolderName && (
-        <Tooltip title="当前任务处理完成或清空前，不可切换其他文件夹分类">
-          <span className="max-w-[420px] truncate rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600 dark:bg-blue-950/60 dark:text-blue-400">
-            锁定文件夹：{lockedFolderName}
-          </span>
-        </Tooltip>
-      )}
-    </div>
-  )
-
   return (
     <Modal
-      title={modalTitle}
+      title="图片整理"
       open={open}
       onCancel={onClose}
       footer={null}
@@ -160,7 +149,6 @@ export function OrganizeModal({
             )}
             {currentStep === 'running' && (
               <StepRunning
-                task={task}
                 onSwitchToClassify={() => setCurrentStep('classify')}
                 onSwitchToConfirm={() => setCurrentStep('confirm')}
               />

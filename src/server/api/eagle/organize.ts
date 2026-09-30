@@ -72,18 +72,21 @@ organizeApi.post(
   },
 )
 
-// 追加图片：向当前锁定文件夹的任务追加图片到队尾
+// 追加图片：从当前选择的范围向现有任务追加，跨文件夹按 ID 去重
 organizeApi.post(
   '/task/append',
   zValidator(
     'json',
     z.object({
+      folderId: z.string().min(1).optional(),
+      sortBy: z.enum(['mtime', 'size']).default('mtime'),
+      sortOrder: z.enum(['asc', 'desc']).default('desc'),
       count: z.number().int().min(1),
     }),
   ),
   async (c) => {
     const body = c.req.valid('json')
-    const result = await organizeService.appendItems(body.count)
+    const result = await organizeService.appendItems(body)
     if (!result.ok) {
       return c.json(
         { success: false as const, error: result.error },

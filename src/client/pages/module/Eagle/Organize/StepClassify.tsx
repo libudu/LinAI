@@ -17,6 +17,7 @@ import {
   message,
 } from 'antd'
 import { useEffect, useState } from 'react'
+import { FolderSelectModal } from '../components/FolderSelectModal'
 import { useEagleStore } from '../store'
 import {
   appendOrganizeTask,
@@ -81,8 +82,8 @@ const persistOrganizeOptions = (options: OrganizeOptions) => {
 }
 
 // 步骤 1 分类文件夹划定 / 追加图片：
-// - 未锁定时：新建任务模式，配置数量、并发与压缩；
-// - 锁定状态下：追加模式，将当前锁定文件夹中未加入队列的图片追加到队尾
+// - 无未完成任务时：新建任务模式，配置数量、并发与压缩；
+// - 有未完成任务时：追加模式，可从任意文件夹添加，沿用任务设置与分类标准
 export function StepClassify({
   onClose,
   onSuccess,
@@ -101,8 +102,9 @@ export function StepClassify({
   const [submitting, setSubmitting] = useState(false)
   const [syncingStandards, setSyncingStandards] = useState(false)
   const [promptOpen, setPromptOpen] = useState(false)
+  const [folderSelectOpen, setFolderSelectOpen] = useState(false)
 
-  const isLocked = !!prepare?.lockedFolderName
+  const hasActiveTask = prepare?.hasActiveTask ?? false
   const isRunning = status?.phase === 'running'
   const availableCount = prepare?.availableCount ?? 0
   const imageCount = prepare?.imageCount ?? 0
@@ -111,6 +113,7 @@ export function StepClassify({
   const loadPrepareData = () => {
     let cancelled = false
     setLoading(true)
+    setPrepare(null)
     fetchOrganizePrepare({
       folderId: currentFolderId || undefined,
       sortBy,
@@ -119,10 +122,7 @@ export function StepClassify({
       .then((data) => {
         if (cancelled) return
         setPrepare(data)
-        const isCurrentlyLocked = !!data.lockedFolderName
-        const maxAvailable = isCurrentlyLocked
-          ? data.availableCount
-          : data.imageCount
+        const maxAvailable = data.availableCount
         setCount(
           maxAvailable > 0
             ? Math.min(loadOrganizeOptions().count, maxAvailable)
@@ -196,8 +196,13 @@ export function StepClassify({
     if (!count) return
     setSubmitting(true)
     try {
-      await appendOrganizeTask({ count })
-      message.success(`已成功追加 ${count} 张图片到队列`)
+      await appendOrganizeTask({
+        folderId: currentFolderId || undefined,
+        sortBy,
+        sortOrder,
+        count,
+      })
+      message.success('已追加图片到队列，重复图片自动过滤')
       await refreshOrganizeStatus()
       loadPrepareData()
       onSuccess?.()
@@ -219,6 +224,17 @@ export function StepClassify({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
+      <div className="flex shrink-0 items-center gap-3">
+        <span className="min-w-0 truncate text-sm">
+          添加范围：{prepare?.sourceFolderName ?? '当前选中文件夹'}
+        </span>
+        <Button onClick={() => setFolderSelectOpen(true)}>切换文件夹</Button>
+        {hasActiveTask && (
+          <span className="text-xs text-slate-400">
+            当前范围已入队 {prepare?.enqueuedCount ?? 0} 张，跨文件夹自动去重
+          </span>
+        )}
+      </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
         {standards.length === 0 ? (
           <div className="flex flex-1 items-center justify-center p-6">
@@ -250,12 +266,12 @@ export function StepClassify({
         )}
       </div>
 
-      {isLocked ? (
+      {hasActiveTask ? (
         <div className="flex shrink-0 flex-col gap-3">
           {availableCount === 0 ? (
             <Empty
               className="py-2"
-              description="当前锁定文件夹下的所有图片已全部加入整理队列"
+              description="当前范围没有尚未入队的图片，可切换其他文件夹继续添加"
             />
           ) : (
             <div className="flex items-center gap-3">
@@ -340,7 +356,7 @@ export function StepClassify({
           >
             预览提示词
           </Button>
-          {isLocked && !isRunning && prepare?.hasStandardsMismatch && (
+          {hasActiveTask && !isRunning && prepare?.hasStandardsMismatch && (
             <Tooltip title="检测到外部文件夹顺序或分类标准已更新，点击将最新标准同步到当前任务">
               <Button loading={syncingStandards} onClick={handleSyncStandards}>
                 同步最新文件夹
@@ -350,7 +366,7 @@ export function StepClassify({
         </div>
         <div className="flex gap-2">
           <Button onClick={onClose}>取消</Button>
-          {isLocked ? (
+          {hasActiveTask ? (
             <Button
               type="primary"
               loading={submitting}
@@ -372,6 +388,24 @@ export function StepClassify({
         </div>
       </div>
 
+      <FolderSelectModal
+        open={folderSelectOpen}
+        onClose={() => setFolderSelectOpen(false)}
+        initialFolderId={currentFolderId || undefined}
+        includeAll
+        title="选择添加图片的文件夹"
+        onConfirm={async (folder) => {
+          try {
+            await useEagleStore
+              .getState()
+              .selectFolder(folder.id === '__all__' ? '' : folder.id)
+          } catch (error) {
+            message.error(
+              error instanceof Error ? error.message : '切换文件夹失败',
+            )
+          }
+        }}
+      />
       <Modal
         open={promptOpen}
         title="将要发送的提示词"

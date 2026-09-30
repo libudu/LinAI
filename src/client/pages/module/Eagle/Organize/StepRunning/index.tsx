@@ -1,7 +1,6 @@
 import type {
   OrganizeFailedItem,
   OrganizeQueueResp,
-  OrganizeTaskView,
 } from '@/shared/eagle/organize'
 import { Badge, Button, Modal, Tabs, message } from 'antd'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -29,11 +28,9 @@ const QUEUE_PREVIEW_LIMIT = 20
 export function StepRunning({
   onSwitchToConfirm,
   onSwitchToClassify,
-  task,
 }: {
   onSwitchToConfirm?: () => void
   onSwitchToClassify?: () => void
-  task?: OrganizeTaskView | null
 }) {
   const { status } = useOrganizeStatus()
   const [queue, setQueue] = useState<OrganizeQueueResp | null>(null)
@@ -130,7 +127,7 @@ export function StepRunning({
 
   const phase = status?.phase
   const pendingConfirm = status?.pendingConfirm ?? 0
-  const isLocked = status?.isLocked ?? false
+  const hasActiveTask = !!status && status.phase !== 'done'
 
   const isCompleted =
     phase === 'confirming' ||
@@ -228,7 +225,7 @@ export function StepRunning({
   const handleClear = () => {
     Modal.confirm({
       title: '清空整理任务？',
-      content: '将强制停止所有请求并丢弃当前结果，解锁文件夹并回到第一步。',
+      content: '将强制停止所有请求并丢弃当前结果，回到第一步。',
       okText: '清空',
       okType: 'danger',
       cancelText: '取消',
@@ -245,16 +242,10 @@ export function StepRunning({
   }
 
   const getAddSubtitle = () => {
-    if (!isLocked || phase === 'done') {
+    if (!hasActiveTask) {
       return '新建分类任务'
     }
-    if (task?.availableCount !== undefined) {
-      if (task.availableCount > 0) {
-        return `剩余 ${task.availableCount} 张可选`
-      }
-      return '全部图片已入队'
-    }
-    return '追加图片到队列'
+    return '从任意文件夹追加图片'
   }
 
   const getConfirmSubtitle = () => {

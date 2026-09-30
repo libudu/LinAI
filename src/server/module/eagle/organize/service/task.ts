@@ -11,17 +11,18 @@ import { publishOrganizeChange, resolveFolderName, toTaskView } from './helpers'
 import type {
   CreateTaskResult,
   OrganizeActionResult,
+  OrganizeAppendParams,
   OrganizeCreateTaskParams,
   OrganizePrepareParams,
 } from './types'
 
 /**
  * 按图片 ID 计算当前文件夹中尚未进入任务的条目。
- * 已确认图片可能已经移出锁定文件夹，因此不能用「当前总数 - 历史入队总数」估算。
+ * 图片可能属于多个文件夹或已被移动，因此必须与整轮任务的历史 ID 做集合差。
  */
 const getAvailableItemIds = (itemIds: string[], enqueuedIds: string[]) => {
   const enqueued = new Set(enqueuedIds)
-  return itemIds.filter((id) => !enqueued.has(id))
+  return [...new Set(itemIds)].filter((id) => !enqueued.has(id))
 }
 
 export class TaskService {
@@ -48,68 +49,46 @@ export class TaskService {
     if (!task) return null
     return {
       phase: task.phase,
+      total: task.itemIds.length,
       remaining: Math.max(0, task.itemIds.length - task.executed),
       pendingConfirm: task.pendingConfirm,
       failedCount: task.failedCount,
       pausedReason: task.pausedReason,
-      folderId: task.folderId,
-      folderName: task.folderName,
-      isLocked: task.phase !== 'done',
     }
   }
 
   async getTask(): Promise<OrganizeTaskView | null> {
     const task = await organizeRepository.getTask()
     if (!task) return null
-    let availableCount: number | undefined
-    if (task.phase !== 'done') {
-      try {
-        const allItems = await getClassifiableItems({
-          folderId: task.folderId,
-          sortBy: 'mtime',
-          sortOrder: 'desc',
-        })
-        availableCount = getAvailableItemIds(
-          allItems.itemIds,
-          task.itemIds,
-        ).length
-      } catch {
-        availableCount = undefined
-      }
-    }
-    return toTaskView(task, availableCount)
+    return toTaskView(task)
   }
 
-  /** 步骤 1 准备数据：分类标准 + 当前范围内可处理图片数（支持锁定模式与追加模式） */
+  /** 步骤 1 准备数据：按当前选中范围统计，分类标准沿用未完成任务的快照 */
   async prepare(params: OrganizePrepareParams): Promise<OrganizePrepareResp> {
     const task = await organizeRepository.getTask()
+    const sourceFolderName = await resolveFolderName(params.folderId)
     if (task && task.phase !== 'done') {
-      // 处于锁定文件夹状态：以任务锁定的 folderId 和 standards 为准
-      const [allItems, latestStandards] = await Promise.all([
-        getClassifiableItems({
-          folderId: task.folderId,
-          sortBy: params.sortBy,
-          sortOrder: params.sortOrder,
-        }),
+      const [allItems, latestStandards, history] = await Promise.all([
+        getClassifiableItems(params),
         getFolderStandards(),
+        organizeRepository.listItems(),
       ])
       const imageCount = allItems.total
-      const enqueuedCount = task.itemIds.length
-      const availableCount = getAvailableItemIds(
-        allItems.itemIds,
-        task.itemIds,
-      ).length
+      const availableCount = getAvailableItemIds(allItems.itemIds, [
+        ...task.itemIds,
+        ...history.map((item) => item.itemId),
+      ]).length
       const hasStandardsMismatch = !areStandardsEqual(
         task.standards,
         latestStandards,
       )
       return {
+        sourceFolderName,
         standards: task.standards,
         imageCount,
-        enqueuedCount,
+        enqueuedCount: imageCount - availableCount,
         availableCount,
-        lockedFolderId: task.folderId,
-        lockedFolderName: task.folderName,
+        hasActiveTask: true,
         hasStandardsMismatch,
       }
     }
@@ -119,10 +98,12 @@ export class TaskService {
       getClassifiableItems(params),
     ])
     return {
+      sourceFolderName,
       standards,
       imageCount: items.total,
       enqueuedCount: 0,
       availableCount: items.total,
+      hasActiveTask: false,
     }
   }
 
@@ -172,12 +153,14 @@ export class TaskService {
     organizeExecutor.kick()
     return {
       ok: true,
-      task: toTaskView(record, Math.max(0, total - record.itemIds.length)),
+      task: toTaskView(record),
     }
   }
 
-  /** 向当前锁定任务追加未入队的图片到队尾 */
-  async appendItems(count: number): Promise<OrganizeActionResult> {
+  /** 从指定范围追加图片，在任务串行更新内按 ID 去重，避免并发重复入队 */
+  async appendItems(
+    params: OrganizeAppendParams,
+  ): Promise<OrganizeActionResult> {
     const task = await organizeRepository.getTask()
     if (!task || task.phase === 'done') {
       return {
@@ -186,20 +169,24 @@ export class TaskService {
         error: '当前没有正在进行的任务可追加图片',
       }
     }
-    const { itemIds: allAvailable } = await getClassifiableItems({
-      folderId: task.folderId,
-      sortBy: 'mtime',
-      sortOrder: 'desc',
-    })
-    const toAppend = getAvailableItemIds(allAvailable, task.itemIds).slice(
-      0,
-      count,
-    )
-    if (toAppend.length === 0) {
-      return { ok: false, status: 400, error: '没有更多可追加的图片' }
-    }
+    const [{ itemIds: allAvailable }, history] = await Promise.all([
+      getClassifiableItems(params),
+      organizeRepository.listItems(),
+    ])
+    const historyIds = history.map((item) => item.itemId)
+    let noAvailableItems = false
     const updated = await organizeRepository.mutateTask((latest) => {
-      if (!latest || latest.phase === 'done') return null
+      // 读取范围期间任务可能完成或被替换，不把旧请求追加到新任务。
+      if (latest.phase === 'done' || latest.createdAt !== task.createdAt)
+        return null
+      const toAppend = getAvailableItemIds(allAvailable, [
+        ...latest.itemIds,
+        ...historyIds,
+      ]).slice(0, params.count)
+      if (toAppend.length === 0) {
+        noAvailableItems = true
+        return null
+      }
       return {
         ...latest,
         itemIds: [...latest.itemIds, ...toAppend],
@@ -207,10 +194,12 @@ export class TaskService {
       }
     })
     if (!updated) {
-      return { ok: false, status: 409, error: '追加图片失败' }
+      return noAvailableItems
+        ? { ok: false, status: 400, error: '当前范围内没有更多可追加的图片' }
+        : { ok: false, status: 409, error: '任务状态已变更，请刷新后重试' }
     }
     publishOrganizeChange()
-    organizeExecutor.kick()
+    if (updated.phase === 'running') organizeExecutor.kick()
     return { ok: true }
   }
 

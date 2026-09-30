@@ -14,6 +14,10 @@ export interface OrganizeCreateTaskParams extends OrganizePrepareParams {
   concurrency: number
 }
 
+export interface OrganizeAppendParams extends OrganizePrepareParams {
+  count: number
+}
+
 export type CreateTaskResult =
   | { ok: true; task: OrganizeTaskView }
   | { ok: false; status: 400 | 409; error: string }

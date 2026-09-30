@@ -57,9 +57,9 @@ export interface OrganizeTaskRecord {
   concurrency: number
   createdAt: number
   standards: OrganizeFolderStandard[]
-  /** 锁定的文件夹 ID（空或 undefined 为全部） */
+  /** 首批图片来源文件夹 ID，仅保留历史信息，不限制后续追加 */
   folderId?: string
-  /** 锁定的文件夹展示名称 */
+  /** 首批图片来源文件夹名称 */
   folderName?: string
   /** 处理队列：按创建时排序的图片 id */
   itemIds: string[]

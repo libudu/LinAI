@@ -20,6 +20,8 @@ interface FolderSelectModalProps {
   onConfirm: (folder: SelectedFolderInfo) => void | Promise<void>
   initialFolderId?: string
   title?: string
+  /** 整理来源选择可包含「全部」，归档目标选择默认不包含 */
+  includeAll?: boolean
 }
 
 const collectFolderKeys = (folders: EagleFolder[]): string[] =>
@@ -60,6 +62,7 @@ export function FolderSelectModal({
   onConfirm,
   initialFolderId,
   title = '选择文件夹',
+  includeAll = false,
 }: FolderSelectModalProps) {
   const folders = useEagleStore((s) => s.folders)
   const [selectedKey, setSelectedKey] = useState<string>(
@@ -71,16 +74,20 @@ export function FolderSelectModal({
 
   const folderMap = useMemo(() => {
     const map = buildFolderMap(folders)
+    if (includeAll) {
+      map.set('__all__', { id: '__all__', name: '全部', path: '全部' })
+    }
     map.set(EAGLE_UNCLASSIFIED_FOLDER_ID, {
       id: EAGLE_UNCLASSIFIED_FOLDER_ID,
       name: '未分类',
       path: '未分类',
     })
     return map
-  }, [folders])
+  }, [folders, includeAll])
 
   const treeData = useMemo<TreeDataNode[]>(
     () => [
+      ...(includeAll ? [{ key: '__all__', title: '全部' }] : []),
       {
         key: EAGLE_UNCLASSIFIED_FOLDER_ID,
         title: '未分类',
@@ -88,7 +95,7 @@ export function FolderSelectModal({
       },
       ...toSelectTreeData(folders),
     ],
-    [folders],
+    [folders, includeAll],
   )
 
   const scrollToSelected = useCallback(() => {
@@ -115,7 +122,9 @@ export function FolderSelectModal({
         const targetKey =
           initialFolderId && folderMap.has(initialFolderId)
             ? initialFolderId
-            : EAGLE_UNCLASSIFIED_FOLDER_ID
+            : includeAll && !initialFolderId
+              ? '__all__'
+              : EAGLE_UNCLASSIFIED_FOLDER_ID
         setSelectedKey(targetKey)
         setExpandedKeys(collectFolderKeys(folders))
 
@@ -128,7 +137,7 @@ export function FolderSelectModal({
       }
     }
     prevOpenRef.current = open
-  }, [open, initialFolderId, folders, folderMap, scrollToSelected])
+  }, [open, initialFolderId, folders, folderMap, scrollToSelected, includeAll])
 
   const handleOk = () => {
     const info = folderMap.get(selectedKey)

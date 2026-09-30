@@ -27,6 +27,8 @@ export interface OrganizeFolderStandard {
 /** 按钮徽标与进度用的轻量状态（GET /api/eagle/organize/status） */
 export interface OrganizeStatus {
   phase: OrganizePhase
+  /** 本轮队列总数（追加后实时更新） */
+  total: number
   /** 剩余未执行数量 */
   remaining: number
   /** 待确认数量（仅 success 且未处理） */
@@ -34,12 +36,6 @@ export interface OrganizeStatus {
   /** 步骤 2 失败待重试/待处理数量 */
   failedCount: number
   pausedReason: 'user' | 'error' | 'restart' | null
-  /** 锁定的文件夹 ID（空或 undefined 为全部） */
-  folderId?: string
-  /** 锁定的文件夹展示名称（如 "全部"、"未分类"、"插画/人物"） */
-  folderName?: string
-  /** 是否存在活跃锁定任务 */
-  isLocked: boolean
 }
 
 /** 任务详情视图（不含队列明细，GET /api/eagle/organize/task） */
@@ -51,18 +47,12 @@ export interface OrganizeTaskView {
   concurrency: number
   createdAt: number
   standards: OrganizeFolderStandard[]
-  /** 锁定的文件夹 ID */
-  folderId?: string
-  /** 锁定的文件夹名称/路径 */
-  folderName: string
   total: number
   executed: number
   pendingConfirm: number
   /** 判定成功 / 失败数量（执行器维护） */
   successCount: number
   failedCount: number
-  /** 当前锁定文件夹下剩余未入队的可处理图片数 */
-  availableCount?: number
 }
 
 /** 队列执行并发数：创建任务时用户输入，默认 20，范围 1~20 */
@@ -72,17 +62,17 @@ export const ORGANIZE_CONCURRENCY_MAX = 20
 
 /** 步骤 1 准备数据（GET /api/eagle/organize/prepare） */
 export interface OrganizePrepareResp {
+  /** 当前选择的图片来源范围名称 */
+  sourceFolderName: string
   standards: OrganizeFolderStandard[]
   /** 当前范围内可处理图片总数（已排除 gif / 视频） */
   imageCount: number
-  /** 当前已入队图片数 */
+  /** 当前范围内已进入本轮任务的图片数（包含已确认/跳过的历史项） */
   enqueuedCount: number
-  /** 剩余可追加图片数 (imageCount - enqueuedCount) */
+  /** 当前范围内尚未进入本轮任务的图片数（按 ID 做集合差） */
   availableCount: number
-  /** 当前锁定的文件夹 ID（若已锁定） */
-  lockedFolderId?: string
-  /** 当前锁定的文件夹名称（若已锁定） */
-  lockedFolderName?: string
+  /** 是否存在未完成任务；有则追加，无则新建 */
+  hasActiveTask: boolean
   /** 当前任务分类标准与库中最新标准是否不一致（顺序/内容/增删），仅在存在未完成任务时计算 */
   hasStandardsMismatch?: boolean
 }

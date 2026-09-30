@@ -16,6 +16,7 @@ import { taskService } from './task'
 import type {
   CreateTaskResult,
   OrganizeActionResult,
+  OrganizeAppendParams,
   OrganizeCreateTaskParams,
   OrganizePrepareParams,
 } from './types'
@@ -64,9 +65,11 @@ class OrganizeService {
     return taskService.createTask(params)
   }
 
-  async appendItems(count: number): Promise<OrganizeActionResult> {
+  async appendItems(
+    params: OrganizeAppendParams,
+  ): Promise<OrganizeActionResult> {
     await this.ready
-    return taskService.appendItems(count)
+    return taskService.appendItems(params)
   }
 
   async pauseTask(): Promise<boolean> {

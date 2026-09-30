@@ -19,36 +19,29 @@ export const StepNavBar: React.FC<StepNavBarProps> = ({
   task,
 }) => {
   const { isMobile } = usePlatform()
-  const isLocked = status?.isLocked ?? false
+  const hasActiveTask = !!status && status.phase !== 'done'
   const phase = status?.phase
   const pendingConfirm = status?.pendingConfirm ?? 0
   const failedCount = status?.failedCount ?? 0
-  const total = task?.total ?? 0
-  // 由固定总数与 status.remaining 实时推导已执行数，避免队列运行中频繁拉取 task
+  const total = status?.total ?? task?.total ?? 0
+  // 由实时总数与 status.remaining 推导已执行数，追加期间也不会使用过期总数
   const executed =
     total > 0
       ? Math.max(0, total - (status?.remaining ?? 0))
       : (task?.executed ?? 0)
 
   // 02 处理中：无任务或已全部完成且无队列时置灰
-  const isStepRunningDisabled =
-    !isLocked && phase !== 'running' && phase !== 'paused' && total === 0
+  const isStepRunningDisabled = !hasActiveTask && total === 0
 
   // 03 待确认：无待确认且无任务结果时置灰
   const isStepConfirmDisabled =
-    !isLocked && pendingConfirm === 0 && (task?.successCount ?? 0) === 0
+    !hasActiveTask && pendingConfirm === 0 && (task?.successCount ?? 0) === 0
 
   const getAddSubtitle = () => {
-    if (!isLocked || phase === 'done') {
+    if (!hasActiveTask) {
       return '新建分类任务'
     }
-    if (task?.availableCount !== undefined) {
-      if (task.availableCount > 0) {
-        return `剩余 ${task.availableCount} 张可选`
-      }
-      return '全部图片已入队'
-    }
-    return '追加图片到队列'
+    return '从任意文件夹追加图片'
   }
 
   const isRunningCompleted =

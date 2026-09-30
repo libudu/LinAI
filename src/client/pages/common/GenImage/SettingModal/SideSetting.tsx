@@ -27,8 +27,6 @@ export function SideSetting() {
   const {
     promptOptimizeEnabled,
     setPromptOptimizeEnabled,
-    styleExtractEnabled,
-    setStyleExtractEnabled,
     appendAspectRatioEnabled,
     setAppendAspectRatioEnabled,
     appendAspectRatio,

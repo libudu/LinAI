@@ -59,10 +59,12 @@ export const createOrganizeTask = async (
   })
 }
 
-// 向当前锁定任务追加未入队的图片到队尾
-export const appendOrganizeTask = async (params: {
-  count: number
-}): Promise<void> => {
+// 从当前选择范围向任务追加图片，服务端按整轮任务的图片 ID 去重
+export const appendOrganizeTask = async (
+  params: OrganizeSortParams & {
+    count: number
+  },
+): Promise<void> => {
   await apiRequest<null>('/api/eagle/organize/task/append', {
     method: 'POST',
     body: JSON.stringify(params),

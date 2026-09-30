@@ -34,13 +34,11 @@ const isEqualStatus = (
   if (!a || !b) return false
   return (
     a.phase === b.phase &&
+    a.total === b.total &&
     a.remaining === b.remaining &&
     a.pendingConfirm === b.pendingConfirm &&
     a.failedCount === b.failedCount &&
-    a.pausedReason === b.pausedReason &&
-    a.folderId === b.folderId &&
-    a.folderName === b.folderName &&
-    a.isLocked === b.isLocked
+    a.pausedReason === b.pausedReason
   )
 }
 
@@ -207,7 +205,6 @@ export const decrementPendingConfirm = (count = 1) => {
         ...state.status,
         pendingConfirm: nextPending,
         phase: isNowDone ? 'done' : state.status.phase,
-        isLocked: isNowDone ? false : state.status.isLocked,
       },
     }
   })

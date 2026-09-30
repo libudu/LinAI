@@ -54,12 +54,24 @@ class OrganizeExecutor {
     const epoch = ++this.epoch
     const controller = new AbortController()
     this.abortController = controller
+    let completedNormally = false
     const promise = this.runQueue(epoch, controller.signal)
+      .then(() => {
+        completedNormally = true
+      })
       .catch((error) => console.error('[Eagle] 图片整理队列执行异常', error))
-      .finally(() => {
+      .finally(async () => {
         this.active = false
         if (this.abortController === controller) this.abortController = null
         if (this.runPromise === promise) this.runPromise = null
+        if (!completedNormally || epoch !== this.epoch) return
+        // 收尾期间可能收到追加或恢复请求，kick 当时因 active 而没有启动新轮次。
+        try {
+          const latest = await organizeRepository.getTask()
+          if (epoch === this.epoch && latest?.phase === 'running') this.kick()
+        } catch (error) {
+          console.error('[Eagle] 图片整理队列收尾检查失败', error)
+        }
       })
     this.runPromise = promise
   }
@@ -159,7 +171,8 @@ class OrganizeExecutor {
       this.stopping = false
       return this.runQueue(epoch, signal)
     }
-    await this.finalize(itemsAfter)
+    const finalized = await this.finalize(itemsAfter)
+    if (!finalized) return this.runQueue(epoch, signal)
   }
 
   /** 串行分配请求启动时隙，使全局相邻两次派发至少间隔 0.5 秒 */
@@ -239,7 +252,7 @@ class OrganizeExecutor {
     if (options.epoch !== this.epoch) return
     await organizeRepository.saveItem(record)
     let didPauseOnError = false
-    const updated = await organizeRepository.mutateTask((task) => {
+    await organizeRepository.mutateTask((task) => {
       if (record.status === 'success') {
         this.consecutiveErrors = 0
       } else if (record.status === 'failed') {
@@ -270,10 +283,9 @@ class OrganizeExecutor {
     })
     if (didPauseOnError) {
       this.stopping = true
-      const folderInfo = updated?.folderName ? `「${updated.folderName}」` : ''
       sendWindowsNotification(
         'LinAI 图片整理',
-        `${folderInfo}图片整理队列因连续失败达到 ${ERROR_PAUSE_THRESHOLD} 次已自动暂停，请检查原因`,
+        `图片整理队列因连续失败达到 ${ERROR_PAUSE_THRESHOLD} 次已自动暂停，请检查原因`,
       )
     }
     changeBus.publish({ resource: ORGANIZE_RESOURCE })
@@ -285,7 +297,7 @@ class OrganizeExecutor {
    */
   private async finalize(
     items: Array<{ itemId: string; status: OrganizeItemStatus }>,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const updated = await organizeRepository.mutateTask((task) => {
       if (task.phase !== 'running') return null
       const statusById = new Map(
@@ -297,8 +309,8 @@ class OrganizeExecutor {
       let failedCount = 0
       for (const itemId of task.itemIds) {
         const status = statusById.get(itemId)
-        // 未落盘（不应发生）与 pending 均不计入已完成
-        if (!status || status === 'pending') continue
+        // 追加/重试可能发生在收尾检查后，串行更新内再次确认队列已全部执行。
+        if (!status || status === 'pending') return null
         executed++
         if (status === 'success') {
           pendingConfirm++
@@ -321,25 +333,25 @@ class OrganizeExecutor {
       this.consecutiveErrors = 0
       changeBus.publish({ resource: ORGANIZE_RESOURCE })
       if (updated.executed > 0) {
-        const folderInfo = updated.folderName ? `「${updated.folderName}」` : ''
         if (updated.failedCount === 0) {
           sendWindowsNotification(
             'LinAI 图片整理',
-            `${folderInfo}全部图片处理完成（共 ${updated.executed} 张），请前往查验结果`,
+            `全部图片处理完成（共 ${updated.executed} 张），请前往查验结果`,
           )
         } else {
           sendWindowsNotification(
             'LinAI 图片整理',
-            `${folderInfo}图片处理完成：${updated.successCount} 张成功，${updated.failedCount} 张失败`,
+            `图片处理完成：${updated.successCount} 张成功，${updated.failedCount} 张失败`,
           )
         }
       }
     }
+    return updated !== null
   }
 
   private async pauseAs(reason: 'error'): Promise<void> {
     let didPause = false
-    const updated = await organizeRepository.mutateTask((task) => {
+    await organizeRepository.mutateTask((task) => {
       if (task.phase === 'running') {
         didPause = true
         return { ...task, phase: 'paused', pausedReason: reason }
@@ -347,10 +359,9 @@ class OrganizeExecutor {
       return null
     })
     if (didPause) {
-      const folderInfo = updated?.folderName ? `「${updated.folderName}」` : ''
       sendWindowsNotification(
         'LinAI 图片整理',
-        `${folderInfo}图片整理队列因异常已自动暂停，请检查`,
+        '图片整理队列因异常已自动暂停，请检查',
       )
     }
     changeBus.publish({ resource: ORGANIZE_RESOURCE })
