@@ -6,7 +6,7 @@ import {
 import { changeBus } from '../../../../common/storage/change-bus'
 import { getFolderPaths } from '../../library'
 import { ORGANIZE_RESOURCE } from '../constants'
-import type { OrganizeTaskRecord } from '../storage'
+import type { OrganizeTaskRecord } from '../model'
 
 export const toTaskView = (record: OrganizeTaskRecord): OrganizeTaskView => ({
   phase: record.phase,

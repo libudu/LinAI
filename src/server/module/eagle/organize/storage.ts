@@ -1,9 +1,7 @@
 import type {
-  OrganizeFolderStandard,
   OrganizeItemRecord,
   OrganizeItemSummary,
 } from '@/shared/eagle/organize'
-import { ORGANIZE_CONCURRENCY_DEFAULT } from '@/shared/eagle/organize'
 import type { StoredEntity } from '@/shared/storage/types'
 import fs from 'fs-extra'
 import path from 'path'
@@ -13,31 +11,16 @@ import { EntityStore } from '../../../common/storage/entity-store'
 import { StorageError } from '../../../common/storage/errors'
 import { readJsonFile } from '../../../common/storage/json-file'
 import { resourceLock } from '../../../common/storage/resource-lock'
+import { runPool } from '../concurrency'
+import {
+  normalizeOrganizeItem,
+  normalizeOrganizeTask,
+  type NormalizedOrganizeItem,
+  type OrganizeTaskRecord,
+  type StoredOrganizeItem,
+  type StoredOrganizeTask,
+} from './model'
 import { transitionTask } from './transitions'
-
-/** 并发池执行器 */
-async function pMap<T, R>(
-  items: T[],
-  mapper: (item: T) => Promise<R>,
-  concurrency = 32,
-): Promise<R[]> {
-  if (items.length === 0) return []
-  const results: R[] = new Array(items.length)
-  let index = 0
-  const workers = Array.from(
-    { length: Math.min(concurrency, items.length) },
-    async () => {
-      while (index < items.length) {
-        const current = index++
-        results[current] = await mapper(items[current])
-      }
-    },
-  )
-  const settled = await Promise.allSettled(workers)
-  const failed = settled.find((result) => result.status === 'rejected')
-  if (failed?.status === 'rejected') throw failed.reason
-  return results
-}
 
 /**
  * 图片整理任务私有持久化（沿用 TaskRepository 模式）：
@@ -52,41 +35,16 @@ async function pMap<T, R>(
  *   服务（暂停/恢复）与执行器（计数推进）并发更新时不会互相覆盖
  */
 
-/** 任务文档 value：队列与进度（executed / pendingConfirm 等计数由服务维护） */
-export interface OrganizeTaskRecord {
-  phase: 'running' | 'paused' | 'confirming' | 'done'
-  pausedReason: 'user' | 'error' | 'restart' | null
-  compress: boolean
-  /** 队列执行并发数（创建任务时用户指定；旧任务文档可能缺失，读取时兜底默认值） */
-  concurrency: number
-  createdAt: number
-  standards: OrganizeFolderStandard[]
-  /** 首批图片来源文件夹 ID，仅保留历史信息，不限制后续追加 */
-  folderId?: string
-  /** 首批图片来源文件夹名称 */
-  folderName?: string
-  /** 处理队列：按创建时排序的图片 id */
-  itemIds: string[]
-  /** 已执行完成（success / failed / skipped / confirmed）的数量 */
-  executed: number
-  /** 待确认数量（仅 success 且未确认/未跳过） */
-  pendingConfirm: number
-  /** 本轮成功数，保留已确认/跳过的成功；重新执行会撤回上一轮成功，旧文档兜底为 0 */
-  successCount: number
-  /** 当前失败待处理数，旧文档兜底为 0 */
-  failedCount: number
-}
-
 export class OrganizeRepository {
   private readonly itemsDir = dataPath('eagle', 'organize', 'items')
 
-  private readonly taskStore = new DocumentStore<OrganizeTaskRecord>(
+  private readonly taskStore = new DocumentStore<StoredOrganizeTask>(
     dataPath('eagle', 'organize', 'task.json'),
     { maxValueLength: 16 * 1024 * 1024 },
   )
 
   private readonly itemStore = new EntityStore<
-    OrganizeItemRecord,
+    StoredOrganizeItem,
     OrganizeItemSummary
   >(this.itemsDir)
 
@@ -96,7 +54,7 @@ export class OrganizeRepository {
   private loadTaskPromise: Promise<void> | null = null
 
   /** 内存索引与缓存：加速 queue/results/failed-items 等高频查询 */
-  private readonly itemsCache = new Map<string, OrganizeItemRecord>()
+  private readonly itemsCache = new Map<string, NormalizedOrganizeItem>()
   private cacheLoaded = false
   private loadCachePromise: Promise<void> | null = null
 
@@ -112,18 +70,7 @@ export class OrganizeRepository {
         try {
           const doc = await this.taskStore.get()
           const task = doc.value
-          if (task) {
-            this.taskCache = {
-              ...task,
-              folderId: task.folderId,
-              folderName: task.folderName ?? '全部',
-              successCount: task.successCount ?? 0,
-              failedCount: task.failedCount ?? 0,
-              concurrency: task.concurrency ?? ORGANIZE_CONCURRENCY_DEFAULT,
-            }
-          } else {
-            this.taskCache = null
-          }
+          this.taskCache = task ? normalizeOrganizeTask(task) : null
           this.taskLoaded = true
         } finally {
           this.loadTaskPromise = null
@@ -147,37 +94,30 @@ export class OrganizeRepository {
           }
           const files = await fs.readdir(this.itemsDir)
           const jsonFiles = files.filter((f) => f.endsWith('.json'))
-          const loadedItems = new Map<string, OrganizeItemRecord>()
-          await pMap(
-            jsonFiles,
-            async (file) => {
-              const filePath = path.join(this.itemsDir, file)
-              try {
-                const raw =
-                  await readJsonFile<
-                    StoredEntity<OrganizeItemRecord, OrganizeItemSummary>
-                  >(filePath)
-                if (raw && typeof raw === 'object' && 'value' in raw) {
-                  const record = raw.value
-                  if (record && typeof record === 'object' && record.itemId) {
-                    loadedItems.set(record.itemId, record)
-                  }
+          const loadedItems = new Map<string, NormalizedOrganizeItem>()
+          await runPool(jsonFiles, 32, async (file) => {
+            const filePath = path.join(this.itemsDir, file)
+            try {
+              const raw =
+                await readJsonFile<
+                  StoredEntity<StoredOrganizeItem, OrganizeItemSummary>
+                >(filePath)
+              if (raw && typeof raw === 'object' && 'value' in raw) {
+                const record = raw.value
+                if (record && typeof record === 'object' && record.itemId) {
+                  loadedItems.set(record.itemId, normalizeOrganizeItem(record))
                 }
-              } catch (error) {
-                if (
-                  !(error instanceof StorageError) ||
-                  error.code !== 'CORRUPT'
-                )
-                  throw error
-                // 损坏文件隔离后跳过；读取失败不能伪装成结果缺失。
-                console.warn(
-                  `[Eagle Organize] 加载结果缓存跳过异常文件: ${file}`,
-                  error,
-                )
               }
-            },
-            32,
-          )
+            } catch (error) {
+              if (!(error instanceof StorageError) || error.code !== 'CORRUPT')
+                throw error
+              // 损坏文件隔离后跳过；读取失败不能伪装成结果缺失。
+              console.warn(
+                `[Eagle Organize] 加载结果缓存跳过异常文件: ${file}`,
+                error,
+              )
+            }
+          })
           this.itemsCache.clear()
           for (const [id, record] of loadedItems)
             this.itemsCache.set(id, record)
@@ -196,14 +136,7 @@ export class OrganizeRepository {
   }
 
   async saveTask(task: OrganizeTaskRecord): Promise<void> {
-    const formattedTask: OrganizeTaskRecord = {
-      ...structuredClone(task),
-      folderId: task.folderId,
-      folderName: task.folderName ?? '全部',
-      successCount: task.successCount ?? 0,
-      failedCount: task.failedCount ?? 0,
-      concurrency: task.concurrency ?? ORGANIZE_CONCURRENCY_DEFAULT,
-    }
+    const formattedTask = normalizeOrganizeTask(task)
     await this.ensureTaskLoaded()
     await this.taskStore.replace(formattedTask)
     this.taskCache = formattedTask
@@ -277,10 +210,7 @@ export class OrganizeRepository {
       .map((record) => ({
         itemId: record.itemId,
         status: record.status,
-        folderPaths: [
-          ...(record.folderPaths ??
-            (record.folderPath ? [record.folderPath] : [])),
-        ],
+        folderPaths: [...record.folderPaths],
         lowQuality: record.lowQuality,
         updatedAt: record.updatedAt,
       }))
@@ -300,7 +230,7 @@ export class OrganizeRepository {
     )
   }
 
-  async getItem(itemId: string): Promise<OrganizeItemRecord | null> {
+  async getItem(itemId: string): Promise<NormalizedOrganizeItem | null> {
     await this.ensureCacheLoaded()
     const cached = this.itemsCache.get(itemId)
     if (cached) return structuredClone(cached)
@@ -308,8 +238,9 @@ export class OrganizeRepository {
     try {
       const entity = await this.itemStore.get(itemId)
       if (entity?.value) {
-        this.itemsCache.set(itemId, entity.value)
-        return structuredClone(entity.value)
+        const record = normalizeOrganizeItem(entity.value)
+        this.itemsCache.set(itemId, record)
+        return structuredClone(record)
       }
       return null
     } catch (error) {
@@ -322,15 +253,13 @@ export class OrganizeRepository {
 
   /** 单张和批量共用实体保存：写盘成功后才发布独立缓存快照。 */
   private async persistItem(record: OrganizeItemRecord): Promise<void> {
-    const snapshot = structuredClone(record)
+    const snapshot = normalizeOrganizeItem(record)
     await resourceLock.run(
       `eagle.organize:item:${snapshot.itemId}`,
       async () => {
         const summary: OrganizeItemSummary = {
           status: snapshot.status,
-          folderPaths:
-            snapshot.folderPaths ??
-            (snapshot.folderPath ? [snapshot.folderPath] : []),
+          folderPaths: snapshot.folderPaths,
           lowQuality: snapshot.lowQuality,
         }
         try {
@@ -365,17 +294,13 @@ export class OrganizeRepository {
     const unique = [
       ...new Map(records.map((record) => [record.itemId, record])).values(),
     ]
-    await pMap(
-      unique,
-      async (record) => {
-        try {
-          await this.persistItem(record)
-        } catch (error) {
-          errors.push(error)
-        }
-      },
-      16,
-    )
+    await runPool(unique, 16, async (record) => {
+      try {
+        await this.persistItem(record)
+      } catch (error) {
+        errors.push(error)
+      }
+    })
     if (errors.length > 0) throw errors[0]
   }
 

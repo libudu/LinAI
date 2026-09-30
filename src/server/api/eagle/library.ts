@@ -1,21 +1,14 @@
 import type { EagleSortBy, EagleSortOrder } from '@/shared/eagle/types'
 import { zValidator } from '@hono/zod-validator'
 import fs from 'fs-extra'
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { Readable } from 'node:stream'
-import path from 'path'
-import sharp from 'sharp'
 import { z } from 'zod'
-import { importInputImage } from '../../common/static'
-import { dataPath } from '../../common/storage/data-path'
 import {
   deleteItem,
   getFolderTree,
-  getItemEntry,
-  getItemFilePath,
-  getItemThumbnailPath,
   getItems,
-  isVideoExt,
+  getLibraryOverview,
   purgeItem,
   purgeTrash,
   refreshIndex,
@@ -25,32 +18,26 @@ import {
   updateItem,
 } from '../../module/eagle/library'
 
+import {
+  addItemToGallery,
+  EagleMediaError,
+  getMediaSource,
+  getOriginalFile,
+  getThumbnail,
+} from '../../module/eagle/media'
+
 const libraryApi = new Hono()
 
-const THUMB_DIR = dataPath('eagle', 'thumb')
-const THUMB_SIZE = 200
-
-const MIME_BY_EXT: Record<string, string> = {
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  png: 'image/png',
-  gif: 'image/gif',
-  webp: 'image/webp',
-  bmp: 'image/bmp',
-  svg: 'image/svg+xml',
-  mp4: 'video/mp4',
-  webm: 'video/webm',
-  mov: 'video/quicktime',
-  avi: 'video/x-msvideo',
-  mkv: 'video/x-matroska',
-  flv: 'video/x-flv',
-  m4v: 'video/mp4',
+const mediaErrorResponse = (c: Context, error: unknown) => {
+  if (error instanceof EagleMediaError)
+    return c.json(
+      { success: false as const, error: error.message },
+      error.status,
+    )
+  throw error
 }
 
-const mimeOf = (ext: string) =>
-  MIME_BY_EXT[ext.toLowerCase()] ?? 'application/octet-stream'
-
-/** 库内条目内容以 lastModified 为 etag，变更后浏览器缓存自动失效 */
+/** 媒体响应缓存一天，过期后通过 lastModified ETag 条件验证 */
 const itemCacheHeaders = (etag: number) => ({
   'Cache-Control': 'private, max-age=86400',
   ETag: `"${etag}"`,
@@ -60,6 +47,12 @@ const notModified = (
   c: { req: { header: (n: string) => string | undefined } },
   etag: number,
 ) => c.req.header('if-none-match') === `"${etag}"`
+
+// 目录树与全部/未分类/回收站计数，一次读取返回。
+libraryApi.get('/overview', async (c) => {
+  const overview = await getLibraryOverview()
+  return c.json({ success: true as const, data: overview })
+})
 
 // 文件夹树（含每文件夹图片数）
 libraryApi.get('/folders', async (c) => {
@@ -90,7 +83,7 @@ libraryApi.post('/refresh', async (c) => {
   return c.json({ success: true as const, data: null })
 })
 
-// 编辑文件夹名称/描述（写回库根 metadata.json，模块对库唯一的写操作）
+// 编辑文件夹名称/描述（写回库根 metadata.json，保留其他字段）
 libraryApi.put(
   '/folders/:id',
   zValidator(
@@ -174,88 +167,45 @@ libraryApi.post('/unclassified/trash', async (c) => {
   return c.json({ success: true as const, data: { count } })
 })
 
-// 缩略图：优先库内 _thumbnail.png，缺失时图片用 sharp 生成缓存，视频回退占位 SVG
+// 媒体路由只负责条件请求与响应，缩略图和图库导入由媒体服务处理。
 libraryApi.get('/items/:id/thumbnail', async (c) => {
-  const id = c.req.param('id')
-  const entry = await getItemEntry(id)
-  if (!entry)
-    return c.json({ success: false as const, error: '条目不存在' }, 404)
-  if (notModified(c, entry.lastModified)) return c.body(null, 304)
-
-  const libraryThumb = await getItemThumbnailPath(id)
-  if (libraryThumb) {
-    const file = await fs.readFile(libraryThumb)
-    return c.body(new Uint8Array(file), 200, {
-      'Content-Type': 'image/png',
-      ...itemCacheHeaders(entry.lastModified),
-    })
-  }
-
-  // 视频无库内缩略图：占位 SVG
-  if (isVideoExt(entry.ext)) {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${THUMB_SIZE}" height="${THUMB_SIZE}" viewBox="0 0 24 24" fill="#94a3b8"><path d="M8 5v14l11-7z"/></svg>`
-    return c.body(svg, 200, {
-      'Content-Type': 'image/svg+xml',
-      ...itemCacheHeaders(entry.lastModified),
-    })
-  }
-
-  // 图片：sharp 生成 200px webp，缓存到 data/eagle/thumb/（库只读，不写库内）
-  const filePath = await getItemFilePath(id)
-  if (!filePath)
-    return c.json({ success: false as const, error: '文件不存在' }, 404)
-  const thumbPath = path.join(THUMB_DIR, `${id}.webp`)
   try {
-    if (!(await fs.pathExists(thumbPath))) {
-      await fs.ensureDir(THUMB_DIR)
-      await sharp(filePath, { failOn: 'none' })
-        .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'cover' })
-        .webp({ quality: 80 })
-        .toFile(`${thumbPath}.tmp`)
-      await fs.move(`${thumbPath}.tmp`, thumbPath, { overwrite: true })
-    }
-    const file = await fs.readFile(thumbPath)
-    return c.body(new Uint8Array(file), 200, {
-      'Content-Type': 'image/webp',
-      ...itemCacheHeaders(entry.lastModified),
+    const source = await getMediaSource(c.req.param('id'))
+    if (!source)
+      return c.json({ success: false as const, error: '条目不存在' }, 404)
+    if (notModified(c, source.lastModified)) return c.body(null, 304)
+    const thumbnail = await getThumbnail(source)
+    return c.body(thumbnail.content, 200, {
+      'Content-Type': thumbnail.contentType,
+      ...itemCacheHeaders(source.lastModified),
     })
-  } catch {
-    return c.json({ success: false as const, error: '缩略图生成失败' }, 500)
+  } catch (error) {
+    return mediaErrorResponse(c, error)
   }
 })
 
-// 原文件：图片整读，视频走 Range 流式（支持进度条拖动）
 libraryApi.post('/items/:id/add-to-gallery', async (c) => {
-  const id = c.req.param('id')
-  const entry = await getItemEntry(id)
-  if (!entry || isVideoExt(entry.ext)) {
-    return c.json({ success: false as const, error: '图片不存在' }, 404)
-  }
-  const filePath = await getItemFilePath(id)
-  if (!filePath || !(await fs.pathExists(filePath))) {
-    return c.json({ success: false as const, error: '文件不存在' }, 404)
-  }
   try {
-    const result = await importInputImage(await fs.readFile(filePath))
+    const result = await addItemToGallery(c.req.param('id'))
     return c.json({ success: true as const, data: result })
   } catch (error) {
-    console.error('添加 Eagle 图片到图库失败', error)
-    return c.json({ success: false as const, error: '图片处理失败' }, 500)
+    return mediaErrorResponse(c, error)
   }
 })
 
+// 原文件统一走流式响应，Range 支持媒体播放器拖动进度。
 libraryApi.get('/items/:id/file', async (c) => {
-  const id = c.req.param('id')
-  const entry = await getItemEntry(id)
-  if (!entry)
+  const source = await getMediaSource(c.req.param('id'))
+  if (!source)
     return c.json({ success: false as const, error: '条目不存在' }, 404)
-  if (notModified(c, entry.lastModified)) return c.body(null, 304)
-  const filePath = await getItemFilePath(id)
-  if (!filePath || !(await fs.pathExists(filePath))) {
-    return c.json({ success: false as const, error: '文件不存在' }, 404)
+  if (notModified(c, source.lastModified)) return c.body(null, 304)
+  let file: Awaited<ReturnType<typeof getOriginalFile>>
+  try {
+    file = await getOriginalFile(source)
+  } catch (error) {
+    return mediaErrorResponse(c, error)
   }
-  const contentType = mimeOf(entry.ext)
-  const { size } = await fs.stat(filePath)
+  const { filePath, size, contentType } = file
   const range = c.req.header('range')
 
   if (range) {
@@ -290,7 +240,7 @@ libraryApi.get('/items/:id/file', async (c) => {
       'Content-Type': contentType,
       'Content-Length': String(size),
       'Accept-Ranges': 'bytes',
-      ...itemCacheHeaders(entry.lastModified),
+      ...itemCacheHeaders(source.lastModified),
     },
   })
 })

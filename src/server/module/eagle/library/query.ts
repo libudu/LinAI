@@ -20,12 +20,14 @@ import {
   EAGLE_UNCLASSIFIED_FOLDER_ID,
   type EagleFolder,
   type EagleItem,
+  type EagleLibraryOverview,
 } from '@/shared/eagle/types'
 import path from 'path'
 import { ensureIndex } from './index-state'
 import { imagesDir, ITEM_ID_PATTERN, VIDEO_EXTS } from './runtime'
 import {
   type EagleItemIndex,
+  type EagleItemMediaSource,
   type EagleItemSnapshot,
   type EagleRawFolder,
   type GetItemsParams,
@@ -45,18 +47,6 @@ export const toEagleItem = (entry: EagleItemIndex): EagleItem => ({
   isGif: entry.ext === 'gif',
   hasThumbnail: entry.thumbnailName !== null,
 })
-
-/** 统计各真实文件夹直接包含的非删除图片数量 */
-export const countByFolder = (items: Map<string, EagleItemIndex>) => {
-  const counts = new Map<string, number>()
-  for (const item of items.values()) {
-    if (item.isDeleted) continue
-    for (const folderId of item.folders) {
-      counts.set(folderId, (counts.get(folderId) ?? 0) + 1)
-    }
-  }
-  return counts
-}
 
 /** 递归构造文件夹树，计算各节点的直接包含数 count 与递归累计总数 totalCount */
 export const buildFolderTree = (
@@ -91,10 +81,32 @@ export const findRawFolder = (
 }
 
 /** 获取构建完成的完整文件夹树（含数量统计） */
-export const getFolderTree = async (): Promise<EagleFolder[]> => {
+export const getFolderTree = async (): Promise<EagleFolder[]> =>
+  (await getLibraryOverview()).folders
+
+/** 一次遍历计算真实目录计数与虚拟目录总数，不构造或排序条目列表。 */
+export const getLibraryOverview = async (): Promise<EagleLibraryOverview> => {
+  const overview: EagleLibraryOverview = {
+    folders: [],
+    allTotal: 0,
+    unclassifiedTotal: 0,
+    trashTotal: 0,
+  }
   const index = await ensureIndex()
-  if (!index) return []
-  return buildFolderTree(index.folders, countByFolder(index.items))
+  if (!index) return overview
+  const counts = new Map<string, number>()
+  for (const item of index.items.values()) {
+    if (item.isDeleted) {
+      overview.trashTotal++
+      continue
+    }
+    overview.allTotal++
+    if (item.folders.length === 0) overview.unclassifiedTotal++
+    for (const folderId of item.folders)
+      counts.set(folderId, (counts.get(folderId) ?? 0) + 1)
+  }
+  overview.folders = buildFolderTree(index.folders, counts)
+  return overview
 }
 
 /**
@@ -293,13 +305,21 @@ export const getItemFilePath = async (id: string): Promise<string | null> => {
     : null
 }
 
-export const getItemThumbnailPath = async (
+export const getItemMediaSource = async (
   id: string,
-): Promise<string | null> => {
+): Promise<EagleItemMediaSource | null> => {
   if (!ITEM_ID_PATTERN.test(id)) return null
   const index = await ensureIndex()
   const entry = index?.items.get(id)
-  return index && entry?.thumbnailName
-    ? path.join(imagesDir(index.libraryPath), `${id}.info`, entry.thumbnailName)
-    : null
+  if (!index || !entry) return null
+  const infoDir = path.join(imagesDir(index.libraryPath), `${id}.info`)
+  return {
+    id,
+    ext: entry.ext,
+    lastModified: entry.lastModified,
+    filePath: path.join(infoDir, entry.fileName),
+    thumbnailPath: entry.thumbnailName
+      ? path.join(infoDir, entry.thumbnailName)
+      : null,
+  }
 }

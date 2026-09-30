@@ -1,7 +1,7 @@
 /** 条目元数据投影与增量扫描；生命周期与分片保存由调用方协调。 */
 import fs from 'fs-extra'
 import path from 'path'
-import { runPool } from './concurrency'
+import { runPool } from '../concurrency'
 import { imagesDir, SCAN_CONCURRENCY } from './runtime'
 import type {
   EagleIndexState,

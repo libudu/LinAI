@@ -138,8 +138,6 @@ export interface OrganizeItemRecord {
   title?: string
   /** AI 判定的候选目标文件夹，按推荐顺序排列，最多 3 个（success 时有值；空数组表示不属于任何已知分类） */
   folderPaths?: string[]
-  /** 旧版结果的单个目标文件夹，仅用于兼容已有落盘数据 */
-  folderPath?: string
   /** 疑似低质（success 时有值） */
   lowQuality?: boolean
   /** 失败原因（failed 时有值） */

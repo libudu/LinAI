@@ -1,15 +1,15 @@
 import { apiRequest } from '@/client/service/storage'
 import type {
-  EagleFolder,
   EagleItemsResp,
+  EagleLibraryOverview,
   EagleSortBy,
   EagleSortOrder,
 } from '@/shared/eagle/types'
 
 // Eagle 图片管理模块接口封装（/api/eagle/*）
 
-export const fetchEagleFolders = async (): Promise<EagleFolder[]> => {
-  const json = await apiRequest<EagleFolder[]>('/api/eagle/folders')
+export const fetchEagleOverview = async (): Promise<EagleLibraryOverview> => {
+  const json = await apiRequest<EagleLibraryOverview>('/api/eagle/overview')
   return json.data
 }
 

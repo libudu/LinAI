@@ -1,14 +1,10 @@
 import { writeJsonFile } from '@/server/common/storage/json-file'
 import fs from 'fs-extra'
 import path from 'path'
-import { runPool } from './concurrency'
+import { runPool } from '../concurrency'
+import { thumbnailCachePath } from '../media/cache'
 import { readWritableItemMeta, withLibraryMutation } from './mutation'
-import {
-  imagesDir,
-  ITEM_ID_PATTERN,
-  SCAN_CONCURRENCY,
-  THUMB_DIR,
-} from './runtime'
+import { imagesDir, ITEM_ID_PATTERN, SCAN_CONCURRENCY } from './runtime'
 import type { EagleIndexState } from './types'
 
 /** 软删除和还原共用元数据更新，不需要探测或重命名原文件。 */
@@ -53,7 +49,7 @@ export const restoreItem = (id: string): Promise<boolean> =>
 const removeItemFiles = async (index: EagleIndexState, id: string) => {
   await fs.remove(path.join(imagesDir(index.libraryPath), `${id}.info`))
   index.items.delete(id)
-  await fs.remove(path.join(THUMB_DIR, `${id}.webp`)).catch((error) => {
+  await fs.remove(thumbnailCachePath(id)).catch((error) => {
     console.warn(`[Eagle] 删除缩略图缓存失败：${id}`, error)
   })
 }

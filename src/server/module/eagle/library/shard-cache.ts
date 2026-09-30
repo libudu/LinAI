@@ -2,7 +2,7 @@
 import fs from 'fs-extra'
 import path from 'path'
 import { writeJsonFile } from '../../../common/storage/json-file'
-import { runPool } from './concurrency'
+import { runPool } from '../concurrency'
 import {
   getShardKey,
   INDEX_META_FILE,

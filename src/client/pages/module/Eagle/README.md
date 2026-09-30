@@ -1,8 +1,6 @@
 # Eagle 图片管理模块
 
-浏览 Eagle 资源库（`.library` 目录）中的图片 / gif / 视频：左侧文件夹目录树，右侧网格资源列表，支持排序、刷新、大图预览与视频播放。显式写库操作包括文件夹编辑、条目名称/归属编辑、整理确认以及回收站软删除、还原和彻底删除；库内元数据写入成功后同步内存索引，修改指纹与可重建分片缓存采用 5 秒防抖。其余所有自身数据（配置、索引缓存、缩略图回退缓存、图片整理任务）落在 `data/eagle/` 下。
-
-> 需求与方案文档：`docs/Eagle图片管理模块.txt`、`docs/Eagle图片管理模块-实现方案.md`、`docs/Eagle资源库.txt`（库结构说明）、`docs/Eagle/Eagle数据编辑和图片整理功能.txt`。修改本模块后请同步更新本文档。
+浏览 Eagle 资源库（`.library` 目录）中的图片 / gif / 视频：左侧文件夹目录树，右侧网格资源列表，支持排序、刷新、大图预览与视频播放。显式写库操作包括文件夹编辑、条目名称/归属编辑、整理确认以及回收站软删除、还原和彻底删除；库内元数据写入成功后同步内存索引，修改指纹与可重建分片缓存采用 5 秒防抖。其余所有自身数据（配置、索引缓存、缩略图回退缓存、图片整理任务）落在 `data/eagle/` 下。修改本模块后请同步更新本文档。
 
 ## 文件结构
 
@@ -15,15 +13,18 @@ src/shared/eagle/
 src/server/module/eagle/
 ├── settings.ts                          # 注册式设置：eagle（libraryPath，落盘 data/eagle/config.json）与 eagle-vision（视觉接入点，落盘 data/eagle/vision.json，与图片生成的 vision 配置互相独立），含 getEagleVisionEndpoint() 生效接入点
 ├── relay.ts                             # 注册 relay 目标 eagle.vision（POST /chat/completions，非流式），供整理执行器服务端直接调用
+├── concurrency.ts                       # 模块共享并发池，扫描/缓存/整理持久化复用，等待已启动工作结束再传播失败
+├── media/                               # 媒体处理服务，不依赖 HTTP 上下文
+│   ├── index.ts                         # 原文件描述、缩略图读取/串行生成、导入输入图库；媒体路径取自同一索引快照
+│   └── cache.ts                         # 回退缩略图大小与缓存路径，生成和删除共用
 ├── library/                             # 核心：Eagle 资源库索引与操作（模块化拆分，由 index.ts 统一聚合导出）
 │   ├── types.ts                         # 原始/索引数据模型与操作参数，仅类型，无运行时副作用
 │   ├── runtime.ts                       # 内部路径/格式常量、库级写锁与 eagle.library 变更资源注册
 │   ├── index-state.ts                   # 内部索引生命周期，协调缓存恢复、扫描、切库与手动刷新
 │   ├── scan.ts                          # 元数据读取/索引条目构造与 mtime 增量扫描，默认并发 32
-│   ├── concurrency.ts                   # 内部并发池，失败时等待已启动工作结束再抛错
 │   ├── shard-cache.ts                   # 可重建的 32 个 Hash 分片：恢复、脏分片局部写入、5 秒防抖，失败保留脏标记
 │   ├── mtime-state.ts                   # 库根修改指纹：已加载读取与磁盘重载分开，保留本应用待写 ID，保存时合并磁盘其他 ID
-│   ├── query.ts                         # 只读查询与数据投影：文件夹树/计数统计（getFolderTree）、服务端排序分页（getItems）、整理标准提取（getFolderStandards）与路径解析
+│   ├── query.ts                         # 只读查询与数据投影：目录概览一次遍历统计（getLibraryOverview）、文件夹树（getFolderTree）、服务端排序分页（getItems）、整理标准提取（getFolderStandards）与媒体路径快照/路径解析
 │   ├── operations.ts                    # 写操作聚合门面
 │   ├── folder-operations.ts             # 文件夹编辑：原子写回库根元数据并发布变更
 │   ├── item-operations.ts               # 条目编辑：改名计划/失败回滚、元数据写入、带 ID 与原因的逐项结果
@@ -32,7 +33,8 @@ src/server/module/eagle/
 │   └── index.ts                         # 显式业务门面：只读查询、手动刷新、写操作与必要参数类型，不导出可变索引/扫描/脏标记
 └── organize/                            # 图片整理（阶段三完成：任务基建 + 用户指定并发的队列执行 + 结果确认写库）
     ├── constants.ts                     # 模块自有常量：变更资源 ID、视觉上传压缩参数、执行器连续失败暂停阈值与全局派发最小间隔（与 common/static 的同名常量分开定义）
-    ├── storage.ts                       # 私有持久化：任务 DocumentStore（task.json，含队列 itemIds 与进度计数）+ 结果 EntityStore（items/<itemId>.json，saveItemsBatch 16 并发，全部结束后传播失败）+ 写盘成功后发布的内存缓存，落盘 data/eagle/organize/，不注册通用存储；mutateTask 提供任务文档的串行读改写，异常后下一次修改按实际结果校准（service 与 executor 共用单例）
+    ├── model.ts                         # 服务端任务模型与持久化旧数据类型，统一补全旧任务字段、将旧 folderPath 归一为 folderPaths
+    ├── storage.ts                       # 读写边界归一化后的私有持久化：任务 DocumentStore（task.json，含队列 itemIds 与进度计数）+ 结果 EntityStore（items/<itemId>.json，saveItemsBatch 16 并发，全部结束后传播失败）+ 写盘成功后发布的内存缓存，落盘 data/eagle/organize/，不注册通用存储；mutateTask 提供任务文档的串行读改写，异常后下一次修改按实际结果校准（service 与 executor 共用单例）
     ├── transitions.ts                   # 任务阶段与计数的纯转换函数，生命周期/失败处理/单图决策/执行器共用，支持异常后与启动时校准
     ├── service/                         # OrganizeService 模块化服务（任务、队列、结果与确认计划）
     │   ├── types.ts                     # 参数与操作返回类型定义
@@ -47,7 +49,7 @@ src/server/module/eagle/
 
 src/server/api/eagle/                    # Hono 子路由，挂在 /api/eagle（拆分为 index.ts / library.ts / organize.ts）
 ├── index.ts                             # 聚合路由入口，分别挂载 / 与 /organize
-├── library.ts                           # 资源库核心接口（文件夹树/列表/编辑/软硬删除/缩略图与原文件流）
+├── library.ts                           # 资源库 HTTP 适配（概览/列表/编辑/软硬删除/媒体响应，保留 ETag、Range 与错误映射）
 └── organize.ts                          # 图片整理接口（任务生命周期/队列控制/结果查验与写库）
 
 src/client/pages/module/Eagle/           # 本目录
@@ -130,6 +132,7 @@ src/client/pages/module/Eagle/           # 本目录
 
 | 方法   | 路径                                                                 | 说明                                                                                                                                                                                                   |
 | ------ | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/overview`                                                          | 目录树与全部、未分类、回收站计数；一次遍历统计，不排序条目                                                                                                                                             |
 | GET    | `/folders`                                                           | 文件夹树，`count` 直接包含数 / `totalCount` 含子孙累计                                                                                                                                                 |
 | PUT    | `/folders/:id`                                                       | 编辑文件夹名称/描述（body `{ name, description }`），写回库根 metadata.json                                                                                                                            |
 | GET    | `/items?folderId&sortBy&sortOrder&offset&limit`                      | 服务端排序分页；`sortBy=mtime\|size`，`limit` 上限 500；缺省 folderId = 全部，`folderId=__unclassified__` = 未分类，`folderId=__trash__` = 回收站                                                      |
@@ -140,6 +143,7 @@ src/client/pages/module/Eagle/           # 本目录
 | POST   | `/items/:id/restore`                                                 | 从 Eagle 回收站恢复条目（设置 `isDeleted: false` 并同步 mtime.json 与索引）                                                                                                                            |
 | POST   | `/refresh`                                                           | 触发增量校验（手动强制刷新，库路径变化时重建索引）                                                                                                                                                     |
 | GET    | `/items/:id/thumbnail`                                               | 优先库内 `_thumbnail.png` → 缺失时图片用 sharp 生成 200px webp 缓存到 `data/eagle/thumb/` → 视频回退占位 SVG                                                                                           |
+| POST   | `/items/:id/add-to-gallery`                                          | 图片导入输入图库，压缩和去重沿用公共图库规则                                                                                                                                                           |
 | GET    | `/items/:id/file`                                                    | 原文件流式返回，支持 Range（206），视频可拖进度条                                                                                                                                                      |
 | GET    | `/organize/prepare?folderId&sortBy&sortOrder`                        | 图片整理步骤 1 数据：分类标准列表 + 当前范围内可处理图片数/已入队数/剩余可追加数（已排除 gif/视频/heif/heic）                                                                                          |
 | GET    | `/organize/status`                                                   | 图片整理轻量状态（createdAt/phase/total/remaining/pendingConfirm/failedCount），createdAt 区分任务轮次，供按钮徽标与导航卡片订阅                                                                       |
@@ -152,7 +156,7 @@ src/client/pages/module/Eagle/           # 本目录
 | POST   | `/organize/task/skip-failed`                                         | 批量跳过所有失败项                                                                                                                                                                                     |
 | POST   | `/organize/task/classify-successful`                                 | 暂停且已有成功结果时，过滤未处理与失败条目，仅用成功图片进入结果确认                                                                                                                                   |
 | POST   | `/organize/task/clear`                                               | 强制停止所有请求、丢弃当前任务与结果；弹窗回到新建状态                                                                                                                                                 |
-| GET    | `/organize/queue?limit=20`                                           | 执行中队列预览：仅返回执行中与待处理条目；limit 上限 50                                                                                                                                                |
+| GET    | `/organize/queue?limit=20`                                           | 执行中队列预览：返回执行中、待处理和失败条目；limit 上限 50                                                                                                                                            |
 | GET    | `/organize/failed-items`                                             | 步骤 2 失败列表：返回所有判定失败的图片及具体错误原因                                                                                                                                                  |
 | GET    | `/organize/results?status=&offset=&limit=`                           | 整理结果列表（按状态过滤，步骤 3 仅请求 status=success，按 updatedAt 倒序）                                                                                                                            |
 | POST   | `/organize/results/confirm-batch`                                    | 请求 `{ items: [{ itemId, folderPath, folderId?, withTitle }], taskCreatedAt? }`；返回逐项结果 `{ items: [{ itemId, ok, outcome? 或 status/error }] }`，过期任务、无效目标等逐项失败，已确认项重放成功 |
@@ -164,13 +168,13 @@ src/client/pages/module/Eagle/           # 本目录
 约定：
 
 - 条目 id 校验 `^[A-Za-z0-9]+$`，文件路径一律从索引查出，不拼接用户输入
-- 文件/缩略图响应以 `lastModified` 为 ETag（`must-revalidate`），库内容变更后浏览器缓存自动失效
+- 文件/缩略图响应以 `lastModified` 为 ETag，使用 `private, max-age=86400`；浏览器缓存一天，过期后再条件验证
 - 信封结构 `{ success, data }` 与其他模块一致；前端经 `apiRequest`（`client/service/storage.ts`）解析
 
 ## 前端数据流
 
 1. `index.tsx` 挂载 → `fetchEagleConfig()` → 有 `libraryPath` 才 `store.init()`，否则显示「去配置」引导
-2. `store.init()` 并行拉 `/folders` + 第一页 `/items`（每页 100）
+2. `store.init()` 先拉 `/overview`（目录树及三个虚拟节点计数），校验上次选择的文件夹，再拉第一页 `/items`（每页 100）；刷新目录无需额外查询三份列表来统计总数
 3. 切换文件夹 / 排序 / 翻页 → 重拉对应页；排序偏好、图片大小档位、展示选项（文件名/文件大小）分别持久化在 localStorage `eagle_sort` / `eagle_image_size` / `eagle_display_options`
 4. `ResourceGrid` 底部 antd `Pagination` 翻页（移动端 simple 模式），翻页后网格滚动回顶部；条目写操作（修改文件夹/移到回收站/彻底删除）后通过 `requestEagleLibraryRefresh` 合并 SSE 与主动刷新，静默拉取更新，保持网格容器稳定不卸载，滚动条位置维持且前台图片无闪烁；右键「修改文件夹」自动优先选择当前图片所属文件夹，由 `FolderSelectModal` 自动居中滚动到该节点；点击确定后立即关闭模态框并在后台异步执行修改与静默刷新，彻底避免关闭延迟与选中态过期闪烁
 5. 预览：图片进 `Image.PreviewGroup`（items 只含非视频）；视频点击开 Modal 内 `<video>`（依赖 file 接口的 Range 支持）
@@ -192,6 +196,7 @@ src/client/pages/module/Eagle/           # 本目录
 ## 图片整理维护约束
 
 - **跨文件夹追加**：来源范围只决定本次挑选的图片，不限制后续追加；单轮任务仍共用分类标准快照、并发与压缩设置。已有旧任务无需迁移即可从其他文件夹追加。
+- **领域模型与旧数据**：`model.ts` 定义服务端任务模型，服务和状态转换不从存储实现导入类型。`storage.ts` 在读取和写入边界调用统一归一化函数：旧任务缺失的来源名称、计数与并发补默认值；旧结果 `folderPath` 转为 `folderPaths`，已有空数组优先。兼容字段不再进入当前共享接口，读取不主动改写旧文件。
 - **持久化与计数**：任务文档保存分类标准快照和 `itemIds`，保留 `folderId`、`folderName` 作为首批来源的历史信息。阶段与计数统一经 `transitions.ts` 转换：`pendingConfirm` 仅统计成功待确认项；`failedCount` 为当前失败待处理数；`successCount` 保留已确认/跳过的成功项，重新执行时撤回上一轮成功；`total` 随追加更新。任务读改写走 `mutateTask` 串行化，结果状态保存与相应计数转换放在同一串行回调中，执行器收尾读取最新结果重算计数；启动恢复也按结果校准。只有队列执行完且待确认/失败都为 0 才进入 done；启动时修正旧版仅剩失败却已 done 的任务。任务文档与每个结果实体只在写盘成功后发布缓存，不预先展示未保存的新状态。单张/批量共用实体保存实现；批量部分成功时成功项仍生效，等全部条目结束后抛出首个错误，失败项保留旧缓存。删除成功后才发布空缓存，部分删除失败会使缓存失效，后续重读实际文件。该串行化不等于多文件写盘事务：实体成功而任务文档失败时计数可能暂时漂移，下一次服务门面命令/mutateTask、执行器收尾或启动恢复会校准；磁盘持续不可写时无法完成修复。Eagle 库写入和整理结果保存也不构成事务，基础设施错误会向上传播。库内条目批量编辑逐项返回成功或带身份/原因的错误（404 不存在、409 不可用或改名冲突、500 写入失败），服务仅确认成功项；已完成项的库变更收尾不因后续项失败而跳过。改名后元数据写入失败会尝试恢复文件名，无法恢复时明确报错并要求检查。物理删除原文件失败保留索引，可重建缩略图缓存清理失败仅记录。
 - **追加数量与去重**：按当前选择范围的可分类图片 ID，与任务 `itemIds` 及本轮已有结果 ID 的并集做集合差；不能用“当前图片总数减历史入队总数”。同一 Eagle ID 即使属于多个文件夹、已移动或已确认/跳过，本轮只添加一次；并发追加必须在 `mutateTask` 内对最新队列去重。去重按 Eagle ID，不按文件内容，不同 ID 的相同图片仍会独立处理；任务完成后新一轮可重新添加。
 - **归属变动**：分析仅写整理结果，不自动移动 Eagle 图片。确认按图片 ID 更新当前 metadata，将 `folders` 整体替换成最终选择（或空数组），不依赖来源文件夹；确认前归属发生变化不会产生新图片，但其当时的文件夹归属会被这次确认覆盖。外部 Eagle 客户端改动仍需手动刷新索引；应用内写锁不约束外部客户端的同时写入。
@@ -205,13 +210,14 @@ src/client/pages/module/Eagle/           # 本目录
 ## 样式约定
 
 - 网格格子：`aspect-square` + `object-cover` + `loading="lazy"`，参考 `GalleryImageGrid`
-- 页面高度：主容器无固定高度，页面根用 `h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-3rem)]`（扣除 main 垂直内边距），左右栏内部滚动
+- 页面高度：页面根用 `h-[calc(100dvh-61px)] md:h-dvh`（移动端扣除顶部导航高度），左右栏内部滚动
 - 暗色：沿用 `dark:` 前缀类（`html[data-theme='dark']` 映射）
 
 ## 修改指南
 
 - **加列表字段**：改 `src/shared/eagle/types.ts` 的 `EagleItem` + `src/server/module/eagle/library/query.ts` 的 `toEagleItem`；若需持久化到索引缓存，同步改 `src/server/module/eagle/library/types.ts` 的 `EagleItemIndex` 和 `scan.ts` 的 `buildIndexEntry`（旧缓存缺字段时要有默认值兜底，或考虑清缓存逻辑）
 - **加排序维度**：扩展 `EagleSortBy` + `library/query.ts` 中 `getItems` 排序逻辑 + `Toolbar` 选项（注意 localStorage 里旧值要能正常解析）
+- **媒体处理**：业务逻辑放在 `module/eagle/media/`；路由仅处理参数、HTTP 条件请求、Range 与响应。回退缩略图生成和删除统一使用 `media/cache.ts`，避免缓存路径各自维护。
 - **加 API**：`src/server/api/eagle/library.ts` 或 `organize.ts` 内新增，保持信封结构和 id 校验；前端在 `api.ts` 加封装
 - **公共接口**仅从 `library/index.ts` 消费业务查询与写操作；整理用 `getItemPresence` 区分不可用/存在/缺失，批量列表用 `getItemSnapshots` 按需取独立摘要，不持有内部 Map。扫描、可变索引和分片保存只能由 library 内部使用。
 - **写库操作**经 `library/index.ts` / `operations.ts` 门面调用；实现分别位于 `folder-operations.ts`、`item-operations.ts` 和 `trash-operations.ts`，条目修改通过 `withLibraryMutation` 统一加锁与收尾（先加载指纹，成功项登记后在 finally 同步缓存与事件）。批量条目结果按 ID 消费，不能按数组位置或把写盘错误当作不存在；不要在其他地方直接写库目录；不要复用 `common/static` 的 `serveImage`（整读 Buffer 不支持 Range）

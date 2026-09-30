@@ -6,7 +6,8 @@ import {
 } from '@/shared/eagle/organize'
 import { getClassifiableItems, getFolderStandards } from '../../library'
 import { organizeExecutor } from '../executor'
-import { organizeRepository, type OrganizeTaskRecord } from '../storage'
+import type { OrganizeTaskRecord } from '../model'
+import { organizeRepository } from '../storage'
 import { transitionTask } from '../transitions'
 import { publishOrganizeChange, resolveFolderName, toTaskView } from './helpers'
 import type {

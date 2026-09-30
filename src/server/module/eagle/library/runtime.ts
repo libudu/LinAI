@@ -21,9 +21,6 @@ export const ITEM_ID_PATTERN = /^[A-Za-z0-9]+$/
 /** 全量扫描时并发读 metadata.json 的并发度 */
 export const SCAN_CONCURRENCY = 32
 
-/** 缩略图缓存路径 */
-export const THUMB_DIR = dataPath('eagle', 'thumb')
-
 /** 索引分片缓存常量与目录路径 */
 export const SHARD_COUNT = 32
 export const INDEX_SHARDS_DIR = dataPath('eagle', 'index-shards')

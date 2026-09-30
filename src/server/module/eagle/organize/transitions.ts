@@ -2,7 +2,7 @@ import type {
   OrganizeItemRecord,
   OrganizeItemStatus,
 } from '@/shared/eagle/organize'
-import type { OrganizeTaskRecord } from './storage'
+import type { OrganizeTaskRecord } from './model'
 
 export interface ItemStatusChange {
   from?: OrganizeItemStatus

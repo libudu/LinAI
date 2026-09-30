@@ -82,8 +82,6 @@ export class ResultService {
     const entry = await getItemEntry(itemId)
     return {
       ...record,
-      folderPaths:
-        record.folderPaths ?? (record.folderPath ? [record.folderPath] : []),
       itemName: entry?.name ?? null,
       itemFolderPaths: await getFolderPaths(entry?.folders ?? []),
       width: entry?.width,

@@ -39,5 +39,13 @@ export interface EagleItemsResp {
   items: EagleItem[]
 }
 
+/** 目录树与虚拟目录数量来自同一份索引概览，不依赖条目列表排序。 */
+export interface EagleLibraryOverview {
+  folders: EagleFolder[]
+  allTotal: number
+  unclassifiedTotal: number
+  trashTotal: number
+}
+
 export type EagleSortBy = 'mtime' | 'size'
 export type EagleSortOrder = 'asc' | 'desc'

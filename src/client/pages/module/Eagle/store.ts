@@ -7,7 +7,7 @@ import {
   type EagleSortOrder,
 } from '@/shared/eagle/types'
 import { create } from 'zustand'
-import { fetchEagleFolders, fetchEagleItems, refreshEagleIndex } from './api'
+import { fetchEagleItems, fetchEagleOverview, refreshEagleIndex } from './api'
 import { LibraryRefreshController } from './libraryRefresh'
 import {
   loadImageSize,
@@ -112,38 +112,10 @@ export const useEagleStore = create<EagleState>()((set, get) => {
     const sequence = ++foldersSequence
     set({ foldersLoading: true })
     try {
-      const { sortBy, sortOrder } = get()
-      const [folders, all, unclassified, trash] = await Promise.all([
-        fetchEagleFolders(),
-        fetchEagleItems({
-          sortBy,
-          sortOrder,
-          offset: 0,
-          limit: 1,
-        }),
-        fetchEagleItems({
-          folderId: EAGLE_UNCLASSIFIED_FOLDER_ID,
-          sortBy,
-          sortOrder,
-          offset: 0,
-          limit: 1,
-        }),
-        fetchEagleItems({
-          folderId: EAGLE_TRASH_FOLDER_ID,
-          sortBy,
-          sortOrder,
-          offset: 0,
-          limit: 1,
-        }),
-      ])
+      const overview = await fetchEagleOverview()
       if (sequence !== foldersSequence) return get().folders
-      set({
-        folders,
-        allTotal: all.total,
-        unclassifiedTotal: unclassified.total,
-        trashTotal: trash.total,
-      })
-      return folders
+      set(overview)
+      return overview.folders
     } finally {
       if (sequence === foldersSequence) set({ foldersLoading: false })
     }

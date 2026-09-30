@@ -53,6 +53,15 @@ export interface EagleIndexState {
   items: Map<string, EagleItemIndex>
 }
 
+/** 同一份索引快照解析出的媒体路径，避免分次读取时混用切库前后的条目。 */
+export interface EagleItemMediaSource {
+  id: string
+  ext: string
+  lastModified: number
+  filePath: string
+  thumbnailPath: string | null
+}
+
 /** 整理列表所需的独立只读摘要，不包含索引的可变数组。 */
 export type EagleItemSnapshot = Readonly<
   Pick<EagleItemIndex, 'name' | 'mtime' | 'width' | 'height' | 'size'>

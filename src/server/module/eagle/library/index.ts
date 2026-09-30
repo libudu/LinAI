@@ -19,13 +19,15 @@ export {
   getFolderTree,
   getItemEntry,
   getItemFilePath,
+  getItemMediaSource,
   getItemPresence,
   getItemSnapshots,
-  getItemThumbnailPath,
   getItems,
+  getLibraryOverview,
 } from './query'
 export { isVideoExt } from './runtime'
 export type {
+  EagleItemMediaSource,
   EagleItemSnapshot,
   GetItemsParams,
   UpdateItemBatchEntry,
