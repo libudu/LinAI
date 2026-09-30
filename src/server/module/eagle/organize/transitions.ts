@@ -15,7 +15,7 @@ type TaskEvent =
   | { type: 'append'; itemIds: string[] }
   | { type: 'items-changed'; changes: ItemStatusChange[]; resume?: boolean }
   | { type: 'keep-successful'; itemIds: string[] }
-  | { type: 'finalize'; items: OrganizeProgressItem[] }
+  | { type: 'finalize' | 'reconcile'; items: OrganizeProgressItem[] }
 
 export type OrganizeProgressItem = Pick<
   OrganizeItemRecord,
@@ -94,15 +94,21 @@ export const transitionTask = (
             failedCount: 0,
           }
         : null
+    case 'reconcile':
     case 'finalize': {
-      if (task.phase !== 'running') return null
+      if (event.type === 'finalize' && task.phase !== 'running') return null
       const items = new Map(event.items.map((item) => [item.itemId, item]))
+      let executed = 0
       let pendingConfirm = 0
       let successCount = 0
       let failedCount = 0
       for (const id of task.itemIds) {
         const item = items.get(id)
-        if (!item || item.status === 'pending') return null
+        if (!item || item.status === 'pending') {
+          if (event.type === 'finalize') return null
+          continue
+        }
+        executed++
         if (item.status === 'success') pendingConfirm++
         if (item.status === 'failed') failedCount++
         if (
@@ -114,8 +120,8 @@ export const transitionTask = (
       }
       return settle({
         ...task,
-        phase: 'confirming',
-        executed: task.itemIds.length,
+        phase: event.type === 'finalize' ? 'confirming' : task.phase,
+        executed,
         pendingConfirm,
         successCount,
         failedCount,

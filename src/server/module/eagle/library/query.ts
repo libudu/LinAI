@@ -11,21 +11,24 @@
  *   - 文件夹 ID 与路径的正反向安全解析。
  */
 
-import type { OrganizeFolderStandard } from '@/shared/eagle/organize'
+import type {
+  OrganizeFolderStandard,
+  OrganizePrepareParams,
+} from '@/shared/eagle/organize'
 import {
   EAGLE_TRASH_FOLDER_ID,
   EAGLE_UNCLASSIFIED_FOLDER_ID,
   type EagleFolder,
   type EagleItem,
-  type EagleSortBy,
-  type EagleSortOrder,
 } from '@/shared/eagle/types'
+import path from 'path'
 import { ensureIndex } from './index-state'
+import { imagesDir, ITEM_ID_PATTERN, VIDEO_EXTS } from './runtime'
 import {
   type EagleItemIndex,
+  type EagleItemSnapshot,
   type EagleRawFolder,
   type GetItemsParams,
-  VIDEO_EXTS,
 } from './types'
 
 /** 将内部索引条目转换为面向客户端展示的 EagleItem 结构 */
@@ -37,7 +40,7 @@ export const toEagleItem = (entry: EagleItemIndex): EagleItem => ({
   width: entry.width,
   height: entry.height,
   mtime: entry.mtime,
-  folders: entry.folders ?? [],
+  folders: [...(entry.folders ?? [])],
   isVideo: VIDEO_EXTS.has(entry.ext),
   isGif: entry.ext === 'gif',
   hasThumbnail: entry.thumbnailName !== null,
@@ -173,11 +176,9 @@ export const folderExists = async (folderId: string): Promise<boolean> => {
  * 图片整理专用：获取当前文件夹下可参与 AI 分类的图片 ID 队列。
  * 自动排除回收站、gif 动图、视频及 heif/heic 等格式。
  */
-export const getClassifiableItems = async (params: {
-  folderId?: string
-  sortBy: EagleSortBy
-  sortOrder: EagleSortOrder
-}): Promise<{ total: number; itemIds: string[] }> => {
+export const getClassifiableItems = async (
+  params: OrganizePrepareParams,
+): Promise<{ total: number; itemIds: string[] }> => {
   const index = await ensureIndex()
   if (!index) return { total: 0, itemIds: [] }
   if (params.folderId === EAGLE_TRASH_FOLDER_ID) {
@@ -246,4 +247,59 @@ export const getFolderPaths = async (
     const folderPath = paths.get(id)
     return folderPath ? [folderPath] : []
   })
+}
+
+/** 公共查询只返回条目快照，调用方无法修改内部 Map 或 folders 数组。 */
+export const getItemEntry = async (
+  id: string,
+): Promise<EagleItemIndex | null> => {
+  if (!ITEM_ID_PATTERN.test(id)) return null
+  const index = await ensureIndex()
+  const item = index?.items.get(id)
+  return item ? structuredClone(item) : null
+}
+
+/** 按需投影指定 ID 的摘要，null 区分索引不可用与有效索引中的缺失条目。 */
+export const getItemSnapshots = async (
+  ids: string[],
+): Promise<ReadonlyMap<string, EagleItemSnapshot> | null> => {
+  const index = await ensureIndex()
+  if (!index) return null
+  const items = new Map<string, EagleItemSnapshot>()
+  for (const id of ids) {
+    const item = index.items.get(id)
+    if (item) {
+      const { name, mtime, width, height, size } = item
+      items.set(id, { name, mtime, width, height, size })
+    }
+  }
+  return items
+}
+
+export const getItemPresence = async (
+  id: string,
+): Promise<'unavailable' | 'present' | 'missing'> => {
+  const index = await ensureIndex()
+  if (!index) return 'unavailable'
+  return ITEM_ID_PATTERN.test(id) && index.items.has(id) ? 'present' : 'missing'
+}
+
+export const getItemFilePath = async (id: string): Promise<string | null> => {
+  if (!ITEM_ID_PATTERN.test(id)) return null
+  const index = await ensureIndex()
+  const entry = index?.items.get(id)
+  return index && entry
+    ? path.join(imagesDir(index.libraryPath), `${id}.info`, entry.fileName)
+    : null
+}
+
+export const getItemThumbnailPath = async (
+  id: string,
+): Promise<string | null> => {
+  if (!ITEM_ID_PATTERN.test(id)) return null
+  const index = await ensureIndex()
+  const entry = index?.items.get(id)
+  return index && entry?.thumbnailName
+    ? path.join(imagesDir(index.libraryPath), `${id}.info`, entry.thumbnailName)
+    : null
 }

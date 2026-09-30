@@ -12,6 +12,8 @@ import { DocumentStore } from '../../../common/storage/document-store'
 import { EntityStore } from '../../../common/storage/entity-store'
 import { StorageError } from '../../../common/storage/errors'
 import { readJsonFile } from '../../../common/storage/json-file'
+import { resourceLock } from '../../../common/storage/resource-lock'
+import { transitionTask } from './transitions'
 
 /** 并发池执行器 */
 async function pMap<T, R>(
@@ -31,7 +33,9 @@ async function pMap<T, R>(
       }
     },
   )
-  await Promise.all(workers)
+  const settled = await Promise.allSettled(workers)
+  const failed = settled.find((result) => result.status === 'rejected')
+  if (failed?.status === 'rejected') throw failed.reason
   return results
 }
 
@@ -98,6 +102,7 @@ export class OrganizeRepository {
 
   /** 任务文档读改写的串行队列（tail 模式，与 ResourceLock 同思路） */
   private taskTail: Promise<unknown> = Promise.resolve()
+  private needsProgressReconcile = false
 
   /** 确保任务文档已载入内存缓存 */
   private async ensureTaskLoaded(): Promise<void> {
@@ -142,6 +147,7 @@ export class OrganizeRepository {
           }
           const files = await fs.readdir(this.itemsDir)
           const jsonFiles = files.filter((f) => f.endsWith('.json'))
+          const loadedItems = new Map<string, OrganizeItemRecord>()
           await pMap(
             jsonFiles,
             async (file) => {
@@ -154,11 +160,16 @@ export class OrganizeRepository {
                 if (raw && typeof raw === 'object' && 'value' in raw) {
                   const record = raw.value
                   if (record && typeof record === 'object' && record.itemId) {
-                    this.itemsCache.set(record.itemId, record)
+                    loadedItems.set(record.itemId, record)
                   }
                 }
               } catch (error) {
-                // 单个文件异常记录警告并跳过，不阻塞其他数据
+                if (
+                  !(error instanceof StorageError) ||
+                  error.code !== 'CORRUPT'
+                )
+                  throw error
+                // 损坏文件隔离后跳过；读取失败不能伪装成结果缺失。
                 console.warn(
                   `[Eagle Organize] 加载结果缓存跳过异常文件: ${file}`,
                   error,
@@ -167,6 +178,9 @@ export class OrganizeRepository {
             },
             32,
           )
+          this.itemsCache.clear()
+          for (const [id, record] of loadedItems)
+            this.itemsCache.set(id, record)
           this.cacheLoaded = true
         } finally {
           this.loadCachePromise = null
@@ -183,23 +197,32 @@ export class OrganizeRepository {
 
   async saveTask(task: OrganizeTaskRecord): Promise<void> {
     const formattedTask: OrganizeTaskRecord = {
-      ...task,
+      ...structuredClone(task),
       folderId: task.folderId,
       folderName: task.folderName ?? '全部',
       successCount: task.successCount ?? 0,
       failedCount: task.failedCount ?? 0,
       concurrency: task.concurrency ?? ORGANIZE_CONCURRENCY_DEFAULT,
     }
-    this.taskCache = structuredClone(formattedTask)
-    this.taskLoaded = true
+    await this.ensureTaskLoaded()
     await this.taskStore.replace(formattedTask)
+    this.taskCache = formattedTask
+    this.taskLoaded = true
   }
 
   /** 强制清空：删除任务文档（之后的 getTask 返回 null），结果实体由 clearItems 清理 */
   async deleteTask(): Promise<void> {
+    await this.ensureTaskLoaded()
+    try {
+      await this.taskStore.remove()
+    } catch (error) {
+      // 删除主文件和备份不构成事务；部分删除后重新读实际剩余文档。
+      this.taskLoaded = false
+      throw error
+    }
     this.taskCache = null
     this.taskLoaded = true
-    await this.taskStore.remove()
+    this.needsProgressReconcile = false
   }
 
   /**
@@ -213,8 +236,18 @@ export class OrganizeRepository {
     ) => OrganizeTaskRecord | null | Promise<OrganizeTaskRecord | null>,
   ): Promise<OrganizeTaskRecord | null> {
     const run = async (): Promise<OrganizeTaskRecord | null> => {
-      const task = await this.getTask()
+      let task = await this.getTask()
       if (!task) return null
+      // 上次实体或任务写盘失败可能只完成了一部分，下一次命令先按已落盘结果校准。
+      if (this.needsProgressReconcile) {
+        const reconciled = transitionTask(task, {
+          type: 'reconcile',
+          items: await this.getProgressItems(),
+        })!
+        await this.saveTask(reconciled)
+        task = reconciled
+        this.needsProgressReconcile = false
+      }
       const next = await mutate(task)
       if (next && next !== task) {
         await this.saveTask(next)
@@ -223,8 +256,15 @@ export class OrganizeRepository {
       return null
     }
     const result = this.taskTail.then(run, run)
-    this.taskTail = result.catch(() => undefined)
+    this.taskTail = result.catch(() => {
+      this.needsProgressReconcile = true
+    })
     return result
+  }
+
+  /** 重放已确认项等幂等命令也先修复上一次部分写盘留下的计数。 */
+  async reconcileTaskIfNeeded(): Promise<void> {
+    if (this.needsProgressReconcile) await this.mutateTask(() => null)
   }
 
   async listItems(): Promise<
@@ -237,8 +277,10 @@ export class OrganizeRepository {
       .map((record) => ({
         itemId: record.itemId,
         status: record.status,
-        folderPaths:
-          record.folderPaths ?? (record.folderPath ? [record.folderPath] : []),
+        folderPaths: [
+          ...(record.folderPaths ??
+            (record.folderPath ? [record.folderPath] : [])),
+        ],
         lowQuality: record.lowQuality,
         updatedAt: record.updatedAt,
       }))
@@ -267,7 +309,7 @@ export class OrganizeRepository {
       const entity = await this.itemStore.get(itemId)
       if (entity?.value) {
         this.itemsCache.set(itemId, entity.value)
-        return entity.value
+        return structuredClone(entity.value)
       }
       return null
     } catch (error) {
@@ -278,78 +320,79 @@ export class OrganizeRepository {
     }
   }
 
-  /** 落盘单图结果（首次懒创建；「重新执行」复写已有实体），同步更新内存缓存 */
+  /** 单张和批量共用实体保存：写盘成功后才发布独立缓存快照。 */
+  private async persistItem(record: OrganizeItemRecord): Promise<void> {
+    const snapshot = structuredClone(record)
+    await resourceLock.run(
+      `eagle.organize:item:${snapshot.itemId}`,
+      async () => {
+        const summary: OrganizeItemSummary = {
+          status: snapshot.status,
+          folderPaths:
+            snapshot.folderPaths ??
+            (snapshot.folderPath ? [snapshot.folderPath] : []),
+          lowQuality: snapshot.lowQuality,
+        }
+        try {
+          await this.itemStore.create(snapshot, summary, snapshot.itemId)
+        } catch (error) {
+          if (
+            !(error instanceof StorageError) ||
+            error.code !== 'REVISION_CONFLICT'
+          )
+            throw error
+          await this.itemStore.replace(snapshot.itemId, snapshot, summary)
+        }
+        this.itemsCache.set(snapshot.itemId, snapshot)
+      },
+    )
+  }
+
   async saveItem(record: OrganizeItemRecord): Promise<void> {
     await this.ensureCacheLoaded()
-    // 同步更新内存缓存，使后续查询立即可见（0ms）
-    this.itemsCache.set(record.itemId, structuredClone(record))
-
-    const summary: OrganizeItemSummary = {
-      status: record.status,
-      folderPaths:
-        record.folderPaths ?? (record.folderPath ? [record.folderPath] : []),
-      lowQuality: record.lowQuality,
-    }
-    try {
-      await this.itemStore.create(record, summary, record.itemId)
-    } catch (error) {
-      if (error instanceof StorageError && error.code === 'REVISION_CONFLICT') {
-        await this.itemStore.replace(record.itemId, record, summary)
-        return
-      }
-      throw error
-    }
+    await this.persistItem(record)
   }
 
   /**
-   * 批量落盘单图结果：
-   * 同步更新内存 itemsCache（使后续查询 0ms 立即可见），
-   * 随后通过并发池（concurrency=16）并行写盘，避免数十次串行写盘造成的严重 I/O 阻塞。
+   * 批量独立写盘，保留 16 并发。等待全部条目结束后抛出首个错误，
+   * 成功项逐项发布缓存，失败项保留原值；不承诺多实体事务。
    */
   async saveItemsBatch(records: OrganizeItemRecord[]): Promise<void> {
     if (records.length === 0) return
     await this.ensureCacheLoaded()
-
-    // 1. 同步更新全部内存缓存
-    for (const record of records) {
-      this.itemsCache.set(record.itemId, structuredClone(record))
-    }
-
-    // 2. 并发池并行写入磁盘
+    const errors: unknown[] = []
+    // 同批重复 ID 以最后一份为准，避免同一实体的无意义并发覆盖。
+    const unique = [
+      ...new Map(records.map((record) => [record.itemId, record])).values(),
+    ]
     await pMap(
-      records,
+      unique,
       async (record) => {
-        const summary: OrganizeItemSummary = {
-          status: record.status,
-          folderPaths:
-            record.folderPaths ??
-            (record.folderPath ? [record.folderPath] : []),
-          lowQuality: record.lowQuality,
-        }
         try {
-          await this.itemStore.create(record, summary, record.itemId)
+          await this.persistItem(record)
         } catch (error) {
-          if (
-            error instanceof StorageError &&
-            error.code === 'REVISION_CONFLICT'
-          ) {
-            await this.itemStore.replace(record.itemId, record, summary)
-            return
-          }
-          throw error
+          errors.push(error)
         }
       },
       16,
     )
+    if (errors.length > 0) throw errors[0]
   }
 
-  /** 新任务创建前清空旧结果实体：清空内存缓存并批量快速清空磁盘目录 */
+  /** 调用方先等待执行器退出；目录清空成功后才发布空缓存。 */
   async clearItems(): Promise<void> {
+    await this.ensureCacheLoaded()
+    try {
+      if (await fs.pathExists(this.itemsDir)) await fs.emptyDir(this.itemsDir)
+    } catch (error) {
+      // emptyDir 可能已删掉部分实体，丢弃旧缓存，后续查询重新加载实际文件。
+      this.itemsCache.clear()
+      this.cacheLoaded = false
+      this.needsProgressReconcile = true
+      throw error
+    }
     this.itemsCache.clear()
     this.cacheLoaded = true
-    if (await fs.pathExists(this.itemsDir)) {
-      await fs.emptyDir(this.itemsDir)
-    }
   }
 }
 

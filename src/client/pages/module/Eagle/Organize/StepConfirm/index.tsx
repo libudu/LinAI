@@ -1,10 +1,9 @@
-import type { EagleManualFolderItem } from '@/server/module/eagle/settings'
 import type {
   OrganizeResultListItem,
   OrganizeTaskView,
 } from '@/shared/eagle/organize'
 import { Button, Empty, Spin, message } from 'antd'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { deleteEagleItem } from '../../api'
 import { confirmDeleteEagleItem } from '../../components/confirmDeleteModal'
 import { useEagleStore } from '../../store'
@@ -20,15 +19,10 @@ import { DetailPanel } from './components/DetailPanel'
 import { QuickConfirmList } from './components/QuickConfirmList'
 import { ThumbnailBar } from './components/ThumbnailBar'
 import { useConfirmQueue } from './hooks/useConfirmQueue'
+import { useConfirmSelection } from './hooks/useConfirmSelection'
 import { useConfirmShortcuts } from './hooks/useConfirmShortcuts'
-import { useManualFolders } from './hooks/useManualFolders'
 import { useOrganizePreload } from './hooks/useOrganizePreload'
-import type { PinnedFolderOption } from './types'
-import {
-  CONFIRM_QUICK_MODE_STORAGE_KEY,
-  getSavedPinnedOption,
-  savePinnedOption,
-} from './utils/storage'
+import { CONFIRM_QUICK_MODE_STORAGE_KEY } from './utils/storage'
 
 // 步骤 3 结果确认：纯净查验判定成功的结果（status === 'success'）
 // 普通模式（顶部缩略图条 + 左大图右信息面板 + 底部快捷操作）与快速模式（居中放大列表 + 卡片底部直接确定）
@@ -48,16 +42,6 @@ export function StepConfirm({
       return false
     }
   })
-
-  const [titleDisabledIds, setTitleDisabledIds] = useState<Set<string>>(
-    () => new Set(),
-  )
-  const [selectedOptionKeys, setSelectedOptionKeys] = useState<
-    Record<string, string>
-  >({})
-  const [pinnedOption, setPinnedOption] = useState<PinnedFolderOption | null>(
-    () => getSavedPinnedOption(task?.createdAt),
-  )
 
   const handleQuickModeChange = useCallback((newQuickMode: boolean) => {
     setQuickMode(newQuickMode)
@@ -92,130 +76,26 @@ export function StepConfirm({
     quickMode,
   })
 
-  // 3. 手动选择文件夹历史
   const {
-    manualFolders,
-    sortedManualFolders,
-    handleManualFolderSelect,
-    handleRemoveManualFolder,
+    folderPaths,
+    displayedManualFolders,
+    activeOptionKey,
+    selectedManualFolder,
+    selectedFolderPath,
+    pinnedOption,
+    handleTogglePin,
+    onManualFolderSelect,
+    onRemoveManualFolder,
+    selectOption,
     recordManualFolderUsage,
-  } = useManualFolders({
+    isTitleEnabled,
+    handleToggleTitle,
+    withTitle,
+  } = useConfirmSelection({
+    taskCreatedAt: task?.createdAt,
     selectedId,
-    setSelectedOptionKeys,
+    folderPaths: detail?.folderPaths,
   })
-
-  // 4. 目标文件夹与选项计算
-  const folderPaths = detail?.folderPaths ?? []
-
-  // 若手动选择的文件夹已出现在当前图片的 AI 推荐选项中，则不在下方重复展示
-  const displayedManualFolders = useMemo(() => {
-    const aiPathSet = new Set(folderPaths)
-    return sortedManualFolders.filter((m) => !aiPathSet.has(m.folderPath))
-  }, [folderPaths, sortedManualFolders])
-
-  // 当前选中项的唯一 key（例如 "ai:角色/插画" 或 "manual:folderId"）
-  const defaultOptionKey = pinnedOption
-    ? pinnedOption.key
-    : folderPaths[0]
-      ? `ai:${folderPaths[0]}`
-      : null
-
-  const activeOptionKey = selectedId
-    ? (selectedOptionKeys[selectedId] ?? defaultOptionKey)
-    : null
-
-  const selectedManualFolder = useMemo(() => {
-    if (!activeOptionKey?.startsWith('manual:')) return null
-    const folderId = activeOptionKey.slice('manual:'.length)
-    const found = manualFolders.find((f) => f.folderId === folderId)
-    if (found) return found
-    if (pinnedOption?.folderId === folderId) {
-      return {
-        folderId: pinnedOption.folderId,
-        folderPath: pinnedOption.folderPath,
-        count: pinnedOption.count ?? 0,
-      }
-    }
-    return null
-  }, [activeOptionKey, manualFolders, pinnedOption])
-
-  const selectedFolderPath = useMemo(() => {
-    if (!activeOptionKey) return null
-    if (activeOptionKey.startsWith('ai:')) {
-      return activeOptionKey.slice('ai:'.length)
-    }
-    if (activeOptionKey.startsWith('manual:')) {
-      return selectedManualFolder?.folderPath ?? null
-    }
-    return null
-  }, [activeOptionKey, selectedManualFolder])
-
-  const handleTogglePin = useCallback(
-    (option: PinnedFolderOption) => {
-      setPinnedOption((current) => {
-        const isUnpinning = current?.key === option.key
-        const next = isUnpinning ? null : option
-        savePinnedOption(task?.createdAt, next)
-
-        if (selectedId) {
-          if (isUnpinning) {
-            // 取消置顶时，自动选中当前图片推荐选项的第一个
-            const firstRecommendedKey = folderPaths[0]
-              ? `ai:${folderPaths[0]}`
-              : null
-            setSelectedOptionKeys((keys) => {
-              const copy = { ...keys }
-              if (firstRecommendedKey) {
-                copy[selectedId] = firstRecommendedKey
-              } else {
-                delete copy[selectedId]
-              }
-              return copy
-            })
-          } else {
-            setSelectedOptionKeys((keys) => ({
-              ...keys,
-              [selectedId]: option.key,
-            }))
-          }
-        }
-
-        return next
-      })
-    },
-    [folderPaths, selectedId, task?.createdAt],
-  )
-
-  const onRemoveManualFolder = useCallback(
-    (folder: EagleManualFolderItem) => {
-      handleRemoveManualFolder(folder)
-      if (pinnedOption?.folderId === folder.folderId) {
-        setPinnedOption(null)
-        savePinnedOption(task?.createdAt, null)
-        if (selectedId) {
-          const firstRecommendedKey = folderPaths[0]
-            ? `ai:${folderPaths[0]}`
-            : null
-          setSelectedOptionKeys((keys) => {
-            const copy = { ...keys }
-            if (firstRecommendedKey) {
-              copy[selectedId] = firstRecommendedKey
-            } else {
-              delete copy[selectedId]
-            }
-            return copy
-          })
-        }
-      }
-    },
-    [
-      folderPaths,
-      handleRemoveManualFolder,
-      pinnedOption?.folderId,
-      selectedId,
-      task?.createdAt,
-    ],
-  )
 
   const canConfirm = Boolean(
     !detailLoading &&
@@ -224,14 +104,13 @@ export function StepConfirm({
     detail.status === 'success' &&
     selectedFolderPath,
   )
-  const withTitle = selectedId ? !titleDisabledIds.has(selectedId) : true
 
   // 5. 确认操作分流
   const handleRunConfirm = useCallback(async () => {
     // 快速模式：直接按首选推荐分类确认当前选中项
     if (quickMode) {
       if (selectedItem) {
-        confirmItemQuick(selectedItem, !titleDisabledIds.has(selectedItem.itemId))
+        confirmItemQuick(selectedItem, isTitleEnabled(selectedItem.itemId))
       }
       return
     }
@@ -260,7 +139,7 @@ export function StepConfirm({
     selectedId,
     selectedItem,
     selectedManualFolder,
-    titleDisabledIds,
+    isTitleEnabled,
     withTitle,
   ])
 
@@ -306,9 +185,9 @@ export function StepConfirm({
 
   const handleQuickItemConfirm = useCallback(
     (item: OrganizeResultListItem) => {
-      confirmItemQuick(item, !titleDisabledIds.has(item.itemId))
+      confirmItemQuick(item, isTitleEnabled(item.itemId))
     },
-    [confirmItemQuick, titleDisabledIds],
+    [confirmItemQuick, isTitleEnabled],
   )
 
   if (loading && results.length === 0) {
@@ -391,27 +270,13 @@ export function StepConfirm({
               loading={detailLoading}
               detail={detail}
               withTitle={withTitle}
-              onToggleTitle={(checked) => {
-                if (!selectedId) return
-                setTitleDisabledIds((current) => {
-                  const next = new Set(current)
-                  if (checked) next.delete(selectedId)
-                  else next.add(selectedId)
-                  return next
-                })
-              }}
+              onToggleTitle={handleToggleTitle}
               activeOptionKey={activeOptionKey}
-              onSelectOptionKey={(key) => {
-                if (!selectedId) return
-                setSelectedOptionKeys((current) => ({
-                  ...current,
-                  [selectedId]: key,
-                }))
-              }}
+              onSelectOptionKey={selectOption}
               folderPaths={folderPaths}
               displayedManualFolders={displayedManualFolders}
               onRemoveManualFolder={onRemoveManualFolder}
-              onManualFolderSelect={handleManualFolderSelect}
+              onManualFolderSelect={onManualFolderSelect}
               pinnedOption={pinnedOption}
               onTogglePin={handleTogglePin}
             />

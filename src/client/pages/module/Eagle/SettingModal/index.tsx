@@ -40,7 +40,7 @@ const EagleSetting = forwardRef<EagleSettingRef>((_props, ref) => {
         <Form.Item
           name="libraryPath"
           label="Eagle 资源库路径"
-          extra="填 .library 目录的绝对路径，如 D:\Linpicio\收藏\eagle 仓库\测试.library（模块只读，不会修改库内文件）"
+          extra="填 .library 目录的绝对路径，如 D:\Linpicio\收藏\eagle 仓库\测试.library（编辑、整理确认和回收站操作会写入资源库）"
           rules={[{ required: true, message: '请输入资源库路径' }]}
         >
           <Input placeholder="D:\...\xxx.library" />

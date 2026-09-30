@@ -1,8 +1,11 @@
 import { apiRequest } from '@/client/service/storage'
 import type {
+  OrganizeAppendTaskParams,
   OrganizeConfirmBatchResult,
   OrganizeConfirmItem,
+  OrganizeCreateTaskParams,
   OrganizeItemStatus,
+  OrganizePrepareParams,
   OrganizePrepareResp,
   OrganizeQueueResp,
   OrganizeResultDetail,
@@ -10,15 +13,10 @@ import type {
   OrganizeStatus,
   OrganizeTaskView,
 } from '@/shared/eagle/organize'
-import type { EagleSortBy, EagleSortOrder } from '@/shared/eagle/types'
 
 // 图片整理接口封装（/api/eagle/organize/*）
 
-export interface OrganizeSortParams {
-  folderId?: string
-  sortBy: EagleSortBy
-  sortOrder: EagleSortOrder
-}
+export type OrganizeSortParams = OrganizePrepareParams
 
 export const fetchOrganizeStatus = async (): Promise<OrganizeStatus | null> => {
   const json = await apiRequest<OrganizeStatus | null>(
@@ -49,11 +47,7 @@ export const fetchOrganizeTask = async (): Promise<OrganizeTaskView | null> => {
 }
 
 export const createOrganizeTask = async (
-  params: OrganizeSortParams & {
-    count: number
-    compress: boolean
-    concurrency: number
-  },
+  params: OrganizeCreateTaskParams,
 ): Promise<void> => {
   await apiRequest<OrganizeTaskView>('/api/eagle/organize/task', {
     method: 'POST',
@@ -63,9 +57,7 @@ export const createOrganizeTask = async (
 
 // 从当前选择范围向任务追加图片，服务端按整轮任务的图片 ID 去重
 export const appendOrganizeTask = async (
-  params: OrganizeSortParams & {
-    count: number
-  },
+  params: OrganizeAppendTaskParams,
 ): Promise<void> => {
   await apiRequest<null>('/api/eagle/organize/task/append', {
     method: 'POST',

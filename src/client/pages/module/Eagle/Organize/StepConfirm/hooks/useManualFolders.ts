@@ -2,7 +2,7 @@ import { settingsClient } from '@/client/service/settings'
 import type {
   EagleManualFolderItem,
   EagleManualFoldersSettings,
-} from '@/server/module/eagle/settings'
+} from '@/shared/eagle/settings'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SelectedFolderInfo } from '../../../components/FolderSelectModal'
 
@@ -10,15 +10,8 @@ const manualFoldersClient = settingsClient<EagleManualFoldersSettings>(
   'eagle-manual-folders',
 )
 
-export function useManualFolders({
-  selectedId,
-  setSelectedOptionKeys,
-}: {
-  selectedId: string | null
-  setSelectedOptionKeys: React.Dispatch<
-    React.SetStateAction<Record<string, string>>
-  >
-}) {
+/** 手动目标历史及使用频次；当前图片的选项由 useConfirmSelection 管理。 */
+export function useManualFolders() {
   const [manualFolders, setManualFolders] = useState<EagleManualFolderItem[]>(
     [],
   )
@@ -69,14 +62,8 @@ export function useManualFolders({
         setManualFolders(next)
         void saveManualFolders(next)
       }
-      if (selectedId) {
-        setSelectedOptionKeys((current) => ({
-          ...current,
-          [selectedId]: `manual:${folder.id}`,
-        }))
-      }
     },
-    [manualFolders, saveManualFolders, selectedId, setSelectedOptionKeys],
+    [manualFolders, saveManualFolders],
   )
 
   const handleRemoveManualFolder = useCallback(
@@ -84,18 +71,8 @@ export function useManualFolders({
       const next = manualFolders.filter((f) => f.folderId !== target.folderId)
       setManualFolders(next)
       void saveManualFolders(next)
-      if (selectedId) {
-        setSelectedOptionKeys((current) => {
-          if (current[selectedId] === `manual:${target.folderId}`) {
-            const copy = { ...current }
-            delete copy[selectedId]
-            return copy
-          }
-          return current
-        })
-      }
     },
-    [manualFolders, saveManualFolders, selectedId, setSelectedOptionKeys],
+    [manualFolders, saveManualFolders],
   )
 
   const recordManualFolderUsage = useCallback(

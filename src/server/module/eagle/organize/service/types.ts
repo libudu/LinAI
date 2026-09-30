@@ -1,22 +1,17 @@
-import type { OrganizeTaskView } from '@/shared/eagle/organize'
-import type { EagleSortBy, EagleSortOrder } from '@/shared/eagle/types'
+import type {
+  OrganizeCreateTaskParams as CreateTaskParams,
+  OrganizeAppendTaskParams,
+  OrganizePrepareParams,
+  OrganizeTaskView,
+} from '@/shared/eagle/organize'
 
-export interface OrganizePrepareParams {
-  folderId?: string
-  sortBy: EagleSortBy
-  sortOrder: EagleSortOrder
-}
-
-export interface OrganizeCreateTaskParams extends OrganizePrepareParams {
-  count: number
-  compress: boolean
-  /** 队列执行并发数（1~20，创建时固化到任务） */
+export type { OrganizePrepareParams } from '@/shared/eagle/organize'
+/** HTTP 校验后默认值已填充；业务服务只接收归一化参数。 */
+export type OrganizeCreateTaskParams = CreateTaskParams & {
   concurrency: number
 }
-
-export interface OrganizeAppendParams extends OrganizePrepareParams {
-  count: number
-}
+export type OrganizeAppendParams = OrganizeAppendTaskParams &
+  OrganizePrepareParams
 
 export type CreateTaskResult =
   | { ok: true; task: OrganizeTaskView }

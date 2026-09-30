@@ -4,7 +4,7 @@ import type {
   OrganizeQueueItemState,
   OrganizeQueueResp,
 } from '@/shared/eagle/organize'
-import { ensureIndex } from '../../library'
+import { getItemEntry, getItemSnapshots } from '../../library'
 import { organizeExecutor } from '../executor'
 import { organizeRepository } from '../storage'
 import { transitionTask, type ItemStatusChange } from '../transitions'
@@ -25,8 +25,6 @@ export class QueueService {
       results.map((item) => [item.itemId, item.status]),
     )
     const inFlight = new Set(organizeExecutor.getInFlightItemIds())
-    const index = await ensureIndex()
-    const itemMap = index?.items
 
     const items: OrganizeQueueItem[] = []
     let total = 0
@@ -53,7 +51,7 @@ export class QueueService {
           ? ((await organizeRepository.getItem(itemId))?.error ??
             '未知失败原因')
           : undefined
-      const entry = itemMap?.get(itemId)
+      const entry = await getItemEntry(itemId)
       items.push({ itemId, itemName: entry?.name ?? null, state, error })
     }
     return { items, total }
@@ -62,8 +60,7 @@ export class QueueService {
   async listFailedItems(): Promise<OrganizeFailedItem[]> {
     const items = await organizeRepository.listItems()
     const failed = items.filter((item) => item.status === 'failed')
-    const index = await ensureIndex()
-    const itemMap = index?.items
+    const itemMap = await getItemSnapshots(failed.map((item) => item.itemId))
     const result = await Promise.all(
       failed.map(async (item) => {
         const record = await organizeRepository.getItem(item.itemId)
@@ -170,20 +167,23 @@ export class QueueService {
       return { ok: false, status: 409, error: '当前没有成功执行的图片' }
     }
 
-    for (const item of items) {
-      if (item.status !== 'failed') continue
-      const record = await organizeRepository.getItem(item.itemId)
-      if (!record || record.status !== 'failed') continue
-      await organizeRepository.saveItem({
-        ...record,
-        status: 'skipped',
-        updatedAt: Date.now(),
+    const updated = await organizeRepository.mutateTask(async (latest) => {
+      if (latest.phase !== 'paused') return null
+      for (const item of items) {
+        if (item.status !== 'failed') continue
+        const record = await organizeRepository.getItem(item.itemId)
+        if (!record || record.status !== 'failed') continue
+        await organizeRepository.saveItem({
+          ...record,
+          status: 'skipped',
+          updatedAt: Date.now(),
+        })
+      }
+      return transitionTask(latest, {
+        type: 'keep-successful',
+        itemIds: successIds,
       })
-    }
-
-    const updated = await organizeRepository.mutateTask((latest) =>
-      transitionTask(latest, { type: 'keep-successful', itemIds: successIds }),
-    )
+    })
     if (!updated) {
       return { ok: false, status: 409, error: '任务当前不在暂停状态' }
     }

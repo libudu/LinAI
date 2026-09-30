@@ -1,5 +1,5 @@
 import { settingsClient } from '@/client/service/settings'
-import type { EagleSettings } from '@/server/module/eagle/settings'
+import type { EagleSettings } from '@/shared/eagle/settings'
 import { message } from 'antd'
 import { create } from 'zustand'
 

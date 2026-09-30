@@ -6,9 +6,9 @@ import type {
 } from '@/shared/eagle/organize'
 import { EAGLE_UNCLASSIFIED_FOLDER_ID } from '@/shared/eagle/types'
 import {
-  ensureIndex,
   findFolderIdByPath,
   folderExists,
+  getItemPresence,
   type UpdateItemPatch,
 } from '../../library'
 import { organizeRepository } from '../storage'
@@ -36,9 +36,10 @@ export const prepareConfirmation = async (
     }
   }
   if (record.status !== 'success') return fail(409, '仅判定成功的结果可以确认')
-  const index = await ensureIndex()
-  if (!index) return fail(409, 'Eagle 资源库当前不可用，请检查配置后重新确认')
-  if (!index.items.has(item.itemId)) return { kind: 'purged', record }
+  const presence = await getItemPresence(item.itemId)
+  if (presence === 'unavailable')
+    return fail(409, 'Eagle 资源库当前不可用，请检查配置后重新确认')
+  if (presence === 'missing') return { kind: 'purged', record }
 
   const isUnclassified =
     item.folderId === EAGLE_UNCLASSIFIED_FOLDER_ID ||

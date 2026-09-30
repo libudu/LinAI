@@ -8,9 +8,9 @@ import type {
   OrganizeResultListItem,
 } from '@/shared/eagle/organize'
 import {
-  ensureIndex,
   getFolderPaths,
   getItemEntry,
+  getItemSnapshots,
   updateItem,
   updateItems,
 } from '../../library'
@@ -46,13 +46,13 @@ export class ResultService {
   ): Promise<OrganizeResultListItem[]> {
     const items = await organizeRepository.listItems()
     let list = status ? items.filter((item) => item.status === status) : items
-    const index = await ensureIndex()
+    const itemMap = await getItemSnapshots(list.map((item) => item.itemId))
     // 未配置/不可用索引不等于图片已删除，只有索引有效时才做自愈。
-    if (status === 'success' && index) {
+    if (status === 'success' && itemMap) {
       const purged: OrganizeItemRecord[] = []
       const remaining: typeof list = []
       for (const item of list) {
-        if (index.items.has(item.itemId)) remaining.push(item)
+        if (itemMap.has(item.itemId)) remaining.push(item)
         else {
           const record = await organizeRepository.getItem(item.itemId)
           if (record?.status === 'success') purged.push(record)
@@ -65,7 +65,7 @@ export class ResultService {
     if (offset > 0) list = list.slice(offset)
     if (limit !== undefined && limit >= 0) list = list.slice(0, limit)
     return list.map((item) => {
-      const entry = index?.items.get(item.itemId)
+      const entry = itemMap?.get(item.itemId)
       return {
         ...item,
         mtime: entry?.mtime ?? 0,

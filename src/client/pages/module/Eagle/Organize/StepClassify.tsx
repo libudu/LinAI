@@ -1,6 +1,4 @@
-import type { OrganizePrepareResp } from '@/shared/eagle/organize'
 import {
-  ORGANIZE_CONCURRENCY_DEFAULT,
   ORGANIZE_CONCURRENCY_MAX,
   ORGANIZE_CONCURRENCY_MIN,
   ORGANIZE_VISION_USER_TEXT,
@@ -14,72 +12,10 @@ import {
   Modal,
   Spin,
   Tooltip,
-  message,
 } from 'antd'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { FolderSelectModal } from '../components/FolderSelectModal'
-import { useEagleStore } from '../store'
-import {
-  appendOrganizeTask,
-  createOrganizeTask,
-  fetchOrganizePrepare,
-  syncOrganizeStandards,
-} from './api'
-import { refreshOrganizeStatus, useOrganizeStatus } from './store'
-
-const ORGANIZE_OPTIONS_STORAGE_KEY = 'eagle_organize_options'
-const ORGANIZE_COUNT_DEFAULT = 100
-
-interface OrganizeOptions {
-  count: number
-  compress: boolean
-  concurrency: number
-}
-
-const loadOrganizeOptions = (): OrganizeOptions => {
-  const defaults: OrganizeOptions = {
-    count: ORGANIZE_COUNT_DEFAULT,
-    compress: true,
-    concurrency: ORGANIZE_CONCURRENCY_DEFAULT,
-  }
-
-  try {
-    const raw = localStorage.getItem(ORGANIZE_OPTIONS_STORAGE_KEY)
-    if (!raw) return defaults
-
-    const parsed = JSON.parse(raw) as Partial<OrganizeOptions>
-    return {
-      count:
-        typeof parsed.count === 'number' &&
-        Number.isInteger(parsed.count) &&
-        parsed.count > 0
-          ? parsed.count
-          : defaults.count,
-      compress:
-        typeof parsed.compress === 'boolean'
-          ? parsed.compress
-          : defaults.compress,
-      concurrency:
-        typeof parsed.concurrency === 'number' &&
-        Number.isInteger(parsed.concurrency)
-          ? Math.min(
-              ORGANIZE_CONCURRENCY_MAX,
-              Math.max(ORGANIZE_CONCURRENCY_MIN, parsed.concurrency),
-            )
-          : defaults.concurrency,
-    }
-  } catch {
-    return defaults
-  }
-}
-
-const persistOrganizeOptions = (options: OrganizeOptions) => {
-  try {
-    localStorage.setItem(ORGANIZE_OPTIONS_STORAGE_KEY, JSON.stringify(options))
-  } catch {
-    // 忽略浏览器禁用存储或存储空间不足，不影响任务创建
-  }
-}
+import { useClassifyTask } from './hooks/useClassifyTask'
 
 // 步骤 1 分类文件夹划定 / 追加图片：
 // - 无未完成任务时：新建任务模式，配置数量、并发与压缩；
@@ -91,128 +27,29 @@ export function StepClassify({
   onClose: () => void
   onSuccess?: () => void
 }) {
-  const { currentFolderId, sortBy, sortOrder } = useEagleStore()
-  const { status } = useOrganizeStatus()
-  const [initialOptions] = useState(loadOrganizeOptions)
-  const [prepare, setPrepare] = useState<OrganizePrepareResp | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [count, setCount] = useState<number | null>(null)
-  const [compress, setCompress] = useState(initialOptions.compress)
-  const [concurrency, setConcurrency] = useState(initialOptions.concurrency)
-  const [submitting, setSubmitting] = useState(false)
-  const [syncingStandards, setSyncingStandards] = useState(false)
   const [promptOpen, setPromptOpen] = useState(false)
   const [folderSelectOpen, setFolderSelectOpen] = useState(false)
-
-  const hasActiveTask = prepare?.hasActiveTask ?? false
-  const isRunning = status?.phase === 'running'
-  const availableCount = prepare?.availableCount ?? 0
-  const imageCount = prepare?.imageCount ?? 0
-  const standards = prepare?.standards ?? []
-
-  const loadPrepareData = () => {
-    let cancelled = false
-    setLoading(true)
-    setPrepare(null)
-    fetchOrganizePrepare({
-      folderId: currentFolderId || undefined,
-      sortBy,
-      sortOrder,
-    })
-      .then((data) => {
-        if (cancelled) return
-        setPrepare(data)
-        const maxAvailable = data.availableCount
-        setCount(
-          maxAvailable > 0
-            ? Math.min(loadOrganizeOptions().count, maxAvailable)
-            : null,
-        )
-      })
-      .catch((error) => {
-        console.error('获取图片整理准备数据失败', error)
-        message.error('获取分类标准失败')
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }
-
-  useEffect(() => {
-    return loadPrepareData()
-  }, [currentFolderId, sortBy, sortOrder, status?.phase])
-
-  const handleSyncStandards = async () => {
-    setSyncingStandards(true)
-    try {
-      await syncOrganizeStandards()
-      message.success('已同步最新文件夹分类标准')
-      await refreshOrganizeStatus()
-      loadPrepareData()
-    } catch (error) {
-      console.error('同步分类标准失败', error)
-      message.error(error instanceof Error ? error.message : '同步分类标准失败')
-    } finally {
-      setSyncingStandards(false)
-    }
-  }
-
-  const saveOptions = (next: Partial<OrganizeOptions>) => {
-    persistOrganizeOptions({
-      count: count ?? ORGANIZE_COUNT_DEFAULT,
-      compress,
-      concurrency,
-      ...next,
-    })
-  }
-
-  const handleCreate = async () => {
-    if (!count) return
-    setSubmitting(true)
-    try {
-      await createOrganizeTask({
-        folderId: currentFolderId || undefined,
-        sortBy,
-        sortOrder,
-        count,
-        compress,
-        concurrency,
-      })
-      message.success('任务已创建，开始处理队列')
-      await refreshOrganizeStatus()
-      onSuccess?.()
-    } catch (error) {
-      console.error('创建图片整理任务失败', error)
-      message.error(error instanceof Error ? error.message : '创建任务失败')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const handleAppend = async () => {
-    if (!count) return
-    setSubmitting(true)
-    try {
-      await appendOrganizeTask({
-        folderId: currentFolderId || undefined,
-        sortBy,
-        sortOrder,
-        count,
-      })
-      message.success('已追加图片到队列，重复图片自动过滤')
-      await refreshOrganizeStatus()
-      loadPrepareData()
-      onSuccess?.()
-    } catch (error) {
-      console.error('追加图片失败', error)
-      message.error(error instanceof Error ? error.message : '追加图片失败')
-    } finally {
-      setSubmitting(false)
-    }
-  }
+  const {
+    currentFolderId,
+    prepare,
+    loading,
+    count,
+    compress,
+    concurrency,
+    submitting,
+    syncingStandards,
+    hasActiveTask,
+    isRunning,
+    availableCount,
+    imageCount,
+    standards,
+    handleCountChange,
+    handleConcurrencyChange,
+    handleCompressChange,
+    handleSyncStandards,
+    handleSubmit,
+    handleFolderSelect,
+  } = useClassifyTask(onSuccess)
 
   if (loading) {
     return (
@@ -280,13 +117,7 @@ export function StepClassify({
                 min={1}
                 max={Math.max(availableCount, 1)}
                 value={count}
-                onChange={(value) => {
-                  const nextCount = Math.min(
-                    availableCount,
-                    value && value > 0 ? value : 1,
-                  )
-                  setCount(nextCount)
-                }}
+                onChange={handleCountChange}
               />
               <span className="text-xs text-slate-400">/ {availableCount}</span>
             </div>
@@ -301,14 +132,7 @@ export function StepClassify({
               max={Math.max(imageCount, 1)}
               value={count}
               disabled={imageCount === 0}
-              onChange={(value) => {
-                const nextCount = Math.min(
-                  imageCount,
-                  value && value > 0 ? value : 1,
-                )
-                setCount(nextCount)
-                saveOptions({ count: nextCount })
-              }}
+              onChange={handleCountChange}
             />
             <span className="text-xs text-slate-400">/ {imageCount}</span>
           </div>
@@ -318,17 +142,7 @@ export function StepClassify({
               min={ORGANIZE_CONCURRENCY_MIN}
               max={ORGANIZE_CONCURRENCY_MAX}
               value={concurrency}
-              onChange={(value) => {
-                const nextConcurrency = Math.min(
-                  ORGANIZE_CONCURRENCY_MAX,
-                  Math.max(
-                    ORGANIZE_CONCURRENCY_MIN,
-                    value && value >= 1 ? value : ORGANIZE_CONCURRENCY_DEFAULT,
-                  ),
-                )
-                setConcurrency(nextConcurrency)
-                saveOptions({ concurrency: nextConcurrency })
-              }}
+              onChange={handleConcurrencyChange}
             />
             <span className="text-xs text-slate-400">
               同时处理数（{ORGANIZE_CONCURRENCY_MIN}~{ORGANIZE_CONCURRENCY_MAX}
@@ -337,11 +151,7 @@ export function StepClassify({
           </div>
           <Checkbox
             checked={compress}
-            onChange={(e) => {
-              const nextCompress = e.target.checked
-              setCompress(nextCompress)
-              saveOptions({ compress: nextCompress })
-            }}
+            onChange={(e) => handleCompressChange(e.target.checked)}
           >
             输入图片压缩节省 token
           </Checkbox>
@@ -371,7 +181,7 @@ export function StepClassify({
               type="primary"
               loading={submitting}
               disabled={availableCount === 0 || !count}
-              onClick={handleAppend}
+              onClick={handleSubmit}
             >
               追加到队列
             </Button>
@@ -380,7 +190,7 @@ export function StepClassify({
               type="primary"
               loading={submitting}
               disabled={standards.length === 0 || imageCount === 0 || !count}
-              onClick={handleCreate}
+              onClick={handleSubmit}
             >
               确定
             </Button>
@@ -394,17 +204,7 @@ export function StepClassify({
         initialFolderId={currentFolderId || undefined}
         includeAll
         title="选择添加图片的文件夹"
-        onConfirm={async (folder) => {
-          try {
-            await useEagleStore
-              .getState()
-              .selectFolder(folder.id === '__all__' ? '' : folder.id)
-          } catch (error) {
-            message.error(
-              error instanceof Error ? error.message : '切换文件夹失败',
-            )
-          }
-        }}
+        onConfirm={(folder) => handleFolderSelect(folder.id)}
       />
       <Modal
         open={promptOpen}

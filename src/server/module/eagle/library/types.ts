@@ -1,17 +1,5 @@
-/**
- * Eagle 资源库数据类型、常量与基础辅助函数。
- *
- * 包含：
- * - Eagle 库内原始 JSON 结构定义（EagleRawFolder / EagleRawItemMeta）
- * - 内存索引与持久化缓存条目定义（EagleItemIndex / EagleIndexCacheFile / EagleIndexState）
- * - 核心参数接口与全局常量配置（视频扩展名集合、ID 格式校验、扫描并发度、路径辅助等）
- */
-
+/** Eagle 库原始结构、内部索引结构与业务参数；无运行时副作用。 */
 import type { EagleSortBy, EagleSortOrder } from '@/shared/eagle/types'
-import path from 'path'
-import { changeBus } from '../../../common/storage/change-bus'
-import { dataPath } from '../../../common/storage/data-path'
-import { resourceLock } from '../../../common/storage/resource-lock'
 
 // ---- Eagle 库内原始数据结构 ----
 
@@ -37,9 +25,7 @@ export interface EagleRawItemMeta {
   isDeleted?: boolean
 }
 
-export type EagleItemMeta = EagleRawItemMeta
-
-// ---- 索引条目（持久化到 data/eagle/index.json） ----
+// ---- 索引条目（持久化到 data/eagle/index-shards/） ----
 
 /** 内存索引与本地缓存中的条目，避免高频 I/O 读磁盘 metadata.json 与 readdir 探测文件名 */
 export interface EagleItemIndex {
@@ -67,6 +53,11 @@ export interface EagleIndexState {
   items: Map<string, EagleItemIndex>
 }
 
+/** 整理列表所需的独立只读摘要，不包含索引的可变数组。 */
+export type EagleItemSnapshot = Readonly<
+  Pick<EagleItemIndex, 'name' | 'mtime' | 'width' | 'height' | 'size'>
+>
+
 /** 获取条目列表的分页与排序参数 */
 export interface GetItemsParams {
   folderId?: string
@@ -86,92 +77,9 @@ export interface UpdateItemPatch {
   isDeleted?: boolean
 }
 
-// ---- 常量与路径 ----
-
-/** 支持通过 HTML5 video 播放的视频扩展名集合 */
-export const VIDEO_EXTS = new Set([
-  'mp4',
-  'webm',
-  'mov',
-  'avi',
-  'mkv',
-  'flv',
-  'm4v',
-])
-
-/** Eagle 条目唯一标识格式正则（字母数字组成） */
-export const ITEM_ID_PATTERN = /^[A-Za-z0-9]+$/
-
-/** fs.watch 监听防抖时间（毫秒） */
-export const WATCH_DEBOUNCE_MS = 500
-
-/** 全量扫描时并发读 metadata.json 的并发度 */
-export const SCAN_CONCURRENCY = 32
-
-/** 缩略图缓存路径 */
-export const THUMB_DIR = dataPath('eagle', 'thumb')
-
-/** 索引分片缓存常量与目录路径 */
-export const SHARD_COUNT = 32
-export const INDEX_SHARDS_DIR = dataPath('eagle', 'index-shards')
-export const INDEX_META_FILE = path.join(INDEX_SHARDS_DIR, 'meta.json')
-
 /** 分片索引元数据文件结构 (data/eagle/index-shards/meta.json) */
 export interface EagleIndexShardMeta {
   libraryPath: string
   scannedAt: number
   shardCount: number
 }
-
-/**
- * 基于字符串 Hash 的均匀分片算法：
- * 将条目 ID 均匀散列到 32 个分片之一（'00' ~ '1f'），无论 Eagle ID 前缀为何，均能保持绝对均匀分布
- */
-export const getShardKey = (id: string): string => {
-  let hash = 0
-  for (let i = 0; i < id.length; i++) {
-    hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0
-  }
-  const shard = Math.abs(hash) % SHARD_COUNT
-  return shard.toString(16).padStart(2, '0')
-}
-
-/** 库内容变更（updateItem/deleteItem 等写库后发布），前端订阅后刷新文件夹树与列表 */
-export const EAGLE_LIBRARY_RESOURCE = 'eagle.library'
-changeBus.register(EAGLE_LIBRARY_RESOURCE)
-
-// ---- 基础工具函数 ----
-
-/** 获取指定 Eagle 库下的 images 目录绝对路径 */
-export const imagesDir = (libraryPath: string) =>
-  path.join(libraryPath, 'images')
-
-/** 判断指定扩展名是否属于视频文件 */
-export const isVideoExt = (ext: string) => VIDEO_EXTS.has(ext)
-
-/** 条目名即文件名：去掉 Windows 文件名非法字符与首尾空白/点号，限制最大长度 120 字符 */
-export const sanitizeItemName = (name: string): string =>
-  name
-    .replace(/[\\/:*?"<>|\r\n\t]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/[\s.]+$/, '')
-    .slice(0, 120)
-    .trim()
-
-/** Eagle 资源库操作互斥锁：确保对同一资源库的写操作与增量校验串行执行 */
-export const withLibraryLock = <T>(
-  libraryPath: string,
-  action: () => Promise<T>,
-): Promise<T> => {
-  return resourceLock.run(`eagle.library:${libraryPath}`, action)
-}
-
-let lastInternalWriteAt = 0
-
-/** 标记最近一次由本应用自身写操作引发的库变更，供 watcher 防抖跳过增量扫描 */
-export const markInternalWrite = (): void => {
-  lastInternalWriteAt = Date.now()
-}
-
-export const getLastInternalWriteAt = (): number => lastInternalWriteAt

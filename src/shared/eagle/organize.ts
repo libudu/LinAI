@@ -1,3 +1,5 @@
+import type { EagleSortBy, EagleSortOrder } from './types'
+
 // Eagle 图片整理功能共享类型（前后端共用，无 UI / Node 依赖）
 
 /** 任务整体阶段 */
@@ -125,8 +127,22 @@ export const areStandardsEqual = (
   return true
 }
 
-/** 追加图片请求体（POST /api/eagle/organize/task/append） */
-export interface OrganizeAppendTaskParams {
+/** 整理来源范围与排序；准备查询和新建请求共用。 */
+export interface OrganizePrepareParams {
+  folderId?: string
+  sortBy: EagleSortBy
+  sortOrder: EagleSortOrder
+}
+
+export interface OrganizeCreateTaskParams extends OrganizePrepareParams {
+  count: number
+  compress: boolean
+  /** 缺省由接口归一化为默认并发数。 */
+  concurrency?: number
+}
+
+/** 追加请求（POST /api/eagle/organize/task/append）：省略范围表示全部，排序默认 mtime/desc。 */
+export interface OrganizeAppendTaskParams extends Partial<OrganizePrepareParams> {
   count: number
 }
 

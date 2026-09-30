@@ -15,29 +15,21 @@ import fs from 'fs-extra'
 import path from 'path'
 import { changeBus } from '../../../common/storage/change-bus'
 import { writeJsonFile } from '../../../common/storage/json-file'
-import {
-  ensureIndex,
-  markInternalWrite,
-  markShardDirty,
-  markShardsDirty,
-  persistCache,
-  readItemMeta,
-  runPool,
-} from './index-state'
+import { runPool } from './concurrency'
+import { ensureIndex, indexCache } from './index-state'
 import { removeMtimes, updateMtimes } from './mtime-state'
 import { findRawFolder } from './query'
 import {
   EAGLE_LIBRARY_RESOURCE,
-  type EagleRawFolder,
-  type EagleRawItemMeta,
   imagesDir,
   ITEM_ID_PATTERN,
   sanitizeItemName,
   SCAN_CONCURRENCY,
   THUMB_DIR,
-  type UpdateItemPatch,
   withLibraryLock,
-} from './types'
+} from './runtime'
+import { readItemMeta } from './scan'
+import type { EagleRawFolder, EagleRawItemMeta, UpdateItemPatch } from './types'
 
 /**
  * 编辑文件夹名称/描述（写回库根 metadata.json，原子写入，保留其他字段）。
@@ -50,7 +42,6 @@ export const updateFolder = async (
   const index = await ensureIndex()
   if (!index) return false
   return withLibraryLock(index.libraryPath, async () => {
-    markInternalWrite()
     const metaPath = path.join(index.libraryPath, 'metadata.json')
     const rawLibrary = (await fs.readJson(metaPath)) as {
       folders?: EagleRawFolder[]
@@ -74,7 +65,7 @@ export const updateFolder = async (
  * 2. 磁盘重命名原文件及 `_thumbnail` 缩略图文件；
  * 3. 写入条目自身的 metadata.json；
  * 4. 同步更新库根 mtime.json（保持 Eagle 官方指纹一致）；
- * 5. 更新内存索引并写回 data/eagle/index.json；
+ * 5. 更新内存索引并写回 data/eagle/index-shards/；
  * 6. 通过 changeBus 发布 eagle.library 变更通知。
  *
  * 返回 false 表示条目不存在；同名冲突超过 99 时抛出异常。
@@ -86,7 +77,7 @@ export interface UpdateItemBatchEntry {
 
 /**
  * 批量编辑条目（图片整理批量确认动作）：在单次写锁保护下批量更新多个条目，
- * 仅在末尾统一写一次 mtime.json，统一写一次 persistCache，统一发布一次 changeBus，
+ * 仅在末尾统一更新 mtime 字典、调度分片保存，统一发布一次 changeBus，
  * 消除高频单项落盘的 95% 冗余 I/O 与并发锁竞争。
  */
 export const updateItems = async (
@@ -97,7 +88,6 @@ export const updateItems = async (
   if (!index) return entries.map(() => false)
 
   return withLibraryLock(index.libraryPath, async () => {
-    markInternalWrite()
     const now = Date.now()
     const updatedIds: string[] = []
     const results: boolean[] = []
@@ -224,8 +214,8 @@ export const updateItems = async (
       // 批量同步库根 mtime.json（内存化更新 + 5 秒防抖合并落盘，0ms 阻塞）
       await updateMtimes(index.libraryPath, updatedIds, now)
 
-      markShardsDirty(updatedIds)
-      await persistCache()
+      indexCache.markDirty(updatedIds)
+      await indexCache.persist()
       changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
     }
 
@@ -255,7 +245,6 @@ export const deleteItem = async (id: string): Promise<boolean> => {
   if (!index) return false
 
   return withLibraryLock(index.libraryPath, async () => {
-    markInternalWrite()
     const meta = await readItemMeta(index.libraryPath, id)
     if (!meta) return false
 
@@ -281,8 +270,8 @@ export const deleteItem = async (id: string): Promise<boolean> => {
         lastModified,
       })
     }
-    markShardDirty(id)
-    await persistCache()
+    indexCache.markDirty([id])
+    await indexCache.persist()
     changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
     return true
   })
@@ -297,7 +286,6 @@ export const restoreItem = async (id: string): Promise<boolean> => {
   if (!index) return false
 
   return withLibraryLock(index.libraryPath, async () => {
-    markInternalWrite()
     const meta = await readItemMeta(index.libraryPath, id)
     if (!meta) return false
 
@@ -323,8 +311,8 @@ export const restoreItem = async (id: string): Promise<boolean> => {
         lastModified,
       })
     }
-    markShardDirty(id)
-    await persistCache()
+    indexCache.markDirty([id])
+    await indexCache.persist()
     changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
     return true
   })
@@ -340,7 +328,6 @@ export const purgeItem = async (id: string): Promise<boolean> => {
   if (!index) return false
 
   return withLibraryLock(index.libraryPath, async () => {
-    markInternalWrite()
     const entry = index.items.get(id)
     if (!entry) return false
 
@@ -354,8 +341,8 @@ export const purgeItem = async (id: string): Promise<boolean> => {
 
     // 从内存索引与缓存中移除
     index.items.delete(id)
-    markShardDirty(id)
-    await persistCache()
+    indexCache.markDirty([id])
+    await indexCache.persist()
     changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
     return true
   })
@@ -370,7 +357,6 @@ export const purgeTrash = async (): Promise<number> => {
   if (!index) return 0
 
   return withLibraryLock(index.libraryPath, async () => {
-    markInternalWrite()
     const trashIds = [...index.items.values()]
       .filter((item) => item.isDeleted === true)
       .map((item) => item.id)
@@ -388,8 +374,8 @@ export const purgeTrash = async (): Promise<number> => {
     // 同步库根 mtime.json（内存化防抖）
     await removeMtimes(index.libraryPath, trashIds)
 
-    markShardsDirty(trashIds)
-    await persistCache()
+    indexCache.markDirty(trashIds)
+    await indexCache.persist()
     changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
     return trashIds.length
   })
@@ -403,7 +389,6 @@ export const trashUnclassified = async (): Promise<number> => {
   if (!index) return 0
 
   return withLibraryLock(index.libraryPath, async () => {
-    markInternalWrite()
     const unclassifiedIds = [...index.items.values()]
       .filter((item) => !item.isDeleted && item.folders.length === 0)
       .map((item) => item.id)
@@ -436,8 +421,8 @@ export const trashUnclassified = async (): Promise<number> => {
     // 同步库根 mtime.json（内存化防抖）
     await updateMtimes(index.libraryPath, unclassifiedIds, now)
 
-    markShardsDirty(unclassifiedIds)
-    await persistCache()
+    indexCache.markDirty(unclassifiedIds)
+    await indexCache.persist()
     changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
     return unclassifiedIds.length
   })

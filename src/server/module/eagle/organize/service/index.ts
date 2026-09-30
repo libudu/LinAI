@@ -13,6 +13,7 @@ import type {
   OrganizeTaskView,
 } from '@/shared/eagle/organize'
 import { ORGANIZE_RESOURCE } from '../constants'
+import { organizeRepository } from '../storage'
 import { queueService } from './queue'
 import { resultService } from './result'
 import { taskService } from './task'
@@ -48,7 +49,10 @@ class OrganizeService {
   /** 用户命令串行执行，防止两个确认请求读到同一份旧结果并重复扣减。 */
   private async runCommand<T>(action: () => Promise<T>): Promise<T> {
     await this.ready
-    return resourceLock.run(`${ORGANIZE_RESOURCE}:commands`, action)
+    return resourceLock.run(`${ORGANIZE_RESOURCE}:commands`, async () => {
+      await organizeRepository.reconcileTaskIfNeeded()
+      return action()
+    })
   }
 
   // --- Task 生命周期与准备 ---

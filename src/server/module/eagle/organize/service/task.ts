@@ -31,18 +31,17 @@ export class TaskService {
   async recoverInterruptedTask(): Promise<void> {
     try {
       const task = await organizeRepository.getTask()
-      if (task && task.phase === 'running') {
-        await organizeRepository.mutateTask((latest) =>
-          transitionTask(latest, { type: 'pause', reason: 'restart' }),
-        )
-        publishOrganizeChange()
-      } else if (task?.phase === 'done' && task.failedCount > 0) {
-        // 兼容旧版本将「仅剩失败项」误标为 done 的任务，保留失败处理入口。
-        await organizeRepository.mutateTask((latest) =>
-          transitionTask(latest, { type: 'items-changed', changes: [] }),
-        )
-        publishOrganizeChange()
-      }
+      if (!task) return
+      await organizeRepository.mutateTask(async (latest) => {
+        const reconciled = transitionTask(latest, {
+          type: 'reconcile',
+          items: await organizeRepository.getProgressItems(),
+        })!
+        return reconciled.phase === 'running'
+          ? transitionTask(reconciled, { type: 'pause', reason: 'restart' })
+          : reconciled
+      })
+      publishOrganizeChange()
     } catch (error) {
       console.error('[Eagle] 启动恢复图片整理任务失败', error)
     }

@@ -1,5 +1,5 @@
 import { settingsClient } from '@/client/service/settings'
-import type { EagleFolderTreeSettings } from '@/server/module/eagle/settings'
+import type { EagleFolderTreeSettings } from '@/shared/eagle/settings'
 import {
   EAGLE_TRASH_FOLDER_ID,
   EAGLE_UNCLASSIFIED_FOLDER_ID,
