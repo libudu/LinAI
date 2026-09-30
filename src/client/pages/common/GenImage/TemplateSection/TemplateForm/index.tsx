@@ -9,6 +9,7 @@ import { useImageGeneration } from '../../hooks/useImageGeneration'
 import { createTemplate } from '../../service/templates'
 import { StyleExtractModal } from './StyleExtractModal'
 import { TemplateFormFields } from './TemplateFormItems'
+import { toTemplateValue, type TemplateFormValues } from './values'
 
 interface TemplateFormProps {
   onSuccess: () => void
@@ -16,7 +17,7 @@ interface TemplateFormProps {
 
 export function TemplateForm({ onSuccess }: TemplateFormProps) {
   const formRef = useRef<HTMLDivElement>(null)
-  const [form] = Form.useForm()
+  const [form] = Form.useForm<TemplateFormValues>()
   const [submitting, setSubmitting] = useState(false)
   const [imageUrls, setImageUrls] = useState<string[]>([])
   const [uploadingCount, setUploadingCount] = useState(0)
@@ -62,13 +63,10 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
     )
   }
 
-  const handleFinish = async (values: any) => {
+  const handleFinish = async (values: TemplateFormValues) => {
     setSubmitting(true)
     try {
-      await createTemplate({
-        ...values,
-        images: imageUrls,
-      })
+      await createTemplate(toTemplateValue(values, imageUrls))
       message.success('保存成功')
       form.resetFields()
       setImageUrls([])
@@ -96,7 +94,7 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
           </Button>
         )} */}
       </h3>
-      <Form
+      <Form<TemplateFormValues>
         form={form}
         layout="vertical"
         onFinish={handleFinish}

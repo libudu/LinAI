@@ -9,16 +9,6 @@ import { GENERATED_IMAGES_DIR } from '../../common/static'
 import { writePngGenerationInfo } from './png-meta'
 import { requestVeniceImage } from './venice'
 
-export interface GptImageUsage {
-  total_tokens: number
-  input_tokens: number
-  output_tokens: number
-  input_tokens_details?: {
-    text_tokens: number
-    image_tokens: number
-  }
-}
-
 export interface GenerateGPTImageOptions {
   apiKey: string
   baseUrl: string
@@ -226,6 +216,6 @@ export async function generateGPTImage(options: GenerateGPTImageOptions) {
 
   return {
     filenames,
-    usage: res.usage as GptImageUsage | undefined,
+    usage: res.usage,
   }
 }

@@ -5,6 +5,10 @@ import { useState } from 'react'
 import { createTemplate, patchTemplate } from '../../service/templates'
 import { useTemplates } from '../hooks/useTemplates'
 import { TemplateFormFields } from '../TemplateForm/TemplateFormItems'
+import {
+  toTemplateValue,
+  type TemplateFormValues,
+} from '../TemplateForm/values'
 
 interface TemplateEditButtonProps {
   template: FlatTemplate
@@ -15,7 +19,7 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
   const [submitting, setSubmitting] = useState(false)
   const [imageUrls, setImageUrls] = useState<string[]>([])
   const [uploadingCount, setUploadingCount] = useState(0)
-  const [form] = Form.useForm()
+  const [form] = Form.useForm<TemplateFormValues>()
   const { refresh } = useTemplates()
 
   const handleOpen = () => {
@@ -35,10 +39,14 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
     form.resetFields()
   }
 
-  const handleFinish = async (values: any) => {
+  const handleFinish = async (values: TemplateFormValues) => {
     setSubmitting(true)
     try {
-      await patchTemplate(template, { ...values, images: imageUrls })
+      // 未显示的比例、张数字段沿用原值；表单中清空的字段仍会覆盖。
+      await patchTemplate(
+        template,
+        toTemplateValue({ ...template, ...values }, imageUrls),
+      )
       message.success('更新成功')
       refresh()
       handleClose()
@@ -53,13 +61,9 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
     try {
       const values = await form.validateFields()
       setSubmitting(true)
-      await createTemplate({
-        title: values.title,
-        prompt: values.prompt,
-        aspectRatio: values.aspectRatio,
-        folder: values.folder,
-        images: imageUrls,
-      })
+      await createTemplate(
+        toTemplateValue({ ...template, ...values }, imageUrls),
+      )
       message.success('另存成功')
       refresh()
       handleClose()
@@ -119,7 +123,7 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
         destroyOnHidden
         width={600}
       >
-        <Form
+        <Form<TemplateFormValues>
           form={form}
           layout="vertical"
           onFinish={handleFinish}

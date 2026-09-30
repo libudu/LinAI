@@ -7,6 +7,7 @@ import {
 import {
   Button,
   Form,
+  type FormInstance,
   Input,
   InputNumber,
   message,
@@ -21,6 +22,7 @@ import { useVisionStore } from '../../visionStore'
 import { FolderFormItem } from './FolderSelectInput'
 import { ImageUpload } from './ImageUpload'
 import { PromptOptimizeModal } from './PromptOptimizeModal'
+import type { TemplateFormValues } from './values'
 
 function TitleFormItem({ className }: { className?: string }) {
   return (
@@ -75,7 +77,7 @@ function PromptFormItem({
 }: {
   className?: string
   label?: React.ReactNode
-  form: any
+  form: FormInstance<TemplateFormValues>
   imageUrls: string[]
 }) {
   const [openPromptOptimizeModal, setOpenPromptOptimizeModal] = useState(false)
@@ -184,7 +186,7 @@ export function TemplateFormFields({
   setUploadingCount,
   isEdit,
 }: {
-  form: any
+  form: FormInstance<TemplateFormValues>
   imageUrls: string[]
   setImageUrls: (urls: string[]) => void
   setUploadingCount: (count: number) => void

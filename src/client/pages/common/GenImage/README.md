@@ -36,7 +36,7 @@
 
 ## 生成流程
 
-1. `TemplateForm` 负责试生成，`TemplateItemHeader` 负责按已保存模板生成，`TaskList` 负责重试；三者通过 `hooks/useImageGeneration.ts` 调用 `service/generation.ts`，分别使用 `POST /api/gptImage/trial` 和 `POST /api/gptImage/generate`。请求类型从 Hono RPC 推导。
+1. `TemplateForm` 负责试生成，`TemplateItemHeader` 负责按已保存模板生成，`TaskList/TaskItem.tsx` 负责重试；三者通过 `hooks/useImageGeneration.ts` 调用 `service/generation.ts`，分别使用 `POST /api/gptImage/trial` 和 `POST /api/gptImage/generate`。请求类型从 Hono RPC 推导。
 2. 服务端路由 `src/server/api/gpt-image/index.ts` 校验输入并返回 HTTP 响应，`src/server/module/gpt-image/service.ts` 统一构造快照、处理比例拼接并按接入点类型分发。地址、模型和密钥从同一份设置快照解析；云端接入点走同目录 `index.ts`，ComfyUI 走 `comfyui.ts`。不要只凭 Base URL 或模型 ID 猜测协议。
 3. 云端分支使用 API Key、模型、尺寸、画质等参数。ComfyUI 分支只把提示词和一张参考图送入工作流，不使用模板比例、尺寸、画质、张数或“比例拼接”文案。
 4. ComfyUI 提交接口创建任务后尽快返回 `taskId`，后台上传参考图、提交 `/prompt`、按 `prompt_id` 轮询 `/history`，再从标记的最终输出节点下载图片。云端生成仍沿用原有请求流程。
@@ -45,6 +45,10 @@
 云端参考图校验在创建任务之前完成；创建后整个执行流程共用失败收尾。两个生成接口都返回实际的业务 HTTP 状态，存储错误继续由全局 `onError` 映射，前端同时支持字符串错误与结构化存储错误。设置弹窗保存后继续生成时，前端重新读取接入点类型。
 
 任务列表只展示来源为 `gpt-image-2` 或 `comfyui` 的任务。ComfyUI 任务不展示未实际使用的比例、尺寸和画质标签。重试使用任务的输入快照；ComfyUI 重试还使用任务记录的接入点 ID，并读取该接入点当前引用的最新版工作流。原接入点或工作流已删除时应明确报错，不能改用当前云端接入点。
+
+`TaskList/index.tsx` 管理任务过滤、分页、图片预览组和下载记录，`TaskList/TaskItem.tsx` 展示单个任务的图片或错误、信息与操作。任务类型由服务端 `common/task/types.ts` 拥有，显式声明可选的 ComfyUI 元数据与 GPT token 用量；旧任务迁移和存储读改写继续保留已有字段。
+
+模板表单类型从共享的 `TemplateValue` 派生，参考图仍由独立上传状态管理。新建、编辑和另存统一经 `TemplateSection/TemplateForm/values.ts` 的 `toTemplateValue` 提取业务字段（包含张数 `n`）；编辑与另存保留未显示的比例、张数，清空张数时按未指定处理。
 
 ## 接入点与工作流
 

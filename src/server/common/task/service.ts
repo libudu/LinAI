@@ -8,7 +8,7 @@ import { GENERATED_IMAGES_API_PATH } from '../static/enum'
 import { changeBus } from '../storage/change-bus'
 import { StorageError } from '../storage/errors'
 import { TaskRepository } from './repository'
-import { TASKS_RESOURCE, Task } from './types'
+import { TASKS_RESOURCE, type ComfyTaskMetadata, type Task } from './types'
 
 /**
  * 任务服务：任务状态流转、输出文件清理、启动恢复与变更事件发布。
@@ -62,7 +62,7 @@ export class TaskService {
     source: string
     size?: GptImageSize
     quality?: GptImageQuality
-    metadata?: Record<string, unknown>
+    metadata?: ComfyTaskMetadata
   }): Promise<Task> {
     await this.ready
     const task = await this.repository.create(

@@ -27,13 +27,11 @@ const migrateLegacyTasks = (raw: unknown): StoredItem<TaskRecord>[] => {
   })
 }
 
-// Task 带索引签名，Omit 后命名属性被索引签名吸收，这里断言回 Task
-const flatten = (item: StoredItem<TaskRecord>): Task =>
-  ({
-    id: item.id,
-    createdAt: item.createdAt,
-    ...item.value,
-  }) as Task
+const flatten = (item: StoredItem<TaskRecord>): Task => ({
+  id: item.id,
+  createdAt: item.createdAt,
+  ...item.value,
+})
 
 const toRecord = (task: Task): TaskRecord => {
   const { id: _id, createdAt: _createdAt, ...record } = task
