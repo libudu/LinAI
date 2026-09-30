@@ -31,7 +31,7 @@ import { useOrganizeStatus } from './Organize/store'
 import { openEagleSettingModal } from './SettingModal'
 import { useEagleVisionConfig } from './SettingModal/useEagleVisionConfig'
 import type { EagleImageSize } from './store'
-import { useEagleStore } from './store'
+import { requestEagleLibraryRefresh, useEagleStore } from './store'
 
 const findFolder = (
   folders: EagleFolder[],
@@ -53,7 +53,6 @@ export function Toolbar() {
     allTotal,
     trashTotal,
     unclassifiedTotal,
-    refreshCurrentPage,
     sortBy,
     sortOrder,
     setSort,
@@ -164,7 +163,7 @@ export function Toolbar() {
         try {
           const res = await purgeEagleTrash()
           message.success(`已彻底删除 ${res.count} 个文件`)
-          await refreshCurrentPage()
+          await requestEagleLibraryRefresh()
         } catch (error) {
           message.error(error instanceof Error ? error.message : '删除失败')
         } finally {
@@ -188,7 +187,7 @@ export function Toolbar() {
         try {
           const res = await trashAllUnclassifiedEagleItems()
           message.success(`已将 ${res.count} 个文件移动到回收站`)
-          await refreshCurrentPage()
+          await requestEagleLibraryRefresh()
         } catch (error) {
           message.error(error instanceof Error ? error.message : '操作失败')
         } finally {

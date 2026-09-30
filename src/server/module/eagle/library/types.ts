@@ -77,6 +77,22 @@ export interface UpdateItemPatch {
   isDeleted?: boolean
 }
 
+export interface UpdateItemBatchEntry {
+  id: string
+  patch: UpdateItemPatch
+}
+
+/** 每项携带身份与错误原因，调用方不依赖批次数组的位置。 */
+export type UpdateItemResult =
+  | { id: string; ok: true }
+  | {
+      id: string
+      ok: false
+      status: 404 | 409 | 500
+      reason: 'not-found' | 'unavailable' | 'rename-conflict' | 'write-failed'
+      error: string
+    }
+
 /** 分片索引元数据文件结构 (data/eagle/index-shards/meta.json) */
 export interface EagleIndexShardMeta {
   libraryPath: string

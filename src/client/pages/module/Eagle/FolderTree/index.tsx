@@ -13,7 +13,7 @@ import {
 import type { TreeDataNode } from 'antd'
 import { Tree } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useEagleStore } from '../store'
+import { requestEagleLibraryRefresh, useEagleStore } from '../store'
 import { EditFolderModal } from './EditFolderModal'
 import { FolderContextMenu } from './FolderContextMenu'
 import './FolderTree.scss'
@@ -113,7 +113,6 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
     allTotal,
     unclassifiedTotal,
     trashTotal,
-    refreshFolders,
     showFolderDescription,
   } = useEagleStore()
   // null = 尚无记录（未加载到或从未保存），回退为全展开
@@ -271,7 +270,11 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
       <EditFolderModal
         folder={editingFolder}
         onClose={() => setEditingFolder(null)}
-        onSaved={refreshFolders}
+        onSaved={() => {
+          void requestEagleLibraryRefresh().catch((error) =>
+            console.error('刷新 Eagle 文件夹失败', error),
+          )
+        }}
       />
     </div>
   )

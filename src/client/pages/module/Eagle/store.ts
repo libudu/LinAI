@@ -8,83 +8,27 @@ import {
 } from '@/shared/eagle/types'
 import { create } from 'zustand'
 import { fetchEagleFolders, fetchEagleItems, refreshEagleIndex } from './api'
+import { LibraryRefreshController } from './libraryRefresh'
+import {
+  loadImageSize,
+  loadSelectedFolderId,
+  loadSort,
+  loadViewOptions,
+  persistImageSize,
+  persistSelectedFolderId,
+  persistSort,
+  persistViewOptions,
+  type EagleImageSize,
+} from './preferences'
+export type { EagleImageSize } from './preferences'
 
 export const PAGE_SIZE = 100
-const SORT_STORAGE_KEY = 'eagle_sort'
-const SIZE_STORAGE_KEY = 'eagle_image_size'
-const DISPLAY_STORAGE_KEY = 'eagle_display_options'
-const SELECTED_FOLDER_STORAGE_KEY = 'eagle_selected_folder'
-
-let libraryRefreshSuspended = false
-let libraryRefreshPending = false
-
-export type EagleImageSize = 'small' | 'medium' | 'large'
-
-// 纯前端展示选项持久化，默认均不勾选
-const loadViewOptions = (): Pick<
-  EagleState,
-  'showFileName' | 'showFileSize' | 'showFolderDescription'
-> => {
-  try {
-    const raw = localStorage.getItem(DISPLAY_STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      return {
-        showFileName: parsed.showFileName === true,
-        showFileSize: parsed.showFileSize === true,
-        showFolderDescription: parsed.showFolderDescription === true,
-      }
-    }
-  } catch {
-    // 忽略损坏的本地缓存
-  }
-  return {
-    showFileName: false,
-    showFileSize: false,
-    showFolderDescription: false,
-  }
-}
-
-// 排序偏好持久化（仅前端状态，不走服务端设置）
-const loadSort = (): Pick<EagleState, 'sortBy' | 'sortOrder'> => {
-  try {
-    const raw = localStorage.getItem(SORT_STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (
-        (parsed.sortBy === 'mtime' || parsed.sortBy === 'size') &&
-        (parsed.sortOrder === 'asc' || parsed.sortOrder === 'desc')
-      ) {
-        return parsed
-      }
-    }
-  } catch {
-    // 忽略损坏的本地缓存
-  }
-  return { sortBy: 'mtime', sortOrder: 'desc' }
-}
-
-// 图片大小档位持久化（默认中档）
-const loadImageSize = (): EagleImageSize => {
-  const raw = localStorage.getItem(SIZE_STORAGE_KEY)
-  if (raw === 'small' || raw === 'medium' || raw === 'large') return raw
-  return 'medium'
-}
-
-const loadSelectedFolderId = () =>
-  localStorage.getItem(SELECTED_FOLDER_STORAGE_KEY) ?? ''
-
 const hasFolder = (folders: EagleFolder[], folderId: string): boolean =>
   folderId === EAGLE_UNCLASSIFIED_FOLDER_ID ||
   folderId === EAGLE_TRASH_FOLDER_ID ||
   folders.some(
     (folder) => folder.id === folderId || hasFolder(folder.children, folderId),
   )
-
-const persistSelectedFolderId = (folderId: string) => {
-  if (folderId) localStorage.setItem(SELECTED_FOLDER_STORAGE_KEY, folderId)
-  else localStorage.removeItem(SELECTED_FOLDER_STORAGE_KEY)
-}
 
 // Eagle 图片管理页面状态：文件夹树 + 当前文件夹的资源列表（分批加载）
 interface EagleState {
@@ -130,24 +74,13 @@ interface EagleState {
   refreshCurrentPage: () => Promise<void>
 }
 
-// 视觉选项整体落盘，供各 setter 复用
-const persistViewOptions = (state: {
-  showFileName: boolean
-  showFileSize: boolean
-  showFolderDescription: boolean
-}) => {
-  localStorage.setItem(
-    DISPLAY_STORAGE_KEY,
-    JSON.stringify({
-      showFileName: state.showFileName,
-      showFileSize: state.showFileSize,
-      showFolderDescription: state.showFolderDescription,
-    }),
-  )
-}
-
 export const useEagleStore = create<EagleState>()((set, get) => {
+  let pageSequence = 0
+  let foldersSequence = 0
+  let requestedPage = 1
   const loadPage = async (page: number, options?: { silent?: boolean }) => {
+    const sequence = ++pageSequence
+    requestedPage = page
     const { currentFolderId, sortBy, sortOrder } = get()
     if (!options?.silent) {
       set({ listLoading: true })
@@ -160,20 +93,23 @@ export const useEagleStore = create<EagleState>()((set, get) => {
         offset: (page - 1) * PAGE_SIZE,
         limit: PAGE_SIZE,
       })
+      if (sequence !== pageSequence) return false
       set({ items: resp.items, total: resp.total, page })
       if (!currentFolderId) set({ allTotal: resp.total })
       else if (currentFolderId === EAGLE_UNCLASSIFIED_FOLDER_ID)
         set({ unclassifiedTotal: resp.total })
       else if (currentFolderId === EAGLE_TRASH_FOLDER_ID)
         set({ trashTotal: resp.total })
+      return true
     } finally {
-      if (!options?.silent) {
+      if (sequence === pageSequence) {
         set({ listLoading: false })
       }
     }
   }
 
   const loadFolders = async () => {
+    const sequence = ++foldersSequence
     set({ foldersLoading: true })
     try {
       const { sortBy, sortOrder } = get()
@@ -200,6 +136,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
           limit: 1,
         }),
       ])
+      if (sequence !== foldersSequence) return get().folders
       set({
         folders,
         allTotal: all.total,
@@ -208,7 +145,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
       })
       return folders
     } finally {
-      set({ foldersLoading: false })
+      if (sequence === foldersSequence) set({ foldersLoading: false })
     }
   }
 
@@ -245,10 +182,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
     },
 
     setSort: async (sortBy, sortOrder) => {
-      localStorage.setItem(
-        SORT_STORAGE_KEY,
-        JSON.stringify({ sortBy, sortOrder }),
-      )
+      persistSort(sortBy, sortOrder)
       set({ sortBy, sortOrder, items: [], total: 0, page: 1 })
       await loadPage(1)
     },
@@ -260,7 +194,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
     },
 
     setImageSize: (size) => {
-      localStorage.setItem(SIZE_STORAGE_KEY, size)
+      persistImageSize(size)
       set({ imageSize: size })
     },
 
@@ -296,35 +230,20 @@ export const useEagleStore = create<EagleState>()((set, get) => {
     },
 
     refreshCurrentPage: async () => {
-      await Promise.all([
+      const [, pageApplied] = await Promise.all([
         loadFolders(),
-        loadPage(get().page, { silent: true }),
+        loadPage(requestedPage, { silent: true }),
       ])
       // 条目被移出当前文件夹后当前页可能被清空，回到第一页
-      if (get().items.length === 0 && get().page > 1) {
+      if (pageApplied && get().items.length === 0 && get().page > 1) {
         await loadPage(1)
       }
     },
   }
 })
 
-/**
- * 响应 eagle.library 变更：整理弹窗打开时只记脏，避免刷新被遮挡的列表；
- * 弹窗关闭后由 setEagleLibraryRefreshSuspended 合并执行一次。
- */
-export const requestEagleLibraryRefresh = async (): Promise<void> => {
-  if (libraryRefreshSuspended) {
-    libraryRefreshPending = true
-    return
-  }
-  await useEagleStore.getState().refreshCurrentPage()
-}
-
-export const setEagleLibraryRefreshSuspended = async (
-  suspended: boolean,
-): Promise<void> => {
-  libraryRefreshSuspended = suspended
-  if (suspended || !libraryRefreshPending) return
-  libraryRefreshPending = false
-  await useEagleStore.getState().refreshCurrentPage()
-}
+const libraryRefresh = new LibraryRefreshController(() =>
+  useEagleStore.getState().refreshCurrentPage(),
+)
+export const requestEagleLibraryRefresh = libraryRefresh.request
+export const setEagleLibraryRefreshSuspended = libraryRefresh.setSuspended

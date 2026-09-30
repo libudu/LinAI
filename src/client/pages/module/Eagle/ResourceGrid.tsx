@@ -1,186 +1,18 @@
-import { useLongPressContextMenu } from '@/client/hooks/useLongPressContextMenu'
 import { usePlatform } from '@/client/hooks/usePlatform'
-import { usePendingImages } from '@/client/pages/common/GenImage/TemplateSection/TemplateForm/Gallery/pendingImages'
-import {
-  EAGLE_TRASH_FOLDER_ID,
-  EAGLE_UNCLASSIFIED_FOLDER_ID,
-  type EagleItem,
-} from '@/shared/eagle/types'
-import {
-  DeleteOutlined,
-  FolderOutlined,
-  PlayCircleOutlined,
-  PlusOutlined,
-} from '@ant-design/icons'
-import { Dropdown, Image, Modal, Pagination, Spin, message } from 'antd'
+import { EAGLE_TRASH_FOLDER_ID, type EagleItem } from '@/shared/eagle/types'
+import { Image, Modal, Pagination, Spin } from 'antd'
 import { useRef, useState } from 'react'
-import {
-  addEagleItemToGallery,
-  eagleFileUrl,
-  eagleThumbnailUrl,
-  purgeEagleItem,
-  updateEagleItem,
-} from './api'
-import { confirmDeleteEagleItem } from './components/confirmDeleteModal'
-import {
-  FolderSelectModal,
-  type SelectedFolderInfo,
-} from './components/FolderSelectModal'
-import type { EagleImageSize } from './store'
-import { PAGE_SIZE, useEagleStore } from './store'
+import { eagleFileUrl } from './api'
+import { FolderSelectModal } from './components/FolderSelectModal'
+import { ResourceGridItem } from './components/ResourceGridItem'
+import { useResourceActions } from './hooks/useResourceActions'
+import { PAGE_SIZE, useEagleStore, type EagleImageSize } from './store'
 
 // 图片大小档位对应的网格列数（小档为原始密度，逐档递减一列）
 const GRID_COLS: Record<EagleImageSize, string> = {
   small: 'grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6',
   medium: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5',
   large: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
-}
-
-/** 格式化文件大小，如 0.1MB / 256KB */
-const formatFileSize = (bytes: number) => {
-  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)}MB`
-  if (bytes >= 1024) return `${Math.round(bytes / 1024)}KB`
-  return `${bytes}B`
-}
-
-interface ResourceGridItemProps {
-  item: EagleItem
-  isTrash: boolean
-  showFileName: boolean
-  showFileSize: boolean
-  onClick: (item: EagleItem) => void
-  onMove: (item: EagleItem) => void
-  onDelete: (item: EagleItem) => void
-  onPurge: (item: EagleItem) => void
-  onAddToGallery: (item: EagleItem) => Promise<void>
-}
-
-// 单个资源卡片：支持鼠标右键 / 移动端长按弹出操作菜单
-function ResourceGridItem({
-  item,
-  isTrash,
-  showFileName,
-  showFileSize,
-  onClick,
-  onMove,
-  onDelete,
-  onPurge,
-  onAddToGallery,
-}: ResourceGridItemProps) {
-  const longPressHandlers = useLongPressContextMenu()
-
-  const menuItems = isTrash
-    ? [
-        {
-          key: 'move',
-          icon: <FolderOutlined />,
-          label: '修改文件夹',
-        },
-        {
-          key: 'purge',
-          icon: <DeleteOutlined />,
-          label: '彻底删除',
-          danger: true,
-        },
-      ]
-    : [
-        ...(!item.isVideo
-          ? [
-              {
-                key: 'add-to-gallery',
-                icon: <PlusOutlined />,
-                label: '添加到待使用',
-              },
-            ]
-          : []),
-        {
-          key: 'move',
-          icon: <FolderOutlined />,
-          label: '修改文件夹',
-        },
-        {
-          key: 'delete',
-          icon: <DeleteOutlined />,
-          label: '移到回收站',
-          danger: true,
-        },
-      ]
-
-  return (
-    <Dropdown
-      trigger={['contextMenu']}
-      menu={{
-        items: menuItems,
-        onClick: ({ key, domEvent }) => {
-          domEvent.stopPropagation()
-          if (key === 'move') {
-            onMove(item)
-          } else if (key === 'add-to-gallery') {
-            void onAddToGallery(item)
-          } else if (key === 'delete') {
-            onDelete(item)
-          } else if (key === 'purge') {
-            onPurge(item)
-          }
-        },
-      }}
-      popupRender={(node) => (
-        <div onClick={(e) => e.stopPropagation()}>{node}</div>
-      )}
-    >
-      <div
-        className="group relative aspect-square cursor-pointer overflow-hidden rounded-lg border-2 border-transparent bg-slate-100 transition-all select-none hover:border-blue-500 dark:bg-slate-800"
-        style={{ WebkitTouchCallout: 'none' }}
-        onClick={() => onClick(item)}
-        title={item.name}
-        {...longPressHandlers}
-      >
-        <img
-          src={eagleThumbnailUrl(item.id)}
-          alt={item.name}
-          className="pointer-events-none h-full w-full object-cover"
-          loading="lazy"
-        />
-        {(showFileName || showFileSize) && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/55 px-1 py-0.5 text-center text-[11px] leading-4 text-white">
-            {showFileName && (
-              <div className="truncate">
-                {item.name}.{item.ext}
-              </div>
-            )}
-            {showFileSize && (
-              <div className="truncate">{formatFileSize(item.size)}</div>
-            )}
-          </div>
-        )}
-        {item.isVideo && (
-          <div className="pointer-events-none absolute right-1 bottom-1 rounded bg-black/60 px-1.5 py-0.5 text-white">
-            <PlayCircleOutlined />
-          </div>
-        )}
-      </div>
-    </Dropdown>
-  )
-}
-
-/** 获取修改文件夹弹窗的初始选中文件夹 ID */
-const getInitialFolderId = (
-  item: EagleItem | null,
-  currentFolderId: string,
-): string => {
-  if (!item) return EAGLE_UNCLASSIFIED_FOLDER_ID
-  if (item.folders && item.folders.length > 0) {
-    if (
-      currentFolderId &&
-      currentFolderId !== EAGLE_UNCLASSIFIED_FOLDER_ID &&
-      currentFolderId !== EAGLE_TRASH_FOLDER_ID &&
-      item.folders.includes(currentFolderId)
-    ) {
-      return currentFolderId
-    }
-    return item.folders[0]
-  }
-  return EAGLE_UNCLASSIFIED_FOLDER_ID
 }
 
 // 右侧资源网格：固定大小格子 + object-cover 缩略图，底部分页翻页
@@ -192,18 +24,24 @@ export function ResourceGrid() {
     page,
     setPage,
     imageSize,
-    refreshCurrentPage,
     currentFolderId,
   } = useEagleStore()
   const showFileName = useEagleStore((s) => s.showFileName)
   const showFileSize = useEagleStore((s) => s.showFileSize)
-  const addPendingImage = usePendingImages((s) => s.add)
   const { isMobile } = usePlatform()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewIndex, setPreviewIndex] = useState(0)
   const [videoItem, setVideoItem] = useState<EagleItem | null>(null)
-  const [movingItem, setMovingItem] = useState<EagleItem | null>(null)
+  const {
+    movingItem,
+    setMovingItem,
+    initialFolderId,
+    handleMoveFolder,
+    handleDeleteItem,
+    handleAddToGallery,
+    handlePurgeItem,
+  } = useResourceActions(currentFolderId)
 
   // 预览组只收图片（视频走 Modal 播放）
   const imageItems = items.filter((item) => !item.isVideo)
@@ -221,59 +59,6 @@ export function ResourceGrid() {
   const handlePageChange = (next: number) => {
     setPage(next)
     scrollRef.current?.scrollTo({ top: 0 })
-  }
-
-  const handleMoveFolder = async (folder: SelectedFolderInfo) => {
-    const item = movingItem
-    setMovingItem(null)
-    if (!item) return
-    const folderIds =
-      folder.id === EAGLE_UNCLASSIFIED_FOLDER_ID ? [] : [folder.id]
-    try {
-      await updateEagleItem(item.id, { folderIds })
-      message.success(`已移至「${folder.name}」`)
-      await refreshCurrentPage()
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '修改文件夹失败')
-    }
-  }
-
-  const handleDeleteItem = (item: EagleItem) => {
-    confirmDeleteEagleItem({
-      id: item.id,
-      name: item.name,
-      onDeleted: () => refreshCurrentPage(),
-    })
-  }
-
-  const handleAddToGallery = async (item: EagleItem) => {
-    try {
-      const url = await addEagleItemToGallery(item.id)
-      await addPendingImage(url)
-      message.success('已添加到图库待使用')
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '添加失败')
-    }
-  }
-
-  const handlePurgeItem = (item: EagleItem) => {
-    Modal.confirm({
-      title: '彻底删除',
-      content: `确定要彻底删除「${item.name}」吗？此操作将从磁盘永久删除原文件且无法撤销。`,
-      okText: '彻底删除',
-      okType: 'danger',
-      cancelText: '取消',
-      centered: true,
-      onOk: async () => {
-        try {
-          await purgeEagleItem(item.id)
-          message.success('已彻底删除')
-          await refreshCurrentPage()
-        } catch (error) {
-          message.error(error instanceof Error ? error.message : '删除失败')
-        }
-      },
-    })
   }
 
   const isTrash = currentFolderId === EAGLE_TRASH_FOLDER_ID
@@ -313,7 +98,7 @@ export function ResourceGrid() {
         open={movingItem !== null}
         onClose={() => setMovingItem(null)}
         onConfirm={handleMoveFolder}
-        initialFolderId={getInitialFolderId(movingItem, currentFolderId)}
+        initialFolderId={initialFolderId}
       />
 
       {/* 底部分页栏 */}

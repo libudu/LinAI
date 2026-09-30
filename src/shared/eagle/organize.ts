@@ -57,7 +57,7 @@ export type OrganizeConfirmItemResult =
       ok: true
       outcome: 'confirmed' | 'already-confirmed' | 'purged'
     }
-  | { itemId: string; ok: false; status: 400 | 404 | 409; error: string }
+  | { itemId: string; ok: false; status: 400 | 404 | 409 | 500; error: string }
 
 export interface OrganizeConfirmBatchResult {
   items: OrganizeConfirmItemResult[]

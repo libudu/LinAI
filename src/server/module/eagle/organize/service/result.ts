@@ -145,20 +145,22 @@ export class ResultService {
     const written = await updateItems(
       ready.map(({ record, patch }) => ({ id: record.itemId, patch })),
     )
-    for (const [index, plan] of ready.entries()) {
+    const writtenById = new Map(written.map((result) => [result.id, result]))
+    for (const plan of ready) {
       const itemId = plan.record.itemId
-      if (written[index]) {
+      const result = writtenById.get(itemId)!
+      if (result.ok) {
         records.push(plan.record)
         results.set(itemId, { itemId, ok: true, outcome: 'confirmed' })
-      } else if (!(await getItemEntry(itemId))) {
+      } else if (result.reason === 'not-found') {
         records.push(plan.record)
         results.set(itemId, { itemId, ok: true, outcome: 'purged' })
       } else
         results.set(itemId, {
           itemId,
           ok: false,
-          status: 409,
-          error: 'Eagle 条目更新失败，请重新确认',
+          status: result.status,
+          error: result.error,
         })
     }
     await this.saveDecisions(records, 'confirmed')

@@ -1,12 +1,11 @@
-import type { OrganizeTaskView } from '@/shared/eagle/organize'
 import { Modal, Spin } from 'antd'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { setEagleLibraryRefreshSuspended } from '../store'
 import { StepClassify } from './StepClassify'
 import { StepConfirm } from './StepConfirm'
 import { StepNavBar, type OrganizeStepKey } from './StepNavBar'
 import { StepRunning } from './StepRunning'
-import { fetchOrganizeTask } from './api'
+import { useOrganizeTask } from './hooks/useOrganizeTask'
 import { useOrganizeStatus } from './store'
 
 // 图片整理弹窗：左侧/顶部导航卡片栏 + 主操作区
@@ -20,59 +19,10 @@ export function OrganizeModal({
 }) {
   const { status, loaded } = useOrganizeStatus()
   const [currentStep, setCurrentStep] = useState<OrganizeStepKey>('classify')
-  const [task, setTask] = useState<OrganizeTaskView | null>(null)
+  const task = useOrganizeTask(open, status, loaded)
   const hasInitializedStepRef = useRef(false)
 
   const phase = status?.phase
-  const isFetchingTaskRef = useRef(false)
-  const pendingTaskFetchRef = useRef(false)
-  const taskSequenceRef = useRef(0)
-  const prevPhaseRef = useRef(phase)
-  const prevOpenRef = useRef(open)
-  const prevTotalRef = useRef(status?.total ?? 0)
-
-  // 拉取任务快照以同步导航卡片展示（带单飞保护）
-  const doLoadTask = useCallback(async () => {
-    if (isFetchingTaskRef.current) {
-      pendingTaskFetchRef.current = true
-      return
-    }
-    isFetchingTaskRef.current = true
-    const sequence = ++taskSequenceRef.current
-    try {
-      const nextTask = await fetchOrganizeTask()
-      if (sequence === taskSequenceRef.current) {
-        setTask(nextTask)
-      }
-    } catch (err) {
-      console.error('拉取任务详情失败', err)
-    } finally {
-      isFetchingTaskRef.current = false
-      if (pendingTaskFetchRef.current) {
-        pendingTaskFetchRef.current = false
-        queueMicrotask(() => {
-          void doLoadTask()
-        })
-      }
-    }
-  }, [])
-
-  // 弹窗打开、阶段变化、追加/调整队列使总数变化或无 task 时拉取
-  // 队列执行中（phase 为 running 期间的数值变动）无需重复拉取整包 task
-  useEffect(() => {
-    const isJustOpened = open && !prevOpenRef.current
-    const isPhaseChanged = open && phase !== prevPhaseRef.current
-    const total = status?.total ?? 0
-    const isQueueChanged = open && total !== prevTotalRef.current
-    prevOpenRef.current = open
-    prevPhaseRef.current = phase
-    prevTotalRef.current = total
-
-    if (isJustOpened || isPhaseChanged || isQueueChanged || (open && !task)) {
-      void doLoadTask()
-    }
-  }, [open, phase, status?.total, task, doLoadTask])
-
   // 打开弹窗或状态首次加载时，智能推荐初始展示步骤
   useEffect(() => {
     if (!open) {
@@ -93,7 +43,7 @@ export function OrganizeModal({
         setCurrentStep('classify')
       }
     }
-  }, [open, loaded, status?.pendingConfirm, phase])
+  }, [open, loaded, status?.pendingConfirm, status?.failedCount, phase])
 
   useEffect(() => {
     setEagleLibraryRefreshSuspended(open && phase !== 'done').catch((error) =>

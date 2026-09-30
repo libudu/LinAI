@@ -20,4 +20,4 @@ export type CreateTaskResult =
 /** 确认 / 不处理 / 重新执行 / 追加的结果动作 */
 export type OrganizeActionResult =
   | { ok: true }
-  | { ok: false; status: 400 | 404 | 409; error: string }
+  | { ok: false; status: 400 | 404 | 409 | 500; error: string }

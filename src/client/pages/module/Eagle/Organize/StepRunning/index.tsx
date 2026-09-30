@@ -1,27 +1,10 @@
-import type {
-  OrganizeFailedItem,
-  OrganizeQueueResp,
-} from '@/shared/eagle/organize'
-import { Badge, Button, Modal, Tabs, message } from 'antd'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  clearOrganizeTask,
-  fetchFailedOrganizeItems,
-  fetchOrganizeQueue,
-  pauseOrganizeTask,
-  resumeOrganizeTask,
-  retryFailedOrganizeItems,
-  retryOrganizeResult,
-  skipFailedOrganizeItems,
-  skipOrganizeResult,
-} from '../api'
-import { refreshOrganizeStatus, useOrganizeStatus } from '../store'
+import { Badge, Button, Tabs } from 'antd'
+import { retryFailedOrganizeItems, skipFailedOrganizeItems } from '../api'
 import { BottomBar } from './BottomBar'
 import { CompletedCards } from './CompletedCards'
 import { FailedList } from './FailedList'
 import { QueueList } from './QueueList'
-
-const QUEUE_PREVIEW_LIMIT = 20
+import { useRunningTask } from './hooks/useRunningTask'
 
 // 步骤 2 执行中任务：总处理状态 + 进度（已执行/总数、成功/失败）+ 暂停/继续 +
 // 错误任务集中管理与重试 + 队列预览 + 随时跳转到步骤 3 查验
@@ -32,227 +15,27 @@ export function StepRunning({
   onSwitchToConfirm?: () => void
   onSwitchToClassify?: () => void
 }) {
-  const { status } = useOrganizeStatus()
-  const [queue, setQueue] = useState<OrganizeQueueResp | null>(null)
-  const [failedItems, setFailedItems] = useState<OrganizeFailedItem[]>([])
-  const [queueLoading, setQueueLoading] = useState(true)
-  const [failedLoading, setFailedLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'queue' | 'failed'>('queue')
-  const [actionLoading, setActionLoading] = useState(false)
-  const [itemActionLoading, setItemActionLoading] = useState<string | null>(
-    null,
-  )
-  const isFetchingRef = useRef(false)
-  const pendingFetchRef = useRef(false)
-  const refreshSequenceRef = useRef(0)
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const hasAutoJumpedRef = useRef(false)
-
-  const doRefreshTask = useCallback(async () => {
-    if (isFetchingRef.current) {
-      pendingFetchRef.current = true
-      return
-    }
-    isFetchingRef.current = true
-    const sequence = ++refreshSequenceRef.current
-
-    try {
-      const [nextQueue, nextFailedItems] = await Promise.all([
-        fetchOrganizeQueue(QUEUE_PREVIEW_LIMIT).catch((error) => {
-          console.error('拉取图片整理队列预览失败', error)
-          return null
-        }),
-        fetchFailedOrganizeItems().catch((error) => {
-          console.error('拉取失败项列表失败', error)
-          return null
-        }),
-      ])
-
-      if (sequence === refreshSequenceRef.current) {
-        if (nextQueue) {
-          setQueue(nextQueue)
-        }
-        setQueueLoading(false)
-        if (nextFailedItems) {
-          setFailedItems(nextFailedItems)
-        }
-        setFailedLoading(false)
-      }
-    } finally {
-      isFetchingRef.current = false
-      if (pendingFetchRef.current) {
-        pendingFetchRef.current = false
-        queueMicrotask(() => {
-          void doRefreshTask()
-        })
-      }
-    }
-  }, [])
-
-  const triggerDebouncedRefreshTask = useCallback(
-    (delay = 200) => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current)
-      }
-      debounceTimerRef.current = setTimeout(() => {
-        debounceTimerRef.current = null
-        void doRefreshTask()
-      }, delay)
-    },
-    [doRefreshTask],
-  )
-
-  const refreshTaskImmediate = useCallback(async () => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current)
-      debounceTimerRef.current = null
-    }
-    await doRefreshTask()
-  }, [doRefreshTask])
-
-  useEffect(() => {
-    void doRefreshTask()
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current)
-        debounceTimerRef.current = null
-      }
-    }
-  }, [doRefreshTask])
-
-  // status 由 SSE 变更触发更新，变化后防抖刷新任务详情与队列预览
-  useEffect(() => {
-    triggerDebouncedRefreshTask(200)
-  }, [status, triggerDebouncedRefreshTask])
-
-  const phase = status?.phase
-  const pendingConfirm = status?.pendingConfirm ?? 0
-  const hasActiveTask = !!status && status.phase !== 'done'
-
-  const isCompleted =
-    phase === 'confirming' ||
-    phase === 'done' ||
-    (status != null &&
-      status.remaining === 0 &&
-      phase !== 'running' &&
-      phase !== 'paused')
-
-  const isAllCompletedAndClean = isCompleted && failedItems.length === 0
-
-  // 当任务重新开始运行时重置自动跳转标记
-  useEffect(() => {
-    if (phase === 'running') {
-      hasAutoJumpedRef.current = false
-    }
-  }, [phase])
-
-  // 全部完成后如果停留在排队与执行中标题且失败待处理数量不为0则自动跳转失败待处理标签
-  useEffect(() => {
-    if (isCompleted && !hasAutoJumpedRef.current) {
-      if (failedItems.length > 0) {
-        if (activeTab === 'queue') {
-          setActiveTab('failed')
-        }
-        hasAutoJumpedRef.current = true
-      } else if (status && status.failedCount === 0) {
-        hasAutoJumpedRef.current = true
-      }
-    }
-  }, [isCompleted, activeTab, failedItems.length, status])
-
-  const handleToggle = async () => {
-    setActionLoading(true)
-    try {
-      if (phase === 'running') {
-        await pauseOrganizeTask()
-      } else {
-        await resumeOrganizeTask()
-      }
-      await refreshOrganizeStatus()
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '操作失败')
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  const handleBatchAction = async (
-    action: () => Promise<void>,
-    successMsg: string,
-  ) => {
-    setActionLoading(true)
-    try {
-      await action()
-      message.success(successMsg)
-      await refreshOrganizeStatus()
-      await refreshTaskImmediate()
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '操作失败')
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  const handleSingleRetry = async (itemId: string) => {
-    setItemActionLoading(itemId)
-    try {
-      await retryOrganizeResult(itemId)
-      message.success('已重新加入执行队列')
-      await refreshOrganizeStatus()
-      await refreshTaskImmediate()
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '重试失败')
-    } finally {
-      setItemActionLoading(null)
-    }
-  }
-
-  const handleSingleSkip = async (itemId: string) => {
-    setItemActionLoading(itemId)
-    try {
-      await skipOrganizeResult(itemId)
-      message.success('已跳过该项')
-      await refreshOrganizeStatus()
-      await refreshTaskImmediate()
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '跳过失败')
-    } finally {
-      setItemActionLoading(null)
-    }
-  }
-
-  // 强制清空：中断所有请求（含正在发送的）、丢弃当前结果，SSE 刷新后回到第一步
-  const handleClear = () => {
-    Modal.confirm({
-      title: '清空整理任务？',
-      content: '将强制停止所有请求并丢弃当前结果，回到第一步。',
-      okText: '清空',
-      okType: 'danger',
-      cancelText: '取消',
-      onOk: async () => {
-        try {
-          await clearOrganizeTask()
-          await refreshOrganizeStatus()
-        } catch (error) {
-          message.error(error instanceof Error ? error.message : '清空任务失败')
-          throw error
-        }
-      },
-    })
-  }
-
-  const getAddSubtitle = () => {
-    if (!hasActiveTask) {
-      return '新建分类任务'
-    }
-    return '从任意文件夹追加图片'
-  }
-
-  const getConfirmSubtitle = () => {
-    return pendingConfirm > 0 ? `${pendingConfirm} 张待查验` : '暂无待确认'
-  }
-
-  const queueItems = queue?.items ?? []
+  const {
+    phase,
+    status,
+    queueItems,
+    failedItems,
+    queueLoading,
+    failedLoading,
+    activeTab,
+    setActiveTab,
+    actionLoading,
+    itemActionLoading,
+    isAllCompletedAndClean,
+    pendingConfirm,
+    handleToggle,
+    handleBatchAction,
+    handleSingleRetry,
+    handleSingleSkip,
+    handleClear,
+    getAddSubtitle,
+    getConfirmSubtitle,
+  } = useRunningTask()
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">

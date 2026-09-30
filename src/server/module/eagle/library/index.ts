@@ -28,5 +28,7 @@ export { isVideoExt } from './runtime'
 export type {
   EagleItemSnapshot,
   GetItemsParams,
+  UpdateItemBatchEntry,
   UpdateItemPatch,
+  UpdateItemResult,
 } from './types'
