@@ -1,33 +1,27 @@
-import {
-  TaskInputSnapshot,
-  TRIAL_TEMPLATE_TITLE,
-} from '@/shared/image/template'
+import { TRIAL_TEMPLATE_TITLE } from '@/shared/image/template'
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
-import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
-import { handleImageGeneration } from '../../module/gpt-image'
-import { submitComfyTask } from '../../module/gpt-image/comfyui'
+import { StorageError } from '../../common/storage/errors'
 import { importComfyWorkflow } from '../../module/gpt-image/comfyui-workflow'
 import { GPT_IMAGE_OUTPUT_MAX_N } from '../../module/gpt-image/enum'
-import {
-  getGptImageEndpoint,
-  getGptImageSettings,
-  getYunwuApiKey,
-} from '../../module/gpt-image/settings'
+import { submitImageGeneration } from '../../module/gpt-image/service'
 import gptImageEndpointApi from './endpoint'
 
-// 比例拼接：在提示词末尾追加一行“图片比例X：Y”，
-// 用于 default 等不支持分辨率/比例参数的便宜分组
-function withAspectRatioLine(
-  snapshot: TaskInputSnapshot,
-  appendAspectRatio?: boolean,
-): TaskInputSnapshot {
-  if (!appendAspectRatio || !snapshot.aspectRatio) return snapshot
-  return {
-    ...snapshot,
-    prompt: `${snapshot.prompt}\n图片比例${snapshot.aspectRatio.replace(':', '：')}`,
-  }
+const imageInputFields = {
+  prompt: z.string().min(1, 'Prompt is required'),
+  images: z.array(z.string()).optional().default([]),
+  aspectRatio: z.string().optional(),
+  n: z.number().min(1).max(GPT_IMAGE_OUTPUT_MAX_N).optional(),
+}
+
+const generationOptionFields = {
+  size: z.enum(['1k', '2k', '4k']).optional().default('1k'),
+  quality: z
+    .enum(['medium', 'high', 'xhigh', 'max'])
+    .optional()
+    .default('medium'),
+  appendAspectRatio: z.boolean().optional(),
 }
 
 const gptImageApi = new Hono()
@@ -53,6 +47,7 @@ const gptImageApi = new Hono()
         const endpoint = await importComfyWorkflow(c.req.valid('json'))
         return c.json({ success: true as const, endpoint })
       } catch (error) {
+        if (error instanceof StorageError) throw error
         return c.json(
           {
             success: false as const,
@@ -72,71 +67,15 @@ const gptImageApi = new Hono()
         // 前端提交一次生成所需的完整模板快照，后端不再依赖模板存储
         input: z.object({
           title: z.string().optional(),
-          prompt: z.string().min(1, 'Prompt is required'),
-          images: z.array(z.string()).optional(),
-          aspectRatio: z.string().optional(),
-          n: z.number().min(1).max(GPT_IMAGE_OUTPUT_MAX_N).optional(),
+          ...imageInputFields,
         }),
-        size: z.enum(['1k', '2k', '4k']).optional().default('1k'),
-        quality: z
-          .enum(['medium', 'high', 'xhigh', 'max'])
-          .optional()
-          .default('medium'),
-        appendAspectRatio: z.boolean().optional(),
+        ...generationOptionFields,
         endpointId: z.string().optional(),
       }),
     ),
     async (c) => {
-      const { input, size, quality, appendAspectRatio, endpointId } =
-        c.req.valid('json')
-      const settings = await getGptImageSettings()
-      const comfy =
-        Boolean(endpointId) || settings.gptImageEndpointKind === 'comfyui'
-      if (comfy) {
-        try {
-          const snapshot: TaskInputSnapshot = {
-            id: uuidv4(),
-            createdAt: Date.now(),
-            title: input.title,
-            prompt: input.prompt,
-            images: input.images || [],
-          }
-          const taskId = await submitComfyTask(snapshot, endpointId)
-          return c.json({ success: true as const, taskId, outputUrls: [] })
-        } catch (error) {
-          return c.json(
-            {
-              success: false as const,
-              error: error instanceof Error ? error.message : String(error),
-            },
-            400,
-          )
-        }
-      }
-      const apiKey = await getYunwuApiKey()
-      if (!apiKey) {
-        return c.json(
-          {
-            success: false as const,
-            error: '[配置] API Key is not configured',
-          },
-          400,
-        )
-      }
-      const snapshot: TaskInputSnapshot = {
-        id: uuidv4(),
-        createdAt: Date.now(),
-        images: [],
-        ...input,
-      }
-      const result = await handleImageGeneration({
-        apiKey,
-        ...(await getGptImageEndpoint()),
-        snapshot: withAspectRatioLine(snapshot, appendAspectRatio),
-        size,
-        quality,
-      })
-      return c.json(result.data)
+      const result = await submitImageGeneration(c.req.valid('json'))
+      return c.json(result.data, result.status)
     },
   )
   .post(
@@ -144,77 +83,21 @@ const gptImageApi = new Hono()
     zValidator(
       'json',
       z.object({
-        prompt: z.string().min(1, 'Prompt is required'),
-        aspectRatio: z.string().optional().default('1:1'),
-        images: z.array(z.string()).optional(),
-        size: z.enum(['1k', '2k', '4k']).optional().default('1k'),
-        quality: z
-          .enum(['medium', 'high', 'xhigh', 'max'])
-          .optional()
-          .default('medium'),
-        n: z.number().min(1).max(GPT_IMAGE_OUTPUT_MAX_N).optional().default(1),
-        appendAspectRatio: z.boolean().optional(),
+        ...imageInputFields,
+        ...generationOptionFields,
+        aspectRatio: imageInputFields.aspectRatio.default('1:1'),
+        n: imageInputFields.n.default(1),
       }),
     ),
     async (c) => {
-      const {
-        prompt,
-        aspectRatio,
-        images,
+      const { size, quality, appendAspectRatio, ...input } = c.req.valid('json')
+      const result = await submitImageGeneration({
+        input: { ...input, title: TRIAL_TEMPLATE_TITLE },
         size,
         quality,
-        n,
         appendAspectRatio,
-      } = c.req.valid('json')
-      const settings = await getGptImageSettings()
-      if (settings.gptImageEndpointKind === 'comfyui') {
-        try {
-          const snapshot: TaskInputSnapshot = {
-            id: uuidv4(),
-            createdAt: Date.now(),
-            prompt,
-            images: images || [],
-            title: TRIAL_TEMPLATE_TITLE,
-          }
-          const taskId = await submitComfyTask(snapshot)
-          return c.json({ success: true as const, taskId, outputUrls: [] })
-        } catch (error) {
-          return c.json(
-            {
-              success: false as const,
-              error: error instanceof Error ? error.message : String(error),
-            },
-            400,
-          )
-        }
-      }
-      const apiKey = await getYunwuApiKey()
-      if (!apiKey) {
-        return c.json(
-          {
-            success: false as const,
-            error: '[配置] API Key is not configured',
-          },
-          400,
-        )
-      }
-      const snapshot: TaskInputSnapshot = {
-        id: uuidv4(),
-        createdAt: Date.now(),
-        prompt,
-        aspectRatio,
-        images: images || [],
-        title: TRIAL_TEMPLATE_TITLE,
-        n,
-      }
-      const result = await handleImageGeneration({
-        apiKey,
-        ...(await getGptImageEndpoint()),
-        snapshot: withAspectRatioLine(snapshot, appendAspectRatio),
-        size,
-        quality,
       })
-      return c.json(result.data, result.status as any)
+      return c.json(result.data, result.status)
     },
   )
   .post(

@@ -10,6 +10,7 @@
 | `TemplateSection/TemplateForm/`                                  | 新建模板、试生成、参考图上传，以及裁剪、绘制、图库、提示词优化和风格提取等表单功能。 |
 | `TemplateSection/TemplateList/`、`TemplateSection/TemplateItem/` | 模板与文件夹展示、编辑、重命名、删除和按模板生成。                                   |
 | `service/templates.ts`、`TemplateSection/hooks/useTemplates.ts`  | `image.templates` 集合的前端业务封装和列表缓存。                                     |
+| `service/generation.ts`、`hooks/useImageGeneration.ts`           | 统一生成请求、参数转换和错误解析；组织配置弹窗、生成校验与结果提示。                 |
 | `TaskList/`、`hooks/useTasks.ts`                                 | 查询任务、订阅变更、展示状态与图片，以及重试、下载和删除。                           |
 | `SettingModal/`                                                  | 生图接入点、视觉接入点、云端生图选项、图片目录和辅助功能设置。                       |
 | `store.ts`                                                       | 生图接入点的服务端设置镜像与修订号；保存时整体提交。                                 |
@@ -27,7 +28,7 @@
 | ComfyUI 工作流 JSON                          | 服务端 `data/images/workflows/<workflowId>.json`，不放进设置值或每次生成请求。                                                    | `POST /api/gptImage/comfyui/import` 专用导入接口。                                                          |
 | 任务、状态、输入快照                         | 服务端 `TaskService`，文件 `data/tasks.json`；任务不是前端可写的通用存储资源。                                                    | `GET /api/task`、`DELETE /api/task/:id`；`hooks/useTasks.ts` 订阅 `image.tasks` 变更事件后重新拉取。        |
 | 输入图、生成图                               | 服务端 `data/images/input/`、`data/images/generated/`。                                                                           | 上传接口返回 `/api/static/images/input/...`；任务输出为 `/api/static/images/generated/...`。                |
-| 图库待使用图片列表                           | 通用存储资源 `image.pending`，服务端文件 `data/images/pending.json`。                                                              | `TemplateSection/TemplateForm/Gallery/pendingImages.ts`。                                                   |
+| 图库待使用图片列表                           | 通用存储资源 `image.pending`，服务端文件 `data/images/pending.json`。                                                             | `TemplateSection/TemplateForm/Gallery/pendingImages.ts`。                                                   |
 | 尺寸开关、画质、删除任务时保留图片等界面偏好 | 浏览器 `localStorage` 的 `gpt-image-settings`。                                                                                   | `src/client/hooks/useLocalSetting.tsx`。这些值不是服务端接入点配置。                                        |
 | 最近使用的输入图                             | 浏览器 `localStorage` 的 `recent_uploaded_images`。                                                                               | `TemplateSection/hooks/useRecentImages.ts`。                                                                |
 
@@ -35,11 +36,13 @@
 
 ## 生成流程
 
-1. `TemplateForm` 负责试生成，`TemplateItemHeader` 负责按已保存模板生成；两者分别调用 `POST /api/gptImage/trial` 和 `POST /api/gptImage/generate`。
-2. 服务端路由 `src/server/api/gpt-image/index.ts` 按当前接入点类型分发。云端接入点走 `src/server/module/gpt-image/index.ts`；ComfyUI 走 `src/server/module/gpt-image/comfyui.ts`。不要只凭 Base URL 或模型 ID 猜测协议。
+1. `TemplateForm` 负责试生成，`TemplateItemHeader` 负责按已保存模板生成，`TaskList` 负责重试；三者通过 `hooks/useImageGeneration.ts` 调用 `service/generation.ts`，分别使用 `POST /api/gptImage/trial` 和 `POST /api/gptImage/generate`。请求类型从 Hono RPC 推导。
+2. 服务端路由 `src/server/api/gpt-image/index.ts` 校验输入并返回 HTTP 响应，`src/server/module/gpt-image/service.ts` 统一构造快照、处理比例拼接并按接入点类型分发。地址、模型和密钥从同一份设置快照解析；云端接入点走同目录 `index.ts`，ComfyUI 走 `comfyui.ts`。不要只凭 Base URL 或模型 ID 猜测协议。
 3. 云端分支使用 API Key、模型、尺寸、画质等参数。ComfyUI 分支只把提示词和一张参考图送入工作流，不使用模板比例、尺寸、画质、张数或“比例拼接”文案。
 4. ComfyUI 提交接口创建任务后尽快返回 `taskId`，后台上传参考图、提交 `/prompt`、按 `prompt_id` 轮询 `/history`，再从标记的最终输出节点下载图片。云端生成仍沿用原有请求流程。
 5. 任务由 `TaskService` 流转 `pending → running → completed/failed`，并发布 `image.tasks` 事件。`useTasks` 收到事件后重新请求任务列表；`TaskList` 展示运行、失败和输出图片，下载与删除使用服务端保存的图片，不依赖 ComfyUI 保留原文件。
+
+云端参考图校验在创建任务之前完成；创建后整个执行流程共用失败收尾。两个生成接口都返回实际的业务 HTTP 状态，存储错误继续由全局 `onError` 映射，前端同时支持字符串错误与结构化存储错误。设置弹窗保存后继续生成时，前端重新读取接入点类型。
 
 任务列表只展示来源为 `gpt-image-2` 或 `comfyui` 的任务。ComfyUI 任务不展示未实际使用的比例、尺寸和画质标签。重试使用任务的输入快照；ComfyUI 重试还使用任务记录的接入点 ID，并读取该接入点当前引用的最新版工作流。原接入点或工作流已删除时应明确报错，不能改用当前云端接入点。
 
@@ -54,20 +57,20 @@ ComfyUI 只允许本机 HTTP 回环地址，规则统一在 `src/shared/gpt-imag
 | `LinAI@prompt` | `inputs.prompt` 每次替换为用户提示词。                     |
 | `LinAI@image1` | `inputs.image` 每次替换为上传到 ComfyUI 的参考图文件名。   |
 | `LinAI@output` | 从该节点的 `history.outputs[节点ID].images` 读取最终图片。 |
-| `LinAI@seed`   | 可选；每次提交前将 `inputs.seed` 替换为随机整数。         |
+| `LinAI@seed`   | 可选；每次提交前将 `inputs.seed` 替换为随机整数。          |
 
 导入与节点校验在 `src/server/module/gpt-image/comfyui-workflow.ts`；节点 ID 从导入文件扫描，不能写死。任务执行在同目录 `comfyui.ts`，每个任务复制工作流后再替换输入，不能修改磁盘模板或共用对象。最终输出要保存到 LinAI 的生成图目录。工作流更详细的约定见 `docs/comfyui/本地工作流接入生图实现方案.md`。
 
 ## 修改时从哪里入手
 
-| 需求                         | 主要入口                                                                                                                                                  |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 改模板字段、文件夹或列表操作 | `src/shared/image/template.ts`、`service/templates.ts`、`TemplateSection/`；核对任务快照和旧模板兼容性。                                                  |
-| 改参考图上传、图库或图片编辑 | `TemplateSection/TemplateForm/ImageUpload.tsx` 及相邻 `Gallery/`、`ImageCrop/`、`ImageDraw/`；核对服务端静态图片目录与上传接口。                          |
-| 增加或修改接入点配置         | `src/shared/gpt-image/endpoints.ts`、`src/server/module/gpt-image/settings.ts`、`store.ts`、`SettingModal/Endpoint/`；后端消费的字段走 SettingsRegistry。 |
-| 改云端生图参数               | `src/server/api/gpt-image/index.ts`、`src/server/module/gpt-image/generate.ts`、`TemplateForm/`、`components/ImageGenerateDropdown.tsx`。                 |
-| 改 ComfyUI 工作流约定或执行  | `src/server/module/gpt-image/comfyui-workflow.ts`、`comfyui.ts`、`src/shared/gpt-image/comfyui.ts`；保留单图校验、任务隔离和输出清理。                    |
-| 改任务展示或重试             | `TaskList/`、`hooks/useTasks.ts`、`src/server/common/task/`；继续复用 `TaskService` 和 `image.tasks` 事件。                                               |
-| 改余额或侧栏接入点展示       | `hooks/useGPTImageQuota.ts`、`src/client/pages/common/Sidebar/EndpointDisplay.tsx`；ComfyUI 不应触发云端余额请求。                                        |
+| 需求                         | 主要入口                                                                                                                                                                                       |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 改模板字段、文件夹或列表操作 | `src/shared/image/template.ts`、`service/templates.ts`、`TemplateSection/`；核对任务快照和旧模板兼容性。                                                                                       |
+| 改参考图上传、图库或图片编辑 | `TemplateSection/TemplateForm/ImageUpload.tsx` 及相邻 `Gallery/`、`ImageCrop/`、`ImageDraw/`；核对服务端静态图片目录与上传接口。                                                               |
+| 增加或修改接入点配置         | `src/shared/gpt-image/endpoints.ts`、`src/server/module/gpt-image/settings.ts`、`store.ts`、`SettingModal/Endpoint/`；后端消费的字段走 SettingsRegistry。                                      |
+| 改云端生图参数               | `src/server/api/gpt-image/index.ts`、`src/server/module/gpt-image/service.ts`、`generate.ts`、`service/generation.ts`、`hooks/useImageGeneration.ts`、`components/ImageGenerateDropdown.tsx`。 |
+| 改 ComfyUI 工作流约定或执行  | `src/server/module/gpt-image/comfyui-workflow.ts`、`comfyui.ts`、`src/shared/gpt-image/comfyui.ts`；保留单图校验、任务隔离和输出清理。                                                         |
+| 改任务展示或重试             | `TaskList/`、`hooks/useTasks.ts`、`hooks/useImageGeneration.ts`、`service/generation.ts`、`src/server/common/task/`；继续复用 `TaskService` 和 `image.tasks` 事件。                            |
+| 改余额或侧栏接入点展示       | `hooks/useGPTImageQuota.ts`、`src/client/pages/common/Sidebar/EndpointDisplay.tsx`；ComfyUI 不应触发云端余额请求。                                                                             |
 
 开发遵循仓库根目录 `AGENTS.md`：依赖用 pnpm，不运行 build 或 eslint；代码完成后用 `npx tsc --noEmit` 做类型检查。除非另有要求，不使用视觉能力验证。

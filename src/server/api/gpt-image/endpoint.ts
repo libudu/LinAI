@@ -1,9 +1,8 @@
 import { isVeniceEndpoint } from '@/shared/gpt-image/endpoints'
 import { Hono } from 'hono'
 import {
-  getGptImageEndpoint,
   getGptImageSettings,
-  getYunwuApiKey,
+  resolveGptImageConnection,
 } from '../../module/gpt-image/settings'
 import { fetchVeniceQuota } from './endpoint-venice'
 
@@ -21,13 +20,14 @@ export interface GPTImageQuotaResponse {
 
 // 接入点相关接口：余额查询针对的是当前接入点，与具体生图任务无关
 const gptImageEndpointApi = new Hono().get('/quota', async (c) => {
-  if ((await getGptImageSettings()).gptImageEndpointKind === 'comfyui') {
+  const settings = await getGptImageSettings()
+  if (settings.gptImageEndpointKind === 'comfyui') {
     return c.json(
       { success: false as const, error: '本地 ComfyUI 不提供云端余额' },
       400,
     )
   }
-  const apiKey = await getYunwuApiKey()
+  const { apiKey, baseUrl } = resolveGptImageConnection(settings)
   if (!apiKey) {
     return c.json(
       { success: false as const, error: '[配置] API Key is not configured' },
@@ -36,7 +36,6 @@ const gptImageEndpointApi = new Hono().get('/quota', async (c) => {
   }
 
   try {
-    const { baseUrl } = await getGptImageEndpoint()
     const origin = new URL(baseUrl).origin
 
     if (isVeniceEndpoint(baseUrl)) {

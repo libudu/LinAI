@@ -1,4 +1,5 @@
 import { normalizeComfyBaseUrl } from '@/shared/gpt-image/comfyui'
+import type { ComfyEndpoint } from '@/shared/gpt-image/endpoints'
 import { COMFY_IMAGE_SOURCE } from '@/shared/image/sources'
 import type { TaskInputSnapshot } from '@/shared/image/template'
 import { randomBytes, randomUUID } from 'crypto'
@@ -322,11 +323,10 @@ async function runComfyTask(
 
 export async function submitComfyTask(
   snapshot: TaskInputSnapshot,
-  endpointId?: string | null,
+  endpoint: ComfyEndpoint,
 ) {
   if (!snapshot.prompt.trim()) throw new Error('请填写提示词')
   const inputPath = await checkedInputPath(snapshot.images)
-  const endpoint = await getComfyEndpoint(endpointId)
   const { workflow, ids } = await loadComfyWorkflow(endpoint.workflowId)
   const baseUrl = normalizeComfyBaseUrl(endpoint.baseUrl)
   const taskId = randomUUID()

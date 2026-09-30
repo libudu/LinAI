@@ -1,7 +1,5 @@
 import { useLocalSetting } from '@/client/hooks/useLocalSetting'
 import { useGlobalStore } from '@/client/store/global'
-import type { AppType } from '@/server'
-import type { Task } from '@/server/common/task'
 import {
   COMFY_IMAGE_SOURCE,
   GPT_IMAGE_SOURCE_MODEL,
@@ -25,9 +23,9 @@ import {
 } from 'antd'
 import copy from 'copy-to-clipboard'
 import dayjs from 'dayjs'
-import { hc } from 'hono/client'
 import { useEffect, useState } from 'react'
 import { ImageGroup } from '../../components/ImageGroup'
+import { useImageGeneration } from '../hooks/useImageGeneration'
 import { useTasks } from '../hooks/useTasks'
 import { TaskImage } from './components/TaskImage'
 import { TaskItemDeleteButton } from './components/TaskItemDeleteButton'
@@ -35,58 +33,16 @@ import { TaskItemDownloadButton } from './components/TaskItemDownloadButton'
 import { TaskItemTags } from './components/TaskItemTags'
 import { TaskListHeader } from './TaskListHeader'
 
-const client = hc<AppType>('/')
 const PAGE_SIZE = 10
 
 export function TaskList() {
   const { data: tasks = [], loading } = useTasks()
   const { gptImageSettings } = useLocalSetting()
+  const { retry: handleRetry } = useImageGeneration()
   const [downloadedIds, setDownloadedIds] = useLocalStorageState<string[]>(
     'downloadedTaskIds',
     { defaultValue: [] },
   )
-
-  const handleRetry = async (task: Task) => {
-    if (task.source === COMFY_IMAGE_SOURCE && !task.comfyEndpointId) {
-      message.error('原 ComfyUI 接入点信息缺失，无法重试')
-      return
-    }
-    // 用任务创建时的模板快照重试，不再依赖模板存储中的当前内容
-    const snapshot = task.inputSnapshot
-    try {
-      const response = await client.api.gptImage.generate.$post({
-        json: {
-          input: {
-            title: snapshot?.title,
-            prompt: snapshot?.prompt || '',
-            images: snapshot?.images || [],
-            aspectRatio:
-              task.source === COMFY_IMAGE_SOURCE
-                ? undefined
-                : snapshot?.aspectRatio,
-            n: task.source === COMFY_IMAGE_SOURCE ? undefined : snapshot?.n,
-          },
-          size:
-            task.source === COMFY_IMAGE_SOURCE
-              ? undefined
-              : (task.size as any) || '2k',
-          quality:
-            task.source === COMFY_IMAGE_SOURCE
-              ? undefined
-              : (task.quality as any) || 'medium',
-          endpointId:
-            task.source === COMFY_IMAGE_SOURCE
-              ? task.comfyEndpointId
-              : undefined,
-        },
-      })
-      const result = await response.json()
-      if (result.success) message.success('已创建重试任务')
-      else message.error(result.error || '重试失败')
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '重试请求失败')
-    }
-  }
 
   // 暂时仅显示 GPT-Image 任务
   const gptImageTasks = tasks

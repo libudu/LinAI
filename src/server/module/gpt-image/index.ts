@@ -8,7 +8,7 @@ import { INPUT_IMAGES_DIR } from '../../common/static'
 import { GENERATED_IMAGES_API_PATH } from '../../common/static/enum'
 import { StorageError } from '../../common/storage/errors'
 import { taskService } from '../../common/task'
-import { calculateSize, generateGPTImage, GptImageUsage } from './generate'
+import { calculateSize, generateGPTImage } from './generate'
 
 export async function handleImageGeneration(options: {
   apiKey: string
@@ -18,6 +18,8 @@ export async function handleImageGeneration(options: {
   size?: GptImageSize
   quality?: GptImageQuality
 }) {
+  let taskId: string | undefined
+  let errorPrefix = '[服务]'
   try {
     const {
       apiKey,
@@ -36,20 +38,8 @@ export async function handleImageGeneration(options: {
       // baseUrl 非法时原样展示
     }
 
-    logger.info(`Generating GPT image`)
-
-    const task = await taskService.createTaskFromSnapshot({
-      snapshot,
-      source: GPT_IMAGE_SOURCE_MODEL,
-      size,
-      quality,
-    })
-
-    await taskService.updateTaskStatus(task.id, 'running')
-    const startTime = Date.now()
-
+    // 输入校验先于任务创建，避免缺失参考图留下无法结束的 running 任务。
     const finalSize = calculateSize(snapshot.aspectRatio || '1:1', size)
-
     const imagePaths: string[] = []
     for (const imgUrl of snapshot.images) {
       const filename = imgUrl.split('/').pop()
@@ -65,42 +55,35 @@ export async function handleImageGeneration(options: {
       }
     }
 
-    let filenames: string[] = []
-    let usage: GptImageUsage | undefined
-    try {
-      const res = await generateGPTImage({
-        apiKey,
-        baseUrl,
-        modelId,
-        prompt: snapshot.prompt,
-        size: finalSize,
-        quality,
-        imagePaths,
-        n: snapshot.n || 1,
-        resolution: size,
-        aspectRatio: snapshot.aspectRatio || '1:1',
-      })
-      logger.info('GPT image generated successfully')
-      filenames = res.filenames
-      usage = res.usage
-    } catch (error: any) {
-      logger.error(
-        `Failed to generate GPT image via ${endpointHost}`,
-        error.message,
-      )
-      await taskService.updateTaskStatus(task.id, 'failed', error.message)
-      return {
-        status: 500,
-        data: {
-          success: false as const,
-          error: `[${endpointHost}] ${error.message}`,
-        },
-      }
-    }
+    logger.info('Generating GPT image')
+    const task = await taskService.createTaskFromSnapshot({
+      snapshot,
+      source: GPT_IMAGE_SOURCE_MODEL,
+      size,
+      quality,
+    })
+    taskId = task.id
+    await taskService.updateTaskStatus(taskId, 'running')
+    const startTime = Date.now()
+
+    errorPrefix = `[${endpointHost}]`
+    const { filenames, usage } = await generateGPTImage({
+      apiKey,
+      baseUrl,
+      modelId,
+      prompt: snapshot.prompt,
+      size: finalSize,
+      quality,
+      imagePaths,
+      n: snapshot.n || 1,
+      resolution: size,
+      aspectRatio: snapshot.aspectRatio || '1:1',
+    })
+    logger.info('GPT image generated successfully')
 
     const duration = Date.now() - startTime
     const outputUrls = filenames.map((f) => `${GENERATED_IMAGES_API_PATH}/${f}`)
-    await taskService.updateTask(task.id, {
+    await taskService.updateTask(taskId, {
       status: 'completed',
       duration,
       outputUrls,
@@ -109,16 +92,24 @@ export async function handleImageGeneration(options: {
 
     logger.info(`GPT image task finished`)
     return {
-      status: 200,
-      data: { success: true as const, outputUrls, taskId: task.id },
+      status: 200 as const,
+      data: { success: true as const, outputUrls, taskId },
     }
-  } catch (error: any) {
-    // 存储层错误（如任务状态写盘失败）抛给全局 onError 统一映射，不在此吞掉
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    // 创建后的整个执行流程共用失败收尾；已删除或结束的任务不会被重新写入。
+    if (taskId) {
+      await taskService.updateActiveTask(taskId, {
+        status: 'failed',
+        error: reason,
+      })
+    }
+    // 存储错误仍交给全局 onError；失败状态写盘失败也会直接向上抛出。
     if (error instanceof StorageError) throw error
-    logger.error(`Failed to generate GPT image`, error.message)
+    logger.error(`Failed to generate GPT image ${errorPrefix}`, reason)
     return {
-      status: 500,
-      data: { success: false as const, error: `[服务] ${error.message}` },
+      status: 500 as const,
+      data: { success: false as const, error: `${errorPrefix} ${reason}` },
     }
   }
 }

@@ -1,20 +1,14 @@
-import { useLocalSetting } from '@/client/hooks/useLocalSetting'
 import { useGlobalStore } from '@/client/store/global'
-import type { AppType } from '@/server'
 import type { GptImageSize } from '@/shared/image/params'
 import { PlusOutlined } from '@ant-design/icons'
 import { Button, Form, message } from 'antd'
-import { hc } from 'hono/client'
 import { useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/shallow'
 import { ImageGenerateDropdown } from '../../components/ImageGenerateDropdown'
+import { useImageGeneration } from '../../hooks/useImageGeneration'
 import { createTemplate } from '../../service/templates'
-import { openGPTImageSettingModal } from '../../SettingModal'
-import { useGptImageStore } from '../../store'
 import { StyleExtractModal } from './StyleExtractModal'
 import { TemplateFormFields } from './TemplateFormItems'
-
-const client = hc<AppType>('/')
 
 interface TemplateFormProps {
   onSuccess: () => void
@@ -26,17 +20,13 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
   const [submitting, setSubmitting] = useState(false)
   const [imageUrls, setImageUrls] = useState<string[]>([])
   const [uploadingCount, setUploadingCount] = useState(0)
-  const gptImageApiKey = useGptImageStore((state) => state.gptImageApiKey)
-  const isComfy = useGptImageStore(
-    (state) => state.gptImageEndpointKind === 'comfyui',
-  )
+  const { trial } = useImageGeneration()
   const { fillTemplateData, setFillTemplateData } = useGlobalStore(
     useShallow((state) => ({
       fillTemplateData: state.fillTemplateData,
       setFillTemplateData: state.setFillTemplateData,
     })),
   )
-  const { gptImageSettings, appendAspectRatio } = useLocalSetting()
   const [openStyleExtractModal, setOpenStyleExtractModal] = useState(false)
 
   // 触发填入模板数据
@@ -60,64 +50,16 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
     }
   }, [fillTemplateData, form])
 
-  const doTrial = async (size: GptImageSize) => {
-    const prompt = form.getFieldValue('prompt')
-    const n = form.getFieldValue('n') || 1
-    if (!prompt) {
-      message.warning('请先填写提示词')
-      return
-    }
-    if (isComfy && imageUrls.length !== 1) {
-      message.warning('ComfyUI 试生成必须恰好提供一张参考图')
-      return
-    }
-    const aspectRatio = form.getFieldValue('aspectRatio') || '1:1'
-
-    try {
-      const res = await client.api.gptImage.trial.$post({
-        json: {
-          prompt,
-          aspectRatio: isComfy ? undefined : aspectRatio,
-          images: imageUrls,
-          size: isComfy ? undefined : size,
-          quality: isComfy ? undefined : gptImageSettings.quality,
-          n: isComfy ? undefined : n,
-          appendAspectRatio: isComfy ? undefined : appendAspectRatio,
-        },
-      })
-
-      const data = await res.json()
-
-      if (!data.success) {
-        message.error(data.error || '生成失败')
-      } else {
-        message.success('任务提交成功')
-      }
-    } catch (error) {
-      message.error('请求失败')
-    }
-  }
-
   const handleTrial = (size: GptImageSize) => {
-    const prompt = form.getFieldValue('prompt')
-    if (!prompt) {
-      message.warning('请先填写提示词')
-      return
-    }
-
-    const apiKey = gptImageApiKey
-    if (!isComfy && !apiKey) {
-      openGPTImageSettingModal({
-        initialTab: 'endpoint',
-        initialOnly: true,
-        onSuccess: () => {
-          doTrial(size)
-        },
-      })
-      return
-    }
-
-    doTrial(size)
+    trial(
+      {
+        prompt: form.getFieldValue('prompt') || '',
+        images: imageUrls,
+        aspectRatio: form.getFieldValue('aspectRatio') || '1:1',
+        n: form.getFieldValue('n') || 1,
+      },
+      size,
+    )
   }
 
   const handleFinish = async (values: any) => {

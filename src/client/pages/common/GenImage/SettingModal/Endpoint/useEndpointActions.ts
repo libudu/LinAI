@@ -94,9 +94,13 @@ export function useEndpointActions() {
         }),
       })
       const result = await response.json()
-      if (!result.success) {
-        message.error(result.error || '工作流导入失败')
-        throw new Error(result.error || '工作流导入失败')
+      if (!response.ok || !result.success) {
+        const errorMessage =
+          (typeof result.error === 'string'
+            ? result.error
+            : result.error?.message) || '工作流导入失败'
+        message.error(errorMessage)
+        throw new Error(errorMessage)
       }
       await fetchConfig()
     } else if (current) {

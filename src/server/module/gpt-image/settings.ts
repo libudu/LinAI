@@ -96,13 +96,10 @@ settingsRegistry.register<GptImageSettings>('gpt-image', {
 export const getGptImageSettings = async (): Promise<GptImageSettings> =>
   (await settingsRegistry.get<GptImageSettings>('gpt-image')).value
 
-export const getYunwuApiKey = async (): Promise<string | null> => {
-  // 按当前接入点解析生效的密钥（预设/自定义 keychain 优先，旧平铺字段兜底）
-  return decryptApiKey(resolveGptImageApiKey(await getGptImageSettings()) || '')
-}
-
-export const getComfyEndpoint = async (id?: string | null) => {
-  const settings = await getGptImageSettings()
+export const resolveComfyEndpoint = (
+  settings: GptImageSettings,
+  id?: string | null,
+) => {
   const endpointId = id ?? settings.gptImageEndpointId
   const endpoint = settings.gptImageComfyEndpoints.find(
     (item) => item.id === endpointId,
@@ -111,9 +108,11 @@ export const getComfyEndpoint = async (id?: string | null) => {
   return endpoint
 }
 
-// 获取 GPT 图像接入点，未配置或失效时回退到默认值
-export const getGptImageEndpoint = async () => {
-  const settings = await getGptImageSettings()
+export const getComfyEndpoint = async (id?: string | null) =>
+  resolveComfyEndpoint(await getGptImageSettings(), id)
+
+// 从同一份设置解析接入点，未配置或失效时回退到默认值
+const resolveGptImageEndpoint = (settings: GptImageSettings) => {
   if (
     settings.gptImageEndpointKind === 'openai' &&
     settings.gptImageEndpointId
@@ -155,3 +154,10 @@ export const getGptImageEndpoint = async () => {
     modelId: DEFAULT_GPT_IMAGE_SETTINGS.gptImageModelId!,
   }
 }
+
+/** 地址、模型和密钥必须从同一份设置快照解析，避免切换接入点时混用配置。 */
+export const resolveGptImageConnection = (settings: GptImageSettings) => ({
+  ...resolveGptImageEndpoint(settings),
+  // 预设/自定义 keychain 优先，旧平铺字段兜底；兼容加密分享的密钥
+  apiKey: decryptApiKey(resolveGptImageApiKey(settings) || ''),
+})

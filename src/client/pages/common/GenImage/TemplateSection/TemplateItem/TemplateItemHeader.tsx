@@ -1,80 +1,21 @@
-import { useLocalSetting } from '@/client/hooks/useLocalSetting'
-import type { AppType } from '@/server'
-import type { GptImageSize } from '@/shared/image/params'
 import { FlatTemplate } from '@/shared/image/template'
 import { DeleteOutlined, HolderOutlined } from '@ant-design/icons'
 import { Button, message, Popconfirm, Space, Tag, Tooltip } from 'antd'
-import { hc } from 'hono/client'
 import React from 'react'
 import { ImageGenerateDropdown } from '../../components/ImageGenerateDropdown'
+import { useImageGeneration } from '../../hooks/useImageGeneration'
 import { deleteTemplate } from '../../service/templates'
-import { openGPTImageSettingModal } from '../../SettingModal'
 import { useGptImageStore } from '../../store'
 import { useTemplates } from '../hooks/useTemplates'
 import { TemplateEditButton } from './TemplateItemEditButton'
 
-const client = hc<AppType>('/')
-
 export const TemplateItemGenerateButtons: React.FC<{
   template: FlatTemplate
 }> = ({ template }) => {
-  const { gptImageSettings, appendAspectRatio } = useLocalSetting()
-  const gptImageApiKey = useGptImageStore((state) => state.gptImageApiKey)
-  const isComfy = useGptImageStore(
-    (state) => state.gptImageEndpointKind === 'comfyui',
-  )
-
-  const doGenerate = async (template: FlatTemplate, size: GptImageSize) => {
-    if (isComfy && (template.images || []).length !== 1) {
-      message.warning('ComfyUI 生成必须恰好提供一张参考图')
-      return
-    }
-    try {
-      const res = await client.api.gptImage.generate.$post({
-        json: {
-          // 提交完整模板快照，后端不再依赖模板存储
-          input: {
-            title: template.title,
-            prompt: template.prompt,
-            images: template.images || [],
-            aspectRatio: isComfy ? undefined : template.aspectRatio,
-            n: isComfy ? undefined : template.n,
-          },
-          size: isComfy ? undefined : size,
-          quality: isComfy ? undefined : gptImageSettings.quality,
-          appendAspectRatio: isComfy ? undefined : appendAspectRatio,
-        },
-      })
-      const data = await res.json()
-      if (!data.success) {
-        message.error(data.error || '生图失败')
-        return
-      }
-      message.success('任务提交成功')
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : '请求失败'
-      message.error(`[网络] ${msg}`)
-    }
-  }
-
-  const handleGenerate = (template: FlatTemplate, size: GptImageSize) => {
-    const apiKey = gptImageApiKey
-    if (!isComfy && !apiKey) {
-      openGPTImageSettingModal({
-        initialTab: 'endpoint',
-        initialOnly: true,
-        onSuccess: () => {
-          doGenerate(template, size)
-        },
-      })
-      return
-    }
-
-    doGenerate(template, size)
-  }
+  const { generate } = useImageGeneration()
   return (
     <ImageGenerateDropdown
-      onGenerate={(size) => handleGenerate(template, size)}
+      onGenerate={(size) => generate(template, size)}
       size="small"
       className="max-w-56"
     />
