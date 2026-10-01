@@ -58,13 +58,20 @@ export function TaskItem({ task, downloadedIds, onDownloaded }: TaskItemProps) {
                 {task.error}
               </Typography.Text>
             </div>
-          ) : !task.outputUrls || task.outputUrls.length === 0 ? (
+          ) : task.status === 'pending' || task.status === 'running' ? (
             <div className="flex flex-col items-center justify-center p-2">
               <Typography.Text strong className="mb-1 text-blue-500!">
-                运行中
+                {task.status === 'pending' ? '等待中' : '运行中'}
                 <SyncOutlined className="ml-1" spin />
               </Typography.Text>
             </div>
+          ) : !task.outputUrls?.length ? (
+            <Typography.Text
+              type="secondary"
+              className="p-2 text-center text-xs"
+            >
+              无可用图片
+            </Typography.Text>
           ) : task.outputUrls.length > 1 ? (
             <div className="flex h-full w-full items-center justify-center">
               <ImageGroup

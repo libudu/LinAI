@@ -1,6 +1,7 @@
 import type { TemplateValue } from '@/shared/image/template'
 import type { StoredItem } from '@/shared/storage/types'
 import { randomUUID } from 'crypto'
+import { withImageLifecycle } from '../../common/static/image-lifecycle'
 import { dataPath } from '../../common/storage/data-path'
 import { storageRegistry } from '../../common/storage/registry'
 
@@ -34,10 +35,12 @@ storageRegistry.register('image.templates', {
   kind: 'collection',
   file: dataPath('templates.json'),
   migrateLegacy: migrateLegacyTemplates,
+  withMutation: withImageLifecycle,
 })
 
 // 图库「待使用」图片跨设备共享，条目只保存输入图库 URL。
 storageRegistry.register('image.pending', {
   kind: 'collection',
   file: dataPath('images', 'pending.json'),
+  withMutation: withImageLifecycle,
 })

@@ -16,6 +16,7 @@ export interface CollectionResourceDef<T = unknown> {
   file: string
   /** 旧格式迁移，见 CollectionStoreOptions */
   migrateLegacy?: (raw: unknown) => StoredItem<T>[]
+  withMutation?: CollectionStoreOptions<T>['withMutation']
 }
 
 export interface EntityResourceDef<T = unknown, S = unknown> {
@@ -61,6 +62,7 @@ class StorageRegistry {
     if (!store) {
       const options: CollectionStoreOptions<unknown> = {
         migrateLegacy: def.migrateLegacy,
+        withMutation: def.withMutation,
         onChange: (change) => changeBus.publish({ resource: id, ...change }),
       }
       store = new CollectionStore(def.file, options)

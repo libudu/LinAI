@@ -1,15 +1,17 @@
-import type { TemplateValue } from '@/shared/image/template'
 import { exec } from 'child_process'
 import crypto from 'crypto'
 import fs from 'fs-extra'
 import path from 'path'
 import sharp from 'sharp'
+import {
+  getImageReferences,
+  imageFilename,
+} from '../../module/gpt-image/image-references'
 import { dataPath } from '../storage/data-path'
-import { storageRegistry } from '../storage/registry'
 // 注册通用存储资源（副作用）
 import '../storage/resources'
-import { taskService } from '../task'
 import { GENERATED_IMAGES_API_PATH, INPUT_IMAGES_API_PATH } from './enum'
+import { publishImageAssetsChange, withImageLifecycle } from './image-lifecycle'
 
 export const IMAGE_MAX_DIMENSION = 2000
 export const IMAGE_COMPRESS_QUALITY = 85
@@ -38,6 +40,7 @@ interface ListedImageInfo {
   url: string
   type: ImageDirectoryType
   createdAt: number
+  isReferenced: boolean
 }
 
 interface DeleteUnreferencedImagesOptions {
@@ -55,12 +58,6 @@ function getImageDirectory(type: ImageDirectoryType) {
 
 function getThumbnailPath(type: ImageDirectoryType, filename: string) {
   return path.join(THUMB_IMAGES_DIR, type, `${path.parse(filename).name}.webp`)
-}
-
-function getImageApiPath(type: ImageDirectoryType) {
-  return type === 'generated'
-    ? GENERATED_IMAGES_API_PATH
-    : INPUT_IMAGES_API_PATH
 }
 
 function getImageMimeType(filename: string) {
@@ -134,9 +131,12 @@ export async function importInputImage(buffer: Buffer) {
   const filename = `${hash}.webp`
   const filepath = path.join(INPUT_IMAGES_DIR, filename)
 
-  if (!(await fs.pathExists(filepath))) {
-    await fs.writeFile(filepath, webpBuffer)
-  }
+  await withImageLifecycle(async () => {
+    if (!(await fs.pathExists(filepath))) {
+      await fs.writeFile(filepath, webpBuffer)
+      publishImageAssetsChange()
+    }
+  })
 
   return {
     url: `${INPUT_IMAGES_API_PATH}/${filename}`,
@@ -183,66 +183,6 @@ export function openImageDirectory(type: ImageDirectoryType) {
   exec(command)
 }
 
-function getFilenameFromUrl(type: ImageDirectoryType, url: string) {
-  const apiPath = getImageApiPath(type)
-
-  if (!url.startsWith(apiPath)) {
-    return null
-  }
-
-  const filename = url
-    .slice(apiPath.length + 1)
-    .split('?')[0]
-    .split('#')[0]
-    .trim()
-
-  return filename ? path.basename(filename) : null
-}
-
-async function getReferencedImageFilenames(type: ImageDirectoryType) {
-  const referencedImages = new Set<string>()
-
-  if (type === 'input') {
-    const snapshot = await storageRegistry
-      .getCollection<TemplateValue>('image.templates')
-      .getSnapshot()
-
-    for (const item of snapshot.items) {
-      if (!Array.isArray(item.value.images)) {
-        continue
-      }
-
-      for (const imageUrl of item.value.images) {
-        const filename = getFilenameFromUrl(type, imageUrl)
-        if (filename) {
-          referencedImages.add(filename)
-        }
-      }
-    }
-
-    return referencedImages
-  }
-
-  const tasks = await taskService.getTasks()
-
-  for (const task of tasks) {
-    const imageUrls = Array.isArray(task.outputUrls)
-      ? task.outputUrls
-      : task.outputUrl
-        ? [task.outputUrl]
-        : []
-
-    for (const imageUrl of imageUrls) {
-      const filename = getFilenameFromUrl(type, imageUrl)
-      if (filename) {
-        referencedImages.add(filename)
-      }
-    }
-  }
-
-  return referencedImages
-}
-
 async function deleteImageFile(type: ImageDirectoryType, filename: string) {
   const filePath = path.join(getImageDirectory(type), filename)
   const thumbPath = getThumbnailPath(type, filename)
@@ -256,17 +196,17 @@ async function deleteImageFile(type: ImageDirectoryType, filename: string) {
   }
 }
 
-export async function deleteUnreferencedImages(
+async function deleteUnreferencedImagesLocked(
   options: DeleteUnreferencedImagesOptions,
 ) {
   const { type, urls } = options
-  const referencedImages = await getReferencedImageFilenames(type)
+  const referencedImages = (await getImageReferences())[type]
   const targetDir = getImageDirectory(type)
   const targetFilenames = new Set<string>()
 
   if (Array.isArray(urls) && urls.length > 0) {
     for (const url of urls) {
-      const filename = getFilenameFromUrl(type, url)
+      const filename = imageFilename(type, url)
       if (filename) {
         targetFilenames.add(filename)
       }
@@ -296,8 +236,13 @@ export async function deleteUnreferencedImages(
     deletedCount++
   }
 
+  if (deletedCount) publishImageAssetsChange()
   return { deletedCount, skippedCount }
 }
+
+export const deleteUnreferencedImages = (
+  options: DeleteUnreferencedImagesOptions,
+) => withImageLifecycle(() => deleteUnreferencedImagesLocked(options))
 
 async function getFilesInfo(
   dir: string,
@@ -323,13 +268,14 @@ async function getFilesInfo(
       url: `${apiPath}/${file}`,
       type,
       createdAt: stat.mtimeMs,
+      isReferenced: false,
     })
   }
 
   return info
 }
 
-export async function listImages() {
+async function listImagesLocked() {
   const generatedInfo = await getFilesInfo(
     GENERATED_IMAGES_DIR,
     GENERATED_IMAGES_API_PATH,
@@ -341,7 +287,15 @@ export async function listImages() {
     'input',
   )
 
-  return [...generatedInfo, ...inputInfo].sort(
-    (a, b) => b.createdAt - a.createdAt,
-  )
+  const references = await getImageReferences()
+  return [...generatedInfo, ...inputInfo]
+    .map((image) => ({
+      ...image,
+      isReferenced: references[image.type].has(
+        imageFilename(image.type, image.url) || '',
+      ),
+    }))
+    .sort((a, b) => b.createdAt - a.createdAt)
 }
+
+export const listImages = () => withImageLifecycle(listImagesLocked)

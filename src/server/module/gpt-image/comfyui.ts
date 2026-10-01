@@ -7,17 +7,16 @@ import fs from 'fs-extra'
 import path from 'path'
 import sharp from 'sharp'
 import { setTimeout as sleep } from 'timers/promises'
-import { GENERATED_IMAGES_DIR, INPUT_IMAGES_DIR } from '../../common/static'
-import {
-  GENERATED_IMAGES_API_PATH,
-  INPUT_IMAGES_API_PATH,
-} from '../../common/static/enum'
+import { INPUT_IMAGES_DIR } from '../../common/static'
+import { INPUT_IMAGES_API_PATH } from '../../common/static/enum'
+import { withImageLifecycle } from '../../common/static/image-lifecycle'
 import { taskService, type Task } from '../../common/task'
 import {
   loadComfyWorkflow,
   type Workflow,
   type WorkflowMarkerIds,
 } from './comfyui-workflow'
+import { GeneratedImageBatch } from './output-files'
 import { getComfyEndpoint } from './settings'
 
 interface ComfyTaskRun {
@@ -27,6 +26,7 @@ interface ComfyTaskRun {
   submission?: Promise<any>
   cancelRequested: boolean
   cancelPromise?: Promise<void>
+  done?: Promise<void>
 }
 
 const activeRuns = new Map<string, ComfyTaskRun>()
@@ -84,6 +84,7 @@ export async function cancelComfyTaskForDeletion(task: Task): Promise<void> {
   const run = activeRuns.get(task.id)
   if (run) {
     await cancelRun(run)
+    await run.done
     return
   }
   if (!task.comfyPromptId) {
@@ -182,9 +183,8 @@ async function runComfyTask(
   ids: WorkflowMarkerIds,
   run: ComfyTaskRun,
 ) {
-  const saved: string[] = []
+  const output = new GeneratedImageBatch()
   const start = Date.now()
-  let completed = false
   try {
     if (!(await taskService.updateActiveTask(taskId, { status: 'running' })))
       return
@@ -287,20 +287,20 @@ async function runComfyTask(
       const ext = format === 'jpeg' ? 'jpg' : format
       if (!ext || !['png', 'jpg', 'webp'].includes(ext))
         throw new Error('ComfyUI 输出图片格式仅支持 PNG、JPEG、WebP')
-      const filename = `${randomUUID()}.${ext}`
-      saved.push(filename)
-      await fs.writeFile(path.join(GENERATED_IMAGES_DIR, filename), bytes)
+      await output.write(bytes, ext as 'png' | 'jpg' | 'webp')
     }
     await waitForCancellation(run)
-    const savedTask = await taskService.updateActiveTask(taskId, {
-      status: 'completed',
-      duration: Date.now() - start,
-      outputUrls: saved.map((file) => `${GENERATED_IMAGES_API_PATH}/${file}`),
+    await withImageLifecycle(async () => {
+      await waitForCancellation(run)
+      if (
+        await taskService.updateActiveTask(taskId, {
+          status: 'completed',
+          duration: Date.now() - start,
+          outputUrls: output.urls,
+        })
+      )
+        output.commit()
     })
-    if (savedTask) {
-      completed = true
-      return
-    }
   } catch (error) {
     if (run.cancelRequested) await run.cancelPromise?.catch(() => {})
     if (!run.cancelRequested) {
@@ -310,14 +310,8 @@ async function runComfyTask(
         .catch(console.error)
     }
   } finally {
+    await output.dispose().catch(console.error)
     activeRuns.delete(taskId)
-    if (!completed) {
-      await Promise.all(
-        saved.map((file) =>
-          fs.remove(path.join(GENERATED_IMAGES_DIR, file)).catch(console.error),
-        ),
-      )
-    }
   }
 }
 
@@ -348,6 +342,6 @@ export async function submitComfyTask(
     cancelRequested: false,
   }
   activeRuns.set(task.id, run)
-  void runComfyTask(task.id, snapshot, inputPath, workflow, ids, run)
+  run.done = runComfyTask(task.id, snapshot, inputPath, workflow, ids, run)
   return task.id
 }

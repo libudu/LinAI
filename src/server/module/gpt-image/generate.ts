@@ -1,15 +1,14 @@
 import { isVeniceEndpoint } from '@/shared/gpt-image/endpoints'
 import type { GptImageQuality, GptImageSize } from '@/shared/image/params'
-import crypto from 'crypto'
 import fs from 'fs-extra'
-import { writeFile } from 'fs/promises'
 import OpenAI, { toFile } from 'openai'
-import path from 'path'
-import { GENERATED_IMAGES_DIR } from '../../common/static'
+import type { GeneratedImageBatch } from './output-files'
 import { writePngGenerationInfo } from './png-meta'
 import { requestVeniceImage } from './venice'
 
 export interface GenerateGPTImageOptions {
+  signal: AbortSignal
+  output: GeneratedImageBatch
   apiKey: string
   baseUrl: string
   modelId: string
@@ -98,9 +97,11 @@ async function requestOpenAIImage(options: {
   quality: GptImageQuality
   n: number
   imagePaths: string[]
+  signal: AbortSignal
 }): Promise<OpenAI.Images.ImagesResponse> {
   const { apiKey, baseUrl, modelId, prompt, size, quality, n, imagePaths } =
     options
+  const { signal } = options
   const client = new OpenAI({
     apiKey,
     baseURL: baseUrl,
@@ -116,23 +117,29 @@ async function requestOpenAIImage(options: {
           }),
       ),
     )
-    return await client.images.edit({
+    return await client.images.edit(
+      {
+        model: modelId,
+        image: imagesToUpload,
+        prompt: prompt,
+        n,
+        size: size as any,
+        quality,
+      },
+      { signal },
+    )
+  }
+  return await client.images.generate(
+    {
       model: modelId,
-      image: imagesToUpload,
-      prompt: prompt,
+      prompt,
       n,
       size: size as any,
       quality,
-    })
-  }
-  return await client.images.generate({
-    model: modelId,
-    prompt,
-    n,
-    size: size as any,
-    quality,
-    moderation: 'low',
-  })
+      moderation: 'low',
+    },
+    { signal },
+  )
 }
 
 export async function generateGPTImage(options: GenerateGPTImageOptions) {
@@ -147,6 +154,8 @@ export async function generateGPTImage(options: GenerateGPTImageOptions) {
     n = 1,
     resolution,
     aspectRatio,
+    signal,
+    output,
   } = options
   const normalizedBaseUrl = normalizeGptImageBaseUrl(baseUrl)
 
@@ -162,6 +171,7 @@ export async function generateGPTImage(options: GenerateGPTImageOptions) {
         imagePaths: images,
         resolution,
         aspectRatio,
+        signal,
       })
     : await requestOpenAIImage({
         apiKey,
@@ -172,9 +182,8 @@ export async function generateGPTImage(options: GenerateGPTImageOptions) {
         quality,
         n,
         imagePaths: images,
+        signal,
       })
-
-  const filenames: string[] = []
 
   // 写入 PNG 元数据的生成参数（写入失败不影响图片保存）
   const generationInfo = {
@@ -188,12 +197,13 @@ export async function generateGPTImage(options: GenerateGPTImageOptions) {
 
   if (res.data && res.data.length > 0) {
     for (const item of res.data) {
+      signal.throwIfAborted()
       let imageBuffer: Buffer | undefined
 
       if (item.b64_json) {
         imageBuffer = Buffer.from(item.b64_json, 'base64')
       } else if (item.url) {
-        const imageResponse = await fetch(item.url)
+        const imageResponse = await fetch(item.url, { signal })
         if (!imageResponse.ok) {
           throw new Error(
             `Failed to download generated image: ${imageResponse.status} ${imageResponse.statusText}`,
@@ -206,16 +216,12 @@ export async function generateGPTImage(options: GenerateGPTImageOptions) {
 
       imageBuffer = writePngGenerationInfo(imageBuffer, generationInfo)
 
-      const hash = crypto.createHash('md5').update(imageBuffer).digest('hex')
-      const filename = `${hash}.png`
-      const filepath = path.join(GENERATED_IMAGES_DIR, filename)
-      await writeFile(filepath, imageBuffer)
-      filenames.push(filename)
+      signal.throwIfAborted()
+      await output.write(imageBuffer, 'png')
     }
   }
 
   return {
-    filenames,
     usage: res.usage,
   }
 }

@@ -1,6 +1,7 @@
 import type { AppType } from '@/server'
 import { Button, message, Modal } from 'antd'
 import { hc } from 'hono/client'
+import { usePendingImages } from './pendingImages'
 
 type GalleryImageType = 'input' | 'generated'
 export type GalleryDeleteSuccessPayload = {
@@ -89,6 +90,9 @@ export function GalleryFooter({
         ? selectedCurrentTabUrls
         : currentTabImages.map((image) => image.url)
 
+    // 明确删除待使用项时先解除这类引用，文件仍由后端检查其他引用。
+    if (activeKey === 'pending') return targetUrls
+
     return targetUrls.filter((url) =>
       currentTabImages.some(
         (image) => image.url === url && image.isReferenced === false,
@@ -115,10 +119,15 @@ export function GalleryFooter({
 
     Modal.confirm({
       title: getDeleteButtonText(),
-      content: `确定删除 ${candidateUrls.length} 张无引用${imageTypeLabel}图片吗？`,
+      content:
+        activeKey === 'pending'
+          ? `确定移除 ${candidateUrls.length} 张待使用图片吗？没有模板或任务引用的图片文件也将删除。`
+          : `确定删除 ${candidateUrls.length} 张无引用${imageTypeLabel}图片吗？`,
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
+          if (activeKey === 'pending')
+            await usePendingImages.getState().remove(candidateUrls)
           const response = await client.api.static.images[
             'delete-unreferenced'
           ].$post({

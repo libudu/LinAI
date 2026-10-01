@@ -66,8 +66,8 @@ export class TaskRepository {
     return flatten(await this.store.update(id, fn))
   }
 
-  async remove(id: string): Promise<void> {
-    await this.store.remove(id)
+  async remove(id: string): Promise<Task> {
+    return flatten(await this.store.removeAndGet(id))
   }
 
   /** 批量整体替换（启动恢复等场景一次落盘） */

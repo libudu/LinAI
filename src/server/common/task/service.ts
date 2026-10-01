@@ -1,10 +1,7 @@
 import type { GptImageQuality, GptImageSize } from '@/shared/image/params'
 import type { TaskInputSnapshot } from '@/shared/image/template'
-import fs from 'fs-extra'
-import path from 'path'
 import { Logger } from '../logger'
-import { GENERATED_IMAGES_DIR } from '../static'
-import { GENERATED_IMAGES_API_PATH } from '../static/enum'
+import { deleteUnreferencedImages } from '../static'
 import { changeBus } from '../storage/change-bus'
 import { StorageError } from '../storage/errors'
 import { TaskRepository } from './repository'
@@ -80,41 +77,20 @@ export class TaskService {
     return task
   }
 
-  async updateTask(id: string, updates: Partial<Task>): Promise<boolean> {
-    await this.ready
-    try {
-      // id/createdAt 由信封管理，不允许通过 updates 覆盖
-      const { id: _id, createdAt: _createdAt, ...rest } = updates
-      await this.repository.update(id, (record) => ({ ...record, ...rest }))
-    } catch (error) {
-      // 仅任务不存在返回 false；写盘失败等错误必须向上抛，禁止静默吞掉
-      if (error instanceof StorageError && error.code === 'NOT_FOUND') {
-        return false
-      }
-      throw error
-    }
-    this.publishChange()
-    return true
-  }
-
-  async updateTaskStatus(
-    id: string,
-    status: Task['status'],
-    error?: string,
-  ): Promise<boolean> {
-    return this.updateTask(id, error ? { status, error } : { status })
-  }
-
   /** 后台任务仅能从未结束状态写入；删除或重启恢复后不得重新完成。 */
-  async updateActiveTask(id: string, updates: Partial<Task>): Promise<boolean> {
+  async updateActiveTask(
+    id: string,
+    updates: Partial<
+      Omit<Task, 'id' | 'createdAt' | 'inputSnapshot' | 'source'>
+    >,
+  ): Promise<boolean> {
     await this.ready
     try {
       await this.repository.update(id, (record) => {
         if (record.status !== 'pending' && record.status !== 'running') {
           throw new Error('TASK_NOT_ACTIVE')
         }
-        const { id: _id, createdAt: _createdAt, ...rest } = updates
-        return { ...record, ...rest }
+        return { ...record, ...updates }
       })
     } catch (error) {
       if (
@@ -131,37 +107,28 @@ export class TaskService {
   /** 删除任务；keepImage 为 false 时同时删除已生成的输出图片 */
   async deleteTask(id: string, keepImage?: boolean): Promise<boolean> {
     await this.ready
-    const tasks = await this.repository.list()
-    const target = tasks.find((t) => t.id === id)
-    if (!target) {
-      return false
+    let target: Task
+    try {
+      target = await this.repository.remove(id)
+    } catch (error) {
+      if (error instanceof StorageError && error.code === 'NOT_FOUND')
+        return false
+      throw error
     }
-
-    await this.repository.remove(id)
     this.publishChange()
 
     if (!keepImage) {
-      const urlsToDelete = target.outputUrls
+      const urlsToDelete = target.outputUrls?.length
         ? target.outputUrls
         : target.outputUrl
           ? [target.outputUrl]
           : []
 
-      for (const outputUrl of urlsToDelete) {
-        if (outputUrl.startsWith('/api/static/')) {
-          try {
-            const filepath = path.join(
-              GENERATED_IMAGES_DIR,
-              outputUrl.replace(GENERATED_IMAGES_API_PATH + '/', ''),
-            )
-
-            if (filepath && fs.existsSync(filepath)) {
-              await fs.unlink(filepath)
-            }
-          } catch (error: any) {
-            this.logger.error('Failed to delete task file:', error)
-          }
-        }
+      if (urlsToDelete.length) {
+        await deleteUnreferencedImages({
+          type: 'generated',
+          urls: urlsToDelete,
+        }).catch((error) => this.logger.error('任务输出图片清理失败', error))
       }
     }
     return true

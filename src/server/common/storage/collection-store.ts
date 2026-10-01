@@ -20,6 +20,8 @@ export interface CollectionStoreOptions<T> {
   maxValueLength?: number
   /** 每次成功落盘后回调（registry 用来接线 change bus） */
   onChange?: (change: { revision: number }) => void
+  /** 可选业务锁：在资源锁外串行化跨资源的引用变更。 */
+  withMutation?: <R>(operation: () => Promise<R>) => Promise<R>
 }
 
 const isEnvelope = (raw: unknown): raw is StoredCollection =>
@@ -97,16 +99,20 @@ export class CollectionStore<T = unknown> {
     fn: (data: StoredCollection<T>) => R,
     expectedRevision?: number,
   ): Promise<R> {
-    return resourceLock.run(this.file, async () => {
-      const data = await this.load()
-      this.assertRevision(data, expectedRevision)
-      const result = fn(data)
-      data.revision += 1
-      data.updatedAt = Date.now()
-      await writeJsonFile(this.file, data)
-      this.options.onChange?.({ revision: data.revision })
-      return structuredClone(result)
-    })
+    const operation = () =>
+      resourceLock.run(this.file, async () => {
+        const data = await this.load()
+        this.assertRevision(data, expectedRevision)
+        const result = fn(data)
+        data.revision += 1
+        data.updatedAt = Date.now()
+        await writeJsonFile(this.file, data)
+        this.options.onChange?.({ revision: data.revision })
+        return structuredClone(result)
+      })
+    return this.options.withMutation
+      ? this.options.withMutation(operation)
+      : operation()
   }
 
   readonly getSnapshot = async (): Promise<StoredCollection<T>> => {
@@ -170,14 +176,25 @@ export class CollectionStore<T = unknown> {
     }, expectedRevision)
   }
 
-  readonly remove = (id: string, expectedRevision?: number): Promise<void> => {
+  /** 删除与取回删除瞬间的记录在同一把资源锁内完成。 */
+  readonly removeAndGet = (
+    id: string,
+    expectedRevision?: number,
+  ): Promise<StoredItem<T>> => {
     return this.mutate((data) => {
       const index = data.items.findIndex((i) => i.id === id)
       if (index === -1) {
         throw new StorageError('NOT_FOUND', `条目不存在: ${id}`)
       }
-      data.items.splice(index, 1)
+      return data.items.splice(index, 1)[0]
     }, expectedRevision)
+  }
+
+  readonly remove = async (
+    id: string,
+    expectedRevision?: number,
+  ): Promise<void> => {
+    await this.removeAndGet(id, expectedRevision)
   }
 
   /** 批量操作：整个批次在同一把资源锁内只写一次文件 */

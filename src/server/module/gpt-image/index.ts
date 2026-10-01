@@ -5,111 +5,119 @@ import fs from 'fs-extra'
 import path from 'path'
 import { logger } from '../../common/logger'
 import { INPUT_IMAGES_DIR } from '../../common/static'
-import { GENERATED_IMAGES_API_PATH } from '../../common/static/enum'
-import { StorageError } from '../../common/storage/errors'
+import { withImageLifecycle } from '../../common/static/image-lifecycle'
 import { taskService } from '../../common/task'
 import { calculateSize, generateGPTImage } from './generate'
+import { imageFilename } from './image-references'
+import { GeneratedImageBatch } from './output-files'
 
-export async function handleImageGeneration(options: {
+interface CloudTaskOptions {
   apiKey: string
   baseUrl: string
   modelId: string
   snapshot: TaskInputSnapshot
   size?: GptImageSize
   quality?: GptImageQuality
-}) {
-  let taskId: string | undefined
-  let errorPrefix = '[服务]'
+}
+
+interface CloudTaskRun {
+  controller: AbortController
+  done: Promise<void>
+}
+const activeRuns = new Map<string, CloudTaskRun>()
+
+/** 取消本地等待并等文件收尾；云端是否停止计费由服务商决定。 */
+export async function cancelCloudTaskForDeletion(id: string): Promise<void> {
+  const run = activeRuns.get(id)
+  if (!run) return
+  run.controller.abort()
+  await run.done
+}
+
+async function runCloudTask(
+  taskId: string,
+  options: CloudTaskOptions,
+  imagePaths: string[],
+  signal: AbortSignal,
+) {
+  const output = new GeneratedImageBatch()
+  const startedAt = Date.now()
   try {
-    const {
-      apiKey,
-      baseUrl,
-      modelId,
-      snapshot,
-      size = '1k',
-      quality = 'medium',
-    } = options
-
-    // 用于错误提示的接入点域名
-    let endpointHost = baseUrl
-    try {
-      endpointHost = new URL(baseUrl).host
-    } catch {
-      // baseUrl 非法时原样展示
-    }
-
-    // 输入校验先于任务创建，避免缺失参考图留下无法结束的 running 任务。
-    const finalSize = calculateSize(snapshot.aspectRatio || '1:1', size)
-    const imagePaths: string[] = []
-    for (const imgUrl of snapshot.images) {
-      const filename = imgUrl.split('/').pop()
-      if (filename) {
-        const imagePath = path.join(INPUT_IMAGES_DIR, filename)
-        if (await fs.pathExists(imagePath)) {
-          imagePaths.push(imagePath)
-        } else {
-          throw new Error(
-            `[服务] Template image not found on Input Dir: ${imagePath}`,
-          )
-        }
-      }
-    }
-
-    logger.info('Generating GPT image')
-    const task = await taskService.createTaskFromSnapshot({
-      snapshot,
-      source: GPT_IMAGE_SOURCE_MODEL,
-      size,
+    if (!(await taskService.updateActiveTask(taskId, { status: 'running' })))
+      return
+    signal.throwIfAborted()
+    const { snapshot, size = '1k', quality = 'medium' } = options
+    const { usage } = await generateGPTImage({
+      ...options,
+      size: calculateSize(snapshot.aspectRatio || '1:1', size),
       quality,
-    })
-    taskId = task.id
-    await taskService.updateTaskStatus(taskId, 'running')
-    const startTime = Date.now()
-
-    errorPrefix = `[${endpointHost}]`
-    const { filenames, usage } = await generateGPTImage({
-      apiKey,
-      baseUrl,
-      modelId,
       prompt: snapshot.prompt,
-      size: finalSize,
-      quality,
       imagePaths,
       n: snapshot.n || 1,
       resolution: size,
       aspectRatio: snapshot.aspectRatio || '1:1',
+      signal,
+      output,
     })
-    logger.info('GPT image generated successfully')
-
-    const duration = Date.now() - startTime
-    const outputUrls = filenames.map((f) => `${GENERATED_IMAGES_API_PATH}/${f}`)
-    await taskService.updateTask(taskId, {
-      status: 'completed',
-      duration,
-      outputUrls,
-      gptTokenUsage: usage,
+    signal.throwIfAborted()
+    if (!output.urls.length) throw new Error('接入点未返回有效图片')
+    await withImageLifecycle(async () => {
+      signal.throwIfAborted()
+      if (
+        await taskService.updateActiveTask(taskId, {
+          status: 'completed',
+          duration: Date.now() - startedAt,
+          outputUrls: output.urls,
+          gptTokenUsage: usage,
+        })
+      )
+        output.commit()
     })
-
-    logger.info(`GPT image task finished`)
-    return {
-      status: 200 as const,
-      data: { success: true as const, outputUrls, taskId },
-    }
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error)
-    // 创建后的整个执行流程共用失败收尾；已删除或结束的任务不会被重新写入。
-    if (taskId) {
-      await taskService.updateActiveTask(taskId, {
-        status: 'failed',
-        error: reason,
-      })
-    }
-    // 存储错误仍交给全局 onError；失败状态写盘失败也会直接向上抛出。
-    if (error instanceof StorageError) throw error
-    logger.error(`Failed to generate GPT image ${errorPrefix}`, reason)
-    return {
-      status: 500 as const,
-      data: { success: false as const, error: `${errorPrefix} ${reason}` },
-    }
+    const reason = signal.aborted
+      ? '[服务] 本地生成任务已取消'
+      : `[${new URL(options.baseUrl).host}] ${error instanceof Error ? error.message : String(error)}`
+    await taskService
+      .updateActiveTask(taskId, { status: 'failed', error: reason })
+      .catch((failure) => logger.error('生成任务失败状态保存失败', failure))
+    if (!signal.aborted) logger.error('云端生图任务失败', reason)
+  } finally {
+    await output
+      .dispose()
+      .catch((error) => logger.error('生成图片清理失败', error))
+    activeRuns.delete(taskId)
   }
+}
+
+/** 输入校验、任务登记在提交阶段完成，执行不占用 HTTP 请求。 */
+export async function submitCloudTask(options: CloudTaskOptions) {
+  if (!options.snapshot.prompt.trim()) throw new Error('请填写提示词')
+  let url: URL
+  try {
+    url = new URL(options.baseUrl)
+  } catch {
+    throw new Error('生图接入点 Base URL 无效，请修改设置')
+  }
+  if (!['http:', 'https:'].includes(url.protocol) || !options.modelId.trim())
+    throw new Error('生图接入点地址或模型未配置，请修改设置')
+  const imagePaths: string[] = []
+  for (const url of options.snapshot.images) {
+    const filename = imageFilename('input', url)
+    if (!filename) throw new Error('参考图必须是 LinAI 已保存的输入图片')
+    const file = path.join(INPUT_IMAGES_DIR, filename)
+    if (!(await fs.pathExists(file)))
+      throw new Error('参考图文件不存在，请重新上传')
+    imagePaths.push(file)
+  }
+  const task = await taskService.createTaskFromSnapshot({
+    snapshot: options.snapshot,
+    source: GPT_IMAGE_SOURCE_MODEL,
+    size: options.size ?? '1k',
+    quality: options.quality ?? 'medium',
+  })
+  const controller = new AbortController()
+  // 执行器的首次 await 会让出控制，删除前已登记本轮执行。
+  const done = runCloudTask(task.id, options, imagePaths, controller.signal)
+  activeRuns.set(task.id, { controller, done })
+  return task.id
 }

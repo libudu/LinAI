@@ -35,6 +35,7 @@ async function postVenice(
   apiKey: string,
   url: string,
   body: Record<string, unknown>,
+  signal: AbortSignal,
 ): Promise<OpenAI.Images.ImagesResponse> {
   const response = await fetch(url, {
     method: 'POST',
@@ -43,6 +44,7 @@ async function postVenice(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
+    signal,
   })
   // multi-edit 成功时直接返回图片文件流，转成 ImagesResponse 结构统一后续处理
   const contentType = response.headers.get('content-type') || ''
@@ -80,6 +82,7 @@ export async function requestVeniceImage(options: {
   imagePaths: string[]
   resolution?: GptImageSize
   aspectRatio?: string
+  signal: AbortSignal
 }): Promise<OpenAI.Images.ImagesResponse> {
   const {
     apiKey,
@@ -91,6 +94,7 @@ export async function requestVeniceImage(options: {
     imagePaths,
     resolution,
     aspectRatio,
+    signal,
   } = options
   const origin = new URL(baseUrl).origin
   const aspectRatioParam = VENICE_ASPECT_RATIOS.includes(aspectRatio || '')
@@ -103,29 +107,39 @@ export async function requestVeniceImage(options: {
         (await fs.readFile(file)).toString('base64'),
       ),
     )
-    return postVenice(apiKey, `${origin}${MULTI_EDIT_PATH}`, {
-      prompt,
-      images,
-      modelId,
-      aspect_ratio: aspectRatioParam ?? 'auto',
-      output_format: 'png',
-      quality,
-      ...(resolution ? { resolution: resolution.toUpperCase() } : {}),
-      safe_mode: false,
-      enhance_prompt: false,
-    })
+    return postVenice(
+      apiKey,
+      `${origin}${MULTI_EDIT_PATH}`,
+      {
+        prompt,
+        images,
+        modelId,
+        aspect_ratio: aspectRatioParam ?? 'auto',
+        output_format: 'png',
+        quality,
+        ...(resolution ? { resolution: resolution.toUpperCase() } : {}),
+        safe_mode: false,
+        enhance_prompt: false,
+      },
+      signal,
+    )
   }
 
-  return postVenice(apiKey, `${origin}${GENERATE_PATH}`, {
-    model: toVeniceGenerateModelId(modelId),
-    prompt,
-    // Venice 的生成张数参数为 variants（仅支持 1-4）
-    variants: Math.min(Math.max(n, 1), 4),
-    ...(aspectRatioParam ? { aspect_ratio: aspectRatioParam } : {}),
-    ...(resolution ? { resolution: resolution.toUpperCase() } : {}),
-    quality,
-    format: 'png',
-    safe_mode: false,
-    enhance_prompt: false,
-  })
+  return postVenice(
+    apiKey,
+    `${origin}${GENERATE_PATH}`,
+    {
+      model: toVeniceGenerateModelId(modelId),
+      prompt,
+      // Venice 的生成张数参数为 variants（仅支持 1-4）
+      variants: Math.min(Math.max(n, 1), 4),
+      ...(aspectRatioParam ? { aspect_ratio: aspectRatioParam } : {}),
+      ...(resolution ? { resolution: resolution.toUpperCase() } : {}),
+      quality,
+      format: 'png',
+      safe_mode: false,
+      enhance_prompt: false,
+    },
+    signal,
+  )
 }

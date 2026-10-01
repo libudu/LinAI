@@ -1,11 +1,11 @@
+import { subscribeStorageEvent } from '@/client/service/storage-events'
 import type { AppType } from '@/server'
 import {
   GENERATED_IMAGES_API_PATH,
   INPUT_IMAGES_API_PATH,
 } from '@/server/common/static/enum'
 import { hc } from 'hono/client'
-import { useEffect, useMemo, useState } from 'react'
-import { useTasks } from '../../../hooks/useTasks'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTemplates } from '../../hooks/useTemplates'
 
 const client = hc<AppType>('/')
@@ -29,123 +29,58 @@ export const normalizeComparableUrl = (url: string) =>
     .split('#')[0]
     .trim()
 
-const getComparableImageUrl = (
-  type: GalleryImageItem['type'],
-  url: string,
-): string | null => {
+const getComparableImageUrl = (type: GalleryImageItem['type'], url: string) => {
   const apiPath =
     type === 'input' ? INPUT_IMAGES_API_PATH : GENERATED_IMAGES_API_PATH
-  const normalizedUrl = normalizeComparableUrl(url)
-
-  return normalizedUrl.startsWith(`${apiPath}/`) ? normalizedUrl : null
+  const normalized = normalizeComparableUrl(url)
+  return normalized.startsWith(`${apiPath}/`) ? normalized : null
 }
 
-type FetchedImage = Omit<GalleryImageItem, 'isReferenced'>
-
 export function useGalleryImages(visible: boolean) {
-  const [fetchedImages, setFetchedImages] = useState<FetchedImage[]>([])
+  const [images, setImages] = useState<GalleryImageItem[]>([])
   const [loading, setLoading] = useState(false)
   const [imagesLoaded, setImagesLoaded] = useState(false)
   const [imagesLoadSucceeded, setImagesLoadSucceeded] = useState(false)
   const { data: templates = [], loading: templatesLoading } = useTemplates()
-  const { data: tasks = [], loading: tasksLoading } = useTasks()
+  const referencesReady = imagesLoadSucceeded
 
-  const referencesReady = !templatesLoading && !tasksLoading
-
-  const referencedInputUrls = useMemo(
-    () =>
-      new Set(
-        templates.flatMap((template) =>
-          Array.isArray(template.images)
-            ? template.images
-                .map((url) => getComparableImageUrl('input', url))
-                .filter((url): url is string => Boolean(url))
-            : [],
-        ),
-      ),
-    [templates],
-  )
-
-  const referencedGeneratedUrls = useMemo(() => {
-    const urls = tasks.flatMap((task) => {
-      if (Array.isArray(task.outputUrls) && task.outputUrls.length > 0) {
-        return task.outputUrls
-          .map((url) => getComparableImageUrl('generated', url))
-          .filter((url): url is string => Boolean(url))
-      }
-
-      if (!task.outputUrl) {
-        return []
-      }
-
-      const normalizedUrl = getComparableImageUrl('generated', task.outputUrl)
-      return normalizedUrl ? [normalizedUrl] : []
-    })
-
-    return new Set(urls)
-  }, [tasks])
-
-  const resolveIsReferenced = (
-    image: Pick<GalleryImageItem, 'url' | 'type'>,
-  ): boolean => {
-    if (!referencesReady) {
-      return true
-    }
-
-    const comparableUrl = getComparableImageUrl(image.type, image.url)
-    if (!comparableUrl) {
-      return true
-    }
-
-    return image.type === 'input'
-      ? referencedInputUrls.has(comparableUrl)
-      : referencedGeneratedUrls.has(comparableUrl)
-  }
-
-  // isReferenced 由 fetchedImages + 引用集合派生，避免 fetch 闭包快照与引用加载完成的时序竞态
-  const images = useMemo<GalleryImageItem[]>(
-    () =>
-      fetchedImages.map((image) => ({
-        ...image,
-        isReferenced: resolveIsReferenced(image),
-      })),
-    [
-      fetchedImages,
-      referencesReady,
-      referencedInputUrls,
-      referencedGeneratedUrls,
-    ],
-  )
-
-  const fetchImages = async (): Promise<FetchedImage[] | null> => {
+  const fetchImages = async (): Promise<GalleryImageItem[] | null> => {
     setLoading(true)
     setImagesLoaded(false)
     setImagesLoadSucceeded(false)
     try {
-      const res = await client.api.static.images.list.$get()
-      const data = await res.json()
-      if (data.success) {
-        const nextImages = data.data as FetchedImage[]
-        setFetchedImages(nextImages)
-        setImagesLoadSucceeded(true)
-        return nextImages
-      }
+      const response = await client.api.static.images.list.$get()
+      const result = await response.json()
+      if (!response.ok || !result.success || !('data' in result))
+        throw new Error('获取图库失败')
+      const nextImages = result.data as GalleryImageItem[]
+      setImages(nextImages)
+      setImagesLoadSucceeded(true)
+      return nextImages
     } catch (error) {
       console.error('Failed to fetch images', error)
+      return null
     } finally {
       setLoading(false)
       setImagesLoaded(true)
     }
-
-    return null
   }
-
+  const fetchImagesRef = useRef(fetchImages)
+  fetchImagesRef.current = fetchImages
   useEffect(() => {
-    if (visible) {
-      fetchImages()
+    if (!visible) return
+    const refresh = () => {
+      void fetchImagesRef.current()
     }
+    refresh()
+    const subscriptions = [
+      'image.assets',
+      'image.templates',
+      'image.tasks',
+      'image.pending',
+    ].map((resource) => subscribeStorageEvent(resource, refresh))
+    return () => subscriptions.forEach((unsubscribe) => unsubscribe())
   }, [visible])
-
   const imageByUrl = useMemo(
     () => new Map(images.map((image) => [image.url, image])),
     [images],

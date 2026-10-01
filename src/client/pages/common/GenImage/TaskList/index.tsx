@@ -26,7 +26,7 @@ export function TaskList() {
     )
     .map((t) => ({
       ...t,
-      outputUrls: t.outputUrls
+      outputUrls: t.outputUrls?.length
         ? t.outputUrls
         : t.outputUrl
           ? [t.outputUrl]

@@ -39,16 +39,24 @@
 1. `TemplateForm` 负责试生成，`TemplateItemHeader` 负责按已保存模板生成，`TaskList/TaskItem.tsx` 负责重试；三者通过 `hooks/useImageGeneration.ts` 调用 `service/generation.ts`，分别使用 `POST /api/gptImage/trial` 和 `POST /api/gptImage/generate`。请求类型从 Hono RPC 推导。
 2. 服务端路由 `src/server/api/gpt-image/index.ts` 校验输入并返回 HTTP 响应，`src/server/module/gpt-image/service.ts` 统一构造快照、处理比例拼接并按接入点类型分发。地址、模型和密钥从同一份设置快照解析；云端接入点走同目录 `index.ts`，ComfyUI 走 `comfyui.ts`。不要只凭 Base URL 或模型 ID 猜测协议。
 3. 云端分支使用 API Key、模型、尺寸、画质等参数。ComfyUI 分支只把提示词和一张参考图送入工作流，不使用模板比例、尺寸、画质、张数或“比例拼接”文案。
-4. ComfyUI 提交接口创建任务后尽快返回 `taskId`，后台上传参考图、提交 `/prompt`、按 `prompt_id` 轮询 `/history`，再从标记的最终输出节点下载图片。云端生成仍沿用原有请求流程。
+4. ComfyUI 提交接口创建任务后尽快返回 `taskId`，后台上传参考图、提交 `/prompt`、按 `prompt_id` 轮询 `/history`，再从标记的最终输出节点下载图片。云端生成也在任务登记后返回 `taskId`，后台执行；执行失败经任务状态展示，不再占用整轮 HTTP 请求。
 5. 任务由 `TaskService` 流转 `pending → running → completed/failed`，并发布 `image.tasks` 事件。`useTasks` 收到事件后重新请求任务列表；`TaskList` 展示运行、失败和输出图片，下载与删除使用服务端保存的图片，不依赖 ComfyUI 保留原文件。
 
-云端参考图校验在创建任务之前完成；创建后整个执行流程共用失败收尾。两个生成接口都返回实际的业务 HTTP 状态，存储错误继续由全局 `onError` 映射，前端同时支持字符串错误与结构化存储错误。设置弹窗保存后继续生成时，前端重新读取接入点类型。
+云端参考图校验在创建任务之前完成；创建后整个执行流程共用失败收尾。两个生成接口的提交阶段返回实际的业务 HTTP 状态，存储错误继续由全局 `onError` 映射，前端同时支持字符串错误与结构化存储错误。设置弹窗保存后继续生成时，前端重新读取接入点类型。
 
 任务列表只展示来源为 `gpt-image-2` 或 `comfyui` 的任务。ComfyUI 任务不展示未实际使用的比例、尺寸和画质标签。重试使用任务的输入快照；ComfyUI 重试还使用任务记录的接入点 ID，并读取该接入点当前引用的最新版工作流。原接入点或工作流已删除时应明确报错，不能改用当前云端接入点。
 
 `TaskList/index.tsx` 管理任务过滤、分页、图片预览组和下载记录，`TaskList/TaskItem.tsx` 展示单个任务的图片或错误、信息与操作。任务类型由服务端 `common/task/types.ts` 拥有，显式声明可选的 ComfyUI 元数据与 GPT token 用量；旧任务迁移和存储读改写继续保留已有字段。
 
 模板表单类型从共享的 `TemplateValue` 派生，参考图仍由独立上传状态管理。新建、编辑和另存统一经 `TemplateSection/TemplateForm/values.ts` 的 `toTemplateValue` 提取业务字段（包含张数 `n`）；编辑与另存保留未显示的比例、张数，清空张数时按未指定处理。
+
+## 图片引用与执行收尾
+
+`src/server/module/gpt-image/image-references.ts` 统一计算引用：输入图片由模板、所有任务的输入快照及待使用图片引用，生成图片由任务输出及尚未提交的执行文件引用。图库列表返回 `isReferenced`，前端不再自行判断能否删除；删除接口仍会重新检查。明确删除待使用项时先解除待使用引用，再清理没有模板或任务引用的文件。模板、待使用图片写入、任务提交和图片清理共用短期图片生命周期锁，锁内只做本地读写，不等待远端生成。
+
+云端与 ComfyUI 共用 `GeneratedImageBatch`，每次执行拥有独立输出文件。任务成功状态落盘后确认保留，失败、取消或任务已删除时清理本次文件；未返回有效图片不能标记完成。任务删除原子取回删除瞬间的记录，清理时仍保护其他任务引用的旧共享文件，并清理缩略图。文件清理失败记录日志，后续图库清理可以再次处理；磁盘故障或进程崩溃不构成跨文件事务。
+
+删除运行中的 ComfyUI 任务会先取消远端工作流；删除云端任务会中断本地等待并等待文件收尾，无法保证服务商停止执行或计费。保留图片选项保留已成功生成的输出，未完成的部分输出仍清理。
 
 ## 接入点与工作流
 

@@ -5,6 +5,7 @@ import { DeleteOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { Button, Checkbox, message, Modal, Tooltip } from 'antd'
 import { hc } from 'hono/client'
+import { useState } from 'react'
 
 const client = hc<AppType>('/')
 
@@ -22,6 +23,7 @@ export function TaskItemDeleteButton({
   onSuccess,
 }: DeleteTaskButtonProps) {
   const { gptImageSettings } = useLocalSetting()
+  const [deleting, setDeleting] = useState(false)
   const [skipDeleteConfirm, setSkipDeleteConfirm] = useLocalStorageState(
     'skipDeleteTaskConfirm',
     {
@@ -30,6 +32,7 @@ export function TaskItemDeleteButton({
   )
 
   const doDelete = async () => {
+    setDeleting(true)
     try {
       const res = await client.api.task[':id'].$delete({
         param: { id },
@@ -44,10 +47,19 @@ export function TaskItemDeleteButton({
         message.success('删除成功')
         onSuccess?.()
       } else {
-        message.error(json.error || '删除失败')
+        const error: unknown = json.error
+        message.error(
+          typeof error === 'string'
+            ? error
+            : error && typeof error === 'object' && 'message' in error
+              ? String(error.message)
+              : '删除失败',
+        )
       }
     } catch (error) {
-      message.error('删除失败')
+      message.error(error instanceof Error ? error.message : '删除失败')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -72,6 +84,11 @@ export function TaskItemDeleteButton({
               : '删除任务将同时删除其生成的图片文件，且不可恢复。'}
           </p>
           {cancelsComfy && <p>删除后也会终止 ComfyUI 中的生成任务。</p>}
+          {!cancelsComfy && (status === 'pending' || status === 'running') && (
+            <p>
+              删除后会停止本地等待并清理未完成输出；云端执行和计费可能继续。
+            </p>
+          )}
           <Checkbox
             onChange={(e) => {
               skipNext = e.target.checked
@@ -87,7 +104,7 @@ export function TaskItemDeleteButton({
         if (skipNext) {
           setSkipDeleteConfirm(true)
         }
-        doDelete()
+        return doDelete()
       },
     })
   }
@@ -99,6 +116,7 @@ export function TaskItemDeleteButton({
         danger
         icon={<DeleteOutlined />}
         onClick={handleDelete}
+        loading={deleting}
       />
     </Tooltip>
   )
