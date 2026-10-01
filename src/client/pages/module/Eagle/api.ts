@@ -1,17 +1,9 @@
-import { apiRequest } from '@/client/service/storage'
-import type {
-  EagleItemsResp,
-  EagleLibraryOverview,
-  EagleSortBy,
-  EagleSortOrder,
-} from '@/shared/eagle/types'
+import { rpcData } from '@/client/service/http'
+import type { EagleSortBy, EagleSortOrder } from '@/shared/eagle/types'
+import type { InferRequestType } from 'hono/client'
+import { eagleRpc } from './rpc'
 
-// Eagle 图片管理模块接口封装（/api/eagle/*）
-
-export const fetchEagleOverview = async (): Promise<EagleLibraryOverview> => {
-  const json = await apiRequest<EagleLibraryOverview>('/api/eagle/overview')
-  return json.data
-}
+export const fetchEagleOverview = () => rpcData(eagleRpc.overview.$get())
 
 export interface FetchEagleItemsParams {
   folderId?: string
@@ -21,99 +13,59 @@ export interface FetchEagleItemsParams {
   limit: number
 }
 
-export const fetchEagleItems = async (
-  params: FetchEagleItemsParams,
-): Promise<EagleItemsResp> => {
-  const search = new URLSearchParams({
-    sortBy: params.sortBy,
-    sortOrder: params.sortOrder,
-    offset: String(params.offset),
-    limit: String(params.limit),
-  })
-  if (params.folderId) search.set('folderId', params.folderId)
-  const json = await apiRequest<EagleItemsResp>(`/api/eagle/items?${search}`)
-  return json.data
-}
+export const fetchEagleItems = (params: FetchEagleItemsParams) =>
+  rpcData(
+    eagleRpc.items.$get({
+      query: {
+        ...params,
+        offset: String(params.offset),
+        limit: String(params.limit),
+      },
+    }),
+  )
 
 export const refreshEagleIndex = async (): Promise<void> => {
-  await apiRequest<null>('/api/eagle/refresh', { method: 'POST' })
+  await rpcData(eagleRpc.refresh.$post())
 }
 
-// 编辑文件夹名称/描述
 export const updateEagleFolder = async (
   id: string,
-  patch: { name: string; description: string },
+  patch: InferRequestType<(typeof eagleRpc.folders)[':id']['$put']>['json'],
 ): Promise<void> => {
-  await apiRequest<null>(`/api/eagle/folders/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  })
+  await rpcData(eagleRpc.folders[':id'].$put({ param: { id }, json: patch }))
 }
 
-// 编辑条目（修改所属文件夹 / 标题）
 export const updateEagleItem = async (
   id: string,
-  patch: { folderIds?: string[]; name?: string },
+  patch: InferRequestType<(typeof eagleRpc.items)[':id']['$put']>['json'],
 ): Promise<void> => {
-  await apiRequest<null>(`/api/eagle/items/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  })
+  await rpcData(eagleRpc.items[':id'].$put({ param: { id }, json: patch }))
 }
 
-// 移入 Eagle 回收站（软删除）
 export const deleteEagleItem = async (id: string): Promise<void> => {
-  await apiRequest<null>(`/api/eagle/items/${id}`, {
-    method: 'DELETE',
-  })
+  await rpcData(eagleRpc.items[':id'].$delete({ param: { id } }))
 }
 
-// 从 Eagle 回收站恢复
 export const restoreEagleItem = async (id: string): Promise<void> => {
-  await apiRequest<null>(`/api/eagle/items/${id}/restore`, {
-    method: 'POST',
-  })
+  await rpcData(eagleRpc.items[':id'].restore.$post({ param: { id } }))
 }
 
-// 彻底删除单张图片（物理删除磁盘文件）
 export const purgeEagleItem = async (id: string): Promise<void> => {
-  await apiRequest<null>(`/api/eagle/items/${id}/purge`, {
-    method: 'DELETE',
-  })
+  await rpcData(eagleRpc.items[':id'].purge.$delete({ param: { id } }))
 }
 
-// 全部彻底删除回收站文件（清空回收站）
-export const purgeEagleTrash = async (): Promise<{ count: number }> => {
-  const json = await apiRequest<{ count: number }>('/api/eagle/trash/purge', {
-    method: 'POST',
-  })
-  return json.data
-}
-
-// 全部移动到回收站（未分类目录下的所有条目）
-export const trashAllUnclassifiedEagleItems = async (): Promise<{
-  count: number
-}> => {
-  const json = await apiRequest<{ count: number }>(
-    '/api/eagle/unclassified/trash',
-    {
-      method: 'POST',
-    },
-  )
-  return json.data
-}
+export const purgeEagleTrash = () => rpcData(eagleRpc.trash.purge.$post())
+export const trashAllUnclassifiedEagleItems = () =>
+  rpcData(eagleRpc.unclassified.trash.$post())
 
 export const eagleThumbnailUrl = (id: string) =>
-  `/api/eagle/items/${id}/thumbnail`
-
-export const eagleFileUrl = (id: string) => `/api/eagle/items/${id}/file`
+  eagleRpc.items[':id'].thumbnail.$path({ param: { id } })
+export const eagleFileUrl = (id: string) =>
+  eagleRpc.items[':id'].file.$path({ param: { id } })
 
 export const addEagleItemToGallery = async (id: string): Promise<string> => {
-  const json = await apiRequest<{ url: string }>(
-    `/api/eagle/items/${id}/add-to-gallery`,
-    { method: 'POST' },
+  const data = await rpcData(
+    eagleRpc.items[':id']['add-to-gallery'].$post({ param: { id } }),
   )
-  return json.data.url
+  return data.url
 }

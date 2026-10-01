@@ -1,4 +1,4 @@
-import { apiRequest } from './storage'
+import { apiRequest } from './http'
 
 /**
  * 注册式设置客户端（GET/PUT /api/settings/:id）。

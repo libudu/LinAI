@@ -1,9 +1,7 @@
-import { StorageApiError } from '@/client/service/storage'
 import type { OrganizeResultListItem } from '@/shared/eagle/organize'
 import { message } from 'antd'
 import { useCallback } from 'react'
-import { deleteEagleItem } from '../../../api'
-import { skipOrganizeResult } from '../../api'
+import { trashOrganizeResult } from '../../api'
 import { beginOptimisticItem, cancelOptimisticItems } from '../../store'
 import type { PendingConfirmItem } from '../types'
 import {
@@ -16,22 +14,19 @@ import { useConfirmSubmission } from './useConfirmSubmission'
 export function useConfirmQueue(options: UseConfirmResultsOptions) {
   const list = useConfirmResults(options)
   const { removeItem, restoreItems, selectedId } = list
-  const { taskCreatedAt } = options
+  const { taskId } = options
   const submission = useConfirmSubmission({ restoreItems })
   const { enqueue, runAction: submitAction, flushPendingBatch } = submission
 
   const takeItem = useCallback(
     (itemId: string) => {
-      if (
-        taskCreatedAt === undefined ||
-        !beginOptimisticItem(itemId, taskCreatedAt)
-      )
+      if (taskId === undefined || !beginOptimisticItem(itemId, taskId))
         return null
       const removed = removeItem(itemId)
-      if (!removed) cancelOptimisticItems([itemId], taskCreatedAt)
-      return removed ? { ...removed, taskCreatedAt } : null
+      if (!removed) cancelOptimisticItems([itemId], taskId)
+      return removed ? { ...removed, taskId } : null
     },
-    [removeItem, taskCreatedAt],
+    [removeItem, taskId],
   )
 
   const enqueueConfirmation = useCallback(
@@ -70,14 +65,17 @@ export function useConfirmQueue(options: UseConfirmResultsOptions) {
   )
 
   const runAction = useCallback(
-    async (action: (itemId: string) => Promise<void>, targetId?: string) => {
+    async (
+      action: (itemId: string, taskId: string) => Promise<void>,
+      targetId?: string,
+    ) => {
       const itemId = targetId ?? selectedId
       if (!itemId) return
       const removed = takeItem(itemId)
       if (!removed) return
       await submitAction(
         { ...removed, itemId, folderPath: '', withTitle: false },
-        () => action(itemId),
+        () => action(itemId, removed.taskId),
       )
     },
     [selectedId, submitAction, takeItem],
@@ -86,16 +84,8 @@ export function useConfirmQueue(options: UseConfirmResultsOptions) {
   /** 删除成功或条目已不存在后才跳过；其他失败由提交层恢复待确认项。 */
   const trashItem = useCallback(
     (itemId: string) =>
-      runAction(async (id) => {
-        let missing = false
-        try {
-          await deleteEagleItem(id)
-        } catch (error) {
-          if (!(error instanceof StorageApiError) || error.status !== 404)
-            throw error
-          missing = true
-        }
-        await skipOrganizeResult(id)
+      runAction(async (id, taskId) => {
+        const { missing } = await trashOrganizeResult(id, taskId)
         message.success(
           missing ? '图片已不存在，已跳过整理结果' : '已移至回收站',
         )

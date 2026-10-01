@@ -22,15 +22,15 @@ export function useConfirmSubmission(options: UseConfirmSubmissionOptions) {
   const queueRef = useRef<ConfirmSubmissionQueue | null>(null)
   if (!queueRef.current) {
     queueRef.current = new ConfirmSubmissionQueue(async (batch) => {
-      const groups = new Map<number, PendingConfirmItem[]>()
+      const groups = new Map<string, PendingConfirmItem[]>()
       for (const item of batch) {
-        const group = groups.get(item.taskCreatedAt) ?? []
+        const group = groups.get(item.taskId) ?? []
         group.push(item)
-        groups.set(item.taskCreatedAt, group)
+        groups.set(item.taskId, group)
       }
-      for (const [taskCreatedAt, items] of groups) {
+      for (const [taskId, items] of groups) {
         const ids = items.map((item) => item.itemId)
-        markOptimisticItemsSubmitting(ids, taskCreatedAt)
+        markOptimisticItemsSubmitting(ids, taskId)
         let failed: PendingConfirmItem[] = []
         try {
           const response = await confirmOrganizeResultsBatch(
@@ -40,7 +40,7 @@ export function useConfirmSubmission(options: UseConfirmSubmissionOptions) {
               folderId,
               withTitle,
             })),
-            taskCreatedAt,
+            taskId,
           )
           const results = new Map(
             response.items.map((result) => [result.itemId, result]),
@@ -58,11 +58,11 @@ export function useConfirmSubmission(options: UseConfirmSubmissionOptions) {
           message.error(error instanceof Error ? error.message : '确认失败')
         }
         const failedIds = new Set(failed.map((item) => item.itemId))
-        cancelOptimisticItems([...failedIds], taskCreatedAt)
+        cancelOptimisticItems([...failedIds], taskId)
         if (mountedRef.current) optionsRef.current.restoreItems(failed)
         await settleOptimisticItems(
           ids.filter((id) => !failedIds.has(id)),
-          taskCreatedAt,
+          taskId,
         )
       }
     })
@@ -85,22 +85,19 @@ export function useConfirmSubmission(options: UseConfirmSubmissionOptions) {
   const runAction = useCallback(
     (item: PendingConfirmItem, action: () => Promise<void>) =>
       queueRef.current!.runAction(async () => {
-        markOptimisticItemsSubmitting([item.itemId], item.taskCreatedAt)
+        markOptimisticItemsSubmitting([item.itemId], item.taskId)
         let succeeded = false
         try {
-          if (!isCurrentOrganizeTask(item.taskCreatedAt))
+          if (!isCurrentOrganizeTask(item.taskId))
             throw new Error('整理任务已变更，请重新打开确认列表')
           await action()
           succeeded = true
         } catch (error) {
           message.error(error instanceof Error ? error.message : '操作失败')
-          cancelOptimisticItems([item.itemId], item.taskCreatedAt)
+          cancelOptimisticItems([item.itemId], item.taskId)
           if (mountedRef.current) optionsRef.current.restoreItems([item])
         }
-        await settleOptimisticItems(
-          succeeded ? [item.itemId] : [],
-          item.taskCreatedAt,
-        )
+        await settleOptimisticItems(succeeded ? [item.itemId] : [], item.taskId)
       }),
     [],
   )

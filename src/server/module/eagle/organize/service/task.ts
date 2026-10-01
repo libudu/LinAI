@@ -4,6 +4,7 @@ import {
   type OrganizeStatus,
   type OrganizeTaskView,
 } from '@/shared/eagle/organize'
+import { randomUUID } from 'node:crypto'
 import { getClassifiableItems, getFolderStandards } from '../../library'
 import { organizeExecutor } from '../executor'
 import type { OrganizeTaskRecord } from '../model'
@@ -77,6 +78,7 @@ export class TaskService {
     const task = await organizeRepository.getTask()
     if (!task) return null
     return {
+      taskId: task.taskId,
       createdAt: task.createdAt,
       phase: task.phase,
       total: task.itemIds.length,
@@ -113,6 +115,7 @@ export class TaskService {
         latestStandards,
       )
       return {
+        taskId: task.taskId,
         sourceFolderName,
         standards: task.standards,
         imageCount,
@@ -128,6 +131,7 @@ export class TaskService {
       getClassifiableItems(params),
     ])
     return {
+      taskId: task?.taskId ?? null,
       sourceFolderName,
       standards,
       imageCount: items.total,
@@ -162,6 +166,7 @@ export class TaskService {
     }
     const folderName = await resolveFolderName(params.folderId)
     const record: OrganizeTaskRecord = {
+      taskId: randomUUID(),
       phase: 'running',
       pausedReason: null,
       compress: params.compress,
@@ -207,8 +212,7 @@ export class TaskService {
     let noAvailableItems = false
     const updated = await organizeRepository.mutateTask((latest) => {
       // 读取范围期间任务可能完成或被替换，不把旧请求追加到新任务。
-      if (latest.phase === 'done' || latest.createdAt !== task.createdAt)
-        return null
+      if (latest.phase === 'done' || latest.taskId !== task.taskId) return null
       const toAppend = getAvailableItemIds(allAvailable, [
         ...latest.itemIds,
         ...historyIds,

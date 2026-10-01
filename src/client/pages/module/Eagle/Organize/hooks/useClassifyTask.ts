@@ -120,7 +120,7 @@ export function useClassifyTask(onSuccess?: () => void) {
     sortBy,
     sortOrder,
     status?.phase,
-    status?.createdAt,
+    status?.taskId,
     status?.total,
     prepareRevision,
   ])
@@ -159,9 +159,10 @@ export function useClassifyTask(onSuccess?: () => void) {
   }
 
   const handleSyncStandards = async () => {
+    if (!prepare?.taskId) return
     setSyncingStandards(true)
     try {
-      await syncOrganizeStandards()
+      await syncOrganizeStandards(prepare.taskId)
       message.success('已同步最新文件夹分类标准')
       await refreshOrganizeStatus()
       reloadPrepare()
@@ -174,7 +175,7 @@ export function useClassifyTask(onSuccess?: () => void) {
   }
 
   const handleSubmit = async () => {
-    if (!count || loading || submitting) return
+    if (!count || !prepare || loading || submitting) return
     setSubmitting(true)
     const range = {
       folderId: currentFolderId || undefined,
@@ -183,11 +184,16 @@ export function useClassifyTask(onSuccess?: () => void) {
       count,
     }
     try {
-      if (hasActiveTask) {
-        await appendOrganizeTask(range)
+      if (hasActiveTask && prepare.taskId) {
+        await appendOrganizeTask({ ...range, taskId: prepare.taskId })
         message.success('已追加图片到队列，重复图片自动过滤')
       } else {
-        await createOrganizeTask({ ...range, compress, concurrency })
+        await createOrganizeTask({
+          ...range,
+          compress,
+          concurrency,
+          expectedTaskId: prepare.taskId,
+        })
         message.success('任务已创建，开始处理队列')
       }
       await refreshOrganizeStatus()

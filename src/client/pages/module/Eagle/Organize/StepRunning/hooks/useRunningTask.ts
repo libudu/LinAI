@@ -32,15 +32,15 @@ export function useRunningTask() {
   )
   const mountedRef = useRef(false)
   const generationRef = useRef(0)
-  const taskCreatedAtRef = useRef(status?.createdAt)
-  taskCreatedAtRef.current = status?.createdAt
+  const taskIdRef = useRef(status?.taskId)
+  taskIdRef.current = status?.taskId
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasAutoJumpedRef = useRef(false)
   const refreshQueueRef = useRef<RefreshQueue | null>(null)
   if (!refreshQueueRef.current) {
     refreshQueueRef.current = new RefreshQueue(async () => {
       const generation = generationRef.current
-      const createdAt = taskCreatedAtRef.current
+      const taskId = taskIdRef.current
       if (!mountedRef.current) return
       const [nextQueue, nextFailedItems] = await Promise.all([
         fetchOrganizeQueue(QUEUE_PREVIEW_LIMIT).catch((error) => {
@@ -55,7 +55,7 @@ export function useRunningTask() {
       if (
         !mountedRef.current ||
         generation !== generationRef.current ||
-        createdAt !== taskCreatedAtRef.current
+        taskId !== taskIdRef.current
       )
         return
       if (nextQueue) setQueue(nextQueue)
@@ -109,12 +109,12 @@ export function useRunningTask() {
     setQueueLoading(true)
     setFailedLoading(true)
     hasAutoJumpedRef.current = false
-  }, [status?.createdAt])
+  }, [status?.taskId])
 
   // status 由 SSE 变更触发更新，变化后防抖刷新任务详情与队列预览
   useEffect(() => {
     triggerDebouncedRefreshTask(200)
-  }, [revision, status?.createdAt, triggerDebouncedRefreshTask])
+  }, [revision, status?.taskId, triggerDebouncedRefreshTask])
 
   const phase = status?.phase
   const pendingConfirm = status?.pendingConfirm ?? 0
@@ -156,12 +156,13 @@ export function useRunningTask() {
   }, [isCompleted, activeTab, failedItems.length, status])
 
   const handleToggle = async () => {
+    if (!status) return
     setActionLoading(true)
     try {
       if (phase === 'running') {
-        await pauseOrganizeTask()
+        await pauseOrganizeTask(status.taskId)
       } else {
-        await resumeOrganizeTask()
+        await resumeOrganizeTask(status.taskId)
       }
       await refreshOrganizeStatus()
     } catch (error) {
@@ -172,12 +173,13 @@ export function useRunningTask() {
   }
 
   const handleBatchAction = async (
-    action: () => Promise<void>,
+    action: (taskId: string) => Promise<void>,
     successMsg: string,
   ) => {
+    if (!status) return
     setActionLoading(true)
     try {
-      await action()
+      await action(status.taskId)
       message.success(successMsg)
       await refreshOrganizeStatus()
       await refreshTaskImmediate()
@@ -190,12 +192,13 @@ export function useRunningTask() {
 
   const handleItemAction = async (
     itemId: string,
-    action: (id: string) => Promise<void>,
+    action: (id: string, taskId: string) => Promise<void>,
     successMessage: string,
   ) => {
+    if (!status) return
     setItemActionLoading(itemId)
     try {
-      await action(itemId)
+      await action(itemId, status.taskId)
       message.success(successMessage)
       await refreshOrganizeStatus()
       await refreshTaskImmediate()
@@ -212,6 +215,7 @@ export function useRunningTask() {
 
   // 强制清空：中断所有请求（含正在发送的）、丢弃当前结果，SSE 刷新后回到第一步
   const handleClear = () => {
+    if (!status) return
     Modal.confirm({
       title: '清空整理任务？',
       content: '将强制停止所有请求并丢弃当前结果，回到第一步。',
@@ -220,7 +224,7 @@ export function useRunningTask() {
       cancelText: '取消',
       onOk: async () => {
         try {
-          await clearOrganizeTask()
+          await clearOrganizeTask(status.taskId)
           await refreshOrganizeStatus()
         } catch (error) {
           message.error(error instanceof Error ? error.message : '清空任务失败')

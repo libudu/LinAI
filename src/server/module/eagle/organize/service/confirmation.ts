@@ -1,5 +1,4 @@
 import type {
-  OrganizeConfirmItem,
   OrganizeConfirmItemResult,
   OrganizeFolderStandard,
   OrganizeItemRecord,
@@ -12,6 +11,7 @@ import {
   type UpdateItemPatch,
 } from '../../library'
 import { organizeRepository } from '../storage'
+import type { OrganizeConfirmItem } from './types'
 
 export type ConfirmationPlan =
   | { kind: 'ready'; record: OrganizeItemRecord; patch: UpdateItemPatch }

@@ -8,6 +8,7 @@ import {
 
 /** 整理任务领域模型：队列与进度，服务和执行器共用，不依赖持久化实现 */
 export interface OrganizeTaskRecord {
+  taskId: string
   phase: OrganizePhase
   pausedReason: OrganizeStatus['pausedReason']
   compress: boolean
@@ -34,12 +35,12 @@ export interface OrganizeTaskRecord {
 /** 旧任务允许缺少后来新增的配置与计数字段，仅在持久化边界使用。 */
 export type StoredOrganizeTask = Omit<
   OrganizeTaskRecord,
-  'folderName' | 'successCount' | 'failedCount' | 'concurrency'
+  'folderName' | 'successCount' | 'failedCount' | 'concurrency' | 'taskId'
 > &
   Partial<
     Pick<
       OrganizeTaskRecord,
-      'folderName' | 'successCount' | 'failedCount' | 'concurrency'
+      'folderName' | 'successCount' | 'failedCount' | 'concurrency' | 'taskId'
     >
   >
 
@@ -53,6 +54,8 @@ export const normalizeOrganizeTask = (
   task: StoredOrganizeTask,
 ): OrganizeTaskRecord => ({
   ...structuredClone(task),
+  // 旧任务使用稳定 ID，重启或重复读取不会改变其身份。
+  taskId: task.taskId ?? `legacy-${task.createdAt}`,
   folderName: task.folderName ?? '全部',
   successCount: task.successCount ?? 0,
   failedCount: task.failedCount ?? 0,

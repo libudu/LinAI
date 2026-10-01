@@ -11,8 +11,8 @@ export function useOrganizeTask(
 ) {
   const [task, setTask] = useState<OrganizeTaskView | null>(null)
   const mountedRef = useRef(false)
-  const contextRef = useRef({ open, createdAt: status?.createdAt })
-  contextRef.current = { open, createdAt: status?.createdAt }
+  const contextRef = useRef({ open, taskId: status?.taskId })
+  contextRef.current = { open, taskId: status?.taskId }
   const generationRef = useRef(0)
   const queueRef = useRef<RefreshQueue | null>(null)
   if (!queueRef.current) {
@@ -26,8 +26,8 @@ export function useOrganizeTask(
           mountedRef.current &&
           generation === generationRef.current &&
           contextRef.current.open &&
-          context.createdAt === contextRef.current.createdAt &&
-          next?.createdAt === context.createdAt
+          context.taskId === contextRef.current.taskId &&
+          next?.taskId === context.taskId
         )
           setTask(next)
       } catch (error) {
@@ -47,7 +47,7 @@ export function useOrganizeTask(
   useEffect(() => {
     generationRef.current++
     if (open && loaded) void queueRef.current!.request()
-  }, [open, loaded, status?.createdAt, status?.phase, status?.total])
+  }, [open, loaded, status?.taskId, status?.phase, status?.total])
 
-  return open && task?.createdAt === status?.createdAt ? task : null
+  return open && task?.taskId === status?.taskId ? task : null
 }

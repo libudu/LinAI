@@ -9,6 +9,7 @@ import { ORGANIZE_RESOURCE } from '../constants'
 import type { OrganizeTaskRecord } from '../model'
 
 export const toTaskView = (record: OrganizeTaskRecord): OrganizeTaskView => ({
+  taskId: record.taskId,
   phase: record.phase,
   pausedReason: record.pausedReason,
   compress: record.compress,

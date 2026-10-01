@@ -1,210 +1,149 @@
-import { apiRequest } from '@/client/service/storage'
+import { rpcData } from '@/client/service/http'
 import type {
-  OrganizeAppendTaskParams,
-  OrganizeConfirmBatchResult,
-  OrganizeConfirmItem,
-  OrganizeCreateTaskParams,
   OrganizeItemStatus,
   OrganizePrepareParams,
-  OrganizePrepareResp,
-  OrganizeQueueResp,
-  OrganizeResultDetail,
-  OrganizeResultListItem,
-  OrganizeStatus,
-  OrganizeTaskView,
 } from '@/shared/eagle/organize'
+import type { InferRequestType } from 'hono/client'
+import { eagleRpc } from '../rpc'
 
-// 图片整理接口封装（/api/eagle/organize/*）
-
+const client = eagleRpc.organize
 export type OrganizeSortParams = OrganizePrepareParams
 
-export const fetchOrganizeStatus = async (): Promise<OrganizeStatus | null> => {
-  const json = await apiRequest<OrganizeStatus | null>(
-    '/api/eagle/organize/status',
-  )
-  return json.data
-}
-
-export const fetchOrganizePrepare = async (
-  params: OrganizeSortParams,
-): Promise<OrganizePrepareResp> => {
-  const search = new URLSearchParams({
-    sortBy: params.sortBy,
-    sortOrder: params.sortOrder,
-  })
-  if (params.folderId) search.set('folderId', params.folderId)
-  const json = await apiRequest<OrganizePrepareResp>(
-    `/api/eagle/organize/prepare?${search}`,
-  )
-  return json.data
-}
-
-export const fetchOrganizeTask = async (): Promise<OrganizeTaskView | null> => {
-  const json = await apiRequest<OrganizeTaskView | null>(
-    '/api/eagle/organize/task',
-  )
-  return json.data
-}
+export const fetchOrganizeStatus = () => rpcData(client.status.$get())
+export const fetchOrganizePrepare = (params: OrganizeSortParams) =>
+  rpcData(client.prepare.$get({ query: params }))
+export const fetchOrganizeTask = () => rpcData(client.task.$get())
 
 export const createOrganizeTask = async (
-  params: OrganizeCreateTaskParams,
+  params: InferRequestType<typeof client.task.$post>['json'],
 ): Promise<void> => {
-  await apiRequest<OrganizeTaskView>('/api/eagle/organize/task', {
-    method: 'POST',
-    body: JSON.stringify(params),
-  })
+  await rpcData(client.task.$post({ json: params }))
 }
 
-// 从当前选择范围向任务追加图片，服务端按整轮任务的图片 ID 去重
 export const appendOrganizeTask = async (
-  params: OrganizeAppendTaskParams,
+  params: InferRequestType<typeof client.task.append.$post>['json'],
 ): Promise<void> => {
-  await apiRequest<null>('/api/eagle/organize/task/append', {
-    method: 'POST',
-    body: JSON.stringify(params),
-  })
+  await rpcData(client.task.append.$post({ json: params }))
 }
 
-// 获取失败条目列表
-export const fetchFailedOrganizeItems = async (): Promise<
-  import('@/shared/eagle/organize').OrganizeFailedItem[]
-> => {
-  const json = await apiRequest<
-    import('@/shared/eagle/organize').OrganizeFailedItem[]
-  >('/api/eagle/organize/failed-items')
-  return json.data
+export const fetchFailedOrganizeItems = () =>
+  rpcData(client['failed-items'].$get())
+
+export const skipFailedOrganizeItems = async (
+  taskId: string,
+): Promise<void> => {
+  await rpcData(client.task['skip-failed'].$post({ json: { taskId } }))
+}
+export const pauseOrganizeTask = async (taskId: string): Promise<void> => {
+  await rpcData(client.task.pause.$post({ json: { taskId } }))
+}
+export const resumeOrganizeTask = async (taskId: string): Promise<void> => {
+  await rpcData(client.task.resume.$post({ json: { taskId } }))
+}
+export const syncOrganizeStandards = async (taskId: string): Promise<void> => {
+  await rpcData(client.task['sync-standards'].$post({ json: { taskId } }))
+}
+export const retryFailedOrganizeItems = async (
+  taskId: string,
+): Promise<void> => {
+  await rpcData(client.task['retry-failed'].$post({ json: { taskId } }))
+}
+export const classifySuccessfulOrganizeItems = async (
+  taskId: string,
+): Promise<void> => {
+  await rpcData(client.task['classify-successful'].$post({ json: { taskId } }))
+}
+export const clearOrganizeTask = async (taskId: string): Promise<void> => {
+  await rpcData(client.task.clear.$post({ json: { taskId } }))
 }
 
-// 批量跳过所有失败项
-export const skipFailedOrganizeItems = async (): Promise<void> => {
-  await apiRequest<null>('/api/eagle/organize/task/skip-failed', {
-    method: 'POST',
-  })
-}
+export const fetchOrganizeQueue = (limit = 20) =>
+  rpcData(client.queue.$get({ query: { limit: String(limit) } }))
 
-export const pauseOrganizeTask = async (): Promise<void> => {
-  await apiRequest<null>('/api/eagle/organize/task/pause', {
-    method: 'POST',
-  })
-}
-
-export const resumeOrganizeTask = async (): Promise<void> => {
-  await apiRequest<null>('/api/eagle/organize/task/resume', {
-    method: 'POST',
-  })
-}
-
-// 任务非运行状态（如暂停或已运行完毕）下同步最新分类标准
-export const syncOrganizeStandards = async (): Promise<void> => {
-  await apiRequest<null>('/api/eagle/organize/task/sync-standards', {
-    method: 'POST',
-  })
-}
-
-// 将全部失败项移到队首并恢复执行
-export const retryFailedOrganizeItems = async (): Promise<void> => {
-  await apiRequest<null>('/api/eagle/organize/task/retry-failed', {
-    method: 'POST',
-  })
-}
-
-// 过滤未处理与失败项，仅用成功结果进入分类确认
-export const classifySuccessfulOrganizeItems = async (): Promise<void> => {
-  await apiRequest<null>('/api/eagle/organize/task/classify-successful', {
-    method: 'POST',
-  })
-}
-
-// 强制清空任务：中断 in-flight 请求，丢弃任务与结果，回到第一步
-export const clearOrganizeTask = async (): Promise<void> => {
-  await apiRequest<null>('/api/eagle/organize/task/clear', {
-    method: 'POST',
-  })
-}
-
-// 执行中步骤的队列预览：执行中/待处理/失败条目（失败附原因）
-export const fetchOrganizeQueue = async (
-  limit = 20,
-): Promise<OrganizeQueueResp> => {
-  const json = await apiRequest<OrganizeQueueResp>(
-    `/api/eagle/organize/queue?limit=${limit}`,
-  )
-  return json.data
-}
-
-export const fetchOrganizeResults = async (
+export const fetchOrganizeResults = (
   status?: OrganizeItemStatus,
   options?: { limit?: number },
-): Promise<OrganizeResultListItem[]> => {
-  const search = new URLSearchParams()
-  if (status) search.set('status', status)
-  if (options?.limit !== undefined) search.set('limit', String(options.limit))
-  const query = search.toString()
-  const json = await apiRequest<OrganizeResultListItem[]>(
-    `/api/eagle/organize/results${query ? `?${query}` : ''}`,
+) =>
+  rpcData(
+    client.results.$get({
+      query: {
+        status,
+        limit: options?.limit === undefined ? undefined : String(options.limit),
+      },
+    }),
   )
-  return json.data
+
+export const reconcileOrganizeResults = async (
+  taskId: string,
+): Promise<void> => {
+  await rpcData(client.results.reconcile.$post({ json: { taskId } }))
 }
 
-export const fetchOrganizeResult = async (
-  itemId: string,
-): Promise<OrganizeResultDetail> => {
-  const json = await apiRequest<OrganizeResultDetail>(
-    `/api/eagle/organize/results/${itemId}`,
-  )
-  return json.data
-}
+export const fetchOrganizeResult = (itemId: string) =>
+  rpcData(client.results[':itemId'].$get({ param: { itemId } }))
 
-// 确认结果：移入目标文件夹，withTitle 决定是否同时修改标题
 export const confirmOrganizeResult = async (
   itemId: string,
-  folderPath: string,
-  withTitle: boolean,
-  folderId?: string,
+  params: InferRequestType<
+    (typeof client.results)[':itemId']['confirm']['$post']
+  >['json'],
 ): Promise<void> => {
-  await apiRequest<null>(`/api/eagle/organize/results/${itemId}/confirm`, {
-    method: 'POST',
-    body: JSON.stringify({ folderPath, withTitle, folderId }),
-  })
-}
-
-export type OrganizeBatchConfirmItem = OrganizeConfirmItem
-
-// 批量确认结果
-export const confirmOrganizeResultsBatch = async (
-  items: OrganizeBatchConfirmItem[],
-  taskCreatedAt?: number,
-): Promise<OrganizeConfirmBatchResult> => {
-  const json = await apiRequest<OrganizeConfirmBatchResult>(
-    '/api/eagle/organize/results/confirm-batch',
-    {
-      method: 'POST',
-      body: JSON.stringify({ items, taskCreatedAt }),
-    },
+  await rpcData(
+    client.results[':itemId'].confirm.$post({
+      param: { itemId },
+      json: params,
+    }),
   )
-  return json.data
 }
 
-// 不处理：不做任何修改
-export const skipOrganizeResult = async (itemId: string): Promise<void> => {
-  await apiRequest<null>(`/api/eagle/organize/results/${itemId}/skip`, {
-    method: 'POST',
-  })
-}
+export type OrganizeBatchConfirmItem = InferRequestType<
+  (typeof client.results)['confirm-batch']['$post']
+>['json']['items'][number]
 
-// 清空条目的全部文件夹归属，留到「未分类」中手动处理
+export const confirmOrganizeResultsBatch = (
+  items: OrganizeBatchConfirmItem[],
+  taskId: string,
+) => rpcData(client.results['confirm-batch'].$post({ json: { items, taskId } }))
+
+export const skipOrganizeResult = async (
+  itemId: string,
+  taskId: string,
+): Promise<void> => {
+  await rpcData(
+    client.results[':itemId'].skip.$post({
+      param: { itemId },
+      json: { taskId },
+    }),
+  )
+}
 export const clearOrganizeResultClassification = async (
   itemId: string,
+  taskId: string,
 ): Promise<void> => {
-  await apiRequest<null>(
-    `/api/eagle/organize/results/${itemId}/clear-classification`,
-    { method: 'POST' },
+  await rpcData(
+    client.results[':itemId']['clear-classification'].$post({
+      param: { itemId },
+      json: { taskId },
+    }),
+  )
+}
+export const retryOrganizeResult = async (
+  itemId: string,
+  taskId: string,
+): Promise<void> => {
+  await rpcData(
+    client.results[':itemId'].retry.$post({
+      param: { itemId },
+      json: { taskId },
+    }),
   )
 }
 
-// 重新执行单图判定
-export const retryOrganizeResult = async (itemId: string): Promise<void> => {
-  await apiRequest<null>(`/api/eagle/organize/results/${itemId}/retry`, {
-    method: 'POST',
-  })
-}
+/** 确认页删除与跳过是同一任务命令，服务端先校验任务再写库。 */
+export const trashOrganizeResult = (itemId: string, taskId: string) =>
+  rpcData(
+    client.results[':itemId'].trash.$post({
+      param: { itemId },
+      json: { taskId },
+    }),
+  )

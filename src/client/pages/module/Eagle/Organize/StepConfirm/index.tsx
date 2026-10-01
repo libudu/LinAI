@@ -65,6 +65,7 @@ export function StepConfirm({
     runAction,
     trashItem,
   } = useConfirmQueue({
+    taskId: task?.taskId,
     taskCreatedAt: task?.createdAt,
     folders,
   })

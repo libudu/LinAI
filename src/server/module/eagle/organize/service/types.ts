@@ -1,17 +1,22 @@
+import type { OrganizeTaskView } from '@/shared/eagle/organize'
+import type { z } from 'zod'
 import type {
-  OrganizeCreateTaskParams as CreateTaskParams,
-  OrganizeAppendTaskParams,
-  OrganizePrepareParams,
-  OrganizeTaskView,
-} from '@/shared/eagle/organize'
+  organizeAppendTaskSchema,
+  organizeConfirmItemSchema,
+  organizeCreateTaskSchema,
+} from '../../schemas'
 
 export type { OrganizePrepareParams } from '@/shared/eagle/organize'
-/** HTTP 校验后默认值已填充；业务服务只接收归一化参数。 */
-export type OrganizeCreateTaskParams = CreateTaskParams & {
-  concurrency: number
-}
-export type OrganizeAppendParams = OrganizeAppendTaskParams &
-  OrganizePrepareParams
+/** HTTP 校验后默认值已填充；业务参数由同一 schema 推导。 */
+export type OrganizeCreateTaskParams = Omit<
+  z.output<typeof organizeCreateTaskSchema>,
+  'expectedTaskId'
+>
+export type OrganizeAppendParams = Omit<
+  z.output<typeof organizeAppendTaskSchema>,
+  'taskId'
+>
+export type OrganizeConfirmItem = z.output<typeof organizeConfirmItemSchema>
 
 export type CreateTaskResult =
   | { ok: true; task: OrganizeTaskView }
@@ -21,3 +26,8 @@ export type CreateTaskResult =
 export type OrganizeActionResult =
   | { ok: true }
   | { ok: false; status: 400 | 404 | 409 | 500; error: string }
+
+/** 确认页删除命令保留缺失反馈，避免前端先删库再校验整理任务。 */
+export type OrganizeTrashResult =
+  | { ok: true; missing: boolean }
+  | Extract<OrganizeActionResult, { ok: false }>

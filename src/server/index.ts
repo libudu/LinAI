@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import dotenv from 'dotenv'
 import { Hono } from 'hono'
+import { HTTPException } from 'hono/http-exception'
 import * as path from 'path'
 import { ZodError } from 'zod'
 import configApi from './api/common/config'
@@ -18,6 +19,7 @@ import ttsApi from './api/tts'
 import ttsInworldApi from './api/tts/inworld'
 import yunwuTokenApi from './api/yunwu-token'
 import { StorageError } from './common/storage/errors'
+import { EagleError } from './module/eagle/errors'
 
 dotenv.config()
 
@@ -26,6 +28,24 @@ const app = new Hono()
 // 统一错误响应：存储层错误按 code 映射状态码，其余未捕获错误返回 500，
 // 写入失败等异常必须让接口失败，禁止静默吞错
 app.onError((err, c) => {
+  if (err instanceof EagleError) {
+    return c.json(
+      {
+        success: false as const,
+        error: { code: err.code, message: err.message },
+      },
+      err.status,
+    )
+  }
+  if (err instanceof HTTPException) {
+    return c.json(
+      {
+        success: false as const,
+        error: { code: 'INVALID_REQUEST', message: err.message },
+      },
+      err.status,
+    )
+  }
   if (err instanceof StorageError) {
     const status =
       err.code === 'NOT_FOUND'

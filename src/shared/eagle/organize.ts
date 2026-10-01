@@ -28,7 +28,9 @@ export interface OrganizeFolderStandard {
 
 /** 按钮徽标与进度用的轻量状态（GET /api/eagle/organize/status） */
 export interface OrganizeStatus {
-  /** 用于区分任务轮次，避免旧操作影响新任务的展示 */
+  /** 修改请求必须携带的任务身份，创建时间仅用于展示与历史排序。 */
+  taskId: string
+  /** 任务创建时间 */
   createdAt: number
   phase: OrganizePhase
   /** 本轮队列总数（追加后实时更新） */
@@ -40,14 +42,6 @@ export interface OrganizeStatus {
   /** 步骤 2 失败待重试/待处理数量 */
   failedCount: number
   pausedReason: 'user' | 'error' | 'restart' | null
-}
-
-/** 单张和批量确认共用的请求项 */
-export interface OrganizeConfirmItem {
-  itemId: string
-  folderPath: string
-  withTitle: boolean
-  folderId?: string
 }
 
 /** 批量确认逐项反馈；已确认项可安全重放，不重复扣减计数。 */
@@ -65,6 +59,7 @@ export interface OrganizeConfirmBatchResult {
 
 /** 任务详情视图（不含队列明细，GET /api/eagle/organize/task） */
 export interface OrganizeTaskView {
+  taskId: string
   phase: OrganizePhase
   pausedReason: 'user' | 'error' | 'restart' | null
   compress: boolean
@@ -88,6 +83,8 @@ export const ORGANIZE_CONCURRENCY_MAX = 20
 
 /** 步骤 1 准备数据（GET /api/eagle/organize/prepare） */
 export interface OrganizePrepareResp {
+  /** 准备数据所属的任务；新建时也用于防止覆盖过期快照。 */
+  taskId: string | null
   /** 当前选择的图片来源范围名称 */
   sourceFolderName: string
   standards: OrganizeFolderStandard[]
@@ -108,18 +105,6 @@ export interface OrganizePrepareParams {
   folderId?: string
   sortBy: EagleSortBy
   sortOrder: EagleSortOrder
-}
-
-export interface OrganizeCreateTaskParams extends OrganizePrepareParams {
-  count: number
-  compress: boolean
-  /** 缺省由接口归一化为默认并发数。 */
-  concurrency?: number
-}
-
-/** 追加请求（POST /api/eagle/organize/task/append）：省略范围表示全部，排序默认 mtime/desc。 */
-export interface OrganizeAppendTaskParams extends Partial<OrganizePrepareParams> {
-  count: number
 }
 
 /** 失败条目详情（GET /api/eagle/organize/failed-items） */

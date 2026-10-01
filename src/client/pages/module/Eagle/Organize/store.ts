@@ -35,7 +35,7 @@ const statusRefresh = new OrganizeStatusRefresh({
       const optimisticItems = reconcileOptimisticItems(
         state.optimisticItems,
         settledIds,
-        serverStatus?.createdAt,
+        serverStatus?.taskId,
       )
       const stableServer = isEqualStatus(state.serverStatus, serverStatus)
         ? state.serverStatus
@@ -65,14 +65,14 @@ export function useOrganizeStatus() {
 
 const updateOptimisticItems = (
   ids: string[],
-  taskCreatedAt: number,
+  taskId: string,
   nextState: OptimisticItem['state'] | null,
 ) => {
   useOrganizeStore.setState((state) => {
     const optimisticItems = changeOptimisticItems(
       state.optimisticItems,
       ids,
-      taskCreatedAt,
+      taskId,
       nextState,
     )
     return {
@@ -85,17 +85,14 @@ const updateOptimisticItems = (
 /** 同一 ID 同时只能有一个本地操作；卸载后的提交仍持有记录直到校准完成。 */
 export const beginOptimisticItem = (
   itemId: string,
-  taskCreatedAt: number,
+  taskId: string,
 ): boolean => {
   const state = useOrganizeStore.getState()
-  if (
-    taskCreatedAt !== state.serverStatus?.createdAt ||
-    state.optimisticItems[itemId]
-  )
+  if (taskId !== state.serverStatus?.taskId || state.optimisticItems[itemId])
     return false
   const optimisticItems = {
     ...state.optimisticItems,
-    [itemId]: { taskCreatedAt, state: 'queued' as const },
+    [itemId]: { taskId, state: 'queued' as const },
   }
   useOrganizeStore.setState({
     optimisticItems,
@@ -107,29 +104,26 @@ export const beginOptimisticItem = (
 export const getOptimisticItemIds = () =>
   new Set(Object.keys(useOrganizeStore.getState().optimisticItems))
 
-export const isCurrentOrganizeTask = (createdAt: number) =>
-  useOrganizeStore.getState().serverStatus?.createdAt === createdAt
+export const isCurrentOrganizeTask = (taskId: string) =>
+  useOrganizeStore.getState().serverStatus?.taskId === taskId
 
 export const markOptimisticItemsSubmitting = (
   ids: string[],
-  taskCreatedAt: number,
+  taskId: string,
 ) => {
   statusRefresh.invalidate()
-  updateOptimisticItems(ids, taskCreatedAt, 'submitting')
+  updateOptimisticItems(ids, taskId, 'submitting')
 }
 
 /** 失败直接删除乐观操作即可回补，无需反向修改服务端计数。 */
-export const cancelOptimisticItems = (ids: string[], taskCreatedAt: number) => {
+export const cancelOptimisticItems = (ids: string[], taskId: string) => {
   if (ids.length === 0) return
   statusRefresh.invalidate()
-  updateOptimisticItems(ids, taskCreatedAt, null)
+  updateOptimisticItems(ids, taskId, null)
 }
 
-export const settleOptimisticItems = async (
-  ids: string[],
-  taskCreatedAt: number,
-) => {
+export const settleOptimisticItems = async (ids: string[], taskId: string) => {
   statusRefresh.invalidate()
-  updateOptimisticItems(ids, taskCreatedAt, 'settled')
+  updateOptimisticItems(ids, taskId, 'settled')
   await refreshOrganizeStatus()
 }

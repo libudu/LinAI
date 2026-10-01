@@ -1,6 +1,5 @@
 import type {
   OrganizeConfirmBatchResult,
-  OrganizeConfirmItem,
   OrganizeConfirmItemResult,
   OrganizeItemRecord,
   OrganizeItemStatus,
@@ -8,6 +7,7 @@ import type {
   OrganizeResultListItem,
 } from '@/shared/eagle/organize'
 import {
+  deleteItem,
   getItemDetail,
   getItemPresence,
   getItemSnapshots,
@@ -19,7 +19,11 @@ import { organizeRepository } from '../storage'
 import { transitionTask } from '../transitions'
 import { prepareConfirmation, type ConfirmationPlan } from './confirmation'
 import { publishOrganizeChange } from './helpers'
-import type { OrganizeActionResult } from './types'
+import type {
+  OrganizeActionResult,
+  OrganizeConfirmItem,
+  OrganizeTrashResult,
+} from './types'
 
 export class ResultService {
   /** 结果状态落盘与任务计数转换共用任务串行队列，收尾不会读到半次决策。 */
@@ -47,20 +51,6 @@ export class ResultService {
     const items = await organizeRepository.listItems()
     let list = status ? items.filter((item) => item.status === status) : items
     const itemMap = await getItemSnapshots(list.map((item) => item.itemId))
-    // 未配置/不可用索引不等于图片已删除，只有索引有效时才做自愈。
-    if (status === 'success' && itemMap) {
-      const purged: OrganizeItemRecord[] = []
-      const remaining: typeof list = []
-      for (const item of list) {
-        if (itemMap.has(item.itemId)) remaining.push(item)
-        else {
-          const record = await organizeRepository.getItem(item.itemId)
-          if (record?.status === 'success') purged.push(record)
-        }
-      }
-      await this.saveDecisions(purged, 'confirmed')
-      list = remaining
-    }
     const { offset = 0, limit } = options ?? {}
     if (offset > 0) list = list.slice(offset)
     if (limit !== undefined && limit >= 0) list = list.slice(0, limit)
@@ -74,6 +64,25 @@ export class ResultService {
         size: entry?.size,
       }
     })
+  }
+
+  /** 缺失结果校准是显式命令；调用方在命令锁内校验任务身份。 */
+  async reconcileResults(): Promise<OrganizeActionResult> {
+    const items = (await organizeRepository.listItems()).filter(
+      (item) => item.status === 'success',
+    )
+    if (items.length === 0) return { ok: true }
+    const itemMap = await getItemSnapshots(items.map((item) => item.itemId))
+    if (!itemMap)
+      return { ok: false, status: 409, error: 'Eagle 资源库当前不可用' }
+    const purged: OrganizeItemRecord[] = []
+    for (const item of items) {
+      if (itemMap.has(item.itemId)) continue
+      const record = await organizeRepository.getItem(item.itemId)
+      if (record?.status === 'success') purged.push(record)
+    }
+    await this.saveDecisions(purged, 'confirmed')
+    return { ok: true }
   }
 
   async getResult(itemId: string): Promise<OrganizeResultDetail | null> {
@@ -109,13 +118,9 @@ export class ResultService {
   /** 每项都有反馈；重复请求已确认项视为成功，不重复写库或扣减计数。 */
   async confirmBatch(
     items: OrganizeConfirmItem[],
-    taskCreatedAt?: number,
   ): Promise<OrganizeConfirmBatchResult> {
     const task = await organizeRepository.getTask()
-    if (
-      !task ||
-      (taskCreatedAt !== undefined && task.createdAt !== taskCreatedAt)
-    ) {
+    if (!task) {
       return {
         items: items.map(({ itemId }) => ({
           itemId,
@@ -179,6 +184,17 @@ export class ResultService {
     }
     await this.saveDecisions([record], 'skipped')
     return { ok: true }
+  }
+
+  /** 任务身份由门面校验后，串行执行删除与跳过；写库失败不能跳过结果。 */
+  async trashItem(itemId: string): Promise<OrganizeTrashResult> {
+    const record = await organizeRepository.getItem(itemId)
+    if (!record) return { ok: false, status: 404, error: '结果不存在' }
+    if (record.status !== 'success' && record.status !== 'failed')
+      return { ok: false, status: 409, error: '该结果当前不需要处理' }
+    const missing = !(await deleteItem(itemId))
+    await this.saveDecisions([record], 'skipped')
+    return { ok: true, missing }
   }
 
   async skipItem(itemId: string): Promise<OrganizeActionResult> {

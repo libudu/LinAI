@@ -5,48 +5,10 @@ import type {
   StoredItem,
 } from '@/shared/storage/types'
 
-/**
- * 通用集合存储客户端（/api/storage/collections/:resource）。
- * 资源为动态路径，不走 hc 类型推导；统一在此处理错误结构。
- */
+import { ApiError, apiRequest } from './http'
 
-interface ApiErrorBody {
-  success: false
-  error?: { code?: string; message?: string } | string
-}
-
-/** 接口错误：保留服务端信息、结构化错误码和 HTTP 状态，以区分缺失与其他失败。 */
-export class StorageApiError extends Error {
-  constructor(
-    message: string,
-    readonly code?: string,
-    readonly status?: number,
-  ) {
-    super(message)
-    this.name = 'StorageApiError'
-  }
-}
-
-export const apiRequest = async <T>(
-  url: string,
-  init?: RequestInit,
-): Promise<{ data: T; revision?: number }> => {
-  const res = await fetch(url, {
-    headers: { 'content-type': 'application/json' },
-    ...init,
-  })
-  const json = await res.json()
-  if (!res.ok || !json.success) {
-    const error = (json as ApiErrorBody).error
-    const message =
-      typeof error === 'string'
-        ? error
-        : error?.message || `请求失败（${res.status}）`
-    const code = typeof error === 'string' ? undefined : error?.code
-    throw new StorageApiError(message, code, res.status)
-  }
-  return json
-}
+// 兼容已有存储调用方；通用 HTTP 实现由 http.ts 维护。
+export { apiRequest, ApiError as StorageApiError } from './http'
 
 export interface CollectionListResult<T> {
   /** 集合级版本号，批量/更新时可作为 expectedRevision 做冲突检测 */
@@ -152,7 +114,7 @@ export const mutateEntity = async <T, S, R>(
       return { result, entity: saved }
     } catch (error) {
       const conflict =
-        error instanceof StorageApiError && error.code === 'REVISION_CONFLICT'
+        error instanceof ApiError && error.code === 'REVISION_CONFLICT'
       if (!conflict || attempt === 1) throw error
     }
   }

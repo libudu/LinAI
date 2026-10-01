@@ -1,7 +1,7 @@
 import type { OrganizeStatus } from '@/shared/eagle/organize'
 
 export interface OptimisticItem {
-  taskCreatedAt: number
+  taskId: string
   state: 'queued' | 'submitting' | 'settled'
 }
 
@@ -14,7 +14,7 @@ export const deriveStatus = (
 ) => {
   if (!serverStatus) return null
   const count = Object.values(items).filter(
-    (item) => item.taskCreatedAt === serverStatus.createdAt,
+    (item) => item.taskId === serverStatus.taskId,
   ).length
   return {
     ...serverStatus,
@@ -29,6 +29,7 @@ export const isEqualStatus = (
   a === b ||
   (!!a &&
     !!b &&
+    a.taskId === b.taskId &&
     a.createdAt === b.createdAt &&
     a.phase === b.phase &&
     a.total === b.total &&
@@ -41,12 +42,12 @@ export const isEqualStatus = (
 export const changeOptimisticItems = (
   items: OptimisticItems,
   ids: string[],
-  taskCreatedAt: number,
+  taskId: string,
   nextState: OptimisticItem['state'] | null,
 ): OptimisticItems => {
   const next = { ...items }
   for (const id of ids) {
-    if (next[id]?.taskCreatedAt !== taskCreatedAt) continue
+    if (next[id]?.taskId !== taskId) continue
     if (nextState === null) delete next[id]
     else next[id] = { ...next[id], state: nextState }
   }
@@ -56,12 +57,12 @@ export const changeOptimisticItems = (
 export const reconcileOptimisticItems = (
   items: OptimisticItems,
   settledIds: string[],
-  taskCreatedAt: number | undefined,
+  taskId: string | undefined,
 ): OptimisticItems => {
   const settled = new Set(settledIds)
   return Object.fromEntries(
     Object.entries(items).filter(
-      ([id, item]) => !settled.has(id) && item.taskCreatedAt === taskCreatedAt,
+      ([id, item]) => !settled.has(id) && item.taskId === taskId,
     ),
   )
 }
