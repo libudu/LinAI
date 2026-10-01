@@ -1,4 +1,4 @@
-import type { EagleFolderTreeSettings } from '@/server/module/eagle/settings'
+import type { EagleFolderTreePreferences } from '@/client/pages/module/Eagle/preferenceTypes'
 import type { EagleFolder } from '@/shared/eagle/types'
 import {
   useCallback,
@@ -11,10 +11,10 @@ import { collectFolderKeys } from '../folders'
 import { EaglePreferenceDocument } from '../preferenceDocument'
 
 const EXPANDED_STORAGE_KEY = 'eagle_folder_expanded'
-const expansionDocument = new EaglePreferenceDocument<EagleFolderTreeSettings>(
-  'eagle-folder-tree',
-  { expandedFolderIds: null },
-)
+const expansionDocument =
+  new EaglePreferenceDocument<EagleFolderTreePreferences>('eagle.folder-tree', {
+    expandedFolderIds: null,
+  })
 
 const loadLegacyExpandedKeys = (): string[] | null => {
   try {

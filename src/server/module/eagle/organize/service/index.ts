@@ -146,6 +146,14 @@ class OrganizeService {
     return resultService.listResults(status, options)
   }
 
+  async syncResults(options: {
+    resultsVersion?: string
+    libraryVersion?: string
+  }) {
+    await this.ready
+    return resultService.syncResults(options)
+  }
+
   async reconcileResults(taskId: string): Promise<OrganizeActionResult> {
     return this.runCommand(() => resultService.reconcileResults(), taskId)
   }

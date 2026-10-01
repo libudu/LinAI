@@ -1,4 +1,5 @@
 /** 内部索引生命周期：协调缓存恢复、增量扫描与手动刷新。 */
+import { EagleChangeJournal } from '../change-journal'
 import { getEagleSettings } from '../settings'
 import { flushMtime, reloadMtime } from './mtime-state'
 import { withLibraryLock } from './runtime'
@@ -6,20 +7,28 @@ import { scanIndex } from './scan'
 import { IndexShardCache, loadIndexCache } from './shard-cache'
 import type { EagleIndexState } from './types'
 
+export const libraryChanges = new EagleChangeJournal()
+
 let state: EagleIndexState | null = null
 let loadingPromise: Promise<void> | null = null
 export const indexCache = new IndexShardCache(() => state)
 
 const syncIndex = async (libraryPath: string) => {
   const mtimeMap = await reloadMtime(libraryPath)
-  const scanned = await scanIndex(libraryPath, state, mtimeMap)
-  state = scanned.index
-  indexCache.markDirty(scanned.changedIds)
+  try {
+    const scanned = await scanIndex(libraryPath, state, mtimeMap)
+    state = scanned.index
+    indexCache.markDirty(scanned.changedIds)
+  } finally {
+    // 扫描会原地修改索引；失败后的部分变更也不能继续命中旧查询缓存。
+    libraryChanges.reset()
+  }
 }
 
 const initialLoad = async (libraryPath: string | null) => {
   if (!libraryPath) {
     state = null
+    libraryChanges.reset()
     return
   }
   state = await loadIndexCache(libraryPath)
@@ -55,6 +64,7 @@ export const refreshIndex = async (): Promise<void> => {
     await indexCache.flush()
     await flushMtime()
     state = null
+    libraryChanges.reset()
     loadingPromise = null
     return
   }

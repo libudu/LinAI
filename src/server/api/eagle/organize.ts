@@ -125,6 +125,20 @@ const organizeApi = new Hono()
       return c.json({ success: true as const, data })
     },
   )
+  .get(
+    '/results/changes',
+    validate(
+      'query',
+      z.object({
+        resultsVersion: z.string().max(100).optional(),
+        libraryVersion: z.string().max(100).optional(),
+      }),
+    ),
+    async (c) => {
+      const data = await organizeService.syncResults(c.req.valid('query'))
+      return c.json({ success: true as const, data })
+    },
+  )
   // 缺失结果校准是独立修改命令，确认页进入时显式调用。
   .post('/results/reconcile', validate('json', taskIdentitySchema), async (c) =>
     actionResponse(

@@ -30,9 +30,10 @@ import {
   findRawFolderIdByPath,
   resolveFolderPaths,
 } from './folders'
-import { ensureIndex } from './index-state'
+import { ensureIndex, libraryChanges } from './index-state'
 import { imagesDir, ITEM_ID_PATTERN, VIDEO_EXTS } from './runtime'
 import {
+  type EagleIndexState,
   type EagleItemDetail,
   type EagleItemIndex,
   type EagleItemMediaSource,
@@ -55,19 +56,77 @@ export const toEagleItem = (entry: EagleItemIndex): EagleItem => ({
   hasThumbnail: entry.thumbnailName !== null,
 })
 
+// 查询条件最多保留 8 份排序视图；翻页只切片和投影，版本变化即丢弃旧视图。
+let cachedVersion = ''
+let overviewCache: EagleLibraryOverview | null = null
+const itemViews = new Map<string, EagleItemIndex[]>()
+
+const ensureQueryVersion = () => {
+  if (cachedVersion === libraryChanges.version) return
+  cachedVersion = libraryChanges.version
+  overviewCache = null
+  itemViews.clear()
+}
+
+const sortedItems = (
+  index: EagleIndexState,
+  params: Pick<GetItemsParams, 'folderId' | 'sortBy' | 'sortOrder'>,
+  classifiable = false,
+): EagleItemIndex[] => {
+  ensureQueryVersion()
+  const { folderId, sortBy, sortOrder } = params
+  const key = JSON.stringify([folderId ?? '', sortBy, sortOrder, classifiable])
+  const cached = itemViews.get(key)
+  if (cached) {
+    itemViews.delete(key)
+    itemViews.set(key, cached)
+    return cached
+  }
+  const list: EagleItemIndex[] = []
+  for (const item of index.items.values()) {
+    if (folderId === EAGLE_TRASH_FOLDER_ID) {
+      if (!item.isDeleted || classifiable) continue
+    } else {
+      if (item.isDeleted) continue
+      if (folderId === EAGLE_UNCLASSIFIED_FOLDER_ID) {
+        if (item.folders.length !== 0) continue
+      } else if (folderId && !item.folders.includes(folderId)) continue
+    }
+    if (
+      classifiable &&
+      (VIDEO_EXTS.has(item.ext) || ['gif', 'heif', 'heic'].includes(item.ext))
+    )
+      continue
+    list.push(item)
+  }
+  const direction = sortOrder === 'asc' ? 1 : -1
+  list.sort((a, b) => (a[sortBy] - b[sortBy]) * direction)
+  itemViews.set(key, list)
+  if (itemViews.size > 8) itemViews.delete(itemViews.keys().next().value!)
+  return list
+}
+
+/** 整理增量查询只读取变更 ID 和版本，不暴露可变索引。 */
+export const getLibraryChanges = async (since?: string) => {
+  await ensureIndex()
+  return { version: libraryChanges.version, ids: libraryChanges.since(since) }
+}
+
 /** 获取构建完成的完整文件夹树（含数量统计） */
 export const getFolderTree = async (): Promise<EagleFolder[]> =>
   (await getLibraryOverview()).folders
 
 /** 一次遍历计算真实目录计数与虚拟目录总数，不构造或排序条目列表。 */
 export const getLibraryOverview = async (): Promise<EagleLibraryOverview> => {
+  const index = await ensureIndex()
+  ensureQueryVersion()
+  if (overviewCache) return overviewCache
   const overview: EagleLibraryOverview = {
     folders: [],
     allTotal: 0,
     unclassifiedTotal: 0,
     trashTotal: 0,
   }
-  const index = await ensureIndex()
   if (!index) return overview
   const counts = new Map<string, number>()
   for (const item of index.items.values()) {
@@ -81,6 +140,7 @@ export const getLibraryOverview = async (): Promise<EagleLibraryOverview> => {
       counts.set(folderId, (counts.get(folderId) ?? 0) + 1)
   }
   overview.folders = buildFolderTree(index.folders, counts)
+  overviewCache = overview
   return overview
 }
 
@@ -97,20 +157,8 @@ export const getItems = async (
 ): Promise<{ total: number; items: EagleItem[] }> => {
   const index = await ensureIndex()
   if (!index) return { total: 0, items: [] }
-  const { folderId, sortBy, sortOrder, offset, limit } = params
-  let list = [...index.items.values()]
-  if (folderId === EAGLE_TRASH_FOLDER_ID) {
-    list = list.filter((item) => item.isDeleted === true)
-  } else {
-    list = list.filter((item) => !item.isDeleted)
-    if (folderId === EAGLE_UNCLASSIFIED_FOLDER_ID) {
-      list = list.filter((item) => item.folders.length === 0)
-    } else if (folderId) {
-      list = list.filter((item) => item.folders.includes(folderId))
-    }
-  }
-  const direction = sortOrder === 'asc' ? 1 : -1
-  list.sort((a, b) => (a[sortBy] - b[sortBy]) * direction)
+  const { offset, limit } = params
+  const list = sortedItems(index, params)
   return {
     total: list.length,
     items: list.slice(offset, offset + limit).map(toEagleItem),
@@ -144,24 +192,7 @@ export const getClassifiableItems = async (
 ): Promise<{ total: number; itemIds: string[] }> => {
   const index = await ensureIndex()
   if (!index) return { total: 0, itemIds: [] }
-  if (params.folderId === EAGLE_TRASH_FOLDER_ID) {
-    return { total: 0, itemIds: [] }
-  }
-  let list = [...index.items.values()].filter(
-    (item) =>
-      !item.isDeleted &&
-      !VIDEO_EXTS.has(item.ext) &&
-      item.ext !== 'gif' &&
-      item.ext !== 'heif' &&
-      item.ext !== 'heic',
-  )
-  if (params.folderId === EAGLE_UNCLASSIFIED_FOLDER_ID) {
-    list = list.filter((item) => item.folders.length === 0)
-  } else if (params.folderId) {
-    list = list.filter((item) => item.folders.includes(params.folderId!))
-  }
-  const direction = params.sortOrder === 'asc' ? 1 : -1
-  list.sort((a, b) => (a[params.sortBy] - b[params.sortBy]) * direction)
+  const list = sortedItems(index, params, true)
   return { total: list.length, itemIds: list.map((item) => item.id) }
 }
 

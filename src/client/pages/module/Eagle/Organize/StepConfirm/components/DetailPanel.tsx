@@ -1,5 +1,5 @@
 import type { SelectedFolderInfo } from '@/client/pages/module/Eagle/folders'
-import type { EagleManualFolderItem } from '@/server/module/eagle/settings'
+import type { EagleManualFolderItem } from '@/client/pages/module/Eagle/preferenceTypes'
 import type { OrganizeResultDetail } from '@/shared/eagle/organize'
 import {
   DeleteOutlined,

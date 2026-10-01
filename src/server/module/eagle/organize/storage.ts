@@ -1,5 +1,6 @@
 import type {
   OrganizeItemRecord,
+  OrganizeItemStatus,
   OrganizeItemSummary,
 } from '@/shared/eagle/organize'
 import type { StoredEntity } from '@/shared/storage/types'
@@ -11,6 +12,7 @@ import { EntityStore } from '../../../common/storage/entity-store'
 import { StorageError } from '../../../common/storage/errors'
 import { readJsonFile } from '../../../common/storage/json-file'
 import { resourceLock } from '../../../common/storage/resource-lock'
+import { EagleChangeJournal } from '../change-journal'
 import { runPool } from '../concurrency'
 import {
   normalizeOrganizeItem,
@@ -35,6 +37,8 @@ import { transitionTask } from './transitions'
  *   服务（暂停/恢复）与执行器（计数推进）并发更新时不会互相覆盖
  */
 
+type ItemListEntry = { itemId: string; updatedAt: number } & OrganizeItemSummary
+
 export class OrganizeRepository {
   private readonly itemsDir = dataPath('eagle', 'organize', 'items')
 
@@ -55,6 +59,10 @@ export class OrganizeRepository {
 
   /** 内存索引与缓存：加速 queue/results/failed-items 等高频查询 */
   private readonly itemsCache = new Map<string, NormalizedOrganizeItem>()
+  private readonly summaries = new Map<string, ItemListEntry>()
+  private readonly statuses = new Map<string, OrganizeItemStatus>()
+  private readonly listViews = new Map<string, ItemListEntry[]>()
+  private readonly changes = new EagleChangeJournal()
   private cacheLoaded = false
   private loadCachePromise: Promise<void> | null = null
 
@@ -119,8 +127,11 @@ export class OrganizeRepository {
             }
           })
           this.itemsCache.clear()
-          for (const [id, record] of loadedItems)
-            this.itemsCache.set(id, record)
+          this.summaries.clear()
+          this.statuses.clear()
+          for (const record of loadedItems.values())
+            this.publishItem(record, false)
+          this.changes.reset()
           this.cacheLoaded = true
         } finally {
           this.loadCachePromise = null
@@ -200,21 +211,64 @@ export class OrganizeRepository {
     if (this.needsProgressReconcile) await this.mutateTask(() => null)
   }
 
-  async listItems(): Promise<
-    Array<{ itemId: string } & OrganizeItemSummary & { updatedAt: number }>
-  > {
+  /** 写盘成功后更新单条摘要、状态与版本，查询无需重复投影整份索引。 */
+  private publishItem(record: NormalizedOrganizeItem, changed = true) {
+    const previousStatus = this.statuses.get(record.itemId)
+    this.itemsCache.set(record.itemId, record)
+    this.summaries.set(record.itemId, {
+      itemId: record.itemId,
+      status: record.status,
+      folderPaths: [...record.folderPaths],
+      lowQuality: record.lowQuality,
+      updatedAt: record.updatedAt,
+    })
+    this.statuses.set(record.itemId, record.status)
+    this.listViews.delete('all')
+    this.listViews.delete(record.status)
+    if (previousStatus) this.listViews.delete(previousStatus)
+    if (changed) this.changes.changed(record.itemId)
+  }
+
+  async getItemStatuses(): Promise<ReadonlyMap<string, OrganizeItemStatus>> {
     await this.ensureCacheLoaded()
-    const items = Array.from(this.itemsCache.values())
-    // 列表摘要包含 folderPaths 与 lowQuality，支持前端无需拉取详情即可完成分类分组与低质置顶排序
-    return items
-      .map((record) => ({
-        itemId: record.itemId,
-        status: record.status,
-        folderPaths: [...record.folderPaths],
-        lowQuality: record.lowQuality,
-        updatedAt: record.updatedAt,
-      }))
-      .sort((a, b) => b.updatedAt - a.updatedAt)
+    return this.statuses
+  }
+
+  async listItems(
+    status?: OrganizeItemStatus,
+    options?: { offset?: number; limit?: number },
+  ): Promise<ReadonlyArray<ItemListEntry>> {
+    await this.ensureCacheLoaded()
+    const key = status ?? 'all'
+    let list = this.listViews.get(key)
+    if (!list) {
+      list = []
+      for (const item of this.summaries.values()) {
+        if (!status || item.status === status) list.push(item)
+      }
+      list.sort((a, b) => b.updatedAt - a.updatedAt)
+      this.listViews.set(key, list)
+    }
+    if (!options) return list
+    const offset = options.offset ?? 0
+    return list.slice(
+      offset,
+      options.limit === undefined ? undefined : offset + options.limit,
+    )
+  }
+
+  async getItemChanges(since?: string) {
+    await this.ensureCacheLoaded()
+    return { version: this.changes.version, ids: this.changes.since(since) }
+  }
+
+  /** 增量同步按 ID 读取当前摘要，不复制或排序完整结果。 */
+  async getItemSummaries(ids: string[]): Promise<ItemListEntry[]> {
+    await this.ensureCacheLoaded()
+    return ids.flatMap((id) => {
+      const item = this.summaries.get(id)
+      return item ? [item] : []
+    })
   }
 
   /** 收尾校准所需的轻量快照，保留标题以识别已跳过的成功项，不排序。 */
@@ -239,7 +293,7 @@ export class OrganizeRepository {
       const entity = await this.itemStore.get(itemId)
       if (entity?.value) {
         const record = normalizeOrganizeItem(entity.value)
-        this.itemsCache.set(itemId, record)
+        this.publishItem(record)
         return structuredClone(record)
       }
       return null
@@ -272,7 +326,7 @@ export class OrganizeRepository {
             throw error
           await this.itemStore.replace(snapshot.itemId, snapshot, summary)
         }
-        this.itemsCache.set(snapshot.itemId, snapshot)
+        this.publishItem(snapshot)
       },
     )
   }
@@ -304,6 +358,14 @@ export class OrganizeRepository {
     if (errors.length > 0) throw errors[0]
   }
 
+  private clearItemCache() {
+    this.itemsCache.clear()
+    this.summaries.clear()
+    this.statuses.clear()
+    this.listViews.clear()
+    this.changes.reset()
+  }
+
   /** 调用方先等待执行器退出；目录清空成功后才发布空缓存。 */
   async clearItems(): Promise<void> {
     await this.ensureCacheLoaded()
@@ -311,12 +373,12 @@ export class OrganizeRepository {
       if (await fs.pathExists(this.itemsDir)) await fs.emptyDir(this.itemsDir)
     } catch (error) {
       // emptyDir 可能已删掉部分实体，丢弃旧缓存，后续查询重新加载实际文件。
-      this.itemsCache.clear()
+      this.clearItemCache()
       this.cacheLoaded = false
       this.needsProgressReconcile = true
       throw error
     }
-    this.itemsCache.clear()
+    this.clearItemCache()
     this.cacheLoaded = true
   }
 }

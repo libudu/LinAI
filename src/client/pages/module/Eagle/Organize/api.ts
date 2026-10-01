@@ -73,6 +73,10 @@ export const fetchOrganizeResults = (
     }),
   )
 
+export const fetchOrganizeResultChanges = (
+  query: InferRequestType<typeof client.results.changes.$get>['query'] = {},
+) => rpcData(client.results.changes.$get({ query }))
+
 export const reconcileOrganizeResults = async (
   taskId: string,
 ): Promise<void> => {

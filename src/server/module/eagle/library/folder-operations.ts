@@ -3,7 +3,7 @@ import { writeJsonFile } from '@/server/common/storage/json-file'
 import fs from 'fs-extra'
 import path from 'path'
 import { findRawFolder } from './folders'
-import { ensureIndex } from './index-state'
+import { ensureIndex, libraryChanges } from './index-state'
 import { EAGLE_LIBRARY_RESOURCE, withLibraryLock } from './runtime'
 import type { EagleRawFolder } from './types'
 
@@ -25,6 +25,7 @@ export const updateFolder = async (
     target.description = patch.description
     await writeJsonFile(metaPath, rawLibrary, { backup: false })
     index.folders = rawLibrary.folders ?? []
+    libraryChanges.reset()
     changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
     return true
   })

@@ -20,10 +20,7 @@ export class QueueService {
   async getQueue(limit: number): Promise<OrganizeQueueResp> {
     const task = await organizeRepository.getTask()
     if (!task) return { items: [], total: 0 }
-    const results = await organizeRepository.listItems()
-    const statusById = new Map(
-      results.map((item) => [item.itemId, item.status]),
-    )
+    const statusById = await organizeRepository.getItemStatuses()
     const inFlight = new Set(organizeExecutor.getInFlightItemIds())
 
     const items: OrganizeQueueItem[] = []
@@ -45,14 +42,18 @@ export class QueueService {
       }
       total++
       if (items.length >= limit) continue
-      // 失败详情与条目名称只对要展示的行读取
-      const error =
-        state === 'failed'
-          ? ((await organizeRepository.getItem(itemId))?.error ??
-            '未知失败原因')
-          : undefined
-      items.push({ itemId, itemName: null, state, error })
+      items.push({ itemId, itemName: null, state })
     }
+    // 同步遍历状态索引后，只为展示行读取详情，避免每行 await 混用不同队列状态。
+    await Promise.all(
+      items.map(async (item) => {
+        if (item.state === 'failed') {
+          item.error =
+            (await organizeRepository.getItem(item.itemId))?.error ??
+            '未知失败原因'
+        }
+      }),
+    )
     const itemMap = await getItemSnapshots(items.map((item) => item.itemId))
     for (const item of items)
       item.itemName = itemMap?.get(item.itemId)?.name ?? null
@@ -60,8 +61,7 @@ export class QueueService {
   }
 
   async listFailedItems(): Promise<OrganizeFailedItem[]> {
-    const items = await organizeRepository.listItems()
-    const failed = items.filter((item) => item.status === 'failed')
+    const failed = await organizeRepository.listItems('failed')
     const itemMap = await getItemSnapshots(failed.map((item) => item.itemId))
     const result = await Promise.all(
       failed.map(async (item) => {
@@ -75,7 +75,7 @@ export class QueueService {
         }
       }),
     )
-    return result.sort((a, b) => b.updatedAt - a.updatedAt)
+    return result
   }
 
   /** 把全部失败项重置为待处理并重新加入执行队列，然后继续/恢复执行 */
@@ -84,7 +84,7 @@ export class QueueService {
     if (!task) {
       return { ok: false, status: 404, error: '当前没有整理任务' }
     }
-    const items = await organizeRepository.listItems()
+    const items = await organizeRepository.listItems('failed')
     const taskItemSet = new Set(task.itemIds)
     const failedIds = items
       .filter(
@@ -122,8 +122,7 @@ export class QueueService {
 
   /** 步骤 2 批量跳过所有失败项 */
   async skipFailedItems(): Promise<OrganizeActionResult> {
-    const items = await organizeRepository.listItems()
-    const failedItems = items.filter((item) => item.status === 'failed')
+    const failedItems = await organizeRepository.listItems('failed')
     if (failedItems.length === 0) return { ok: true }
     await organizeRepository.mutateTask(async (latest) => {
       const changes: ItemStatusChange[] = []

@@ -4,6 +4,7 @@ import fs from 'fs-extra'
 import path from 'path'
 import { runPool } from '../concurrency'
 import { thumbnailCachePath } from '../media/cache'
+import { libraryChanges } from './index-state'
 import { readWritableItemMeta, withLibraryMutation } from './mutation'
 import { imagesDir, ITEM_ID_PATTERN, SCAN_CONCURRENCY } from './runtime'
 import type { EagleIndexState } from './types'
@@ -27,8 +28,10 @@ const setDeleted = async (
     { backup: false },
   )
   const entry = index.items.get(id)
-  if (entry)
+  if (entry) {
     index.items.set(id, { ...entry, isDeleted, lastModified: timestamp })
+    libraryChanges.changed(id)
+  }
   return true
 }
 
@@ -57,6 +60,7 @@ export const restoreItem = (id: string): Promise<boolean> =>
 const removeItemFiles = async (index: EagleIndexState, id: string) => {
   await fs.remove(path.join(imagesDir(index.libraryPath), `${id}.info`))
   index.items.delete(id)
+  libraryChanges.changed(id)
   await fs.remove(thumbnailCachePath(id)).catch((error) => {
     console.warn(`[Eagle] 删除缩略图缓存失败：${id}`, error)
   })

@@ -2,6 +2,7 @@ import { StorageError } from '@/server/common/storage/errors'
 import { writeJsonFile } from '@/server/common/storage/json-file'
 import fs from 'fs-extra'
 import path from 'path'
+import { libraryChanges } from './index-state'
 import { readWritableItemMeta, withLibraryMutation } from './mutation'
 import { imagesDir, ITEM_ID_PATTERN, sanitizeItemName } from './runtime'
 import type {
@@ -189,6 +190,7 @@ export const updateItems = async (
             mtime,
             lastModified: changes.timestamp,
           })
+          libraryChanges.changed(id)
           changes.updated.add(id)
           results.push({ id, ok: true })
         } catch (error) {

@@ -2,13 +2,13 @@ import type { SelectedFolderInfo } from '@/client/pages/module/Eagle/folders'
 import { EaglePreferenceDocument } from '@/client/pages/module/Eagle/preferenceDocument'
 import type {
   EagleManualFolderItem,
-  EagleManualFoldersSettings,
-} from '@/server/module/eagle/settings'
+  EagleManualFoldersPreferences,
+} from '@/client/pages/module/Eagle/preferenceTypes'
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 
 const manualFoldersDocument =
-  new EaglePreferenceDocument<EagleManualFoldersSettings>(
-    'eagle-manual-folders',
+  new EaglePreferenceDocument<EagleManualFoldersPreferences>(
+    'eagle.manual-folders',
     { folders: [] },
   )
 

@@ -103,12 +103,12 @@ export class TaskService {
       const [allItems, latestStandards, history] = await Promise.all([
         getClassifiableItems(params),
         getFolderStandards(),
-        organizeRepository.listItems(),
+        organizeRepository.getItemStatuses(),
       ])
       const imageCount = allItems.total
       const availableCount = getAvailableItemIds(allItems.itemIds, [
         ...task.itemIds,
-        ...history.map((item) => item.itemId),
+        ...history.keys(),
       ]).length
       const hasStandardsMismatch = !areStandardsEqual(
         task.standards,
@@ -206,9 +206,9 @@ export class TaskService {
     }
     const [{ itemIds: allAvailable }, history] = await Promise.all([
       getClassifiableItems(params),
-      organizeRepository.listItems(),
+      organizeRepository.getItemStatuses(),
     ])
-    const historyIds = history.map((item) => item.itemId)
+    const historyIds = [...history.keys()]
     let noAvailableItems = false
     const updated = await organizeRepository.mutateTask((latest) => {
       // 读取范围期间任务可能完成或被替换，不把旧请求追加到新任务。

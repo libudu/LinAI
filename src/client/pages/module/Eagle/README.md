@@ -10,7 +10,9 @@ src/shared/eagle/
 └── organize.ts                          # 整理响应与结果契约、分类提示词
 
 src/server/module/eagle/
-├── settings.ts                          # 注册式设置：资源库路径、目录展开、手动目标历史与独立视觉接入点；设置类型统一从 zod schema 推导，前端仅 import type；含 getEagleVisionEndpoint() 生效接入点
+├── settings.ts                          # 注册式设置：资源库路径与独立视觉接入点；设置类型统一从 zod schema 推导，前端仅 import type；含 getEagleVisionEndpoint() 生效接入点
+├── storage.ts                           # 通用存储：eagle.folder-tree / eagle.manual-folders 单条目集合，沿用旧文件位置并迁移原设置文档信封，业务 value 类型由前端拥有
+├── change-journal.ts                    # 库/整理各自使用的有界变更记录（最近 512 次，带启动期游标），过期或整体失效时返回完整快照
 ├── schemas.ts                           # Eagle 请求参数校验的唯一定义；服务参数从 schema 输出推导，前端输入从 RPC 推导
 ├── errors.ts                            # 结构化业务错误（如 TASK_CHANGED），由全局 onError 转为统一信封
 ├── relay.ts                             # 注册 relay 目标 eagle.vision（POST /chat/completions，非流式），供整理执行器服务端直接调用
@@ -26,7 +28,7 @@ src/server/module/eagle/
 │   ├── shard-cache.ts                   # 可重建的 32 个 Hash 分片：恢复、脏分片局部写入、5 秒防抖，失败保留脏标记
 │   ├── mtime-state.ts                   # 库根修改指纹：已加载读取与磁盘重载分开，保留本应用待写 ID，保存时合并磁盘其他 ID
 │   ├── folders.ts                       # 基于传入目录树的纯逻辑：展示树、节点查找、完整路径与后序分类标准，查询和写操作共用
-│   ├── query.ts                         # 只读查询与数据投影：目录概览、文件夹树、排序分页、整理标准与路径解析；getItemDetail 的业务详情和归属路径来自同一索引，getItemMediaSource 一次解析媒体路径与扩展名
+│   ├── query.ts                         # 只读查询与数据投影：目录概览、文件夹树、版本失效的排序分页视图（最多 8 份 LRU）、整理标准与路径解析；getItemDetail 的业务详情和归属路径来自同一索引，getItemMediaSource 一次解析媒体路径与扩展名
 │   ├── operations.ts                    # 写操作聚合门面
 │   ├── folder-operations.ts             # 文件夹编辑：原子写回库根元数据并发布变更
 │   ├── item-operations.ts               # 条目编辑：改名计划/失败回滚、元数据写入、带 ID 与原因的逐项结果
@@ -44,7 +46,7 @@ src/server/module/eagle/
     │   ├── task.ts                      # 任务生命周期（创建/准备/追加/暂停/恢复/清空/启动自愈）
     │   ├── queue.ts                     # 队列预览与失败项集中重试/跳过
     │   ├── confirmation.ts              # 单张/批量共用确认计划：状态校验、目标文件夹解析、缺失条目自愈、已确认项幂等
-    │   ├── result.ts                    # 结果列表/详情/确认计划执行与逐项反馈/清除分类/单图重试
+    │   ├── result.ts                    # 分页结果与增量成功结果同步/详情/确认计划执行与逐项反馈/清除分类/单图重试
     │   └── index.ts                     # OrganizeService 单例门面；用户命令串行化，防止重复决策扣减
     ├── executor.ts                      # 队列执行器：任务指定并发（1~20，默认 20）按序派发，全局相邻请求至少间隔 0.5 秒，支持中断 in-flight 请求的强制清空；跳过已完成项，支持「重新执行」在中途挖洞；连续 10 次单图失败后暂停派发并发送 Windows 错误通知（任意一次成功后重头计数，落盘异常仍立即暂停并通知），全部执行完 → confirming/done 并发送 Windows 完成通知；每张图完成发布变更
     └── vision.ts                        # 单图视觉判定：sharp 内存压缩（不落盘）→ 组装分类标准 prompt → requestRegistry.execute('eagle.vision') → 严格 JSON 解析（zod）+ 0～3 个 folderPaths 匹配校验，标题自动追加 _【模型第一个词】【模型数字】 后缀，支持 AbortSignal，失败抛错由执行器记为 failed
@@ -63,12 +65,13 @@ src/client/pages/module/Eagle/           # 本目录
 │   ├── useEagleConfig.ts                 # 资源库配置 zustand store（/api/settings/eagle），保存失败抛给表单处理
 │   └── useEagleVisionConfig.ts           # 视觉接入点 zustand store（/api/settings/eagle-vision，独立 keychain）
 ├── preferences.ts                       # 排序/大小/展示选项/选中文件夹的 localStorage 读写，保留原有键
-├── preferenceDocument.ts                # UI 偏好文档：共享加载/版本与订阅，加载中修改按实际数据重放，串行保存并合并等待中的最新状态，保存响应不覆盖后续操作
+├── preferenceTypes.ts                   # 前端拥有的目录展开、手动分类历史模型，不从服务端 settings 推导
+├── preferenceDocument.ts                # 通用集合中的 preferences 单条目：共享加载/集合版本与本地订阅，加载中修改按实际数据重放，串行保存并合并等待中的最新状态，保存响应不覆盖后续操作
 ├── folders.ts                           # 前端文件夹纯逻辑：查找、key 收集、完整路径映射与分类顺序；拥有 SelectedFolderInfo 业务类型
 ├── libraryRefresh.ts                    # 刷新控制器：SSE 与主动刷新合并，整理弹窗期间记脏、关闭后补拉
 ├── refreshQueue.ts                      # 共享刷新队列：请求中再次失效时补拉，调用方等待所有补拉结束
 ├── hooks/useResourceActions.ts          # 网格条目编辑/删除/添加图库与文件夹选择弹窗状态
-├── FolderTree/                          # 左侧 antd Tree（展开状态持久化到后端设置，节点带文件夹图标与图片数）；「全部」下含「未分类」与「回收站」虚拟节点，真实文件夹支持右键/长按编辑名称/描述
+├── FolderTree/                          # 左侧 antd Tree（展开状态经通用存储持久化到便携数据目录，节点带文件夹图标与图片数）；「全部」下含「未分类」与「回收站」虚拟节点，真实文件夹支持右键/长按编辑名称/描述
 │   └── useFolderExpansion.ts            # 展开偏好加载/保存与旧 localStorage 迁移，成功写入后移除旧记录；初始定位的临时展开状态不直接写盘
 ├── ResourceGrid.tsx                     # 右侧网格 + 分页 + 图片预览 + 视频 Modal，可按需在格子底部叠加文件名/文件大小，卡片支持右键/长按弹出菜单（修改文件夹/移到回收站/彻底删除）
 ├── components/                          # 模块公共组件与弹窗
@@ -92,7 +95,7 @@ src/client/pages/module/Eagle/           # 本目录
 │   │   ├── index.tsx                    # 主入口：纯净结果确认装配器——查验判定成功项，普通模式（顶部缩略图条 + 左大图右信息面板 + 底部快捷操作）与快速模式（居中放大列表 + 卡片底部直接确定），调度批次队列与预加载
 │   │   ├── types.ts                     # 共享类型与常量（OrganizeSortType, PinnedFolderOption, SPECIAL_CATEGORY_*）
 │   │   ├── components/                  # 纯 UI 与视口组件（ConfirmImageViewer 原图大图 / ThumbnailBar 缩略图条 / ConfirmControls / QuickConfirmList / DetailPanel / ActionBar）
-│   │   ├── hooks/                       # useConfirmQueue 决策门面与删除后跳过命令 / useConfirmResults 列表、排序与移除恢复 / useConfirmSubmission 提交、逐项失败反馈与状态校准 / useConfirmSelection 默认推荐、每图选择/标题开关与置顶 / useOrganizePreload / useConfirmShortcuts / useManualFolders
+│   │   ├── hooks/                       # useConfirmQueue 决策门面与删除后跳过命令 / useConfirmResults 增量列表、本地排序与移除恢复 / useConfirmSubmission 提交、逐项失败反馈与状态校准 / useConfirmSelection 默认推荐、每图选择/标题开关与置顶 / useOrganizePreload / useConfirmShortcuts / useManualFolders
 │   │   └── utils/                       # list.ts 两种确认视图共用的平铺列表类型与构造 / sort.ts 分类顺序与多维排序 / storage.ts 本地存储 / submissionQueue.ts 批次防抖与单图操作的串行队列
 │   ├── statusModel.ts                   # 纯计算：乐观记录转换、快照校准与展示计数派生
 │   ├── statusRefresh.ts                 # 状态刷新控制器：订阅计数/SSE 节流/过期快照保护/提交后校准
@@ -107,6 +110,7 @@ src/client/pages/module/Eagle/           # 本目录
 
 - 路由/侧栏：`src/client/routes.tsx` 中 `path: '/eagle'` 一项（侧栏自动出现，设置按钮挂 `onClickSetting`）
 - 后端路由：`src/server/index.ts` 链式 `.route('/api/eagle', eagleApi)`
+- 存储汇总：`src/server/common/storage/resources.ts` 副作用导入 `module/eagle/storage`；`eagle.folder-tree`、`eagle.manual-folders` 经 `/api/storage/collections/:resource` 访问
 - 设置汇总：`src/server/common/settings/resources.ts` 副作用导入 `module/eagle/settings`
 - 中继汇总：`src/server/common/relay/resources.ts` 副作用导入 `module/eagle/relay`（目标 eagle.vision，整理执行器服务端直连）
 - 变更资源：`eagle.organize`（整理任务/结果，service 注册）、`eagle.library`（`module/eagle/library/runtime.ts` 注册，`mutation.ts` / `folder-operations.ts` 写库后发布，前端订阅刷新列表）
@@ -133,7 +137,7 @@ src/client/pages/module/Eagle/           # 本目录
 2. **增量校验**（启动后、手动刷新时）：重新读库根 `mtime.json`（保留本应用尚未落盘的 ID 改动）+ `readdir images/` → 与内存索引对比 → 只重读新增/lastModified 变化/删除的条目 → 仅标记脏分片回写；指纹文件/单项指纹缺失时重读相应元数据，避免刷新继续信任旧缓存
 3. **分片持久化**（条目确认/编辑等写操作）：按 ID Hash 散列到 32 个分片，防抖落盘时仅并发重写变动的脏分片（每次仅数百 KB，消除 95% 以上的 I/O），彻底根治全库重写卡顿
 4. **外部变更同步**：外部 Eagle 客户端若有新增/修改，由用户点击工具栏右上角「刷新」按钮（`POST /refresh`）手动增量校验；本应用自身的所有写操作（确认/改名/移动/软删除）元数据写盘成功后内存即时生效；目前没有 fs.watch 监听
-5. 排序、文件夹计数、过滤全部在内存索引上完成；`isDeleted` 条目保留在索引中，常规查询与文件夹计数中自动排除，供回收站视图检索、恢复或彻底删除
+5. 排序、文件夹计数、过滤全部在内存索引上完成；目录概览与最多 8 份按文件夹/排序/可分类条件区分的排序视图按库版本缓存，翻页仅切片并投影当页条目。条目写入、软删除/恢复、物理删除在更新内存索引后立即记录 ID 并失效视图；目录编辑、切库、手动扫描（含扫描失败后的部分修改）整体失效。稳定排序仍沿用索引条目顺序。`isDeleted` 条目保留在索引中，常规查询与文件夹计数中自动排除，供回收站视图检索、恢复或彻底删除
 
 ## API（/api/eagle）
 
@@ -165,7 +169,8 @@ src/client/pages/module/Eagle/           # 本目录
 | POST   | `/organize/task/clear`                                               | 强制停止所有请求、丢弃当前任务与结果；弹窗回到新建状态                                                                                                                                                     |
 | GET    | `/organize/queue?limit=20`                                           | 执行中队列预览：返回执行中、待处理和失败条目；limit 上限 50                                                                                                                                                |
 | GET    | `/organize/failed-items`                                             | 步骤 2 失败列表：返回所有判定失败的图片及具体错误原因                                                                                                                                                      |
-| GET    | `/organize/results?status=&offset=&limit=`                           | 纯查询整理结果列表（按状态过滤，步骤 3 仅请求 status=success，按 updatedAt 倒序）；不校准结果、不写任务计数                                                                                                |
+| GET    | `/organize/results?status=&offset=&limit=`                           | 纯查询整理结果列表（按状态过滤，支持 offset/limit，分页后才查询素材摘要，按 updatedAt 倒序）；不校准结果、不写任务计数                                                                                     |
+| GET    | `/organize/results/changes?resultsVersion=&libraryVersion=`          | 纯查询成功结果同步：首次/游标过期返回 `reset: true` 完整列表；有效游标只返回变化的 `items` 与移出成功集合的 `removedIds`，并返回两份新版本；不修改任务或结果                                               |
 | POST   | `/organize/results/reconcile`                                        | 显式校准缺失结果 `{ taskId }`，确认页进入时调用；有效索引中的缺失成功项标为 confirmed，索引不可用返回 409                                                                                                  |
 | POST   | `/organize/results/confirm-batch`                                    | 请求 `{ items: [{ itemId, folderPath, folderId?, withTitle }], taskId }`；返回逐项结果 `{ items: [{ itemId, ok, outcome? 或 status/error }] }`，过期任务整体返回 409，无效目标等逐项失败，已确认项重放成功 |
 | GET    | `/organize/results/:itemId`                                          | 单图结果详情（附条目当前名称 `itemName`，`status` 取值见 `src/shared/eagle/organize.ts`）                                                                                                                  |
@@ -191,14 +196,16 @@ src/client/pages/module/Eagle/           # 本目录
 4. `ResourceGrid` 底部 antd `Pagination` 翻页（移动端 simple 模式），翻页后网格滚动回顶部；条目写操作（修改文件夹/移到回收站/彻底删除）后通过 `requestEagleLibraryRefresh` 合并 SSE 与主动刷新，静默拉取更新，保持网格容器稳定不卸载，滚动条位置维持且前台图片无闪烁；右键「修改文件夹」自动优先选择当前图片所属文件夹，由 `FolderSelectModal` 自动居中滚动到该节点；点击确定后立即关闭模态框并在后台异步执行修改与静默刷新，彻底避免关闭延迟与选中态过期闪烁
 5. 预览：图片进 `Image.PreviewGroup`（items 只含非视频）；视频点击开 Modal 内 `<video>`（依赖 file 接口的 Range 支持）
 6. 设置弹窗保存库路径后调用 `store.reload()`（= POST /refresh + 重拉数据）；视觉接入点标签页挂载时拉取 `eagle-vision` 配置
-7. 目录树展开/收起状态持久化在后端设置 `eagle-folder-tree`（首次读取会迁移 localStorage `eagle_folder_expanded`，无记录时默认全展开）；「全部」下方的「未分类」与「回收站」虚拟节点分别筛选 `folders` 为空的条目与已删除条目并显示实时数量；移动端（`usePlatform().isMobile`）不渲染左侧栏，由工具栏「切换文件夹」按钮开抽屉展示同一棵 `FolderTree`
+7. 目录树展开/收起状态由前端拥有，经通用集合 `eagle.folder-tree` 的固定 `preferences` 条目持久化到 `data/eagle/folder-tree.json`（首次读取会迁移 localStorage `eagle_folder_expanded`，无记录时默认全展开）；「全部」下方的「未分类」与「回收站」虚拟节点分别筛选 `folders` 为空的条目与已删除条目并显示实时数量；移动端（`usePlatform().isMobile`）不渲染左侧栏，由工具栏「切换文件夹」按钮开抽屉展示同一棵 `FolderTree`
+   - 手动分类目标历史及计数同样由前端拥有，使用 `eagle.manual-folders` 集合的 `preferences` 条目，落盘 `data/eagle/manual-folders.json`。两份文件均沿用原位置：读取时兼容旧 SettingsRegistry 文档信封（也接受扁平对象），下次保存原子写为集合信封；保留备份恢复、集合 revision 冲突检测与加载中操作重放。目录展开的旧 localStorage 记录仍在成功保存后才删除。库路径与视觉模型继续走 `eagle` / `eagle-vision` 设置；本次不增加跨库隔离。
+
 8. 目录树右键/长按节点 →「编辑」弹窗改文件夹名称/描述，保存后经统一刷新入口重拉目录树与当前页（与服务端 SSE 合并）；「图片整理」按钮先校验 `eagle-vision` 的生效密钥，未配置时以 initialOnly 模式弹设置引导，保存后继续打开整理弹窗
 9. 图片整理流程：
    - 弹窗采用 `StepNavBar` 导航卡片（桌面端左侧竖排，移动端上方横排，三个步骤分别采用蓝/紫/绿区分色彩）+ 主操作区架构。
    - 任务不锁定来源文件夹：可关闭弹窗从目录树切换，也可在步骤 1 内点击「切换文件夹」选择全部、未分类或任意真实文件夹，继续添加到同一任务。
    - **步骤 1（待添加）**：无未完成任务时为新建模式；已有未完成任务时为追加模式，展示当前选择范围的名称、已入队数和剩余可追加数，按当前页面排序追加，沿用任务的分类标准快照、并发数与压缩设置；暂停状态追加后仍需手动继续。当任务非运行状态（如暂停或已运行完待确认等）且外部文件夹顺序或分类标准发生变化时，左下角支持「同步最新文件夹」，将最新标准快照原子同步至当前任务。
-   - **步骤 2（处理中）**：展示执行状态与进度（`已执行/总数`）；集中管理失败任务（支持单项重试、单项跳过、重试所有错误、全部跳过），失败项不计入成功计数，不流入步骤 3；提供队列预览与查验跳转。
-   - **步骤 3（待确认）**：纯净查验判定成功的结果（`status === 'success'`）；顶部支持切换排序（完成顺序/图片分类/修改时间）与「快速模式」开关；
+   - **步骤 2（处理中）**：队列预览按任务顺序直接读取内存状态 Map，不再投影/排序全部结果；失败列表复用按状态的摘要视图，展示行才读取详情。展示执行状态与进度（`已执行/总数`）；集中管理失败任务（支持单项重试、单项跳过、重试所有错误、全部跳过），失败项不计入成功计数，不流入步骤 3；提供队列预览与查验跳转。
+   - **步骤 3（待确认）**：纯净查验判定成功的结果（`status === 'success'`）；首次经 `/results/changes` 获取完整成功列表，后续状态刷新和库 SSE 共用刷新队列，只合并变化条目/移除 ID；没有列表变化时跳过前端重排。切换排序只重算本地视图。两份游标只在响应被接受后推进，过期响应不覆盖当前轮次或乐观操作；顶部支持切换排序（完成顺序/图片分类/修改时间）与「快速模式」开关；
      - **分类排序与特殊分类置顶**：分类排序下，按当前任务固化的分类顺序稳定排序（避免确认中途数量减少后重新打开窗口导致分类排位跳动）；特殊分类置顶展示：`疑似低质`（所有 `lowQuality` 为 true 的图片，无视推荐分类，作为首位特殊分类置顶展示，不影响实际归档文件夹，缩略图与卡片带有琥珀色警告图标与标签）第一，`未分类`（`folderPaths` 为空数组且非低质）第二，常规分类按任务固化顺序第三；
      - **普通模式**：顶部缩略图条 + 左大图（原图展示并在左上角显示原图尺寸与大小徽标，自动预加载当前项及后续共 5 张大图与右侧详情）+ 右侧分类面板（整行空白可点击选中；hover 展示 pin 置顶按钮，自定义选项置于删除按钮右侧，支持单选项强制置顶且新图默认选中，便于同类图片快速确认）+ 底部快捷操作（移到回收站/A清除分类/S不处理/重新执行/D确认）；
      - **快速模式**：隐藏大图与右侧详情以跳过耗时请求，展示居中放大的图片列表（卡片左上角显示原图尺寸与大小徽标），每张图片卡片底部带有「确定」按钮，直接按首选推荐分类归档（支持按键 D 快捷确认当前项，并保持 20 项或 3 秒防抖批量落盘机制）；
@@ -206,6 +213,8 @@ src/client/pages/module/Eagle/           # 本目录
    - 全部图片执行完，且待确认与失败项都处理完后，任务状态转为 done，可创建新一轮任务；仅剩失败项时仍可在步骤 2 重试/跳过。
 
 ## 图片整理维护约束
+
+- **查询缓存与增量同步**：单图结果只在成功落盘后更新摘要/状态 Map、失效受影响状态的列表视图并记录变更 ID。库和整理各保留最近 512 次变更，游标包含服务启动期 UUID，不依赖毫秒时间戳，因此同毫秒批量确认/重试不会漏项。新建/清空、清空失败后重载、扫描/目录整体变化、服务重启或超过历史范围会要求完整重置；客户端重置时替换本地 Map，否则按 ID 合并/移除。结果查询仍为纯 GET，缺失成功项的状态校准只走进入确认页时显式发出的 POST 命令。素材索引变化只更新结果投影，不隐式把缺失素材标为已确认。
 
 - **跨文件夹追加**：来源范围只决定本次挑选的图片，不限制后续追加；单轮任务仍共用分类标准快照、并发与压缩设置。已有旧任务无需迁移即可从其他文件夹追加。
 - **领域模型与旧数据**：`model.ts` 定义服务端任务模型，服务和状态转换不从存储实现导入类型。`storage.ts` 在读取和写入边界调用统一归一化函数：旧任务缺失的来源名称、计数与并发补默认值；缺少 taskId 时使用稳定的 `legacy-${createdAt}`，新任务使用 UUID；旧结果 `folderPath` 转为 `folderPaths`，已有空数组优先。兼容字段不再进入当前共享接口，读取不主动改写旧文件。

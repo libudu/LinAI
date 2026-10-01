@@ -4,6 +4,7 @@
  * 保证服务端启动时全部注册完成。
  * 新增前端业务资源时，在所属模块新建/编辑 storage.ts 并在此加一行导入。
  */
+import '../../module/eagle/storage'
 import '../../module/gpt-image/storage'
 import '../../module/novel/storage'
 import '../../module/tts/storage'

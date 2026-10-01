@@ -1,10 +1,12 @@
-import { settingsClient } from '@/client/service/settings'
+import { collectionClient } from '@/client/service/storage'
 
 /** Eagle UI 偏好文档：共享加载与版本，串行保存并合并尚未发送的修改。 */
-export class EaglePreferenceDocument<T> {
-  private readonly client: ReturnType<typeof settingsClient<T>>
+export class EaglePreferenceDocument<T extends object> {
+  private readonly client: ReturnType<typeof collectionClient<T>>
   private snapshot: { value: T; loaded: boolean }
   private revision: number | undefined
+  private exists = false
+  private readonly defaults: T
   private loadPromise: Promise<void> | null = null
   private savePromise: Promise<void> | null = null
   private dirty = false
@@ -12,7 +14,8 @@ export class EaglePreferenceDocument<T> {
   private pendingMutations: Array<(value: T) => T> = []
 
   constructor(id: string, defaults: T) {
-    this.client = settingsClient<T>(id)
+    this.client = collectionClient<T>(id)
+    this.defaults = defaults
     this.snapshot = { value: defaults, loaded: false }
   }
 
@@ -34,12 +37,14 @@ export class EaglePreferenceDocument<T> {
     if (this.revision !== undefined) return Promise.resolve()
     if (!this.loadPromise) {
       this.loadPromise = this.client
-        .get()
+        .list()
         .then((result) => {
+          const stored = result.items.find((item) => item.id === 'preferences')
+          this.exists = !!stored
           // 加载期间的操作基于实际文档重放，既保留用户操作，也不丢弃历史记录。
           const value = this.pendingMutations.reduce(
             (current, mutate) => mutate(current),
-            result.value,
+            stored ? { ...this.defaults, ...stored.value } : this.defaults,
           )
           this.pendingMutations = []
           this.revision = result.revision
@@ -67,11 +72,18 @@ export class EaglePreferenceDocument<T> {
           while (this.dirty) {
             this.dirty = false
             try {
-              const result = await this.client.put(
-                this.snapshot.value,
+              await this.client.batch(
+                [
+                  {
+                    type: this.exists ? 'replace' : 'create',
+                    id: 'preferences',
+                    value: this.snapshot.value,
+                  },
+                ],
                 this.revision,
               )
-              this.revision = result.revision
+              this.exists = true
+              this.revision = this.revision! + 1
               // 保存响应只更新版本，不能覆盖请求期间产生的更新状态。
             } catch (error) {
               this.dirty = true

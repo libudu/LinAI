@@ -1,5 +1,5 @@
 import type { SelectedFolderInfo } from '@/client/pages/module/Eagle/folders'
-import type { EagleManualFolderItem } from '@/server/module/eagle/settings'
+import type { EagleManualFolderItem } from '@/client/pages/module/Eagle/preferenceTypes'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { PinnedFolderOption } from '../types'
 import { getSavedPinnedOption, savePinnedOption } from '../utils/storage'

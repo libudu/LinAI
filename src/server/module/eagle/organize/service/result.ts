@@ -11,6 +11,7 @@ import {
   getItemDetail,
   getItemPresence,
   getItemSnapshots,
+  getLibraryChanges,
   updateItem,
   updateItems,
 } from '../../library'
@@ -48,12 +49,9 @@ export class ResultService {
     status?: OrganizeItemStatus,
     options?: { offset?: number; limit?: number },
   ): Promise<OrganizeResultListItem[]> {
-    const items = await organizeRepository.listItems()
-    let list = status ? items.filter((item) => item.status === status) : items
+    const list = await organizeRepository.listItems(status, options)
+    // 分页后再查询素材投影，limit 较小时不再生成全结果的 ID/摘要 Map。
     const itemMap = await getItemSnapshots(list.map((item) => item.itemId))
-    const { offset = 0, limit } = options ?? {}
-    if (offset > 0) list = list.slice(offset)
-    if (limit !== undefined && limit >= 0) list = list.slice(0, limit)
     return list.map((item) => {
       const entry = itemMap?.get(item.itemId)
       return {
@@ -66,11 +64,46 @@ export class ResultService {
     })
   }
 
+  /** 确认页首次读取完整成功列表，后续只读取最近变化的结果/素材 ID。 */
+  async syncResults(options: {
+    resultsVersion?: string
+    libraryVersion?: string
+  }) {
+    const [results, library] = await Promise.all([
+      organizeRepository.getItemChanges(options.resultsVersion),
+      getLibraryChanges(options.libraryVersion),
+    ])
+    const reset = results.ids === null || library.ids === null
+    const changedIds = [
+      ...new Set([...(results.ids ?? []), ...(library.ids ?? [])]),
+    ]
+    const summaries = reset
+      ? await organizeRepository.listItems('success')
+      : await organizeRepository.getItemSummaries(changedIds)
+    const succeeded = summaries.filter((item) => item.status === 'success')
+    const successIds = new Set(succeeded.map((item) => item.itemId))
+    const itemMap = await getItemSnapshots(succeeded.map((item) => item.itemId))
+    return {
+      resultsVersion: results.version,
+      libraryVersion: library.version,
+      reset,
+      removedIds: reset ? [] : changedIds.filter((id) => !successIds.has(id)),
+      items: succeeded.map((item) => {
+        const entry = itemMap?.get(item.itemId)
+        return {
+          ...item,
+          mtime: entry?.mtime ?? 0,
+          width: entry?.width,
+          height: entry?.height,
+          size: entry?.size,
+        }
+      }),
+    }
+  }
+
   /** 缺失结果校准是显式命令；调用方在命令锁内校验任务身份。 */
   async reconcileResults(): Promise<OrganizeActionResult> {
-    const items = (await organizeRepository.listItems()).filter(
-      (item) => item.status === 'success',
-    )
+    const items = await organizeRepository.listItems('success')
     if (items.length === 0) return { ok: true }
     const itemMap = await getItemSnapshots(items.map((item) => item.itemId))
     if (!itemMap)

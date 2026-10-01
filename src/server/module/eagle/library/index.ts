@@ -22,6 +22,7 @@ export {
   getItemPresence,
   getItemSnapshots,
   getItems,
+  getLibraryChanges,
   getLibraryOverview,
 } from './query'
 export { isVideoExt } from './runtime'

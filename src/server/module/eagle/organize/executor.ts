@@ -110,11 +110,12 @@ class OrganizeExecutor {
 
     // 恢复场景：跳过已有结果且非 pending 的前缀，得到下一个待派发位置。
     // 派发严格按序，已完成的结果实体必然构成前缀（in-flight 未落盘的项会被重新执行）
-    const executedItems = await organizeRepository.listItems()
+    const statuses = await organizeRepository.getItemStatuses()
     const done = new Set(
-      executedItems
-        .filter((item) => item.status !== 'pending')
-        .map((item) => item.itemId),
+      itemIds.filter((id) => {
+        const status = statuses.get(id)
+        return status !== undefined && status !== 'pending'
+      }),
     )
     let cursor = 0
     while (cursor < itemIds.length && done.has(itemIds[cursor])) cursor++
@@ -161,13 +162,13 @@ class OrganizeExecutor {
     // 计数可能因写盘异常与实体脱节，按计数判断会无限重拉
     const latest = await organizeRepository.getTask()
     if (!latest || latest.phase !== 'running') return
-    const itemsAfter = await organizeRepository.listItems()
-    const settled = new Set(
-      itemsAfter
-        .filter((item) => item.status !== 'pending')
-        .map((item) => item.itemId),
-    )
-    if (latest.itemIds.some((id) => !settled.has(id))) {
+    const latestStatuses = await organizeRepository.getItemStatuses()
+    if (
+      latest.itemIds.some((id) => {
+        const status = latestStatuses.get(id)
+        return status === undefined || status === 'pending'
+      })
+    ) {
       this.stopping = false
       return this.runQueue(epoch, signal)
     }
