@@ -121,7 +121,6 @@ export async function importComfyWorkflow(input: {
       'gpt-image',
       {
         ...snapshot.value,
-        gptImageEndpointKind: 'comfyui',
         gptImageEndpointId: endpoint.id,
         gptImageComfyEndpoints: existing
           ? snapshot.value.gptImageComfyEndpoints.map((item) =>

@@ -83,6 +83,19 @@ class StorageEventsMultiplexer {
     const url = `/api/storage/events?resources=${encodeURIComponent(newKey)}`
     const es = new EventSource(url)
 
+    // 初次连接及自动重连都补拉：覆盖订阅建立前和断线期间丢失的事件。
+    es.onopen = () => {
+      for (const resource of activeResources) {
+        for (const listener of this.listeners.get(resource) || []) {
+          try {
+            listener({ resource })
+          } catch (error) {
+            console.error('[storage-events] 重连刷新失败', error)
+          }
+        }
+      }
+    }
+
     es.addEventListener('change', (event: MessageEvent) => {
       try {
         const change = JSON.parse(event.data) as StorageResourceChange

@@ -1,5 +1,9 @@
 import { useLocalSetting } from '@/client/hooks/useLocalSetting'
 import type { Task } from '@/server/common/task'
+import {
+  getImageEndpointCapabilities,
+  validateImageEndpointInput,
+} from '@/shared/gpt-image/endpoints'
 import type { GptImageSize } from '@/shared/image/params'
 import { message } from 'antd'
 import {
@@ -10,6 +14,7 @@ import {
 } from '../service/generation'
 import { openGPTImageSettingModal } from '../SettingModal'
 import { useGptImageStore } from '../store'
+import { refreshTasks } from './useTasks'
 
 type GenerationMode = 'generate' | 'trial'
 
@@ -22,26 +27,35 @@ export function useImageGeneration() {
     input: ImageGenerationInput,
     size: GptImageSize,
   ) => {
-    // 设置弹窗可能改变接入点类型，继续生成时读取最新状态。
-    const isComfy =
-      useGptImageStore.getState().gptImageEndpointKind === 'comfyui'
-    if (isComfy && (input.images || []).length !== 1) {
-      message.warning(
-        mode === 'trial'
-          ? 'ComfyUI 试生成必须恰好提供一张参考图'
-          : 'ComfyUI 生成必须恰好提供一张参考图',
-      )
-      return
-    }
     try {
+      if (!useGptImageStore.getState().loaded)
+        await useGptImageStore.getState().fetchConfig()
+      const endpoint = useGptImageStore.getState().currentEndpoint
+      if (!endpoint) throw new Error('生图接入点未配置')
+      const capabilities = getImageEndpointCapabilities(
+        endpoint,
+        input.images?.length,
+      )
+      const isComfy = endpoint.protocol === 'comfyui'
+      const quality = capabilities.qualities.includes(gptImageSettings.quality)
+        ? gptImageSettings.quality
+        : capabilities.qualities[0]
+      const validation = validateImageEndpointInput(endpoint, {
+        ...input,
+        size,
+        quality,
+      })
+      if (validation) throw new Error(validation)
       const send = mode === 'trial' ? trialImage : generateImage
       await send(input, {
         isComfy,
         size,
-        quality: gptImageSettings.quality,
+        quality,
         appendAspectRatio,
+        endpointId: endpoint.selectionId,
       })
       message.success('任务提交成功')
+      refreshTasks()
     } catch (error) {
       message.error(error instanceof Error ? error.message : '生成请求失败')
     }
@@ -56,8 +70,9 @@ export function useImageGeneration() {
       message.warning('请先填写提示词')
       return
     }
-    const { gptImageEndpointKind, gptImageApiKey } = useGptImageStore.getState()
-    if (gptImageEndpointKind !== 'comfyui' && !gptImageApiKey) {
+    const { currentEndpoint, loaded, gptImageApiKey } =
+      useGptImageStore.getState()
+    if (loaded && currentEndpoint?.protocol !== 'comfyui' && !gptImageApiKey) {
       openGPTImageSettingModal({
         initialTab: 'endpoint',
         initialOnly: true,
@@ -74,6 +89,7 @@ export function useImageGeneration() {
     try {
       await retryImageTask(task)
       message.success('已创建重试任务')
+      refreshTasks()
     } catch (error) {
       message.error(error instanceof Error ? error.message : '重试请求失败')
     }

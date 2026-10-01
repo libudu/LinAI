@@ -2,7 +2,6 @@ import { FlatTemplate } from '@/shared/image/template'
 import { InboxOutlined } from '@ant-design/icons'
 import { message } from 'antd'
 import { patchTemplate } from '../../service/templates'
-import { useTemplates } from '../hooks/useTemplates'
 import { TemplateFolder } from '../TemplateItem/TemplateFolder'
 import { TemplateItem } from '../TemplateItem/TemplateItem'
 
@@ -17,15 +16,12 @@ export function TemplateItemList({
   selectedFolder,
   onSelectFolder,
 }: TemplateItemListProps) {
-  const { refresh: refreshTemplates } = useTemplates()
-
   const handleDropTemplate = async (templateId: string, folder: string) => {
     const template = filteredTemplates.find((t) => t.id === templateId)
     if (!template) return
     try {
       await patchTemplate(template, { folder })
       message.success('已移动到文件夹')
-      refreshTemplates()
     } catch (error) {
       const msg =
         error instanceof Error ? `[网络] ${error.message}` : '移动失败'
@@ -64,9 +60,6 @@ export function TemplateItemList({
                       folder={folder}
                       onClick={() => onSelectFolder(folder)}
                       onDropTemplate={handleDropTemplate}
-                      onRenameSuccess={() => {
-                        refreshTemplates()
-                      }}
                     />
                   )
                 })}

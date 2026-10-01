@@ -1,3 +1,4 @@
+import { createResourceCache } from '@/client/service/resource-cache'
 import { subscribeStorageEvent } from '@/client/service/storage-events'
 import type { AppType } from '@/server'
 import {
@@ -5,7 +6,7 @@ import {
   INPUT_IMAGES_API_PATH,
 } from '@/server/common/static/enum'
 import { hc } from 'hono/client'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useTemplates } from '../../hooks/useTemplates'
 
 const client = hc<AppType>('/')
@@ -36,49 +37,45 @@ const getComparableImageUrl = (type: GalleryImageItem['type'], url: string) => {
   return normalized.startsWith(`${apiPath}/`) ? normalized : null
 }
 
-export function useGalleryImages(visible: boolean) {
-  const [images, setImages] = useState<GalleryImageItem[]>([])
-  const [loading, setLoading] = useState(false)
-  const [imagesLoaded, setImagesLoaded] = useState(false)
-  const [imagesLoadSucceeded, setImagesLoadSucceeded] = useState(false)
-  const { data: templates = [], loading: templatesLoading } = useTemplates()
-  const referencesReady = imagesLoadSucceeded
+const galleryCache = createResourceCache({
+  resource: 'image.assets',
+  initialValue: [] as GalleryImageItem[],
+  load: async () => {
+    const response = await client.api.static.images.list.$get()
+    const result = await response.json()
+    if (!response.ok || !result.success || !('data' in result))
+      throw new Error('获取图库失败')
+    return result.data as GalleryImageItem[]
+  },
+})
 
+export function useGalleryImages(visible: boolean) {
+  const {
+    data: images,
+    loading,
+    loaded,
+    error,
+  } = galleryCache.useCache(visible)
+  const { data: templates = [], loading: templatesLoading } = useTemplates()
+  const referencesReady = loaded && !error
+  const imagesLoaded = loaded || !!error
+  const imagesLoadSucceeded = loaded && !error
   const fetchImages = async (): Promise<GalleryImageItem[] | null> => {
-    setLoading(true)
-    setImagesLoaded(false)
-    setImagesLoadSucceeded(false)
     try {
-      const response = await client.api.static.images.list.$get()
-      const result = await response.json()
-      if (!response.ok || !result.success || !('data' in result))
-        throw new Error('获取图库失败')
-      const nextImages = result.data as GalleryImageItem[]
-      setImages(nextImages)
-      setImagesLoadSucceeded(true)
-      return nextImages
-    } catch (error) {
-      console.error('Failed to fetch images', error)
+      await galleryCache.refresh()
+      return galleryCache.getState().data
+    } catch {
       return null
-    } finally {
-      setLoading(false)
-      setImagesLoaded(true)
     }
   }
-  const fetchImagesRef = useRef(fetchImages)
-  fetchImagesRef.current = fetchImages
   useEffect(() => {
     if (!visible) return
-    const refresh = () => {
-      void fetchImagesRef.current()
-    }
-    refresh()
+    const invalidate = galleryCache.invalidate
     const subscriptions = [
-      'image.assets',
       'image.templates',
       'image.tasks',
       'image.pending',
-    ].map((resource) => subscribeStorageEvent(resource, refresh))
+    ].map((resource) => subscribeStorageEvent(resource, invalidate))
     return () => subscriptions.forEach((unsubscribe) => unsubscribe())
   }, [visible])
   const imageByUrl = useMemo(

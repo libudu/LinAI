@@ -3,7 +3,7 @@ import {
   GPT_IMAGE_SOURCE_MODEL,
 } from '@/shared/image/sources'
 import { useLocalStorageState } from 'ahooks'
-import { Card, Image, Pagination, Spin } from 'antd'
+import { Alert, Card, Image, Pagination, Spin } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTasks } from '../hooks/useTasks'
 import { TaskItem } from './TaskItem'
@@ -12,7 +12,7 @@ import { TaskListHeader } from './TaskListHeader'
 const PAGE_SIZE = 10
 
 export function TaskList() {
-  const { data: tasks = [], loading } = useTasks()
+  const { data: tasks = [], loading, error, refresh } = useTasks()
   const [downloadedIds, setDownloadedIds] = useLocalStorageState<string[]>(
     'downloadedTaskIds',
     { defaultValue: [] },
@@ -57,6 +57,16 @@ export function TaskList() {
         setDownloadedIds={setDownloadedIds}
         loading={loading}
       />
+      {error && (
+        <Alert
+          type="error"
+          showIcon
+          title="任务列表加载失败"
+          description={error.message}
+          action={<a onClick={refresh}>重试</a>}
+          className="mb-4"
+        />
+      )}
 
       {loading && !gptImageTasks.length ? (
         <div className="flex justify-center py-12">

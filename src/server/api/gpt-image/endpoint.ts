@@ -1,5 +1,10 @@
-import { isVeniceEndpoint } from '@/shared/gpt-image/endpoints'
+import {
+  getImageEndpointCapabilities,
+  resolveImageEndpoint,
+} from '@/shared/gpt-image/endpoints'
+import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
+import { z } from 'zod'
 import {
   getGptImageSettings,
   resolveGptImageConnection,
@@ -19,93 +24,105 @@ export interface GPTImageQuotaResponse {
 }
 
 // 接入点相关接口：余额查询针对的是当前接入点，与具体生图任务无关
-const gptImageEndpointApi = new Hono().get('/quota', async (c) => {
-  const settings = await getGptImageSettings()
-  if (settings.gptImageEndpointKind === 'comfyui') {
-    return c.json(
-      { success: false as const, error: '本地 ComfyUI 不提供云端余额' },
-      400,
-    )
-  }
-  const { apiKey, baseUrl } = resolveGptImageConnection(settings)
-  if (!apiKey) {
-    return c.json(
-      { success: false as const, error: '[配置] API Key is not configured' },
-      400,
-    )
-  }
-
-  try {
-    const origin = new URL(baseUrl).origin
-
-    if (isVeniceEndpoint(baseUrl)) {
-      const { data, errorMessage, status } = await fetchVeniceQuota(
-        origin,
-        apiKey,
+const gptImageEndpointApi = new Hono().get(
+  '/quota',
+  zValidator('query', z.object({ endpointId: z.string().optional() })),
+  async (c) => {
+    const settings = await getGptImageSettings()
+    settings.gptImageEndpointId =
+      c.req.valid('query').endpointId ?? settings.gptImageEndpointId
+    const endpoint = resolveImageEndpoint(settings)
+    if (!endpoint || !getImageEndpointCapabilities(endpoint).quota) {
+      return c.json(
+        {
+          success: false as const,
+          error: endpoint
+            ? '当前接入点不提供云端余额'
+            : '生图接入点已删除或未配置',
+        },
+        400,
       )
-      if (!data) {
-        // 401/403 一般是密钥填错或接入点与密钥不匹配
-        const prefix = status === 401 || status === 403 ? '[密钥]' : '[服务]'
+    }
+    const { apiKey, baseUrl, protocol } = resolveGptImageConnection(settings)
+    if (!apiKey) {
+      return c.json(
+        { success: false as const, error: '[配置] API Key is not configured' },
+        400,
+      )
+    }
+
+    try {
+      const origin = new URL(baseUrl).origin
+
+      if (protocol === 'venice') {
+        const { data, errorMessage, status } = await fetchVeniceQuota(
+          origin,
+          apiKey,
+        )
+        if (!data) {
+          // 401/403 一般是密钥填错或接入点与密钥不匹配
+          const prefix = status === 401 || status === 403 ? '[密钥]' : '[服务]'
+          return c.json(
+            {
+              success: false as const,
+              error: `${prefix} ${errorMessage || `获取余额失败（HTTP ${status}）`}`,
+            },
+            502,
+          )
+        }
+        return c.json({
+          success: true as const,
+          data: data,
+        })
+      }
+
+      const response = await fetch(`${origin}/api/usage/token/`, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+      })
+      const json = (await response.json()) as any
+      const quota = json?.data
+      // 不同服务商报错结构不统一，且 HTTP 状态码可能仍是 200，需要逐项判断：
+      // 1. { success: true, data: { message: '...', success: false } }
+      // 2. { success: true, data: { error: { message: '...', type: '...' } } }
+      // 3. 非 200 时 message 可能在顶层
+      const errorMessage: string | undefined =
+        (typeof quota?.error?.message === 'string' && quota.error.message) ||
+        (quota?.success === false && typeof quota?.message === 'string'
+          ? quota.message
+          : undefined) ||
+        (!response.ok && typeof json?.message === 'string'
+          ? json.message
+          : undefined) ||
+        undefined
+      if (errorMessage || !quota || typeof quota.total_available !== 'number') {
+        // Invalid token 一般是密钥填错或接入点与密钥不匹配
+        const isInvalidToken = /invalid token/i.test(errorMessage || '')
+        const prefix = isInvalidToken ? '[密钥]' : '[服务]'
         return c.json(
           {
             success: false as const,
-            error: `${prefix} ${errorMessage || `获取余额失败（HTTP ${status}）`}`,
+            error: `${prefix} ${errorMessage || `获取余额失败（HTTP ${response.status}）`}`,
           },
           502,
         )
       }
+      const data: GPTImageQuotaResponse = json
       return c.json({
         success: true as const,
         data: data,
       })
-    }
-
-    const response = await fetch(`${origin}/api/usage/token/`, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-    })
-    const json = (await response.json()) as any
-    const quota = json?.data
-    // 不同服务商报错结构不统一，且 HTTP 状态码可能仍是 200，需要逐项判断：
-    // 1. { success: true, data: { message: '...', success: false } }
-    // 2. { success: true, data: { error: { message: '...', type: '...' } } }
-    // 3. 非 200 时 message 可能在顶层
-    const errorMessage: string | undefined =
-      (typeof quota?.error?.message === 'string' && quota.error.message) ||
-      (quota?.success === false && typeof quota?.message === 'string'
-        ? quota.message
-        : undefined) ||
-      (!response.ok && typeof json?.message === 'string'
-        ? json.message
-        : undefined) ||
-      undefined
-    if (errorMessage || !quota || typeof quota.total_available !== 'number') {
-      // Invalid token 一般是密钥填错或接入点与密钥不匹配
-      const isInvalidToken = /invalid token/i.test(errorMessage || '')
-      const prefix = isInvalidToken ? '[密钥]' : '[服务]'
+    } catch (error: any) {
       return c.json(
         {
           success: false as const,
-          error: `${prefix} ${errorMessage || `获取余额失败（HTTP ${response.status}）`}`,
+          error: `[网络] ${error.message || '获取余额失败'}`,
         },
-        502,
+        500,
       )
     }
-    const data: GPTImageQuotaResponse = json
-    return c.json({
-      success: true as const,
-      data: data,
-    })
-  } catch (error: any) {
-    return c.json(
-      {
-        success: false as const,
-        error: `[网络] ${error.message || '获取余额失败'}`,
-      },
-      500,
-    )
-  }
-})
+  },
+)
 
 export default gptImageEndpointApi

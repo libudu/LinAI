@@ -1,93 +1,114 @@
+import { RefreshQueue } from '@/client/service/refresh-queue'
 import { settingsClient } from '@/client/service/settings'
+import { subscribeStorageEvent } from '@/client/service/storage-events'
 import type { GptImageSettings } from '@/server/module/gpt-image/settings'
-import { resolveGptImageApiKey } from '@/shared/gpt-image/endpoints'
-import { message } from 'antd'
+import {
+  ENDPOINT_PRESET_INFOS,
+  getImageEndpointCapabilities,
+  resolveImageEndpoint,
+  type ImageEndpointCapabilities,
+  type ResolvedImageEndpoint,
+} from '@/shared/gpt-image/endpoints'
 import { create } from 'zustand'
 
 const client = settingsClient<GptImageSettings>('gpt-image')
+type GptImageConfigPatch = Partial<GptImageSettings>
 
-// GPT 图像模块设置状态：与服务端注册式设置同步（/api/settings/gpt-image）
-type GptImageConfigPatch = Partial<
-  Pick<
-    GptImageSettings,
-    | 'gptImageBaseUrl'
-    | 'gptImageModelId'
-    | 'gptImageCustomEndpoints'
-    | 'gptImagePresetApiKeys'
-    | 'gptImageEndpointKind'
-    | 'gptImageEndpointId'
-    | 'gptImageComfyEndpoints'
-  >
->
-
-interface GptImageState {
-  /** 当前接入点生效的 API Key（从 keychain 派生，用于"是否已配置"判断与表单回填） */
+interface GptImageState extends GptImageSettings {
+  /** 派生展示字段，不写入配置。 */
   gptImageApiKey: string | null
   gptImageBaseUrl: string | null
   gptImageModelId: string | null
-  gptImageCustomEndpoints: GptImageSettings['gptImageCustomEndpoints']
-  gptImagePresetApiKeys: Record<string, string>
   gptImageEndpointKind: 'openai' | 'comfyui'
-  gptImageEndpointId: string | null
-  gptImageComfyEndpoints: GptImageSettings['gptImageComfyEndpoints']
+  currentEndpoint: ResolvedImageEndpoint | undefined
+  capabilities: ImageEndpointCapabilities
   revision: number
+  loaded: boolean
+  error: Error | null
   saveConfig: (patch: GptImageConfigPatch) => Promise<void>
   fetchConfig: () => Promise<void>
 }
 
 export const useGptImageStore = create<GptImageState>()((set, get) => {
-  // 应用服务端返回的设置：gptImageApiKey 按当前接入点从 keychain 派生
   const apply = (value: GptImageSettings, revision: number) => {
+    if (revision < get().revision) return
+    if (get().loaded && revision === get().revision) {
+      set({ error: null })
+      return
+    }
+    const endpoint = resolveImageEndpoint(value)
     set({
       ...value,
       revision,
-      gptImageApiKey: resolveGptImageApiKey(value),
+      loaded: true,
+      error: null,
+      currentEndpoint: endpoint,
+      capabilities: getImageEndpointCapabilities(
+        endpoint ?? { protocol: 'openai' },
+      ),
+      gptImageApiKey:
+        endpoint && endpoint.protocol !== 'comfyui'
+          ? endpoint.apiKey || null
+          : null,
+      gptImageBaseUrl: endpoint?.baseUrl ?? null,
+      gptImageModelId:
+        endpoint && endpoint.protocol !== 'comfyui' ? endpoint.modelId : null,
+      gptImageEndpointKind:
+        endpoint?.protocol === 'comfyui' ? 'comfyui' : 'openai',
     })
   }
-
-  // 整体替换提交（含本地修订号做冲突检测），成功后用服务端返回覆盖本地状态
-  const postConfig = async (patch: GptImageConfigPatch) => {
+  const queue = new RefreshQueue(async () => {
     try {
-      const state = get()
-      const next: GptImageSettings = {
-        // state.gptImageApiKey 是按当前接入点解析出的生效 key，不能写回平铺兜底字段；
-        // 密钥只保存在 keychain（预设/自定义接入点），平铺字段固定清除避免残留旧 key
-        gptImageApiKey: null,
-        gptImageBaseUrl: state.gptImageBaseUrl,
-        gptImageModelId: state.gptImageModelId,
-        gptImageCustomEndpoints: state.gptImageCustomEndpoints,
-        gptImagePresetApiKeys: state.gptImagePresetApiKeys,
-        gptImageEndpointKind: state.gptImageEndpointKind,
-        gptImageEndpointId: state.gptImageEndpointId,
-        gptImageComfyEndpoints: state.gptImageComfyEndpoints,
-        ...patch,
-      }
-      const res = await client.put(next, state.revision)
+      const res = await client.get()
       apply(res.value, res.revision)
-    } catch (error) {
-      console.error('Failed to update config', error)
-      message.error('设置保存失败')
+    } catch (reason) {
+      const error = reason instanceof Error ? reason : new Error(String(reason))
+      set({ error })
       throw error
     }
+  })
+  let subscribed = false
+  const fetchConfig = () => {
+    if (!subscribed) {
+      subscribed = true
+      subscribeStorageEvent('settings.gpt-image', () => {
+        void queue.request().catch(() => undefined)
+      })
+    }
+    return queue.request()
   }
-
   return {
+    gptImageEndpointId: `preset:${ENDPOINT_PRESET_INFOS[0].id}`,
+    gptImageCustomEndpoints: [],
+    gptImagePresetApiKeys: {},
+    gptImageComfyEndpoints: [],
     gptImageApiKey: null,
     gptImageBaseUrl: null,
     gptImageModelId: null,
-    gptImageCustomEndpoints: [],
-    gptImagePresetApiKeys: {},
     gptImageEndpointKind: 'openai',
-    gptImageEndpointId: null,
-    gptImageComfyEndpoints: [],
+    currentEndpoint: undefined,
+    capabilities: getImageEndpointCapabilities({ protocol: 'openai' }),
     revision: 0,
-    saveConfig: postConfig,
-    fetchConfig: async () => {
+    loaded: false,
+    error: null,
+    fetchConfig,
+    saveConfig: async (patch) => {
+      if (!get().loaded) await fetchConfig()
+      const state = get()
+      const next: GptImageSettings = {
+        gptImageEndpointId: state.gptImageEndpointId,
+        gptImageCustomEndpoints: state.gptImageCustomEndpoints,
+        gptImagePresetApiKeys: state.gptImagePresetApiKeys,
+        gptImageComfyEndpoints: state.gptImageComfyEndpoints,
+        ...patch,
+      }
       try {
-        const res = await client.get()
+        const res = await client.put(next, state.revision)
         apply(res.value, res.revision)
       } catch (error) {
-        console.error('Failed to fetch config', error)
+        // 冲突后重新读取实际设置，不自动覆盖用户在其他页面的修改。
+        void queue.request().catch(() => undefined)
+        throw error
       }
     },
   }

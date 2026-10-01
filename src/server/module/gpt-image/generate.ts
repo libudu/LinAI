@@ -1,4 +1,4 @@
-import { isVeniceEndpoint } from '@/shared/gpt-image/endpoints'
+import type { CloudImageProtocol } from '@/shared/gpt-image/endpoints'
 import type { GptImageQuality, GptImageSize } from '@/shared/image/params'
 import fs from 'fs-extra'
 import OpenAI, { toFile } from 'openai'
@@ -7,6 +7,7 @@ import { writePngGenerationInfo } from './png-meta'
 import { requestVeniceImage } from './venice'
 
 export interface GenerateGPTImageOptions {
+  protocol: CloudImageProtocol
   signal: AbortSignal
   output: GeneratedImageBatch
   apiKey: string
@@ -154,36 +155,38 @@ export async function generateGPTImage(options: GenerateGPTImageOptions) {
     n = 1,
     resolution,
     aspectRatio,
+    protocol,
     signal,
     output,
   } = options
   const normalizedBaseUrl = normalizeGptImageBaseUrl(baseUrl)
 
   // Venice 接入点走原生接口（见 venice.ts），其余走标准 OpenAI 契约
-  const res: OpenAI.Images.ImagesResponse = isVeniceEndpoint(normalizedBaseUrl)
-    ? await requestVeniceImage({
-        apiKey,
-        baseUrl: normalizedBaseUrl,
-        modelId,
-        prompt,
-        quality,
-        n,
-        imagePaths: images,
-        resolution,
-        aspectRatio,
-        signal,
-      })
-    : await requestOpenAIImage({
-        apiKey,
-        baseUrl: normalizedBaseUrl,
-        modelId,
-        prompt,
-        size,
-        quality,
-        n,
-        imagePaths: images,
-        signal,
-      })
+  const res: OpenAI.Images.ImagesResponse =
+    protocol === 'venice'
+      ? await requestVeniceImage({
+          apiKey,
+          baseUrl: normalizedBaseUrl,
+          modelId,
+          prompt,
+          quality,
+          n,
+          imagePaths: images,
+          resolution,
+          aspectRatio,
+          signal,
+        })
+      : await requestOpenAIImage({
+          apiKey,
+          baseUrl: normalizedBaseUrl,
+          modelId,
+          prompt,
+          size,
+          quality,
+          n,
+          imagePaths: images,
+          signal,
+        })
 
   // 写入 PNG 元数据的生成参数（写入失败不影响图片保存）
   const generationInfo = {

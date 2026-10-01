@@ -1,92 +1,15 @@
-import { subscribeStorageEvent } from '@/client/service/storage-events'
+import { createResourceCache } from '@/client/service/resource-cache'
+import { apiRequest } from '@/client/service/storage'
 import type { Task } from '@/server/common/task'
-import { useEffect } from 'react'
-import { create } from 'zustand'
 
-const fetchTasks = async (): Promise<Task[]> => {
-  const res = await fetch('/api/task')
-  const json = await res.json()
-  if (!json.success) {
-    // 错误可能是字符串或 { code, message } 对象，避免拼出 [object Object]
-    const error = json.error
-    const message = typeof error === 'string' ? error : error?.message
-    throw new Error(message || 'Failed to load tasks')
-  }
-  const tasks = json.data as Task[]
-  tasks.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
-  return tasks
-}
-
-interface TasksState {
-  data: Task[]
-  loading: boolean
-  subscriberCount: number
-  unsubscribe: (() => void) | null
-  addSubscriber: () => void
-  removeSubscriber: () => void
-}
-
-const useTasksStore = create<TasksState>((set, get) => ({
-  data: [],
-  loading: true,
-  subscriberCount: 0,
-  unsubscribe: null,
-  addSubscriber: () => {
-    set((state) => {
-      const newCount = state.subscriberCount + 1
-      if (newCount === 1) {
-        if (!state.unsubscribe) {
-          // 初始拉取 + 订阅统一变更事件：SSE 只携带资源版本信息，收到 change 后重新拉取
-          fetchTasks()
-            .then((tasks) => set({ data: tasks, loading: false }))
-            .catch((error) => {
-              console.error('Failed to load tasks', error)
-              set({ loading: false })
-            })
-
-          const unsub = subscribeStorageEvent('image.tasks', () => {
-            fetchTasks()
-              .then((tasks) => set({ data: tasks }))
-              .catch((error) => console.error('Failed to refresh tasks', error))
-          })
-
-          return {
-            subscriberCount: newCount,
-            unsubscribe: unsub,
-            loading: get().data.length === 0,
-          }
-        }
-      }
-      return { subscriberCount: newCount }
-    })
+const cache = createResourceCache({
+  resource: 'image.tasks',
+  initialValue: [] as Task[],
+  load: async () => {
+    const { data } = await apiRequest<Task[]>('/api/task')
+    return [...data].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
   },
-  removeSubscriber: () => {
-    set((state) => {
-      const newCount = Math.max(0, state.subscriberCount - 1)
-      if (newCount === 0 && state.unsubscribe) {
-        state.unsubscribe()
-        return { subscriberCount: newCount, unsubscribe: null }
-      }
-      return { subscriberCount: newCount }
-    })
-  },
-}))
+})
 
-export function useTasks() {
-  const data = useTasksStore((state) => state.data)
-  const loading = useTasksStore((state) => state.loading)
-  const addSubscriber = useTasksStore((state) => state.addSubscriber)
-  const removeSubscriber = useTasksStore((state) => state.removeSubscriber)
-
-  useEffect(() => {
-    addSubscriber()
-    return () => {
-      removeSubscriber()
-    }
-  }, [addSubscriber, removeSubscriber])
-
-  return {
-    data,
-    loading,
-  }
-}
+export const refreshTasks = cache.invalidate
+export const useTasks = cache.useCache

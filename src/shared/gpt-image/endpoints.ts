@@ -1,38 +1,35 @@
-// GPT 图像接入点定义（无 UI 依赖，前后端共享）
-// 前端 UI 层的 remark 富文本说明在 client 侧按 label 合并，见
-// src/client/pages/common/GenImage/SettingModal/Endpoint/endpointPresets.tsx
+import {
+  GPT_IMAGE_OUTPUT_MAX_N,
+  type GptImageQuality,
+  type GptImageSize,
+} from '@/shared/image/params'
 
-/** size 参数形式：resolution = 具体尺寸（如 1024x1024），level = 档位（1k/2k/4k） */
 export type GptImageSizeFormat = 'resolution' | 'level'
+export type CloudImageProtocol = 'openai' | 'venice'
+export type ImageProtocol = CloudImageProtocol | 'comfyui'
 
-/** 预设接入点的基础信息（不含 UI 说明） */
 export interface EndpointPresetInfo {
-  /** 展示名称，同时作为预设的唯一标识（下拉值与预设 API Key 的存储键），各预设必须不同 */
+  /** 稳定 ID，不随展示名称或模型升级改变 */
+  id: string
   label: string
+  protocol: CloudImageProtocol
   baseUrl: string
   modelId: string
-  /** 兼容的历史模型 ID 列表（迁移时自动匹配并复用旧配置） */
   legacyModelIds?: string[]
-  /** 兼容的历史预设 label 列表（用于查找旧 API Key） */
   legacyLabels?: string[]
-  /** 积分比例：平台 1 元对应充值积分的倍数，余额展示时按此比例换算（不填默认 1，自定义接入点固定为 1） */
   creditRatio?: number
-  /** 余额展示的货币单位（不填默认 ￥，自定义接入点固定为 ￥） */
   currency?: string
 }
 
-// 用户保存的自定义接入点（持久化在服务端 data/images/config.json）
 export interface CustomEndpoint {
   id: string
-  /** 展示名称 */
   title: string
+  protocol: CloudImageProtocol
   baseUrl: string
   modelId: string
-  /** 该接入点对应的 API Key（旧数据可能缺失） */
   apiKey?: string
 }
 
-/** 本地 ComfyUI 接入点；工作流内容独立保存在服务端。 */
 export interface ComfyEndpoint {
   id: string
   protocol: 'comfyui'
@@ -44,7 +41,9 @@ export interface ComfyEndpoint {
 
 export const ENDPOINT_PRESET_INFOS: EndpointPresetInfo[] = [
   {
+    id: 'openlux-sunburst',
     label: 'openlux gpt-image-2.5-sunburst-c',
+    protocol: 'openai',
     baseUrl: 'https://api.openlux.ai/v1',
     modelId: 'gpt-image-2.5-sunburst-c',
     legacyModelIds: ['gpt-image-2-c', 'gpt-image-2'],
@@ -52,129 +51,196 @@ export const ENDPOINT_PRESET_INFOS: EndpointPresetInfo[] = [
     currency: '$',
   },
   {
+    id: 'dragonapi-sunburst',
     label: 'DragonAPI gpt-image-2.5-sunburst',
+    protocol: 'openai',
     baseUrl: 'https://dragon3api.com/v1',
     modelId: 'gpt-image-2.5-sunburst',
     legacyModelIds: ['gpt-image-2'],
     legacyLabels: ['DragonAPI gpt-image-2', 'DragonAPI'],
   },
   {
+    id: 'venice-qwen-image',
     label: 'Venice qwen-image-3-edit',
+    protocol: 'venice',
     baseUrl: 'https://api.venice.ai',
     modelId: 'qwen-image-3-edit',
     currency: '$',
   },
 ]
 
-/**
- * 根据 baseUrl 与 modelId 匹配预设接入点（优先精确匹配，未命中则按 legacyModelIds 兼容历史模型）
- */
+/** 仅迁移旧配置时按地址、模型和历史名称识别预设。 */
 export const findPresetEndpoint = (
   baseUrl: string | null | undefined,
   modelId: string | null | undefined,
-): EndpointPresetInfo | undefined => {
-  if (!baseUrl || !modelId) return undefined
-  return (
-    ENDPOINT_PRESET_INFOS.find(
-      (p) => p.baseUrl === baseUrl && p.modelId === modelId,
-    ) ??
-    ENDPOINT_PRESET_INFOS.find(
-      (p) => p.baseUrl === baseUrl && p.legacyModelIds?.includes(modelId),
-    )
+) =>
+  ENDPOINT_PRESET_INFOS.find(
+    (p) => p.baseUrl === baseUrl && p.modelId === modelId,
+  ) ??
+  ENDPOINT_PRESET_INFOS.find(
+    (p) => p.baseUrl === baseUrl && p.legacyModelIds?.includes(modelId || ''),
   )
-}
 
-/**
- * 获取预设接入点的生效 API Key（优先当前 label，未配置时按 legacyLabels 顺序回退）
- */
+export const findPresetById = (id: string) =>
+  ENDPOINT_PRESET_INFOS.find(
+    (p) => p.id === id || p.label === id || p.legacyLabels?.includes(id),
+  )
+
 export const resolvePresetApiKey = (
-  preset: EndpointPresetInfo | { label: string; legacyLabels?: string[] },
+  preset: EndpointPresetInfo,
   keys: Record<string, string>,
-): string | undefined => {
-  if (keys[preset.label]) return keys[preset.label]
-  if (preset.legacyLabels) {
-    for (const legacyLabel of preset.legacyLabels) {
-      if (keys[legacyLabel]) return keys[legacyLabel]
-    }
+) => {
+  for (const key of [preset.id, preset.label, ...(preset.legacyLabels || [])]) {
+    if (keys[key]) return keys[key]
   }
   return undefined
 }
 
-/** 接入点与密钥设置的最小形状（GptImageSettings 与子集均满足） */
 export interface GptImageEndpointSettings {
-  gptImageApiKey: string | null
-  gptImageBaseUrl: string | null
-  gptImageModelId: string | null
+  gptImageEndpointId: string
   gptImageCustomEndpoints: CustomEndpoint[]
   gptImagePresetApiKeys: Record<string, string>
-  gptImageEndpointKind?: 'openai' | 'comfyui'
-  gptImageEndpointId?: string | null
-  gptImageComfyEndpoints?: ComfyEndpoint[]
+  gptImageComfyEndpoints: ComfyEndpoint[]
 }
 
-/**
- * 按当前接入点（baseUrl + modelId）解析生效的 API Key：
- * 预设/自定义接入点各自保存的 key 优先，旧的平铺 gptImageApiKey 字段兜底。
- * 前后端共用：后端注入真实密钥，前端用于"是否已配置"判断与表单回填
- */
-export const resolveGptImageApiKey = (
+export type ResolvedImageEndpoint =
+  | (CustomEndpoint & {
+      selectionId: string
+      currency?: string
+      creditRatio?: number
+    })
+  | (ComfyEndpoint & { selectionId: string })
+
+/** 地址、协议、模型、密钥始终来自同一个 ID，失效时不猜测其他接入点。 */
+export function resolveImageEndpoint(
   settings: GptImageEndpointSettings,
-): string | null => {
-  if (settings.gptImageEndpointKind === 'comfyui') return null
-  if (settings.gptImageEndpointId?.startsWith('preset:')) {
+  selectionId = settings.gptImageEndpointId,
+): ResolvedImageEndpoint | undefined {
+  if (selectionId.startsWith('preset:')) {
     const preset = ENDPOINT_PRESET_INFOS.find(
-      (item) => item.label === settings.gptImageEndpointId?.slice(7),
+      (p) => `preset:${p.id}` === selectionId,
     )
-    if (preset)
-      return (
-        resolvePresetApiKey(preset, settings.gptImagePresetApiKeys) ||
-        settings.gptImageApiKey ||
-        null
-      )
+    if (!preset) return undefined
+    return {
+      ...preset,
+      selectionId,
+      title: preset.label,
+      apiKey: resolvePresetApiKey(preset, settings.gptImagePresetApiKeys),
+    }
   }
-  if (settings.gptImageEndpointId?.startsWith('custom:')) {
-    const custom = settings.gptImageCustomEndpoints.find(
-      (item) => item.id === settings.gptImageEndpointId?.slice(7),
+  if (selectionId.startsWith('custom:')) {
+    const endpoint = settings.gptImageCustomEndpoints.find(
+      (item) => `custom:${item.id}` === selectionId,
     )
-    if (custom) return custom.apiKey || settings.gptImageApiKey || null
+    return endpoint ? { ...endpoint, selectionId } : undefined
   }
-  const preset = findPresetEndpoint(
-    settings.gptImageBaseUrl,
-    settings.gptImageModelId,
+  const endpoint = settings.gptImageComfyEndpoints.find(
+    (item) => item.id === selectionId,
   )
-  if (preset) {
-    const key = resolvePresetApiKey(preset, settings.gptImagePresetApiKeys)
-    if (key) return key
-  }
-  const custom = settings.gptImageCustomEndpoints.find(
-    (c) =>
-      c.baseUrl === settings.gptImageBaseUrl &&
-      c.modelId === settings.gptImageModelId &&
-      Boolean(c.title?.trim()),
-  )
-  if (custom?.apiKey) return custom.apiKey
-  // 若未匹配到预设且不是有标题的有效自定义接入点，视为未配置（丢弃旧废弃接入点结果）
-  if (!preset && !custom) {
-    return null
-  }
-  return settings.gptImageApiKey || null
+  return endpoint ? { ...endpoint, selectionId } : undefined
 }
 
-// 特殊适配服务商的主机名，前后端共用同一识别规则。
-export const VENICE_API_HOST = 'api.venice.ai'
+export const resolveGptImageApiKey = (settings: GptImageEndpointSettings) => {
+  const endpoint = resolveImageEndpoint(settings)
+  return endpoint && endpoint.protocol !== 'comfyui'
+    ? endpoint.apiKey || null
+    : null
+}
 
-/** 判断 baseUrl 的主机名是否为指定服务商 */
-export function isGptImageEndpointHost(
-  url: string | undefined,
-  host: string,
-): boolean {
+export interface ImageEndpointCapabilities {
+  minImages: number
+  maxImages: number
+  maxOutputs: number
+  sizes: readonly GptImageSize[]
+  qualities: readonly GptImageQuality[]
+  aspectRatio: boolean
+  appendAspectRatio: boolean
+  quota: boolean
+  /** 是否能保证取消远端执行；云端只能中断本地等待。 */
+  cancel: boolean
+}
+
+/** 协议能力集中声明；参考图编辑与文生图的张数限制可能不同。 */
+export function getImageEndpointCapabilities(
+  endpoint: { protocol: ImageProtocol; modelId?: string },
+  imageCount = 0,
+): ImageEndpointCapabilities {
+  if (endpoint.protocol === 'comfyui')
+    return {
+      minImages: 1,
+      maxImages: 1,
+      maxOutputs: 1,
+      sizes: [],
+      qualities: [],
+      aspectRatio: false,
+      appendAspectRatio: false,
+      quota: false,
+      cancel: true,
+    }
+  if (endpoint.protocol === 'venice')
+    return {
+      minImages: 0,
+      maxImages: 10,
+      maxOutputs: imageCount ? 1 : 4,
+      sizes: ['1k', '2k'],
+      qualities: ['medium', 'high'],
+      aspectRatio: true,
+      appendAspectRatio: true,
+      quota: true,
+      cancel: false,
+    }
+  return {
+    minImages: 0,
+    maxImages: 10,
+    maxOutputs: GPT_IMAGE_OUTPUT_MAX_N,
+    sizes: ['1k', '2k', '4k'],
+    qualities: endpoint.modelId?.includes('gpt-image-2.5')
+      ? ['medium', 'high', 'xhigh', 'max']
+      : ['medium', 'high'],
+    aspectRatio: true,
+    appendAspectRatio: true,
+    quota: true,
+    cancel: false,
+  }
+}
+
+export function validateImageEndpointInput(
+  endpoint: ResolvedImageEndpoint,
+  input: {
+    images?: string[]
+    n?: number
+    size?: GptImageSize
+    quality?: GptImageQuality
+  },
+): string | undefined {
+  const count = input.images?.length || 0
+  const capabilities = getImageEndpointCapabilities(endpoint, count)
+  if (count < capabilities.minImages || count > capabilities.maxImages)
+    return capabilities.minImages === capabilities.maxImages
+      ? `当前接入点必须恰好提供 ${capabilities.minImages} 张参考图`
+      : `当前接入点最多支持 ${capabilities.maxImages} 张参考图`
+  if (endpoint.protocol === 'comfyui') return undefined
+  if (
+    !Number.isInteger(input.n ?? 1) ||
+    (input.n ?? 1) < 1 ||
+    (input.n ?? 1) > capabilities.maxOutputs
+  )
+    return `当前接入点本次生成支持 1～${capabilities.maxOutputs} 张图片`
+  if (!capabilities.sizes.includes(input.size ?? '1k'))
+    return '当前接入点不支持所选尺寸'
+  if (!capabilities.qualities.includes(input.quality ?? 'medium'))
+    return '当前接入点不支持所选画质'
+  return undefined
+}
+
+export const VENICE_API_HOST = 'api.venice.ai'
+export function isGptImageEndpointHost(url: string | undefined, host: string) {
   try {
     return !!url && new URL(url).hostname === host
   } catch {
     return false
   }
 }
-
-/** Venice 特殊适配接入点：走 Venice 原生接口（见 venice.ts） */
-export const isVeniceEndpoint = (url?: string): boolean =>
+/** 仅用于旧自定义接入点迁移，不用于生成请求分流。 */
+export const isVeniceEndpoint = (url?: string) =>
   isGptImageEndpointHost(url, VENICE_API_HOST)

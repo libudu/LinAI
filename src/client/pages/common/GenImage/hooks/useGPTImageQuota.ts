@@ -1,3 +1,4 @@
+import { RefreshQueue } from '@/client/service/refresh-queue'
 import { isAdmin } from '@/client/utils/admin'
 import type { AppType } from '@/server'
 import type { GPTImageQuotaResponse } from '@/server/api/gpt-image/endpoint'
@@ -8,76 +9,68 @@ import { create } from 'zustand'
 import { useGptImageStore } from '../store'
 import { useTasks } from './useTasks'
 
-// 人民币和积分的汇率
 export const GPT_IMAGE_RMB_RATIO = 2
-// 分组的积分消耗倍率
 export const MODEL_GROUP_RATIO = 1.0
-
 const client = hc<AppType>('/')
-
-interface QuotaStore {
+interface QuotaTarget {
+  key: string
+  endpointId: string
+}
+const useQuotaStore = create<{
+  key: string | null
   data: GPTImageQuotaResponse['data'] | null
   error: string | null
   loading: boolean
-  lastApiKey: string | null
-  fetchPromise: Promise<void> | null
-  fetchQuota: (apiKey: string | null, force?: boolean) => Promise<void>
-  // 切换接入点时立即进入加载态并清空旧数据，避免短暂展示旧接入点余额
-  beginSwitch: () => void
+}>(() => ({ key: null, data: null, error: null, loading: false }))
+
+let target: QuotaTarget | null = null
+let controller: AbortController | undefined
+let epoch = 0
+const queue = new RefreshQueue(async () => {
+  const current = target
+  const currentEpoch = epoch
+  if (!current) return
+  controller = new AbortController()
+  useQuotaStore.setState({ loading: true, error: null })
+  try {
+    const response = await client.api.gptImage.endpoint.quota.$get(
+      { query: { endpointId: current.endpointId } },
+      { init: { signal: controller.signal } },
+    )
+    const json = await response.json()
+    if (!response.ok || !json.success) {
+      const error: unknown = 'error' in json ? json.error : undefined
+      throw new Error(typeof error === 'string' ? error : '获取余额失败')
+    }
+    if (currentEpoch === epoch)
+      useQuotaStore.setState({
+        data: json.data.data,
+        error: null,
+        loading: false,
+      })
+  } catch (error) {
+    if (currentEpoch === epoch)
+      useQuotaStore.setState({
+        error: error instanceof Error ? error.message : '获取余额失败',
+        loading: false,
+      })
+  }
+})
+
+const updateTarget = (next: QuotaTarget | null) => {
+  if (target?.key === next?.key) return
+  target = next
+  epoch += 1
+  controller?.abort()
+  useQuotaStore.setState({
+    key: next?.key ?? null,
+    data: null,
+    error: null,
+    loading: !!next,
+  })
+  if (next) void queue.request()
 }
-
-const useQuotaStore = create<QuotaStore>((set, get) => ({
-  data: null,
-  error: null,
-  loading: false,
-  lastApiKey: null,
-  fetchPromise: null,
-  fetchQuota: async (apiKey, force = false) => {
-    if (!apiKey) {
-      set({ data: null, error: null, lastApiKey: null })
-      return
-    }
-
-    const state = get()
-    if (
-      !force &&
-      state.lastApiKey === apiKey &&
-      (state.data !== null || state.error !== null || state.loading)
-    ) {
-      return state.fetchPromise || Promise.resolve()
-    }
-
-    if (state.loading && state.lastApiKey === apiKey && state.fetchPromise) {
-      return state.fetchPromise
-    }
-
-    const promise = (async () => {
-      set({ loading: true, error: null, lastApiKey: apiKey })
-      try {
-        const response = await client.api.gptImage.endpoint.quota.$get()
-        const json = await response.json()
-        if (!json.success) {
-          throw new Error(json.error || '获取余额失败')
-        }
-        set({
-          data: json.data.data,
-          error: null,
-          loading: false,
-          fetchPromise: null,
-        })
-      } catch (error: any) {
-        console.error(error)
-        set({ error: error.message, loading: false, fetchPromise: null })
-      }
-    })()
-
-    set({ fetchPromise: promise })
-    return promise
-  },
-  beginSwitch: () => {
-    set({ loading: true, data: null, error: null, fetchPromise: null })
-  },
-}))
+const refreshQuota = () => (target ? queue.request() : Promise.resolve())
 
 export const isPublicApiKey = (name?: string | null) =>
   name?.includes('公开') ||
@@ -86,79 +79,64 @@ export const isPublicApiKey = (name?: string | null) =>
   false
 
 export function useGPTImageQuota() {
-  const gptImageApiKey = useGptImageStore((state) => state.gptImageApiKey)
-  const gptImageBaseUrl = useGptImageStore((state) => state.gptImageBaseUrl)
-  const isComfy = useGptImageStore(
-    (state) => state.gptImageEndpointKind === 'comfyui',
-  )
-  const { data: tasks } = useTasks()
+  const endpoint = useGptImageStore((state) => state.currentEndpoint)
+  const capabilities = useGptImageStore((state) => state.capabilities)
+  const quotaEnabled =
+    capabilities.quota &&
+    endpoint &&
+    endpoint.protocol !== 'comfyui' &&
+    !!endpoint.apiKey
+  const key = quotaEnabled
+    ? JSON.stringify([
+        endpoint.selectionId,
+        endpoint.protocol,
+        endpoint.baseUrl,
+        endpoint.modelId,
+        endpoint.apiKey,
+      ])
+    : null
+  const endpointId = endpoint?.selectionId ?? ''
+  const { data: tasks, loaded: tasksLoaded } = useTasks()
   const knownCompletedTasks = useRef<Set<string> | null>(null)
+  const state = useQuotaStore()
 
-  const data = useQuotaStore((state) => state.data)
-  const loading = useQuotaStore((state) => state.loading)
-  const error = useQuotaStore((state) => state.error)
-  const fetchQuota = useQuotaStore((state) => state.fetchQuota)
-  const beginSwitch = useQuotaStore((state) => state.beginSwitch)
+  useEffect(() => {
+    updateTarget(key ? { key, endpointId } : null)
+  }, [key, endpointId])
 
+  useEffect(() => {
+    if (!tasksLoaded) return
+    const completed = new Set(
+      tasks
+        .filter((task) => task.status === 'completed')
+        .map((task) => task.id),
+    )
+    const previous = knownCompletedTasks.current
+    knownCompletedTasks.current = completed
+    if (
+      previous &&
+      tasks.some(
+        (task) =>
+          task.status === 'completed' &&
+          task.source !== COMFY_IMAGE_SOURCE &&
+          !previous.has(task.id),
+      )
+    )
+      void refreshQuota()
+  }, [tasks, tasksLoaded])
+
+  // 配置刚切换但 effect 尚未执行时也不显示旧接入点余额。
+  const matches = state.key === key
+  const quota = matches ? state.data : null
   const isPublic = useMemo(
-    () => isPublicApiKey(data?.name) && !isAdmin(),
-    [data?.name],
+    () => isPublicApiKey(quota?.name) && !isAdmin(),
+    [quota?.name],
   )
-
-  useEffect(() => {
-    if (isComfy || !gptImageApiKey) {
-      fetchQuota(null)
-      return
-    }
-    // 切换接入点时立刻进入 loading 状态，接口返回后再重置，
-    // 避免短暂用旧接入点数据展示
-    beginSwitch()
-    // 切换接入点后服务端配置写入存在延迟，延迟 500ms 再查询，
-    // 避免用切换前的服务商 host 配新 apikey 导致 Invalid token 报错
-    const timer = setTimeout(() => {
-      fetchQuota(gptImageApiKey, true)
-    }, 500)
-    return () => clearTimeout(timer)
-  }, [gptImageApiKey, gptImageBaseUrl, isComfy, fetchQuota, beginSwitch])
-
-  useEffect(() => {
-    if (!tasks) return
-
-    // 假设第一页任务数量为前 20 条
-    const recentTasks = tasks.slice(0, 20)
-
-    if (knownCompletedTasks.current === null) {
-      // 初始化已完成任务集合
-      knownCompletedTasks.current = new Set()
-      for (const task of recentTasks) {
-        if (task.status === 'completed') {
-          knownCompletedTasks.current.add(task.id)
-        }
-      }
-      return
-    }
-
-    let hasNewCompletedTask = false
-    for (const task of recentTasks) {
-      if (task.status === 'completed') {
-        if (!knownCompletedTasks.current.has(task.id)) {
-          if (task.source !== COMFY_IMAGE_SOURCE) hasNewCompletedTask = true
-          knownCompletedTasks.current.add(task.id)
-        }
-      }
-    }
-
-    if (hasNewCompletedTask && !isComfy) {
-      fetchQuota(gptImageApiKey, true)
-    }
-  }, [tasks, gptImageApiKey, isComfy, fetchQuota])
-
   return {
-    quota: data,
-    loading,
-    error,
+    quota,
+    loading: !!key && (!matches || state.loading),
+    error: matches ? state.error : null,
     isPublic,
-    refresh: () =>
-      isComfy ? Promise.resolve() : fetchQuota(gptImageApiKey, true),
+    refresh: refreshQuota,
   }
 }

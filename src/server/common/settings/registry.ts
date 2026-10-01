@@ -22,6 +22,8 @@ export interface SettingsDef<T> {
   migrateLegacy?: (raw: unknown) => T
   /** 文件完全不存在时的兜底来源（如更旧的全局 data/config.json），返回挑选出的部分字段 */
   loadLegacy?: () => Partial<T> | Promise<Partial<T>>
+  /** 可选的读取规范化：模块迁移旧字段并补齐默认值，不改变磁盘修订号。 */
+  normalize?: (raw: unknown) => T
 }
 
 // 设置 ID 形如 gpt-image：小写字母数字与中划线
@@ -114,9 +116,17 @@ class SettingsRegistry {
     const doc = await store.get()
     let raw = doc.value
     if (raw === undefined && def.loadLegacy) {
-      raw = mergeDefaults(def.defaults, await def.loadLegacy())
+      const legacy = await def.loadLegacy()
+      raw = def.normalize
+        ? def.normalize(legacy)
+        : mergeDefaults(def.defaults, legacy)
     }
-    return { revision: doc.revision, value: mergeDefaults(def.defaults, raw) }
+    return {
+      revision: doc.revision,
+      value: def.normalize
+        ? def.normalize(raw)
+        : mergeDefaults(def.defaults, raw),
+    }
   }
 
   /**
@@ -129,7 +139,11 @@ class SettingsRegistry {
     expectedRevision?: number,
   ): Promise<SettingsSnapshot<T>> {
     const { def, store } = this.entry<T>(id)
-    const value = def.schema.parse(mergeDefaults(def.defaults, incoming))
+    const value = def.schema.parse(
+      def.normalize
+        ? def.normalize(incoming)
+        : mergeDefaults(def.defaults, incoming),
+    )
     const doc = await store.replace(value, expectedRevision)
     return { revision: doc.revision, value: doc.value }
   }

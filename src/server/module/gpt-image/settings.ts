@@ -1,37 +1,34 @@
 import { isValidComfyBaseUrl } from '@/shared/gpt-image/comfyui'
 import {
   ENDPOINT_PRESET_INFOS,
+  findPresetById,
   findPresetEndpoint,
-  resolveGptImageApiKey,
+  isVeniceEndpoint,
+  resolveImageEndpoint,
+  resolvePresetApiKey,
 } from '@/shared/gpt-image/endpoints'
 import { z } from 'zod'
 import {
-  pickLegacyFields,
+  asLegacyRecord,
   settingsRegistry,
 } from '../../common/settings/registry'
 import { dataPath } from '../../common/storage/data-path'
 import { readJsonFile } from '../../common/storage/json-file'
 import { decryptApiKey } from './encrypt'
 
-// GPT 图像模块设置：注册式存储（DocumentStore 信封），落盘 data/images/config.json。
-// 字段唯一定义在下方 schema，接口层（/api/settings/gpt-image）不再重复
-export const gptImageSettingsSchema = z.object({
-  gptImageApiKey: z.string().nullable(),
-  gptImageBaseUrl: z.string().nullable(),
-  gptImageModelId: z.string().nullable(),
+const endpointFields = z.object({
+  gptImageEndpointId: z.string().min(1),
   gptImageCustomEndpoints: z.array(
     z.object({
-      id: z.string(),
+      id: z.string().min(1),
       title: z.string(),
+      protocol: z.enum(['openai', 'venice']),
       baseUrl: z.string(),
       modelId: z.string(),
       apiKey: z.string().optional(),
     }),
   ),
-  /** 预设接入点各自的 API Key，按预设 label 存储 */
   gptImagePresetApiKeys: z.record(z.string(), z.string()),
-  gptImageEndpointKind: z.enum(['openai', 'comfyui']),
-  gptImageEndpointId: z.string().nullable(),
   gptImageComfyEndpoints: z.array(
     z.object({
       id: z.string().uuid(),
@@ -46,53 +43,124 @@ export const gptImageSettingsSchema = z.object({
   ),
 })
 
-export type GptImageSettings = z.infer<typeof gptImageSettingsSchema>
-
-// 默认接入点取预设列表的第一项
-const DEFAULT_ENDPOINT = ENDPOINT_PRESET_INFOS[0]
-
-const DEFAULT_GPT_IMAGE_SETTINGS: GptImageSettings = {
-  gptImageApiKey: null,
-  gptImageBaseUrl: DEFAULT_ENDPOINT.baseUrl,
-  gptImageModelId: DEFAULT_ENDPOINT.modelId,
-  gptImageCustomEndpoints: [],
-  gptImagePresetApiKeys: {},
-  gptImageEndpointKind: 'openai',
-  gptImageEndpointId: null,
-  gptImageComfyEndpoints: [],
-}
-
-const KNOWN_KEYS = Object.keys(
-  DEFAULT_GPT_IMAGE_SETTINGS,
-) as (keyof GptImageSettings)[]
-
-// 旧版扁平 config.json（无信封）→ value，只挑已知字段
-const migrateLegacy = pickLegacyFields<GptImageSettings>(KNOWN_KEYS)
-
-// 更旧的全局 data/config.json：仅在本模块文件完全不存在时兜底挑字段
-const LEGACY_GLOBAL_CONFIG_FILE = dataPath('config.json')
-const loadLegacy = async (): Promise<Partial<GptImageSettings>> => {
-  try {
-    const legacy = await readJsonFile<Record<string, unknown>>(
-      LEGACY_GLOBAL_CONFIG_FILE,
+/** 旧平铺字段、展示名称 ID、按名称保存的 key 仅在这里兼容。 */
+function migrateSettings(raw: unknown): unknown {
+  const value = raw === undefined ? {} : asLegacyRecord(raw)
+  const custom: Record<string, unknown>[] = Array.isArray(
+    value.gptImageCustomEndpoints,
+  )
+    ? value.gptImageCustomEndpoints.map((item) => {
+        const endpoint = asLegacyRecord(item)
+        return {
+          ...endpoint,
+          protocol:
+            endpoint.protocol ??
+            (isVeniceEndpoint(String(endpoint.baseUrl || ''))
+              ? 'venice'
+              : 'openai'),
+        }
+      })
+    : []
+  const keys =
+    value.gptImagePresetApiKeys &&
+    typeof value.gptImagePresetApiKeys === 'object'
+      ? ({ ...value.gptImagePresetApiKeys } as Record<string, string>)
+      : {}
+  let selectedId =
+    typeof value.gptImageEndpointId === 'string' && value.gptImageEndpointId
+      ? value.gptImageEndpointId
+      : undefined
+  let hasLegacySelection = !!selectedId
+  if (selectedId?.startsWith('preset:')) {
+    const preset = findPresetById(selectedId.slice(7))
+    if (preset) selectedId = `preset:${preset.id}`
+  }
+  if (!selectedId) {
+    const preset = findPresetEndpoint(
+      value.gptImageBaseUrl as string | null,
+      value.gptImageModelId as string | null,
     )
-    if (!legacy) return {}
-    return pickLegacyFields<Partial<GptImageSettings>>(KNOWN_KEYS)(legacy)
-  } catch (error) {
-    console.error('[GPT图像] 迁移旧配置失败', error)
-    return {}
+    const matchedCustom = custom.find(
+      (item) =>
+        item.baseUrl === value.gptImageBaseUrl &&
+        item.modelId === value.gptImageModelId,
+    )
+    hasLegacySelection = !!preset || !!matchedCustom
+    selectedId = preset
+      ? `preset:${preset.id}`
+      : matchedCustom
+        ? `custom:${matchedCustom.id}`
+        : `preset:${ENDPOINT_PRESET_INFOS[0].id}`
+  }
+
+  // 原平铺密钥只迁移给原接入点，不向其他接入点回退。
+  const legacyKey =
+    typeof value.gptImageApiKey === 'string' ? value.gptImageApiKey : undefined
+  for (const preset of ENDPOINT_PRESET_INFOS) {
+    const key = resolvePresetApiKey(preset, keys)
+    if (key) keys[preset.id] = key
+    if (
+      legacyKey &&
+      hasLegacySelection &&
+      selectedId === `preset:${preset.id}` &&
+      !keys[preset.id]
+    )
+      keys[preset.id] = legacyKey
+    for (const label of [preset.label, ...(preset.legacyLabels || [])])
+      delete keys[label]
+  }
+  for (const endpoint of custom) {
+    if (legacyKey && selectedId === `custom:${endpoint.id}` && !endpoint.apiKey)
+      endpoint.apiKey = legacyKey
+  }
+  // 无法识别旧接入点时保留旧 key，但不会把它注入默认服务商。
+  if (legacyKey && !hasLegacySelection) keys['legacy:unresolved'] = legacyKey
+  return {
+    gptImageEndpointId: selectedId,
+    gptImageCustomEndpoints: custom,
+    gptImagePresetApiKeys: keys,
+    gptImageComfyEndpoints: value.gptImageComfyEndpoints ?? [],
   }
 }
 
+export const gptImageSettingsSchema = z.preprocess(
+  migrateSettings,
+  endpointFields,
+)
+const writableSettingsSchema = gptImageSettingsSchema.superRefine(
+  (value, ctx) => {
+    if (!resolveImageEndpoint(value))
+      ctx.addIssue({
+        code: 'custom',
+        path: ['gptImageEndpointId'],
+        message: '所选生图接入点不存在，请重新选择',
+      })
+    const ids = [
+      ...value.gptImageCustomEndpoints,
+      ...value.gptImageComfyEndpoints,
+    ].map((item) => item.id)
+    if (new Set(ids).size !== ids.length)
+      ctx.addIssue({
+        code: 'custom',
+        message: '生图接入点 ID 不能重复',
+      })
+  },
+)
+
+export type GptImageSettings = z.infer<typeof gptImageSettingsSchema>
+
 settingsRegistry.register<GptImageSettings>('gpt-image', {
   file: dataPath('images', 'config.json'),
-  defaults: DEFAULT_GPT_IMAGE_SETTINGS,
-  schema: gptImageSettingsSchema,
-  migrateLegacy,
-  loadLegacy,
+  defaults: gptImageSettingsSchema.parse(undefined),
+  schema: writableSettingsSchema,
+  migrateLegacy: (raw) => gptImageSettingsSchema.parse(raw),
+  loadLegacy: async () => {
+    const legacy = await readJsonFile<unknown>(dataPath('config.json'))
+    return gptImageSettingsSchema.parse(legacy)
+  },
+  normalize: (raw) => gptImageSettingsSchema.parse(raw),
 })
 
-/** 服务端内部读取（合并默认值） */
 export const getGptImageSettings = async (): Promise<GptImageSettings> =>
   (await settingsRegistry.get<GptImageSettings>('gpt-image')).value
 
@@ -100,64 +168,21 @@ export const resolveComfyEndpoint = (
   settings: GptImageSettings,
   id?: string | null,
 ) => {
-  const endpointId = id ?? settings.gptImageEndpointId
-  const endpoint = settings.gptImageComfyEndpoints.find(
-    (item) => item.id === endpointId,
+  const endpoint = resolveImageEndpoint(
+    settings,
+    id ?? settings.gptImageEndpointId,
   )
-  if (!endpoint) throw new Error('ComfyUI 接入点已删除或未配置')
+  if (!endpoint || endpoint.protocol !== 'comfyui')
+    throw new Error('ComfyUI 接入点已删除或未配置')
   return endpoint
 }
 
 export const getComfyEndpoint = async (id?: string | null) =>
   resolveComfyEndpoint(await getGptImageSettings(), id)
 
-// 从同一份设置解析接入点，未配置或失效时回退到默认值
-const resolveGptImageEndpoint = (settings: GptImageSettings) => {
-  if (
-    settings.gptImageEndpointKind === 'openai' &&
-    settings.gptImageEndpointId
-  ) {
-    if (settings.gptImageEndpointId.startsWith('preset:')) {
-      const presetById = ENDPOINT_PRESET_INFOS.find(
-        (item) => item.label === settings.gptImageEndpointId?.slice(7),
-      )
-      if (presetById)
-        return { baseUrl: presetById.baseUrl, modelId: presetById.modelId }
-    }
-    if (settings.gptImageEndpointId.startsWith('custom:')) {
-      const customById = settings.gptImageCustomEndpoints.find(
-        (item) => item.id === settings.gptImageEndpointId?.slice(7),
-      )
-      if (customById)
-        return { baseUrl: customById.baseUrl, modelId: customById.modelId }
-    }
-  }
-  const preset = findPresetEndpoint(
-    settings.gptImageBaseUrl,
-    settings.gptImageModelId,
-  )
-
-  const custom = settings.gptImageCustomEndpoints.find(
-    (c) =>
-      c.baseUrl === settings.gptImageBaseUrl &&
-      c.modelId === settings.gptImageModelId &&
-      Boolean(c.title?.trim()),
-  )
-  if (preset) {
-    return { baseUrl: preset.baseUrl, modelId: preset.modelId }
-  }
-  if (custom) {
-    return { baseUrl: custom.baseUrl, modelId: custom.modelId }
-  }
-  return {
-    baseUrl: DEFAULT_GPT_IMAGE_SETTINGS.gptImageBaseUrl!,
-    modelId: DEFAULT_GPT_IMAGE_SETTINGS.gptImageModelId!,
-  }
+export const resolveGptImageConnection = (settings: GptImageSettings) => {
+  const endpoint = resolveImageEndpoint(settings)
+  if (!endpoint || endpoint.protocol === 'comfyui')
+    throw new Error('云端接入点已删除或未配置')
+  return { ...endpoint, apiKey: decryptApiKey(endpoint.apiKey || '') }
 }
-
-/** 地址、模型和密钥必须从同一份设置快照解析，避免切换接入点时混用配置。 */
-export const resolveGptImageConnection = (settings: GptImageSettings) => ({
-  ...resolveGptImageEndpoint(settings),
-  // 预设/自定义 keychain 优先，旧平铺字段兜底；兼容加密分享的密钥
-  apiKey: decryptApiKey(resolveGptImageApiKey(settings) || ''),
-})

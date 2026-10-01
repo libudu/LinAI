@@ -16,7 +16,7 @@ function App() {
 
   useEffect(() => {
     useGlobalStore.getState().fetchConfig()
-    useGptImageStore.getState().fetchConfig()
+    void useGptImageStore.getState().fetchConfig().catch(console.error)
     useVisionStore.getState().fetchConfig()
 
     // 检查版本号并弹出通知

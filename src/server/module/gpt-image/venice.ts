@@ -3,7 +3,7 @@ import fs from 'fs-extra'
 import OpenAI from 'openai'
 
 // Venice 特殊接入点适配（https://docs.venice.ai）：
-// baseUrl 主机为 api.venice.ai 时（判断见 shared/gpt-image/endpoints.ts 的 isVeniceEndpoint）
+// 接入点明确声明 venice 协议时使用本适配器
 // 绕过 OpenAI SDK，直接请求 Venice 原生接口：
 // - 无参考图走 /api/v1/image/generate（JSON 响应，images 为 base64 数组）
 // - 有参考图走 /api/v1/image/multi-edit（成功响应直接是图片文件流）

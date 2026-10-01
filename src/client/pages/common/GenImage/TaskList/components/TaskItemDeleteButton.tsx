@@ -6,6 +6,7 @@ import { useLocalStorageState } from 'ahooks'
 import { Button, Checkbox, message, Modal, Tooltip } from 'antd'
 import { hc } from 'hono/client'
 import { useState } from 'react'
+import { refreshTasks } from '../../hooks/useTasks'
 
 const client = hc<AppType>('/')
 
@@ -45,6 +46,7 @@ export function TaskItemDeleteButton({
       const json = await res.json()
       if (json.success) {
         message.success('删除成功')
+        refreshTasks()
         onSuccess?.()
       } else {
         const error: unknown = json.error

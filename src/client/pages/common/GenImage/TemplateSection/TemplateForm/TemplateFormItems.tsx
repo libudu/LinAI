@@ -1,4 +1,5 @@
 import { useLocalSetting } from '@/client/hooks/useLocalSetting'
+import { getImageEndpointCapabilities } from '@/shared/gpt-image/endpoints'
 import {
   BorderOutlined,
   BulbOutlined,
@@ -57,14 +58,20 @@ function AspectRatioFormItem({ className }: { className?: string }) {
   )
 }
 
-function CountFormItem({ className }: { className?: string }) {
+function CountFormItem({
+  className,
+  max,
+}: {
+  className?: string
+  max: number
+}) {
   return (
     <Form.Item
       name="n"
       label="张数"
       className={classnames(className, '[&_.ant-input-number]:w-full!')}
     >
-      <InputNumber min={1} max={8} className="" />
+      <InputNumber min={1} max={max} className="" />
     </Form.Item>
   )
 }
@@ -82,9 +89,7 @@ function PromptFormItem({
 }) {
   const [openPromptOptimizeModal, setOpenPromptOptimizeModal] = useState(false)
   const visionApiKey = useVisionStore((state) => state.visionApiKey)
-  const isComfy = useGptImageStore(
-    (state) => state.gptImageEndpointKind === 'comfyui',
-  )
+  const capabilities = useGptImageStore((state) => state.capabilities)
   const {
     promptOptimizeEnabled,
     appendAspectRatioEnabled,
@@ -114,7 +119,7 @@ function PromptFormItem({
           <div className="flex w-full items-center justify-between gap-4">
             <span>{label}</span>
             <span className="flex items-center gap-3">
-              {!isComfy && appendAspectRatioEnabled && (
+              {capabilities.appendAspectRatio && appendAspectRatioEnabled && (
                 <div>
                   <Tooltip title="对于default等较便宜的分组可能不支持分辨率和比例选项，勾选此选项后提交时会额外追加一行“图片比例X：Y”用于指定比例">
                     <Button
@@ -194,16 +199,18 @@ export function TemplateFormFields({
   isEdit?: boolean
 }) {
   const { gptImageSettings, autoFillAspectRatio } = useLocalSetting()
-  const isComfy = useGptImageStore(
-    (state) => state.gptImageEndpointKind === 'comfyui',
-  )
+  const endpoint = useGptImageStore((state) => state.currentEndpoint)
+  const maxOutputs = endpoint
+    ? getImageEndpointCapabilities(endpoint, imageUrls.length).maxOutputs
+    : 1
+  const capabilities = useGptImageStore((state) => state.capabilities)
 
   return (
     <>
       <div className="flex gap-4">
         <TitleFormItem className="flex-1" />
         <FolderFormItem className="w-1/4" />
-        {!isComfy && <AspectRatioFormItem className="w-1/5" />}
+        {capabilities.aspectRatio && <AspectRatioFormItem className="w-1/5" />}
       </div>
 
       <div className="flex gap-4">
@@ -215,7 +222,7 @@ export function TemplateFormFields({
               setUploadingCount(isUploading ? 1 : 0)
             }
             onFirstImageRatio={
-              !isComfy && !isEdit && autoFillAspectRatio
+              capabilities.aspectRatio && !isEdit && autoFillAspectRatio
                 ? (ratio) => {
                     form.setFieldsValue({ aspectRatio: ratio })
                     message.info(`已根据首图自动设置比例为 ${ratio}`)
@@ -224,8 +231,8 @@ export function TemplateFormFields({
             }
           />
         </Form.Item>
-        {!isComfy && gptImageSettings.enableMultiple && (
-          <CountFormItem className="w-1/5" />
+        {maxOutputs > 1 && gptImageSettings.enableMultiple && (
+          <CountFormItem className="w-1/5" max={maxOutputs} />
         )}
       </div>
 

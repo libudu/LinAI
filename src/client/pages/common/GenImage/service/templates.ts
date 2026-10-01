@@ -1,3 +1,4 @@
+import { createResourceCache } from '@/client/service/resource-cache'
 import { collectionClient } from '@/client/service/storage'
 import type { FlatTemplate, TemplateValue } from '@/shared/image/template'
 import type { StoredItem } from '@/shared/storage/types'
@@ -50,14 +51,27 @@ export const listTemplates = async (): Promise<{
   }
 }
 
-export const createTemplate = (value: TemplateValue) =>
-  client.create(value).then(flatten)
+export const templateCache = createResourceCache({
+  resource: 'image.templates',
+  initialValue: [] as TemplateRecord[],
+  load: async () => (await listTemplates()).templates,
+})
 
-export const updateTemplate = (
+export const createTemplate = async (value: TemplateValue) => {
+  const item = await client.create(value)
+  templateCache.invalidate()
+  return flatten(item)
+}
+
+export const updateTemplate = async (
   id: string,
   value: TemplateValue,
   expectedRevision?: number,
-) => client.replace(id, value, expectedRevision).then(flatten)
+) => {
+  const item = await client.replace(id, value, expectedRevision)
+  templateCache.invalidate()
+  return flatten(item)
+}
 
 /** 基于已有记录做部分修改：合并业务字段后整体替换（带上集合版本做冲突检测） */
 export const patchTemplate = (
@@ -70,7 +84,10 @@ export const patchTemplate = (
     record.collectionRevision,
   )
 
-export const deleteTemplate = (id: string) => client.remove(id)
+export const deleteTemplate = async (id: string) => {
+  await client.remove(id)
+  templateCache.invalidate()
+}
 
 /** 文件夹重命名：前端计算受影响的条目，一次批量提交（带集合版本冲突检测） */
 export const renameTemplateFolder = async (
@@ -87,5 +104,6 @@ export const renameTemplateFolder = async (
     }))
   if (operations.length === 0) return 0
   await client.batch(operations, revision)
+  templateCache.invalidate()
   return operations.length
 }

@@ -1,6 +1,6 @@
 import { subscribeStorageEvent } from '@/client/service/storage-events'
 import { Modal, Spin, Tabs, message } from 'antd'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
   MAX_VISIBLE_RECENT_IMAGES,
@@ -50,17 +50,17 @@ function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
     fetchImages,
     resolveImageType,
   } = useGalleryImages(visible)
-  const fetchImagesRef = useRef(fetchImages)
-  fetchImagesRef.current = fetchImages
 
   useEffect(() => {
     if (!visible) return
     void loadPendingImages().catch((error) => {
-      message.error(error instanceof Error ? error.message : '待使用图片加载失败')
+      message.error(
+        error instanceof Error ? error.message : '待使用图片加载失败',
+      )
     })
     return subscribeStorageEvent('image.pending', () => {
-      void Promise.all([loadPendingImages(), fetchImagesRef.current()]).catch(
-        (error) => console.error('刷新待使用图片失败', error),
+      void loadPendingImages().catch((error) =>
+        console.error('刷新待使用图片失败', error),
       )
     })
   }, [visible, loadPendingImages])

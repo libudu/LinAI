@@ -6,7 +6,6 @@ import { ImageGenerateDropdown } from '../../components/ImageGenerateDropdown'
 import { useImageGeneration } from '../../hooks/useImageGeneration'
 import { deleteTemplate } from '../../service/templates'
 import { useGptImageStore } from '../../store'
-import { useTemplates } from '../hooks/useTemplates'
 import { TemplateEditButton } from './TemplateItemEditButton'
 
 export const TemplateItemGenerateButtons: React.FC<{
@@ -29,7 +28,6 @@ export const TemplateItemHeader = ({
   template: FlatTemplate
   draggable: boolean
 }) => {
-  const { refresh: refreshTemplates } = useTemplates()
   const isComfy = useGptImageStore(
     (state) => state.gptImageEndpointKind === 'comfyui',
   )
@@ -38,7 +36,6 @@ export const TemplateItemHeader = ({
     try {
       await deleteTemplate(id)
       message.success('删除成功')
-      refreshTemplates()
     } catch (error) {
       message.error(error instanceof Error ? error.message : '删除失败')
     }

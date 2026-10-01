@@ -1,8 +1,8 @@
 import { usePlatform } from '@/client/hooks/usePlatform'
 import { Radio } from 'antd'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { TemplateForm } from './TemplateForm'
-import { TemplateList, TemplateListRef } from './TemplateList'
+import { TemplateList } from './TemplateList'
 
 const ModuleWrapper = ({ children }: { children: React.ReactElement }) => {
   return (
@@ -13,13 +13,8 @@ const ModuleWrapper = ({ children }: { children: React.ReactElement }) => {
 }
 
 export function TemplateSection() {
-  const listRef = useRef<TemplateListRef>(null)
   const { isMobile } = usePlatform()
   const [activeTab, setActiveTab] = useState<'form' | 'list'>('form')
-
-  const handleSuccess = () => {
-    listRef.current?.refresh()
-  }
 
   if (isMobile) {
     return (
@@ -39,11 +34,11 @@ export function TemplateSection() {
         </div>
         {activeTab === 'form' ? (
           <ModuleWrapper>
-            <TemplateForm onSuccess={handleSuccess} />
+            <TemplateForm />
           </ModuleWrapper>
         ) : (
           <ModuleWrapper>
-            <TemplateList ref={listRef} />
+            <TemplateList />
           </ModuleWrapper>
         )}
       </div>
@@ -54,12 +49,12 @@ export function TemplateSection() {
     <div className="flex gap-6">
       {/* 左侧：表单 */}
       <ModuleWrapper>
-        <TemplateForm onSuccess={handleSuccess} />
+        <TemplateForm />
       </ModuleWrapper>
 
       {/* 右侧：模板列表 */}
       <ModuleWrapper>
-        <TemplateList ref={listRef} />
+        <TemplateList />
       </ModuleWrapper>
     </div>
   )

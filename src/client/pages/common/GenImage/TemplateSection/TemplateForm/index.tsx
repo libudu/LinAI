@@ -11,11 +11,7 @@ import { StyleExtractModal } from './StyleExtractModal'
 import { TemplateFormFields } from './TemplateFormItems'
 import { toTemplateValue, type TemplateFormValues } from './values'
 
-interface TemplateFormProps {
-  onSuccess: () => void
-}
-
-export function TemplateForm({ onSuccess }: TemplateFormProps) {
+export function TemplateForm() {
   const formRef = useRef<HTMLDivElement>(null)
   const [form] = Form.useForm<TemplateFormValues>()
   const [submitting, setSubmitting] = useState(false)
@@ -70,7 +66,6 @@ export function TemplateForm({ onSuccess }: TemplateFormProps) {
       message.success('保存成功')
       form.resetFields()
       setImageUrls([])
-      onSuccess()
     } catch (error) {
       message.error(error instanceof Error ? error.message : '保存失败')
     } finally {

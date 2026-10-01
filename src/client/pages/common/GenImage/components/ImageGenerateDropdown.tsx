@@ -29,16 +29,16 @@ export function ImageGenerateDropdown({
 }: ImageGenerateDropdownProps) {
   const { gptImageSettings } = useLocalSetting()
   const gptImageModelId = useGptImageStore((state) => state.gptImageModelId)
-  const isComfy = useGptImageStore(
-    (state) => state.gptImageEndpointKind === 'comfyui',
-  )
+  const capabilities = useGptImageStore((state) => state.capabilities)
 
   const enabledOptions = IMAGE_SIZE_OPTIONS.filter(
-    (option) => gptImageSettings[option.settingKey],
+    (option) =>
+      gptImageSettings[option.settingKey] &&
+      capabilities.sizes.includes(option.value),
   )
   const modelName = gptImageModelId?.split('-')[0]?.trim()
   const buttonLabel = modelName ? `${modelName} 生图` : '未配置模型'
-  if (isComfy)
+  if (!capabilities.sizes.length)
     return (
       <Button
         disabled={disabled}

@@ -1,3 +1,4 @@
+import type { CloudImageProtocol } from '@/shared/gpt-image/endpoints'
 import type { GptImageQuality, GptImageSize } from '@/shared/image/params'
 import { GPT_IMAGE_SOURCE_MODEL } from '@/shared/image/sources'
 import type { TaskInputSnapshot } from '@/shared/image/template'
@@ -12,6 +13,7 @@ import { imageFilename } from './image-references'
 import { GeneratedImageBatch } from './output-files'
 
 interface CloudTaskOptions {
+  protocol: CloudImageProtocol
   apiKey: string
   baseUrl: string
   modelId: string

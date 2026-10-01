@@ -50,6 +50,12 @@
 
 模板表单类型从共享的 `TemplateValue` 派生，参考图仍由独立上传状态管理。新建、编辑和另存统一经 `TemplateSection/TemplateForm/values.ts` 的 `toTemplateValue` 提取业务字段（包含张数 `n`）；编辑与另存保留未显示的比例、张数，清空张数时按未指定处理。
 
+## 接入点与工作流
+
+生图接入点设置在 `SettingModal/Endpoint/`：`EndpointSetting.tsx` 管理表单展示，`useEndpointActions.ts` 管理保存、删除和工作流导入，`endpointPresets.tsx` 管理预设的前端说明和下拉值。`store.ts` 的 `saveConfig` 一次提交完整设置并使用 revision 检测冲突；不要把一次接入点操作拆成多次设置写入。共享类型和预设定义位于 `src/shared/gpt-image/endpoints.ts`。
+
+当前选择只持久化 `gptImageEndpointId`，预设 ID 与展示名称独立。地址、模型、密钥及协议由 `resolveImageEndpoint` 从同一接入点解析；自定义接入点明确选择 `openai` 或 `venice` 协议，执行不再按域名猜测。旧平铺字段、按名称保存的预设 ID/API Key 和未声明协议的自定义接入点在读取时规范化，下次成功保存写入新结构。失效的接入点不能静默换用其他接入点，设置弹窗可以重新选择。`getImageEndpointCapabilities` 集中定义尺寸、画质、参考图数量、输出张数、余额和远端取消能力；表单与提交校验共用。Venice 带参考图仅生成一张，无参考图最多四张；ComfyUI 不发送云端参数。
+
 ## 图片引用与执行收尾
 
 `src/server/module/gpt-image/image-references.ts` 统一计算引用：输入图片由模板、所有任务的输入快照及待使用图片引用，生成图片由任务输出及尚未提交的执行文件引用。图库列表返回 `isReferenced`，前端不再自行判断能否删除；删除接口仍会重新检查。明确删除待使用项时先解除待使用引用，再清理没有模板或任务引用的文件。模板、待使用图片写入、任务提交和图片清理共用短期图片生命周期锁，锁内只做本地读写，不等待远端生成。
@@ -58,9 +64,13 @@
 
 删除运行中的 ComfyUI 任务会先取消远端工作流；删除云端任务会中断本地等待并等待文件收尾，无法保证服务商停止执行或计费。保留图片选项保留已成功生成的输出，未完成的部分输出仍清理。
 
-## 接入点与工作流
+## 缓存同步
 
-生图接入点设置在 `SettingModal/Endpoint/`：`EndpointSetting.tsx` 管理表单展示，`useEndpointActions.ts` 管理保存、删除和工作流导入，`endpointPresets.tsx` 管理预设的前端说明和下拉值。`store.ts` 的 `saveConfig` 一次提交完整设置并使用 revision 检测冲突；不要把一次接入点操作拆成多次设置写入。共享类型和预设定义位于 `src/shared/gpt-image/endpoints.ts`。
+任务、模板和图库使用 `src/client/service/resource-cache.ts`：订阅者共用缓存和请求，刷新期间再次失效补拉一轮，过期响应不覆盖新数据，卸载后丢弃旧轮次响应；失败保留已有数据并暴露错误。模板写操作集中使缓存失效，组件不再通过 ref 手动刷新列表。SSE 初次连接及重连会补拉资源，覆盖断线期间遗漏的事件。图库还订阅模板、任务、待使用图片的引用变更和 `image.assets` 文件变更。
+
+余额请求绑定明确接入点 ID，按 ID、协议、地址、模型和密钥区分缓存。切换时中断旧查询并以请求轮次保护结果，不再延迟 500ms 猜测配置保存时机。生图设置按 revision 应用服务端快照，旧读取不能覆盖更新后的配置，并订阅 `settings.gpt-image` 同步外部修改。
+
+## ComfyUI 工作流
 
 ComfyUI 只允许本机 HTTP 回环地址，规则统一在 `src/shared/gpt-image/comfyui.ts`。导入必须使用 **ComfyUI API 格式 JSON**，并有三个必需的 `_meta.title` 标记；标题匹配忽略大小写和首尾空格：
 

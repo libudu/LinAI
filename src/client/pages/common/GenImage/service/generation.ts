@@ -28,7 +28,7 @@ function createGenerationRequest(
       aspectRatio: isComfy ? undefined : input.aspectRatio,
       n: isComfy ? undefined : input.n,
     },
-    endpointId: isComfy ? endpointId : undefined,
+    endpointId,
     size: isComfy ? undefined : size,
     quality: isComfy ? undefined : quality,
     appendAspectRatio: isComfy ? undefined : appendAspectRatio,
@@ -79,6 +79,7 @@ export async function trialImage(
       size: request.size,
       quality: request.quality,
       appendAspectRatio: request.appendAspectRatio,
+      endpointId: request.endpointId,
     },
   })
   return readGenerationResponse(response)

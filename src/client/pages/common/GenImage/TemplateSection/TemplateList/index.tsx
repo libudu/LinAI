@@ -1,24 +1,16 @@
-import { Button, Spin } from 'antd'
-import { forwardRef, useImperativeHandle, useState } from 'react'
+import { Alert, Button, Spin } from 'antd'
+import { useState } from 'react'
 import { useTemplates } from '../hooks/useTemplates'
 import { RenameFolderModal } from '../TemplateItem/RenameFolderModal'
 import { TemplateItemList } from './TemplateItemList'
 
-export interface TemplateListRef {
-  refresh: () => void
-}
-
-export const TemplateList = forwardRef<TemplateListRef, unknown>((_, ref) => {
+export function TemplateList() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false)
 
-  const { data: templates = [], loading, refresh } = useTemplates()
+  const { data: templates = [], loading, error, refresh } = useTemplates()
 
-  useImperativeHandle(ref, () => ({
-    refresh,
-  }))
-
-  const imageTemplates = templates.sort(
+  const imageTemplates = [...templates].sort(
     (a, b) => (b.createdAt || 0) - (a.createdAt || 0),
   )
 
@@ -57,6 +49,16 @@ export const TemplateList = forwardRef<TemplateListRef, unknown>((_, ref) => {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
+          {error && (
+            <Alert
+              type="error"
+              showIcon
+              title="模板加载失败"
+              description={error.message}
+              action={<a onClick={refresh}>重试</a>}
+              className="mb-4"
+            />
+          )}
           {loading && imageTemplates.length === 0 ? (
             <div className="flex h-40 items-center justify-center">
               <Spin />
@@ -79,10 +81,9 @@ export const TemplateList = forwardRef<TemplateListRef, unknown>((_, ref) => {
           onSuccess={(newFolder) => {
             setIsRenameModalOpen(false)
             setSelectedFolder(newFolder)
-            refresh()
           }}
         />
       )}
     </>
   )
-})
+}

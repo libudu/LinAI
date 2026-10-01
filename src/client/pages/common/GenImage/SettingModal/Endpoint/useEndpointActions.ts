@@ -1,3 +1,4 @@
+import type { CloudImageProtocol } from '@/shared/gpt-image/endpoints'
 import { message } from 'antd'
 import { useGptImageStore } from '../../store'
 import {
@@ -12,31 +13,20 @@ import {
 export interface EndpointFormValues {
   endpoint: string
   title: string
+  protocol: CloudImageProtocol
   baseUrl: string
   modelId: string
   apiKey: string
 }
 
-const generateId = () =>
-  `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
-
-const defaultSelection = () => {
-  const preset = ENDPOINT_PRESETS[0]
-  return {
-    gptImageBaseUrl: preset.baseUrl,
-    gptImageModelId: preset.modelId,
-    gptImageEndpointKind: 'openai' as const,
-    gptImageEndpointId: presetValue(preset.label),
-  }
-}
+const defaultSelection = () => ({
+  gptImageEndpointId: presetValue(ENDPOINT_PRESETS[0].id),
+})
 
 export function useEndpointActions() {
   const {
-    gptImageBaseUrl,
-    gptImageModelId,
     gptImageCustomEndpoints,
     gptImagePresetApiKeys,
-    gptImageEndpointKind,
     gptImageEndpointId,
     gptImageComfyEndpoints,
     saveConfig,
@@ -44,35 +34,23 @@ export function useEndpointActions() {
   } = useGptImageStore()
 
   const deleteCustom = async (id: string) => {
-    const target = gptImageCustomEndpoints.find((item) => item.id === id)
-    if (!target) return
-    const isCurrent =
-      gptImageEndpointKind === 'openai' &&
-      (gptImageEndpointId === customValue(id) ||
-        (!gptImageEndpointId &&
-          target.baseUrl === gptImageBaseUrl &&
-          target.modelId === gptImageModelId))
     await saveConfig({
       gptImageCustomEndpoints: gptImageCustomEndpoints.filter(
         (item) => item.id !== id,
       ),
-      ...(isCurrent ? defaultSelection() : {}),
+      ...(gptImageEndpointId === customValue(id) ? defaultSelection() : {}),
     })
     message.success('已删除自定义接入点')
   }
-
   const deleteComfy = async (id: string) => {
-    const isCurrent =
-      gptImageEndpointKind === 'comfyui' && gptImageEndpointId === id
     await saveConfig({
       gptImageComfyEndpoints: gptImageComfyEndpoints.filter(
         (item) => item.id !== id,
       ),
-      ...(isCurrent ? defaultSelection() : {}),
+      ...(gptImageEndpointId === id ? defaultSelection() : {}),
     })
     message.success('已删除 ComfyUI 接入点')
   }
-
   const saveComfy = async (
     values: EndpointFormValues,
     workflowFile: File | null,
@@ -94,14 +72,12 @@ export function useEndpointActions() {
         }),
       })
       const result = await response.json()
-      if (!response.ok || !result.success) {
-        const errorMessage =
+      if (!response.ok || !result.success)
+        throw new Error(
           (typeof result.error === 'string'
             ? result.error
-            : result.error?.message) || '工作流导入失败'
-        message.error(errorMessage)
-        throw new Error(errorMessage)
-      }
+            : result.error?.message) || '工作流导入失败',
+        )
       await fetchConfig()
     } else if (current) {
       await saveConfig({
@@ -114,92 +90,54 @@ export function useEndpointActions() {
               }
             : item,
         ),
-        gptImageEndpointKind: 'comfyui',
         gptImageEndpointId: current.id,
       })
     }
     message.success('ComfyUI 接入点已保存')
     return 'comfyui'
   }
-
   const saveOpenAi = async (values: EndpointFormValues) => {
-    if (!values.apiKey) {
-      message.warning('请输入 API Key')
-      throw new Error('No API Key')
-    }
-
-    let baseUrl: string
-    let modelId: string
-    let selectedId: string
-    let nextCustomEndpoints = gptImageCustomEndpoints
-    let nextPresetApiKeys = gptImagePresetApiKeys
-    const apiKey = values.apiKey
-    if (values.endpoint === NEW_CUSTOM_VALUE) {
-      baseUrl = values.baseUrl.trim()
-      modelId = values.modelId.trim()
-      const title = values.title.trim()
-      const existingIndex = gptImageCustomEndpoints.findIndex(
-        (item) => item.baseUrl === baseUrl && item.modelId === modelId,
-      )
-      const id =
-        existingIndex >= 0
-          ? gptImageCustomEndpoints[existingIndex].id
-          : generateId()
-      selectedId = customValue(id)
-      nextCustomEndpoints =
-        existingIndex >= 0
-          ? gptImageCustomEndpoints.map((item, index) =>
-              index === existingIndex ? { ...item, title, apiKey } : item,
-            )
-          : [
-              ...gptImageCustomEndpoints.filter((item) =>
-                Boolean(item.title?.trim()),
-              ),
-              { id, title, baseUrl, modelId, apiKey },
-            ]
-    } else if (values.endpoint.startsWith('custom:')) {
-      const custom = gptImageCustomEndpoints.find(
+    if (!values.apiKey) throw new Error('请输入 API Key')
+    const preset = ENDPOINT_PRESETS.find(
+      (item) => presetValue(item.id) === values.endpoint,
+    )
+    if (preset) {
+      await saveConfig({
+        gptImageEndpointId: presetValue(preset.id),
+        gptImagePresetApiKeys: {
+          ...gptImagePresetApiKeys,
+          [preset.id]: values.apiKey,
+        },
+      })
+    } else {
+      const current = gptImageCustomEndpoints.find(
         (item) => customValue(item.id) === values.endpoint,
       )
-      if (!custom) throw new Error('自定义接入点已删除')
-      selectedId = customValue(custom.id)
-      baseUrl = values.baseUrl.trim()
-      modelId = values.modelId.trim()
-      const title = values.title.trim()
-      nextCustomEndpoints = gptImageCustomEndpoints
-        .filter((item) => item.id === custom.id || Boolean(item.title?.trim()))
-        .map((item) =>
-          item.id === custom.id
-            ? { ...item, title, baseUrl, modelId, apiKey }
-            : item,
-        )
-    } else {
-      const preset = ENDPOINT_PRESETS.find(
-        (item) => presetValue(item.label) === values.endpoint,
-      )
-      if (!preset) throw new Error('接入点不存在')
-      selectedId = presetValue(preset.label)
-      baseUrl = preset.baseUrl
-      modelId = preset.modelId
-      nextPresetApiKeys = { ...gptImagePresetApiKeys, [preset.label]: apiKey }
+      if (values.endpoint !== NEW_CUSTOM_VALUE && !current)
+        throw new Error('自定义接入点已删除')
+      const endpoint = {
+        id: current?.id ?? crypto.randomUUID(),
+        title: values.title.trim(),
+        protocol: values.protocol,
+        baseUrl: values.baseUrl.trim(),
+        modelId: values.modelId.trim(),
+        apiKey: values.apiKey,
+      }
+      await saveConfig({
+        gptImageEndpointId: customValue(endpoint.id),
+        gptImageCustomEndpoints: current
+          ? gptImageCustomEndpoints.map((item) =>
+              item.id === current.id ? endpoint : item,
+            )
+          : [...gptImageCustomEndpoints, endpoint],
+      })
     }
-
-    await saveConfig({
-      gptImageBaseUrl: baseUrl,
-      gptImageModelId: modelId,
-      gptImageEndpointKind: 'openai',
-      gptImageEndpointId: selectedId,
-      gptImageCustomEndpoints: nextCustomEndpoints,
-      gptImagePresetApiKeys: nextPresetApiKeys,
-    })
     message.success('配置保存成功')
-    return apiKey
+    return values.apiKey
   }
-
   const save = (values: EndpointFormValues, workflowFile: File | null) =>
     isComfyValue(values.endpoint)
       ? saveComfy(values, workflowFile)
       : saveOpenAi(values)
-
   return { save, deleteCustom, deleteComfy }
 }

@@ -3,7 +3,6 @@ import { EditOutlined } from '@ant-design/icons'
 import { Button, Form, message, Modal, Tooltip } from 'antd'
 import { useState } from 'react'
 import { createTemplate, patchTemplate } from '../../service/templates'
-import { useTemplates } from '../hooks/useTemplates'
 import { TemplateFormFields } from '../TemplateForm/TemplateFormItems'
 import {
   toTemplateValue,
@@ -20,7 +19,6 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
   const [imageUrls, setImageUrls] = useState<string[]>([])
   const [uploadingCount, setUploadingCount] = useState(0)
   const [form] = Form.useForm<TemplateFormValues>()
-  const { refresh } = useTemplates()
 
   const handleOpen = () => {
     form.setFieldsValue({
@@ -48,7 +46,6 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
         toTemplateValue({ ...template, ...values }, imageUrls),
       )
       message.success('更新成功')
-      refresh()
       handleClose()
     } catch (error) {
       message.error(error instanceof Error ? error.message : '更新失败')
@@ -65,7 +62,6 @@ export function TemplateEditButton({ template }: TemplateEditButtonProps) {
         toTemplateValue({ ...template, ...values }, imageUrls),
       )
       message.success('另存成功')
-      refresh()
       handleClose()
     } catch (error) {
       if (error && typeof error === 'object' && 'errorFields' in error) {

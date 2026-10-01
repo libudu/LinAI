@@ -87,15 +87,18 @@ const gptImageApi = new Hono()
         ...generationOptionFields,
         aspectRatio: imageInputFields.aspectRatio.default('1:1'),
         n: imageInputFields.n.default(1),
+        endpointId: z.string().optional(),
       }),
     ),
     async (c) => {
-      const { size, quality, appendAspectRatio, ...input } = c.req.valid('json')
+      const { size, quality, appendAspectRatio, endpointId, ...input } =
+        c.req.valid('json')
       const result = await submitImageGeneration({
         input: { ...input, title: TRIAL_TEMPLATE_TITLE },
         size,
         quality,
         appendAspectRatio,
+        endpointId,
       })
       return c.json(result.data, result.status)
     },

@@ -7,6 +7,7 @@ import {
   type CommonSettingTab,
 } from '../../components/SettingModal'
 import { useGPTImageQuota } from '../hooks/useGPTImageQuota'
+import { useGptImageStore } from '../store'
 import {
   EndpointSetting,
   type EndpointSettingRef,
@@ -26,13 +27,16 @@ const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
   const [form] = Form.useForm()
   const { gptImageSettings, setGptImageSettings } = useLocalSetting()
   const { isPublic } = useGPTImageQuota()
+  const capabilities = useGptImageStore((state) => state.capabilities)
 
   useEffect(() => {
     form.setFieldsValue({
       enable1K: gptImageSettings.enable1K,
       enable2K: gptImageSettings.enable2K,
       enable4K: gptImageSettings.enable4K,
-      quality: gptImageSettings.quality,
+      quality: capabilities.qualities.includes(gptImageSettings.quality)
+        ? gptImageSettings.quality
+        : capabilities.qualities[0],
       enableMultiple: isPublic ? false : gptImageSettings.enableMultiple,
     })
   }, [
@@ -42,6 +46,7 @@ const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
     gptImageSettings.quality,
     gptImageSettings.enableMultiple,
     isPublic,
+    capabilities,
     form,
   ])
 
@@ -70,19 +75,21 @@ const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
             <div className="flex items-center gap-2 text-lg">
               <span>1K</span>
               <Form.Item name="enable1K" valuePropName="checked" noStyle>
-                <Switch />
+                <Switch disabled={!capabilities.sizes.includes('1k')} />
               </Form.Item>
             </div>
             <div className="flex items-center gap-2">
               <span>2K</span>
               <Form.Item name="enable2K" valuePropName="checked" noStyle>
-                <Switch />
+                <Switch disabled={!capabilities.sizes.includes('2k')} />
               </Form.Item>
             </div>
             <div className="flex items-center gap-2">
               <span>4K</span>
               <Form.Item name="enable4K" valuePropName="checked" noStyle>
-                <Switch disabled={isPublic} />
+                <Switch
+                  disabled={isPublic || !capabilities.sizes.includes('4k')}
+                />
               </Form.Item>
             </div>
           </div>
@@ -106,14 +113,28 @@ const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
           <div className="mb-2 text-sm text-gray-500">画质设置</div>
           <Form.Item name="quality" noStyle>
             <Radio.Group>
-              <Radio.Button value="medium">Medium</Radio.Button>
-              <Radio.Button value="high" disabled={isPublic}>
+              <Radio.Button
+                value="medium"
+                disabled={!capabilities.qualities.includes('medium')}
+              >
+                Medium
+              </Radio.Button>
+              <Radio.Button
+                value="high"
+                disabled={isPublic || !capabilities.qualities.includes('high')}
+              >
                 High
               </Radio.Button>
-              <Radio.Button value="xhigh" disabled={isPublic}>
+              <Radio.Button
+                value="xhigh"
+                disabled={isPublic || !capabilities.qualities.includes('xhigh')}
+              >
                 X-High
               </Radio.Button>
-              <Radio.Button value="max" disabled={isPublic}>
+              <Radio.Button
+                value="max"
+                disabled={isPublic || !capabilities.qualities.includes('max')}
+              >
                 Max
               </Radio.Button>
             </Radio.Group>
@@ -139,7 +160,7 @@ const GPTImageSetting = forwardRef<GPTImageSettingRef>((_props, ref) => {
             <div className="flex items-center gap-2 text-lg">
               <span className="text-sm text-gray-500">生成多张</span>
               <Form.Item name="enableMultiple" valuePropName="checked" noStyle>
-                <Switch disabled={isPublic} />
+                <Switch disabled={isPublic || capabilities.maxOutputs < 2} />
               </Form.Item>
             </div>
           </div>
