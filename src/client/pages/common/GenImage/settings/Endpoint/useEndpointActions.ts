@@ -1,4 +1,7 @@
-import type { CloudImageProtocol } from '@/shared/gpt-image/endpoints'
+import type {
+  CloudImageProtocol,
+  QuotaProvider,
+} from '@/shared/gpt-image/endpoints'
 import { message } from 'antd'
 import { useGptImageStore } from '../store'
 import {
@@ -14,6 +17,7 @@ export interface EndpointFormValues {
   endpoint: string
   title: string
   protocol: CloudImageProtocol
+  quotaProvider: QuotaProvider
   baseUrl: string
   modelId: string
   apiKey: string
@@ -119,6 +123,7 @@ export function useEndpointActions() {
         id: current?.id ?? crypto.randomUUID(),
         title: values.title.trim(),
         protocol: values.protocol,
+        quotaProvider: values.quotaProvider ?? 'none',
         baseUrl: values.baseUrl.trim(),
         modelId: values.modelId.trim(),
         apiKey: values.apiKey,

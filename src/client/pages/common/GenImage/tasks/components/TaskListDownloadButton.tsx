@@ -3,50 +3,40 @@ import {
   downloadFile,
   downloadFilesZip,
 } from '@/client/utils/download'
-import type { Task } from '@/server/common/task'
 import { DownloadOutlined } from '@ant-design/icons'
 import { Button, message } from 'antd'
 import { useState } from 'react'
+import { loadTaskOutputs } from '../useTasks'
 
 interface TaskListDownloadButtonProps {
-  tasks: Task[]
   downloadedIds: string[]
   setDownloadedIds: (ids: string[]) => void
 }
 
 export function TaskListDownloadButton({
-  tasks,
   downloadedIds,
   setDownloadedIds,
 }: TaskListDownloadButtonProps) {
   const [downloading, setDownloading] = useState(false)
 
   const handleDownloadAll = async () => {
-    const unDownloadedTasks = tasks.filter(
-      (t) =>
-        t.status === 'completed' &&
-        t.outputUrls &&
-        t.outputUrls.length > 0 &&
-        !downloadedIds.includes(t.id),
-    )
-
-    if (unDownloadedTasks.length === 0) {
-      message.info('没有需要下载的任务')
-      return
-    }
-
     setDownloading(true)
     try {
+      const unDownloadedTasks = (await loadTaskOutputs()).filter(
+        (task) =>
+          task.outputUrls.length > 0 && !downloadedIds.includes(task.id),
+      )
+      if (!unDownloadedTasks.length) {
+        message.info('没有需要下载的任务')
+        return
+      }
       const filesToDownload = unDownloadedTasks.flatMap((task) => {
-        const baseName =
-          task.inputSnapshot?.title ||
-          task.inputSnapshot?.prompt ||
-          `task_${task.id}`
+        const baseName = task.name
 
-        return task.outputUrls!.map((url, index) => ({
+        return task.outputUrls.map((url, index) => ({
           url,
           fileName:
-            task.outputUrls!.length > 1 ? `${baseName}_${index + 1}` : baseName,
+            task.outputUrls.length > 1 ? `${baseName}_${index + 1}` : baseName,
           id: `${task.id}_${index}`,
         }))
       })
@@ -58,19 +48,14 @@ export function TaskListDownloadButton({
       } else {
         message.loading({ content: '正在下载...', key: 'download' })
         await Promise.all(
-          filesToDownload.map((file) =>
-            downloadFile(file.url, file.fileName).catch((error) => {
-              console.error(`下载任务 ${file.id} 失败`, error)
-            }),
-          ),
+          filesToDownload.map((file) => downloadFile(file.url, file.fileName)),
         )
         message.success({ content: '下载完成', key: 'download' })
       }
 
       // 标记为已下载
       setDownloadedIds([
-        ...downloadedIds,
-        ...unDownloadedTasks.map((t) => t.id),
+        ...new Set([...downloadedIds, ...unDownloadedTasks.map((t) => t.id)]),
       ])
     } catch (error) {
       message.error({ content: '下载失败', key: 'download' })

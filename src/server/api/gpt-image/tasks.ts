@@ -3,7 +3,11 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import {
   deleteImageTask,
+  getImageTaskIds,
+  getImageTaskOutputs,
+  getImageTaskPage,
   getImageTasks,
+  getImageTaskSummary,
   ImageTaskCancellationError,
 } from '../../module/gpt-image/tasks'
 
@@ -13,6 +17,45 @@ const taskApi = new Hono()
     const tasks = await getImageTasks()
     return c.json({ success: true as const, data: tasks })
   })
+  .get(
+    '/page',
+    zValidator(
+      'query',
+      z.object({
+        page: z.coerce.number().int().min(1).default(1),
+        pageSize: z.coerce.number().int().min(1).max(100).default(10),
+      }),
+    ),
+    async (c) => {
+      const { page, pageSize } = c.req.valid('query')
+      return c.json({
+        success: true as const,
+        data: await getImageTaskPage(page, pageSize),
+      })
+    },
+  )
+  .get('/summary', async (c) =>
+    c.json({ success: true as const, data: await getImageTaskSummary() }),
+  )
+  .get('/outputs', async (c) =>
+    c.json({ success: true as const, data: await getImageTaskOutputs() }),
+  )
+  .get(
+    '/ids',
+    zValidator(
+      'query',
+      z.object({
+        status: z
+          .enum(['pending', 'running', 'completed', 'failed'])
+          .optional(),
+      }),
+    ),
+    async (c) =>
+      c.json({
+        success: true as const,
+        data: await getImageTaskIds(c.req.valid('query').status),
+      }),
+  )
   .delete(
     '/:id',
     zValidator('param', z.object({ id: z.string() })),

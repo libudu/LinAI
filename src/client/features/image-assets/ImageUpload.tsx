@@ -1,17 +1,15 @@
-import type { AppType } from '@/server'
 import { PictureOutlined, UploadOutlined } from '@ant-design/icons'
 import { Button, message, Upload } from 'antd'
-import { hc } from 'hono/client'
 import { useEffect, useRef } from 'react'
 import { ImageCropModal } from './crop/ImageCropModal'
 import { ImageUploadItem } from './crop/ImageUploadItem'
 import { ImageDrawModal } from './draw/ImageDrawModal'
+import { registerImageDropTarget } from './drop-targets'
 import { useImageEditUpload } from './edit/useImageEditUpload'
 import { openGallery, type GalleryImageSelection } from './gallery'
 import { usePendingImages } from './pendingImages'
+import { uploadImageBase64, uploadImageFromUrl } from './service'
 import { useRecentImages } from './useRecentImages'
-
-const client = hc<AppType>('/')
 
 const MAX_IMAGES = 10
 
@@ -67,19 +65,6 @@ export function ImageUpload({
     onUploadingChange?.(newCount > 0)
   }
 
-  const uploadImageBase64 = async (base64: string) => {
-    const res = await client.api.static.images.upload.$post({
-      json: { image: base64 },
-    })
-    const data = await res.json()
-
-    if (!data.success || !('url' in data)) {
-      throw new Error((data as any).error || '图片上传失败')
-    }
-
-    return data.url as string
-  }
-
   const {
     cropTarget,
     drawTarget,
@@ -94,25 +79,6 @@ export function ImageUpload({
     onChange,
     addRecentImages,
   })
-
-  const blobToBase64 = (blob: Blob) =>
-    new Promise<string>((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(reader.result as string)
-      reader.onerror = () => reject(new Error('图片读取失败'))
-      reader.readAsDataURL(blob)
-    })
-
-  const uploadImageFromUrl = async (url: string) => {
-    const response = await fetch(url)
-    if (!response.ok) {
-      throw new Error('图片下载失败')
-    }
-
-    const blob = await response.blob()
-    const base64 = await blobToBase64(blob)
-    return uploadImageBase64(base64)
-  }
 
   const handleUpload = (file: File) => {
     // 超出上限时直接忽略该文件（含正在上传中的数量，避免多选/连拖时超限）
@@ -164,42 +130,16 @@ export function ImageUpload({
   const handleUploadRef = useRef(handleUpload)
   handleUploadRef.current = handleUpload
 
+  const dropTargetRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    const handleDragOver = (e: DragEvent) => {
-      if (
-        e.dataTransfer?.types &&
-        Array.from(e.dataTransfer.types).includes('Files')
-      ) {
-        e.preventDefault()
-        e.stopPropagation()
-      }
-    }
-
-    const handleDrop = (e: DragEvent) => {
-      if (
-        e.dataTransfer?.types &&
-        Array.from(e.dataTransfer.types).includes('Files')
-      ) {
-        e.preventDefault()
-        e.stopPropagation()
-        const files = e.dataTransfer?.files
-        if (files && files.length > 0) {
-          Array.from(files).forEach((file) => {
-            if (file.type.startsWith('image/')) {
-              handleUploadRef.current(file)
-            }
-          })
-        }
-      }
-    }
-
-    window.addEventListener('dragover', handleDragOver, { capture: true })
-    window.addEventListener('drop', handleDrop, { capture: true })
-
-    return () => {
-      window.removeEventListener('dragover', handleDragOver, { capture: true })
-      window.removeEventListener('drop', handleDrop, { capture: true })
-    }
+    const element = dropTargetRef.current
+    if (!element) return
+    return registerImageDropTarget({
+      element,
+      upload: (file) => {
+        handleUploadRef.current(file)
+      },
+    })
   }, [])
 
   const handleRemove = (indexToRemove: number) => {
@@ -209,7 +149,7 @@ export function ImageUpload({
   }
 
   return (
-    <div>
+    <div ref={dropTargetRef} aria-label="参考图片上传区域">
       <div className="flex items-center gap-4">
         <Upload
           accept="image/jpeg,image/png,image/webp"
@@ -229,7 +169,10 @@ export function ImageUpload({
                 }
 
                 // 超出上限时只取剩余可添加的数量
-                const remaining = MAX_IMAGES - latestValueRef.current.length
+                const remaining =
+                  MAX_IMAGES -
+                  latestValueRef.current.length -
+                  uploadingCountRef.current
                 if (remaining <= 0) {
                   message.warning(`最多支持 ${MAX_IMAGES} 张图片`)
                   return

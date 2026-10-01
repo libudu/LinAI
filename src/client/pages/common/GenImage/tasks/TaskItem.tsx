@@ -1,7 +1,6 @@
 import { useLocalSetting } from '@/client/hooks/useLocalSetting'
 import type { Task } from '@/server/common/task'
 import { COMFY_IMAGE_SOURCE } from '@/shared/image/sources'
-import { TRIAL_TEMPLATE_TITLE } from '@/shared/image/template'
 import {
   RedoOutlined,
   SyncOutlined,
@@ -158,7 +157,7 @@ export function TaskItem({ task, downloadedIds, onDownloaded }: TaskItemProps) {
                 />
               )}
               {(task.source === COMFY_IMAGE_SOURCE ||
-                task.inputSnapshot?.title !== TRIAL_TEMPLATE_TITLE) && (
+                task.mode !== 'trial') && (
                 <Tooltip title="重试">
                   <Button
                     type="text"

@@ -1,6 +1,35 @@
+import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
+import { z } from 'zod'
+import { createYunwuToken } from '../module/yunwu/token'
 
-const yunwuTokenApi = new Hono()
+const yunwuTokenApi = new Hono().post(
+  '/generate-api-key',
+  zValidator(
+    'json',
+    z.object({
+      systemToken: z.string().min(1, 'System Token is required'),
+      userId: z.string().min(1, 'User ID is required'),
+      name: z.string().min(1, 'Name is required'),
+      quota: z.number().min(0, 'Quota must be a positive number'),
+      group: z.string(),
+    }),
+  ),
+  async (c) => {
+    try {
+      return c.json(await createYunwuToken(c.req.valid('json')))
+    } catch (error) {
+      return c.json(
+        {
+          success: false as const,
+          data: null,
+          message: `[网络] ${error instanceof Error ? error.message : '生成失败'}`,
+        },
+        502,
+      )
+    }
+  },
+)
 
 function checkAuth(c: any) {
   const systemToken = c.req.header('x-system-token')

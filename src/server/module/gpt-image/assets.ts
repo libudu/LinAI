@@ -3,6 +3,7 @@ import path from 'path'
 import {
   deleteImageFile,
   getImageDirectory,
+  getImageFilesSnapshot,
   listImageFiles,
   type ImageDirectoryType,
 } from '../../common/static'
@@ -66,9 +67,11 @@ export const deleteUnreferencedImages = (
   options: DeleteUnreferencedImagesOptions,
 ) => withImageLifecycle(() => deleteUnreferencedImagesLocked(options))
 
-export const listImages = () =>
-  withImageLifecycle(async () => {
-    const files = await listImageFiles()
+export const listImages = async () => {
+  // 文件扫描不占生命周期锁；进入锁后取当前索引，覆盖扫描后发生的内部写删。
+  await listImageFiles()
+  return withImageLifecycle(async () => {
+    const files = getImageFilesSnapshot()
     const references = await getImageReferences()
     return files.map((image) => ({
       ...image,
@@ -77,3 +80,4 @@ export const listImages = () =>
       ),
     }))
   })
+}

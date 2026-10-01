@@ -1,10 +1,9 @@
-import { TRIAL_TEMPLATE_TITLE } from '@/shared/image/template'
 import { zValidator } from '@hono/zod-validator'
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { z } from 'zod'
-import { StorageError } from '../../common/storage/errors'
 import { importComfyWorkflow } from '../../module/gpt-image/comfyui-workflow'
 import { GPT_IMAGE_OUTPUT_MAX_N } from '../../module/gpt-image/enum'
+import { ImageSubmissionError } from '../../module/gpt-image/errors'
 import { submitImageGeneration } from '../../module/gpt-image/service'
 import gptImageEndpointApi from './endpoint'
 
@@ -12,7 +11,7 @@ const imageInputFields = {
   prompt: z.string().min(1, 'Prompt is required'),
   images: z.array(z.string()).optional().default([]),
   aspectRatio: z.string().optional(),
-  n: z.number().min(1).max(GPT_IMAGE_OUTPUT_MAX_N).optional(),
+  n: z.number().int().min(1).max(GPT_IMAGE_OUTPUT_MAX_N).optional(),
 }
 
 const generationOptionFields = {
@@ -22,6 +21,24 @@ const generationOptionFields = {
     .optional()
     .default('medium'),
   appendAspectRatio: z.boolean().optional(),
+}
+
+async function submissionResponse(
+  c: Context,
+  options: Parameters<typeof submitImageGeneration>[0],
+) {
+  try {
+    return c.json({
+      success: true as const,
+      ...(await submitImageGeneration(options)),
+    })
+  } catch (error) {
+    if (!(error instanceof ImageSubmissionError)) throw error
+    return c.json(
+      { success: false as const, error: error.message },
+      error.status,
+    )
+  }
 }
 
 const gptImageApi = new Hono()
@@ -47,13 +64,13 @@ const gptImageApi = new Hono()
         const endpoint = await importComfyWorkflow(c.req.valid('json'))
         return c.json({ success: true as const, endpoint })
       } catch (error) {
-        if (error instanceof StorageError) throw error
+        if (!(error instanceof ImageSubmissionError)) throw error
         return c.json(
           {
             success: false as const,
             error: error instanceof Error ? error.message : String(error),
           },
-          400,
+          error.status,
         )
       }
     },
@@ -65,6 +82,7 @@ const gptImageApi = new Hono()
       'json',
       z.object({
         // 前端提交一次生成所需的完整模板快照，后端不再依赖模板存储
+        mode: z.enum(['generate', 'trial']).optional().default('generate'),
         input: z.object({
           title: z.string().optional(),
           ...imageInputFields,
@@ -74,8 +92,7 @@ const gptImageApi = new Hono()
       }),
     ),
     async (c) => {
-      const result = await submitImageGeneration(c.req.valid('json'))
-      return c.json(result.data, result.status)
+      return submissionResponse(c, c.req.valid('json'))
     },
   )
   .post(
@@ -93,66 +110,14 @@ const gptImageApi = new Hono()
     async (c) => {
       const { size, quality, appendAspectRatio, endpointId, ...input } =
         c.req.valid('json')
-      const result = await submitImageGeneration({
-        input: { ...input, title: TRIAL_TEMPLATE_TITLE },
+      return submissionResponse(c, {
+        mode: 'trial',
+        input,
         size,
         quality,
         appendAspectRatio,
         endpointId,
       })
-      return c.json(result.data, result.status)
-    },
-  )
-  .post(
-    '/generate-api-key',
-    zValidator(
-      'json',
-      z.object({
-        systemToken: z.string().min(1, 'System Token is required'),
-        userId: z.string().min(1, 'User ID is required'),
-        name: z.string().min(1, 'Name is required'),
-        quota: z.number().min(0, 'Quota must be a positive number'),
-        group: z.string(),
-      }),
-    ),
-    async (c) => {
-      const { systemToken, userId, name, quota, group } = c.req.valid('json')
-      try {
-        const response = await fetch('https://yunwu.ai/api/token/', {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            'new-api-user': userId,
-            ...(systemToken ? { Authorization: systemToken } : {}),
-          },
-          body: JSON.stringify({
-            remain_quota: quota * 1000000,
-            expired_time: -1,
-            unlimited_quota: false,
-            model_limits_enabled: false,
-            model_limits: '',
-            group,
-            mj_image_mode: 'default',
-            mj_custom_proxy: '',
-            selected_groups: [],
-            name: name,
-            allow_ips: '',
-          }),
-        })
-        const data = await response.json()
-        return c.json(
-          data as { success?: boolean; data: string; message?: string },
-        )
-      } catch (error: any) {
-        return c.json(
-          {
-            success: false as const,
-            message: `[网络] ${error.message || '生成失败'}`,
-            data: null,
-          },
-          500,
-        )
-      }
     },
   )
 

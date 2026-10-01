@@ -1,5 +1,6 @@
 import {
   getImageEndpointCapabilities,
+  getQuotaProvider,
   resolveImageEndpoint,
 } from '@/shared/gpt-image/endpoints'
 import { zValidator } from '@hono/zod-validator'
@@ -43,7 +44,7 @@ const gptImageEndpointApi = new Hono().get(
         400,
       )
     }
-    const { apiKey, baseUrl, protocol } = resolveGptImageConnection(settings)
+    const { apiKey, baseUrl } = resolveGptImageConnection(settings)
     if (!apiKey) {
       return c.json(
         { success: false as const, error: '[配置] API Key is not configured' },
@@ -54,7 +55,7 @@ const gptImageEndpointApi = new Hono().get(
     try {
       const origin = new URL(baseUrl).origin
 
-      if (protocol === 'venice') {
+      if (getQuotaProvider(endpoint) === 'venice') {
         const { data, errorMessage, status } = await fetchVeniceQuota(
           origin,
           apiKey,
@@ -119,7 +120,7 @@ const gptImageEndpointApi = new Hono().get(
           success: false as const,
           error: `[网络] ${error.message || '获取余额失败'}`,
         },
-        500,
+        502,
       )
     }
   },

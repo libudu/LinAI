@@ -11,6 +11,7 @@ const getExtension = (url: string) => {
 
 export const downloadFile = async (url: string, fileName: string) => {
   const response = await fetch(url)
+  if (!response.ok) throw new Error(`下载图片失败（HTTP ${response.status}）`)
   const blob = await response.blob()
   const safeName = getSafeFileName(fileName)
   const ext = getExtension(url)
@@ -27,15 +28,13 @@ export const downloadFilesZip = async (
   const zip = new JSZip()
   await Promise.all(
     files.map(async (file, index) => {
-      try {
-        const response = await fetch(file.url)
-        const blob = await response.blob()
-        const safeName = getSafeFileName(file.fileName)
-        const ext = getExtension(file.url)
-        zip.file(`${safeName}_${index}.${ext}`, blob)
-      } catch (error) {
-        console.error(`下载任务 ${file.id} 失败`, error)
-      }
+      const response = await fetch(file.url)
+      if (!response.ok)
+        throw new Error(`下载图片失败（HTTP ${response.status}）`)
+      const blob = await response.blob()
+      const safeName = getSafeFileName(file.fileName)
+      const ext = getExtension(file.url)
+      zip.file(`${safeName}_${index}.${ext}`, blob)
     }),
   )
   const content = await zip.generateAsync({ type: 'blob' })

@@ -6,25 +6,24 @@ import {
 
 import { useLocalSetting } from '@/client/hooks/useLocalSetting'
 import type { AppType } from '@/server'
-import type { Task } from '@/server/common/task'
 import type { MenuProps } from 'antd'
 import { Button, Dropdown, Modal, Space, message } from 'antd'
 import { hc } from 'hono/client'
 import { useState } from 'react'
 import { TaskListDownloadButton } from './components/TaskListDownloadButton'
 import { TaskListFinishedAlertButton } from './components/TaskListFinishedAlertButton'
+import { loadTaskIds, type ImageTaskSummary } from './useTasks'
 
 const client = hc<AppType>('/')
 
 interface TaskListHeaderProps {
-  tasks: Task[]
+  summary: ImageTaskSummary | null
   downloadedIds: string[]
   setDownloadedIds: (ids: string[]) => void
-  loading: boolean
 }
 
 export function TaskListHeader({
-  tasks,
+  summary,
   downloadedIds,
   setDownloadedIds,
 }: TaskListHeaderProps) {
@@ -33,19 +32,18 @@ export function TaskListHeader({
   const [deletingDownloaded, setDeletingDownloaded] = useState(false)
 
   const handleDeleteErrors = async () => {
-    const errorTasks = tasks.filter((t) => t.status === 'failed')
-    if (errorTasks.length === 0) {
-      message.info('没有错误任务')
-      return
-    }
-
     setDeletingErrors(true)
     try {
+      const errorTasks = await loadTaskIds('failed')
+      if (errorTasks.length === 0) {
+        message.info('没有错误任务')
+        return
+      }
       let successCount = 0
       for (const task of errorTasks) {
         try {
           const res = await client.api.task[':id'].$delete({
-            param: { id: task.id },
+            param: { id: task },
             query: {
               keepImage: gptImageSettings.keepImageWhenDeleteTask
                 ? 'true'
@@ -66,8 +64,15 @@ export function TaskListHeader({
     }
   }
 
-  const handleDeleteDownloaded = () => {
-    const toDelete = tasks.filter((t) => downloadedIds.includes(t.id))
+  const handleDeleteDownloaded = async () => {
+    let toDelete: string[]
+    try {
+      const ids = new Set(await loadTaskIds())
+      toDelete = downloadedIds.filter((id) => ids.has(id))
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '查询任务失败')
+      return
+    }
     if (toDelete.length === 0) {
       message.info('没有已下载的任务')
       return
@@ -95,7 +100,7 @@ export function TaskListHeader({
           for (const task of toDelete) {
             try {
               const res = await client.api.task[':id'].$delete({
-                param: { id: task.id },
+                param: { id: task },
                 query: {
                   keepImage: gptImageSettings.keepImageWhenDeleteTask
                     ? 'true'
@@ -154,7 +159,7 @@ export function TaskListHeader({
         </div>
 
         <Space className="ml-4">
-          <TaskListFinishedAlertButton tasks={tasks} />
+          <TaskListFinishedAlertButton summary={summary} />
         </Space>
       </div>
 
@@ -162,7 +167,6 @@ export function TaskListHeader({
         <div className="hidden md:block">
           <Space.Compact>
             <TaskListDownloadButton
-              tasks={tasks}
               downloadedIds={downloadedIds}
               setDownloadedIds={setDownloadedIds}
             />
@@ -190,7 +194,6 @@ export function TaskListHeader({
         <div className="block md:hidden">
           <Space.Compact>
             <TaskListDownloadButton
-              tasks={tasks}
               downloadedIds={downloadedIds}
               setDownloadedIds={setDownloadedIds}
             />

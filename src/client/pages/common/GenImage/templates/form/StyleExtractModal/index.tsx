@@ -1,3 +1,4 @@
+import { uploadImageBase64 } from '@/client/features/image-assets'
 import {
   extractVisionText,
   visionChatCompletion,
@@ -83,22 +84,7 @@ export function StyleExtractModal({
       const base64 = await readFileAsBase64(file)
       setUploadedPreview(base64)
 
-      const res = await fetch('/api/static/images/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64 }),
-      })
-      const data = await res.json()
-
-      if (!data.success || !('url' in data)) {
-        const errorMsg =
-          typeof (data as { error?: string }).error === 'string'
-            ? (data as { error: string }).error
-            : '图片上传失败'
-        throw new Error(errorMsg)
-      }
-
-      const url = (data as { url: string }).url
+      const url = await uploadImageBase64(base64)
       setUploadedUrl(url)
       messageApi.success('图片上传成功')
       options.onSuccess?.({})

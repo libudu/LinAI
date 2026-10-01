@@ -2,3 +2,4 @@
 export { openGallery, type GalleryImageSelection } from './gallery'
 export { ImageUpload } from './ImageUpload'
 export { usePendingImages } from './pendingImages'
+export { readImageBlob, uploadImageBase64, uploadImageFromUrl } from './service'

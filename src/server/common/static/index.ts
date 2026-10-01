@@ -5,6 +5,7 @@ import path from 'path'
 import sharp from 'sharp'
 import { dataPath } from '../storage/data-path'
 import { GENERATED_IMAGES_API_PATH, INPUT_IMAGES_API_PATH } from './enum'
+import { ImageFileIndex } from './file-index'
 import { publishImageAssetsChange, withImageLifecycle } from './image-lifecycle'
 
 export const IMAGE_MAX_DIMENSION = 2000
@@ -35,6 +36,21 @@ export interface ImageFileInfo {
   type: ImageDirectoryType
   createdAt: number
 }
+
+const fileIndex = new ImageFileIndex([
+  {
+    dir: GENERATED_IMAGES_DIR,
+    apiPath: GENERATED_IMAGES_API_PATH,
+    type: 'generated',
+  },
+  { dir: INPUT_IMAGES_DIR, apiPath: INPUT_IMAGES_API_PATH, type: 'input' },
+])
+export const recordImageFile = (
+  type: ImageDirectoryType,
+  filename: string,
+  createdAt = Date.now(),
+) => fileIndex.record(type, filename, createdAt)
+export const getImageFilesSnapshot = () => fileIndex.snapshot()
 
 fs.ensureDirSync(GENERATED_IMAGES_DIR)
 fs.ensureDirSync(INPUT_IMAGES_DIR)
@@ -122,6 +138,7 @@ export async function importInputImage(buffer: Buffer) {
   await withImageLifecycle(async () => {
     if (!(await fs.pathExists(filepath))) {
       await fs.writeFile(filepath, webpBuffer)
+      recordImageFile('input', filename)
       publishImageAssetsChange()
     }
   })
@@ -182,56 +199,12 @@ export async function deleteImageFile(
   if (await fs.pathExists(filePath)) {
     await fs.remove(filePath)
   }
+  fileIndex.remove(type, filename)
 
   if (await fs.pathExists(thumbPath)) {
     await fs.remove(thumbPath)
   }
 }
 
-async function getFilesInfo(
-  dir: string,
-  apiPath: string,
-  type: ImageDirectoryType,
-): Promise<ImageFileInfo[]> {
-  if (!(await fs.pathExists(dir))) {
-    return []
-  }
-
-  const files = await fs.readdir(dir)
-  const info: ImageFileInfo[] = []
-
-  for (const file of files) {
-    const filepath = path.join(dir, file)
-    const stat = await fs.stat(filepath)
-
-    if (!stat.isFile()) {
-      continue
-    }
-
-    info.push({
-      url: `${apiPath}/${file}`,
-      type,
-      createdAt: stat.mtimeMs,
-    })
-  }
-
-  return info
-}
-
-/** 原始文件列表，不读取模板、任务或其他业务资源。 */
-export async function listImageFiles() {
-  const generatedInfo = await getFilesInfo(
-    GENERATED_IMAGES_DIR,
-    GENERATED_IMAGES_API_PATH,
-    'generated',
-  )
-  const inputInfo = await getFilesInfo(
-    INPUT_IMAGES_DIR,
-    INPUT_IMAGES_API_PATH,
-    'input',
-  )
-
-  return [...generatedInfo, ...inputInfo].sort(
-    (a, b) => b.createdAt - a.createdAt,
-  )
-}
+/** 原始文件索引，不读取模板、任务或其他业务资源。 */
+export const listImageFiles = () => fileIndex.list()

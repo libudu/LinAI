@@ -8,11 +8,13 @@ import { logger } from '../../common/logger'
 import { INPUT_IMAGES_DIR } from '../../common/static'
 import { withImageLifecycle } from '../../common/static/image-lifecycle'
 import { taskService } from '../../common/task'
+import { ImageSubmissionError } from './errors'
 import { calculateSize, generateGPTImage } from './generate'
 import { imageFilename } from './image-references'
 import { GeneratedImageBatch } from './output-files'
 
 interface CloudTaskOptions {
+  mode: 'generate' | 'trial'
   protocol: CloudImageProtocol
   apiKey: string
   baseUrl: string
@@ -93,25 +95,28 @@ async function runCloudTask(
 
 /** 输入校验、任务登记在提交阶段完成，执行不占用 HTTP 请求。 */
 export async function submitCloudTask(options: CloudTaskOptions) {
-  if (!options.snapshot.prompt.trim()) throw new Error('请填写提示词')
+  if (!options.snapshot.prompt.trim())
+    throw new ImageSubmissionError('请填写提示词')
   let url: URL
   try {
     url = new URL(options.baseUrl)
   } catch {
-    throw new Error('生图接入点 Base URL 无效，请修改设置')
+    throw new ImageSubmissionError('生图接入点 Base URL 无效，请修改设置')
   }
   if (!['http:', 'https:'].includes(url.protocol) || !options.modelId.trim())
-    throw new Error('生图接入点地址或模型未配置，请修改设置')
+    throw new ImageSubmissionError('生图接入点地址或模型未配置，请修改设置')
   const imagePaths: string[] = []
   for (const url of options.snapshot.images) {
     const filename = imageFilename('input', url)
-    if (!filename) throw new Error('参考图必须是 LinAI 已保存的输入图片')
+    if (!filename)
+      throw new ImageSubmissionError('参考图必须是 LinAI 已保存的输入图片')
     const file = path.join(INPUT_IMAGES_DIR, filename)
     if (!(await fs.pathExists(file)))
-      throw new Error('参考图文件不存在，请重新上传')
+      throw new ImageSubmissionError('参考图文件不存在，请重新上传')
     imagePaths.push(file)
   }
   const task = await taskService.createTaskFromSnapshot({
+    mode: options.mode,
     snapshot: options.snapshot,
     source: GPT_IMAGE_SOURCE_MODEL,
     size: options.size ?? '1k',

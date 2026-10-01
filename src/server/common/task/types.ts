@@ -33,11 +33,13 @@ export interface ComfyTaskMetadata {
  */
 export interface Task extends ComfyTaskMetadata {
   id: string
+  mode?: 'generate' | 'trial'
   /** 任务创建时的输入快照（不可变），不是对模板存储的引用 */
   inputSnapshot: TaskInputSnapshot
   source: string
   status: 'pending' | 'running' | 'completed' | 'failed'
   error?: string
+  finishedAt?: number
   duration?: number
   outputUrl?: string
   outputUrls?: string[]

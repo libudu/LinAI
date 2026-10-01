@@ -22,13 +22,13 @@ const staticApi = new Hono()
         const result = await uploadInputImage(image)
 
         return c.json({
-          success: true,
+          success: true as const,
           url: result.url,
         })
       } catch (error: any) {
         console.error('Image upload failed:', error)
         return c.json({
-          success: false,
+          success: false as const,
           error: error?.message || 'Image processing failed',
         })
       }

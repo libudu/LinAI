@@ -62,7 +62,7 @@ export function createResourceCache<T>(options: {
   }
   const useCache = (enabled = true) => {
     const state = useStore()
-    useEffect(() => (enabled ? subscribe() : undefined), [enabled])
+    useEffect(() => (enabled ? subscribe() : undefined), [enabled, subscribe])
     return { ...state, refresh: invalidate, refreshAsync: refresh }
   }
   return { useCache, invalidate, refresh, getState: useStore.getState }

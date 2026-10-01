@@ -6,6 +6,7 @@ import path from 'path'
 import { settingsRegistry } from '../../common/settings/registry'
 import { dataPath } from '../../common/storage/data-path'
 import { readJsonFile, writeJsonFile } from '../../common/storage/json-file'
+import { ImageSubmissionError } from './errors'
 import type { GptImageSettings } from './settings'
 
 const WORKFLOW_DIR = dataPath('images', 'workflows')
@@ -32,10 +33,12 @@ export type ValidatedWorkflow = {
 
 export function validateWorkflow(raw: unknown): ValidatedWorkflow {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw))
-    throw new Error('工作流必须是 ComfyUI API 格式 JSON 对象')
+    throw new ImageSubmissionError('工作流必须是 ComfyUI API 格式 JSON 对象')
   const entries = Object.entries(raw)
   if (!entries.length || 'nodes' in raw || 'links' in raw)
-    throw new Error('请从 ComfyUI 导出 API 格式工作流，而非普通画布 JSON')
+    throw new ImageSubmissionError(
+      '请从 ComfyUI 导出 API 格式工作流，而非普通画布 JSON',
+    )
   const ids = {} as WorkflowMarkerIds
   for (const [id, value] of entries) {
     if (
@@ -50,7 +53,9 @@ export function validateWorkflow(raw: unknown): ValidatedWorkflow {
       typeof value.class_type !== 'string' ||
       !value.class_type.trim()
     ) {
-      throw new Error(`节点 ${id} 缺少 API 格式要求的 inputs/class_type`)
+      throw new ImageSubmissionError(
+        `节点 ${id} 缺少 API 格式要求的 inputs/class_type`,
+      )
     }
     const title = (value as WorkflowNode)._meta?.title
     if (typeof title !== 'string') continue
@@ -58,24 +63,29 @@ export function validateWorkflow(raw: unknown): ValidatedWorkflow {
       (item) => item.toLowerCase() === title.trim().toLowerCase(),
     )
     if (!marker) continue
-    if (ids[marker]) throw new Error(`工作流标记 ${marker} 重复`)
+    if (ids[marker]) throw new ImageSubmissionError(`工作流标记 ${marker} 重复`)
     ids[marker] = id
   }
   for (const marker of REQUIRED_MARKERS)
-    if (!ids[marker]) throw new Error(`工作流缺少标记 ${marker}`)
+    if (!ids[marker]) throw new ImageSubmissionError(`工作流缺少标记 ${marker}`)
   const workflow = raw as Workflow
   if (typeof workflow[ids['LinAI@prompt']].inputs.prompt !== 'string')
-    throw new Error('LinAI@prompt 节点的 inputs.prompt 必须是字符串')
+    throw new ImageSubmissionError(
+      'LinAI@prompt 节点的 inputs.prompt 必须是字符串',
+    )
   if (typeof workflow[ids['LinAI@image1']].inputs.image !== 'string')
-    throw new Error('LinAI@image1 节点的 inputs.image 必须是文件名字符串')
+    throw new ImageSubmissionError(
+      'LinAI@image1 节点的 inputs.image 必须是文件名字符串',
+    )
   const seedId = ids['LinAI@seed']
   if (seedId && !Number.isInteger(workflow[seedId].inputs.seed))
-    throw new Error('LinAI@seed 节点的 inputs.seed 必须是整数')
+    throw new ImageSubmissionError('LinAI@seed 节点的 inputs.seed 必须是整数')
   return { workflow, ids }
 }
 
 const workflowPath = (id: string) => {
-  if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error('工作流 ID 无效')
+  if (!/^[0-9a-f-]{36}$/i.test(id))
+    throw new ImageSubmissionError('工作流 ID 无效')
   return path.join(WORKFLOW_DIR, `${id}.json`)
 }
 
@@ -87,14 +97,21 @@ export async function importComfyWorkflow(input: {
   workflowName: string
   content: string
 }) {
-  const baseUrl = normalizeComfyBaseUrl(input.baseUrl)
+  let baseUrl: string
+  try {
+    baseUrl = normalizeComfyBaseUrl(input.baseUrl)
+  } catch (error) {
+    throw new ImageSubmissionError(
+      error instanceof Error ? error.message : 'ComfyUI 地址无效',
+    )
+  }
   const title = input.title.trim()
-  if (!title) throw new Error('请输入接入点名称')
+  if (!title) throw new ImageSubmissionError('请输入接入点名称')
   let parsed: unknown
   try {
     parsed = JSON.parse(input.content)
   } catch {
-    throw new Error('工作流不是有效 JSON')
+    throw new ImageSubmissionError('工作流不是有效 JSON')
   }
   validateWorkflow(parsed)
   const snapshot = await settingsRegistry.get<GptImageSettings>('gpt-image')
@@ -104,7 +121,7 @@ export async function importComfyWorkflow(input: {
       )
     : undefined
   if (input.endpointId && !existing)
-    throw new Error('要更新的 ComfyUI 接入点不存在')
+    throw new ImageSubmissionError('要更新的 ComfyUI 接入点不存在')
   const workflowId = randomUUID()
   const endpoint: ComfyEndpoint = {
     id: existing?.id ?? randomUUID(),
@@ -143,6 +160,6 @@ export async function loadComfyWorkflow(
   workflowId: string,
 ): Promise<ValidatedWorkflow> {
   const raw = await readJsonFile<unknown>(workflowPath(workflowId))
-  if (!raw) throw new Error('工作流文件已删除，请重新导入')
+  if (!raw) throw new ImageSubmissionError('工作流文件已删除，请重新导入', 404)
   return validateWorkflow(raw)
 }

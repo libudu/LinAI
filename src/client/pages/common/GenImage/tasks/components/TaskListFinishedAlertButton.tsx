@@ -1,15 +1,15 @@
-import type { Task } from '@/server/common/task'
 import { BellOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
 import { Switch } from 'antd'
 import { useEffect, useRef } from 'react'
+import type { ImageTaskSummary } from '../useTasks'
 
 interface TaskListFinishedAlertButtonProps {
-  tasks: Task[]
+  summary: ImageTaskSummary | null
 }
 
 export function TaskListFinishedAlertButton({
-  tasks,
+  summary,
 }: TaskListFinishedAlertButtonProps) {
   const [notifyEnabled, setNotifyEnabled] = useLocalStorageState(
     'taskCompletionNotification',
@@ -23,42 +23,22 @@ export function TaskListFinishedAlertButton({
     setNotifyEnabled(checked)
   }
 
-  // 通知逻辑
-  const prevTasksRef = useRef<Task[]>([])
+  // 摘要覆盖所有页；首次加载与批量删除不会误报完成。
+  const previousRef = useRef<ImageTaskSummary | null>(null)
   useEffect(() => {
-    if (!notifyEnabled) {
-      prevTasksRef.current = tasks
-      return
+    if (!summary) return
+    const previous = previousRef.current
+    previousRef.current = summary
+    if (
+      notifyEnabled &&
+      previous &&
+      summary.active === 0 &&
+      summary.finishedAt > previous.finishedAt &&
+      Notification.permission === 'granted'
+    ) {
+      new Notification('LinAI 所有任务已完成', { body: '请在任务列表查看详情' })
     }
-
-    const prevTasks = prevTasksRef.current
-    if (prevTasks.length > 0 && tasks.length > 0) {
-      const isAllDone = tasks.every(
-        (t) => t.status === 'completed' || t.status === 'failed',
-      )
-
-      const hasNewlyFinishedTask = tasks.some((t) => {
-        const prev = prevTasks.find((pt) => pt.id === t.id)
-        return (
-          (t.status === 'completed' || t.status === 'failed') &&
-          prev &&
-          (prev.status === 'pending' || prev.status === 'running')
-        )
-      })
-
-      if (
-        isAllDone &&
-        hasNewlyFinishedTask &&
-        Notification.permission === 'granted'
-      ) {
-        new Notification('LinAI 所有任务已完成', {
-          body: '请在任务列表查看详情',
-        })
-      }
-    }
-
-    prevTasksRef.current = tasks
-  }, [tasks, notifyEnabled])
+  }, [summary, notifyEnabled])
 
   return (
     <div className="hidden items-center gap-2 sm:flex">

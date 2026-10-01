@@ -1,12 +1,12 @@
+import { rpcData } from '@/client/service/http'
 import { RefreshQueue } from '@/client/service/refresh-queue'
 import { isAdmin } from '@/client/utils/admin'
 import type { AppType } from '@/server'
 import type { GPTImageQuotaResponse } from '@/server/api/gpt-image/endpoint'
-import { COMFY_IMAGE_SOURCE } from '@/shared/image/sources'
 import { hc } from 'hono/client'
 import { useEffect, useMemo, useRef } from 'react'
 import { create } from 'zustand'
-import { useTasks } from '../tasks/useTasks'
+import { useTaskSummary } from '../tasks/useTasks'
 import { useGptImageStore } from './store'
 
 export const GPT_IMAGE_RMB_RATIO = 2
@@ -33,18 +33,15 @@ const queue = new RefreshQueue(async () => {
   controller = new AbortController()
   useQuotaStore.setState({ loading: true, error: null })
   try {
-    const response = await client.api.gptImage.endpoint.quota.$get(
-      { query: { endpointId: current.endpointId } },
-      { init: { signal: controller.signal } },
+    const result = await rpcData(
+      client.api.gptImage.endpoint.quota.$get(
+        { query: { endpointId: current.endpointId } },
+        { init: { signal: controller.signal } },
+      ),
     )
-    const json = await response.json()
-    if (!response.ok || !json.success) {
-      const error: unknown = 'error' in json ? json.error : undefined
-      throw new Error(typeof error === 'string' ? error : '获取余额失败')
-    }
     if (currentEpoch === epoch)
       useQuotaStore.setState({
-        data: json.data.data,
+        data: result.data,
         error: null,
         loading: false,
       })
@@ -90,14 +87,15 @@ export function useGPTImageQuota() {
     ? JSON.stringify([
         endpoint.selectionId,
         endpoint.protocol,
+        endpoint.quotaProvider,
         endpoint.baseUrl,
         endpoint.modelId,
         endpoint.apiKey,
       ])
     : null
   const endpointId = endpoint?.selectionId ?? ''
-  const { data: tasks, loaded: tasksLoaded } = useTasks()
-  const knownCompletedTasks = useRef<Set<string> | null>(null)
+  const { data: summary, loaded: summaryLoaded } = useTaskSummary()
+  const previousCloudCompletion = useRef<number | null>(null)
   const state = useQuotaStore()
 
   useEffect(() => {
@@ -105,25 +103,12 @@ export function useGPTImageQuota() {
   }, [key, endpointId])
 
   useEffect(() => {
-    if (!tasksLoaded) return
-    const completed = new Set(
-      tasks
-        .filter((task) => task.status === 'completed')
-        .map((task) => task.id),
-    )
-    const previous = knownCompletedTasks.current
-    knownCompletedTasks.current = completed
-    if (
-      previous &&
-      tasks.some(
-        (task) =>
-          task.status === 'completed' &&
-          task.source !== COMFY_IMAGE_SOURCE &&
-          !previous.has(task.id),
-      )
-    )
+    if (!summaryLoaded) return
+    const previous = previousCloudCompletion.current
+    previousCloudCompletion.current = summary.cloudCompletedAt
+    if (previous !== null && summary.cloudCompletedAt > previous)
       void refreshQuota()
-  }, [tasks, tasksLoaded])
+  }, [summary, summaryLoaded])
 
   // 配置刚切换但 effect 尚未执行时也不显示旧接入点余额。
   const matches = state.key === key

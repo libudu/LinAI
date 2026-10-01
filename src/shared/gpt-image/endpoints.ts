@@ -6,6 +6,7 @@ import {
 
 export type GptImageSizeFormat = 'resolution' | 'level'
 export type CloudImageProtocol = 'openai' | 'venice'
+export type QuotaProvider = 'none' | 'new-api' | 'venice'
 export type ImageProtocol = CloudImageProtocol | 'comfyui'
 
 export interface EndpointPresetInfo {
@@ -13,6 +14,7 @@ export interface EndpointPresetInfo {
   id: string
   label: string
   protocol: CloudImageProtocol
+  quotaProvider?: QuotaProvider
   baseUrl: string
   modelId: string
   legacyModelIds?: string[]
@@ -25,6 +27,7 @@ export interface CustomEndpoint {
   id: string
   title: string
   protocol: CloudImageProtocol
+  quotaProvider?: QuotaProvider
   baseUrl: string
   modelId: string
   apiKey?: string
@@ -42,6 +45,7 @@ export interface ComfyEndpoint {
 export const ENDPOINT_PRESET_INFOS: EndpointPresetInfo[] = [
   {
     id: 'openlux-sunburst',
+    quotaProvider: 'new-api',
     label: 'openlux gpt-image-2.5-sunburst-c',
     protocol: 'openai',
     baseUrl: 'https://api.openlux.ai/v1',
@@ -52,6 +56,7 @@ export const ENDPOINT_PRESET_INFOS: EndpointPresetInfo[] = [
   },
   {
     id: 'dragonapi-sunburst',
+    quotaProvider: 'new-api',
     label: 'DragonAPI gpt-image-2.5-sunburst',
     protocol: 'openai',
     baseUrl: 'https://dragon3api.com/v1',
@@ -61,6 +66,7 @@ export const ENDPOINT_PRESET_INFOS: EndpointPresetInfo[] = [
   },
   {
     id: 'venice-qwen-image',
+    quotaProvider: 'venice',
     label: 'Venice qwen-image-3-edit',
     protocol: 'venice',
     baseUrl: 'https://api.venice.ai',
@@ -147,6 +153,29 @@ export const resolveGptImageApiKey = (settings: GptImageEndpointSettings) => {
     : null
 }
 
+/** 旧配置仅按已知服务商地址兼容；未知 OpenAI 接入点不会猜测余额 API。 */
+export function inferLegacyQuotaProvider(baseUrl?: string): QuotaProvider {
+  try {
+    const host = new URL(baseUrl || '').hostname
+    if (host === 'api.venice.ai') return 'venice'
+    if (
+      ['api.openlux.ai', 'dragon3api.com', 'yunwu.ai', 'api.yunwu.ai'].includes(
+        host,
+      )
+    )
+      return 'new-api'
+  } catch {
+    /* 无效地址由提交校验处理 */
+  }
+  return 'none'
+}
+
+export const getQuotaProvider = (endpoint: {
+  protocol: ImageProtocol
+  quotaProvider?: QuotaProvider
+}) =>
+  endpoint.protocol === 'comfyui' ? 'none' : (endpoint.quotaProvider ?? 'none')
+
 export interface ImageEndpointCapabilities {
   minImages: number
   maxImages: number
@@ -162,7 +191,11 @@ export interface ImageEndpointCapabilities {
 
 /** 协议能力集中声明；参考图编辑与文生图的张数限制可能不同。 */
 export function getImageEndpointCapabilities(
-  endpoint: { protocol: ImageProtocol; modelId?: string },
+  endpoint: {
+    protocol: ImageProtocol
+    modelId?: string
+    quotaProvider?: QuotaProvider
+  },
   imageCount = 0,
 ): ImageEndpointCapabilities {
   if (endpoint.protocol === 'comfyui')
@@ -186,7 +219,7 @@ export function getImageEndpointCapabilities(
       qualities: ['medium', 'high'],
       aspectRatio: true,
       appendAspectRatio: true,
-      quota: true,
+      quota: getQuotaProvider(endpoint) !== 'none',
       cancel: false,
     }
   return {
@@ -199,7 +232,7 @@ export function getImageEndpointCapabilities(
       : ['medium', 'high'],
     aspectRatio: true,
     appendAspectRatio: true,
-    quota: true,
+    quota: getQuotaProvider(endpoint) !== 'none',
     cancel: false,
   }
 }

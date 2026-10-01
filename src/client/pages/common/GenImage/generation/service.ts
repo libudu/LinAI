@@ -1,3 +1,4 @@
+import { rpcResult } from '@/client/service/http'
 import type { AppType } from '@/server'
 import type { Task } from '@/server/common/task'
 import { COMFY_IMAGE_SOURCE } from '@/shared/image/sources'
@@ -10,17 +11,16 @@ type GenerateRequest = InferRequestType<
 
 export type ImageGenerationInput = GenerateRequest['input']
 type GenerationOptions = Omit<GenerateRequest, 'input'> & { isComfy: boolean }
-type GenerationResponse =
-  | Awaited<ReturnType<typeof client.api.gptImage.generate.$post>>
-  | Awaited<ReturnType<typeof client.api.gptImage.trial.$post>>
 
 // 三个生成入口共用参数转换；ComfyUI 不发送云端比例、张数、尺寸和画质。
 function createGenerationRequest(
   input: ImageGenerationInput,
   options: GenerationOptions,
 ): GenerateRequest {
-  const { isComfy, endpointId, size, quality, appendAspectRatio } = options
+  const { isComfy, mode, endpointId, size, quality, appendAspectRatio } =
+    options
   return {
+    mode: mode ?? 'generate',
     input: {
       title: input.title,
       prompt: input.prompt,
@@ -35,54 +35,22 @@ function createGenerationRequest(
   }
 }
 
-async function readGenerationResponse(response: GenerationResponse) {
-  const data = await response.json()
-  if (!response.ok || !data.success) {
-    // 全局 onError 的存储错误为对象，业务错误为字符串，两种都保留原始信息。
-    const error: unknown = 'error' in data ? data.error : undefined
-    if (typeof error === 'string' && error) throw new Error(error)
-    if (
-      error &&
-      typeof error === 'object' &&
-      'message' in error &&
-      typeof error.message === 'string' &&
-      error.message
-    ) {
-      throw new Error(error.message)
-    }
-    throw new Error(`生成请求失败（HTTP ${response.status}）`)
-  }
-  return data
-}
-
 export async function generateImage(
   input: ImageGenerationInput,
   options: GenerationOptions,
 ) {
-  const response = await client.api.gptImage.generate.$post({
-    json: createGenerationRequest(input, options),
-  })
-  return readGenerationResponse(response)
+  return rpcResult(
+    client.api.gptImage.generate.$post({
+      json: createGenerationRequest(input, options),
+    }),
+  )
 }
 
 export async function trialImage(
   input: ImageGenerationInput,
   options: GenerationOptions,
 ) {
-  const request = createGenerationRequest(input, options)
-  const response = await client.api.gptImage.trial.$post({
-    json: {
-      prompt: request.input.prompt,
-      images: request.input.images,
-      aspectRatio: request.input.aspectRatio,
-      n: request.input.n,
-      size: request.size,
-      quality: request.quality,
-      appendAspectRatio: request.appendAspectRatio,
-      endpointId: request.endpointId,
-    },
-  })
-  return readGenerationResponse(response)
+  return generateImage(input, { ...options, mode: 'trial' })
 }
 
 export async function retryImageTask(task: Task) {
@@ -105,6 +73,7 @@ export async function retryImageTask(task: Task) {
     },
     {
       isComfy,
+      mode: task.mode,
       endpointId: isComfy ? task.comfyEndpointId : undefined,
       size: task.size || '2k',
       quality: task.quality || 'medium',

@@ -32,12 +32,12 @@ type SuccessData<T> = T extends { success: true; data: infer D } ? D : never
 type RpcData<R extends ClientResponse<{ success: boolean }, number, 'json'>> =
   SuccessData<Awaited<ReturnType<R['json']>>>
 
-/** 保留整个 RPC 响应联合类型，再提取成功分支的数据。 */
-export const rpcData = async <
+/** 保留 RPC 成功分支，顶层字段与标准 data 信封共用错误解析。 */
+export const rpcResult = async <
   R extends ClientResponse<{ success: boolean }, number, 'json'>,
 >(
   response: Promise<R>,
-): Promise<RpcData<R>> => {
+): Promise<Extract<Awaited<ReturnType<R['json']>>, { success: true }>> => {
   const res = await response
   let json: { success: boolean }
   try {
@@ -50,8 +50,7 @@ export const rpcData = async <
     )
   }
   if (!res.ok || !json.success) throw requestError(json, res.status)
-  // 错误分支已排除；仅在通用解包边界取出路由推导的数据。
-  return (json as { success: boolean; data: RpcData<R> }).data
+  return json as Extract<Awaited<ReturnType<R['json']>>, { success: true }>
 }
 
 /** 动态存储/设置资源的请求封装，响应契约由资源客户端指定。 */
@@ -66,4 +65,14 @@ export const apiRequest = async <T>(
   const json = await res.json()
   if (!res.ok || !json.success) throw requestError(json, res.status)
   return json
+}
+
+/** 标准信封仅取 data，错误解析与 rpcResult 共用。 */
+export const rpcData = async <
+  R extends ClientResponse<{ success: boolean }, number, 'json'>,
+>(
+  response: Promise<R>,
+): Promise<RpcData<R>> => {
+  const json = await rpcResult(response)
+  return (json as unknown as { data: RpcData<R> }).data
 }

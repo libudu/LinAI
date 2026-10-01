@@ -56,6 +56,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
         form.setFieldsValue({
           endpoint: presetValue(preset.id),
           protocol: preset.protocol,
+          quotaProvider: preset.quotaProvider ?? 'none',
           title: '',
           baseUrl: preset.baseUrl,
           modelId: preset.modelId,
@@ -80,6 +81,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
         baseUrl: currentEndpoint.baseUrl,
         modelId: currentEndpoint.modelId,
         protocol: currentEndpoint.protocol,
+        quotaProvider: currentEndpoint.quotaProvider ?? 'none',
         apiKey: currentEndpoint.apiKey || '',
       })
     }
@@ -115,6 +117,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
         title: '',
         baseUrl: '',
         protocol: 'openai',
+        quotaProvider: 'none',
         modelId: '',
         apiKey: '',
       })
@@ -127,6 +130,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
         baseUrl: preset.baseUrl,
         modelId: preset.modelId,
         protocol: preset.protocol,
+        quotaProvider: preset.quotaProvider ?? 'none',
         apiKey: resolvePresetApiKey(preset, gptImagePresetApiKeys) || '',
       })
       return
@@ -140,6 +144,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
         baseUrl: custom.baseUrl,
         modelId: custom.modelId,
         protocol: custom.protocol,
+        quotaProvider: custom.quotaProvider ?? 'none',
         apiKey: custom.apiKey ?? '',
       })
     }
@@ -315,6 +320,21 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
                   options={[
                     { value: 'openai', label: 'OpenAI 兼容' },
                     { value: 'venice', label: 'Venice 原生' },
+                  ]}
+                />
+              </Form.Item>
+            )}
+            {!isComfyForm && (
+              <Form.Item
+                name="quotaProvider"
+                label="余额接口"
+                extra="按服务商支持的余额接口选择；与生图协议独立。"
+              >
+                <Select
+                  options={[
+                    { value: 'none', label: '不查询余额' },
+                    { value: 'new-api', label: 'New API 令牌余额' },
+                    { value: 'venice', label: 'Venice 余额' },
                   ]}
                 />
               </Form.Item>

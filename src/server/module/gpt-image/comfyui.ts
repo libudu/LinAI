@@ -16,6 +16,7 @@ import {
   type Workflow,
   type WorkflowMarkerIds,
 } from './comfyui-workflow'
+import { ImageSubmissionError } from './errors'
 import { GeneratedImageBatch } from './output-files'
 import { getComfyEndpoint } from './settings'
 
@@ -99,15 +100,16 @@ export async function cancelComfyTaskForDeletion(task: Task): Promise<void> {
 }
 
 const checkedInputPath = async (images: string[]): Promise<string> => {
-  if (images.length !== 1) throw new Error('ComfyUI 生成必须恰好提供一张参考图')
+  if (images.length !== 1)
+    throw new ImageSubmissionError('ComfyUI 生成必须恰好提供一张参考图')
   const match = images[0].match(
     /^\/api\/static\/images\/input\/([a-z0-9_-]+\.(?:webp|png|jpe?g))$/i,
   )
   if (!match || !images[0].startsWith(`${INPUT_IMAGES_API_PATH}/`))
-    throw new Error('参考图必须是 LinAI 已保存的输入图片')
+    throw new ImageSubmissionError('参考图必须是 LinAI 已保存的输入图片')
   const file = path.join(INPUT_IMAGES_DIR, match[1])
   if (!(await fs.pathExists(file)))
-    throw new Error('参考图文件不存在，请重新上传')
+    throw new ImageSubmissionError('参考图文件不存在，请重新上传')
   return file
 }
 
@@ -318,14 +320,16 @@ async function runComfyTask(
 export async function submitComfyTask(
   snapshot: TaskInputSnapshot,
   endpoint: ComfyEndpoint,
+  mode: 'generate' | 'trial',
 ) {
-  if (!snapshot.prompt.trim()) throw new Error('请填写提示词')
+  if (!snapshot.prompt.trim()) throw new ImageSubmissionError('请填写提示词')
   const inputPath = await checkedInputPath(snapshot.images)
   const { workflow, ids } = await loadComfyWorkflow(endpoint.workflowId)
   const baseUrl = normalizeComfyBaseUrl(endpoint.baseUrl)
   const taskId = randomUUID()
   const task = await taskService.createTaskFromSnapshot({
     id: taskId,
+    mode,
     snapshot,
     source: COMFY_IMAGE_SOURCE,
     metadata: {

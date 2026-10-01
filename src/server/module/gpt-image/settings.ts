@@ -3,6 +3,7 @@ import {
   ENDPOINT_PRESET_INFOS,
   findPresetById,
   findPresetEndpoint,
+  inferLegacyQuotaProvider,
   isVeniceEndpoint,
   resolveImageEndpoint,
   resolvePresetApiKey,
@@ -23,6 +24,7 @@ const endpointFields = z.object({
       id: z.string().min(1),
       title: z.string(),
       protocol: z.enum(['openai', 'venice']),
+      quotaProvider: z.enum(['none', 'new-api', 'venice']),
       baseUrl: z.string(),
       modelId: z.string(),
       apiKey: z.string().optional(),
@@ -53,6 +55,9 @@ function migrateSettings(raw: unknown): unknown {
         const endpoint = asLegacyRecord(item)
         return {
           ...endpoint,
+          quotaProvider:
+            endpoint.quotaProvider ??
+            inferLegacyQuotaProvider(String(endpoint.baseUrl || '')),
           protocol:
             endpoint.protocol ??
             (isVeniceEndpoint(String(endpoint.baseUrl || ''))

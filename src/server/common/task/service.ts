@@ -14,6 +14,7 @@ import { TASKS_RESOURCE, type ComfyTaskMetadata, type Task } from './types'
 export class TaskService {
   private readonly repository = new TaskRepository()
   private readonly logger = new Logger('task-service')
+  private lastFinishedAt = 0
   private readonly ready: Promise<void>
 
   constructor() {
@@ -26,6 +27,10 @@ export class TaskService {
   private async recoverInterruptedTasks(): Promise<void> {
     try {
       const tasks = await this.repository.list()
+      this.lastFinishedAt = tasks.reduce(
+        (latest, task) => Math.max(latest, task.finishedAt ?? 0),
+        0,
+      )
       const interrupted = tasks.filter(
         (t) => t.status === 'pending' || t.status === 'running',
       )
@@ -34,6 +39,10 @@ export class TaskService {
         interrupted.map((t) => ({
           ...t,
           status: 'failed' as const,
+          finishedAt: (this.lastFinishedAt = Math.max(
+            Date.now(),
+            this.lastFinishedAt + 1,
+          )),
           error: '[服务] 连接已丢失',
         })),
       )
@@ -55,6 +64,7 @@ export class TaskService {
   async createTaskFromSnapshot(options: {
     id?: string
     snapshot: TaskInputSnapshot
+    mode?: 'generate' | 'trial'
     source: string
     size?: GptImageSize
     quality?: GptImageQuality
@@ -64,6 +74,7 @@ export class TaskService {
     const task = await this.repository.create(
       {
         inputSnapshot: options.snapshot,
+        mode: options.mode,
         source: options.source,
         size: options.size,
         quality: options.quality,
@@ -89,7 +100,14 @@ export class TaskService {
         if (record.status !== 'pending' && record.status !== 'running') {
           throw new Error('TASK_NOT_ACTIVE')
         }
-        return { ...record, ...updates }
+        const finishedAt =
+          updates.status === 'completed' || updates.status === 'failed'
+            ? (this.lastFinishedAt = Math.max(
+                Date.now(),
+                this.lastFinishedAt + 1,
+              ))
+            : record.finishedAt
+        return { ...record, ...updates, finishedAt }
       })
     } catch (error) {
       if (
