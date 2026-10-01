@@ -3,13 +3,7 @@ import crypto from 'crypto'
 import fs from 'fs-extra'
 import path from 'path'
 import sharp from 'sharp'
-import {
-  getImageReferences,
-  imageFilename,
-} from '../../module/gpt-image/image-references'
 import { dataPath } from '../storage/data-path'
-// 注册通用存储资源（副作用）
-import '../storage/resources'
 import { GENERATED_IMAGES_API_PATH, INPUT_IMAGES_API_PATH } from './enum'
 import { publishImageAssetsChange, withImageLifecycle } from './image-lifecycle'
 
@@ -36,23 +30,17 @@ interface ImageResponseData {
   contentType: string
 }
 
-interface ListedImageInfo {
+export interface ImageFileInfo {
   url: string
   type: ImageDirectoryType
   createdAt: number
-  isReferenced: boolean
-}
-
-interface DeleteUnreferencedImagesOptions {
-  type: ImageDirectoryType
-  urls?: string[]
 }
 
 fs.ensureDirSync(GENERATED_IMAGES_DIR)
 fs.ensureDirSync(INPUT_IMAGES_DIR)
 fs.ensureDirSync(THUMB_IMAGES_DIR)
 
-function getImageDirectory(type: ImageDirectoryType) {
+export function getImageDirectory(type: ImageDirectoryType) {
   return type === 'generated' ? GENERATED_IMAGES_DIR : INPUT_IMAGES_DIR
 }
 
@@ -183,7 +171,11 @@ export function openImageDirectory(type: ImageDirectoryType) {
   exec(command)
 }
 
-async function deleteImageFile(type: ImageDirectoryType, filename: string) {
+/** 仅负责文件及缩略图删除；引用检查与生命周期锁由图片业务层负责。 */
+export async function deleteImageFile(
+  type: ImageDirectoryType,
+  filename: string,
+) {
   const filePath = path.join(getImageDirectory(type), filename)
   const thumbPath = getThumbnailPath(type, filename)
 
@@ -196,65 +188,17 @@ async function deleteImageFile(type: ImageDirectoryType, filename: string) {
   }
 }
 
-async function deleteUnreferencedImagesLocked(
-  options: DeleteUnreferencedImagesOptions,
-) {
-  const { type, urls } = options
-  const referencedImages = (await getImageReferences())[type]
-  const targetDir = getImageDirectory(type)
-  const targetFilenames = new Set<string>()
-
-  if (Array.isArray(urls) && urls.length > 0) {
-    for (const url of urls) {
-      const filename = imageFilename(type, url)
-      if (filename) {
-        targetFilenames.add(filename)
-      }
-    }
-  } else {
-    const files = await fs.readdir(targetDir)
-
-    for (const file of files) {
-      const filePath = path.join(targetDir, file)
-      const stat = await fs.stat(filePath)
-      if (stat.isFile()) {
-        targetFilenames.add(file)
-      }
-    }
-  }
-
-  let deletedCount = 0
-  let skippedCount = 0
-
-  for (const filename of targetFilenames) {
-    if (referencedImages.has(filename)) {
-      skippedCount++
-      continue
-    }
-
-    await deleteImageFile(type, filename)
-    deletedCount++
-  }
-
-  if (deletedCount) publishImageAssetsChange()
-  return { deletedCount, skippedCount }
-}
-
-export const deleteUnreferencedImages = (
-  options: DeleteUnreferencedImagesOptions,
-) => withImageLifecycle(() => deleteUnreferencedImagesLocked(options))
-
 async function getFilesInfo(
   dir: string,
   apiPath: string,
   type: ImageDirectoryType,
-): Promise<ListedImageInfo[]> {
+): Promise<ImageFileInfo[]> {
   if (!(await fs.pathExists(dir))) {
     return []
   }
 
   const files = await fs.readdir(dir)
-  const info: ListedImageInfo[] = []
+  const info: ImageFileInfo[] = []
 
   for (const file of files) {
     const filepath = path.join(dir, file)
@@ -268,14 +212,14 @@ async function getFilesInfo(
       url: `${apiPath}/${file}`,
       type,
       createdAt: stat.mtimeMs,
-      isReferenced: false,
     })
   }
 
   return info
 }
 
-async function listImagesLocked() {
+/** 原始文件列表，不读取模板、任务或其他业务资源。 */
+export async function listImageFiles() {
   const generatedInfo = await getFilesInfo(
     GENERATED_IMAGES_DIR,
     GENERATED_IMAGES_API_PATH,
@@ -287,15 +231,7 @@ async function listImagesLocked() {
     'input',
   )
 
-  const references = await getImageReferences()
-  return [...generatedInfo, ...inputInfo]
-    .map((image) => ({
-      ...image,
-      isReferenced: references[image.type].has(
-        imageFilename(image.type, image.url) || '',
-      ),
-    }))
-    .sort((a, b) => b.createdAt - a.createdAt)
+  return [...generatedInfo, ...inputInfo].sort(
+    (a, b) => b.createdAt - a.createdAt,
+  )
 }
-
-export const listImages = () => withImageLifecycle(listImagesLocked)

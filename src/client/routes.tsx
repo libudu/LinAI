@@ -9,7 +9,7 @@ import {
 } from '@ant-design/icons'
 import type { ReactNode } from 'react'
 import { GenImage } from './pages/common/GenImage'
-import { openGPTImageSettingModal } from './pages/common/GenImage/SettingModal'
+import { openGPTImageSettingModal } from './pages/common/GenImage/settings'
 import { Eagle } from './pages/module/Eagle'
 import { openEagleSettingModal } from './pages/module/Eagle/SettingModal'
 import { TTS } from './pages/module/GeminiTTS'

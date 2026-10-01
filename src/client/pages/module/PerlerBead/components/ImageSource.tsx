@@ -1,7 +1,7 @@
 import {
   openGallery,
   type GalleryImageSelection,
-} from '@/client/pages/common/GenImage/TemplateSection/TemplateForm/Gallery'
+} from '@/client/features/image-assets'
 import {
   FileImageOutlined,
   InboxOutlined,

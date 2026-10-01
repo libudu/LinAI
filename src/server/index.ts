@@ -9,11 +9,11 @@ import configApi from './api/common/config'
 import logApi from './api/common/log'
 import relayApi from './api/common/relay'
 import settingsApi from './api/common/settings'
-import staticApi from './api/common/static'
 import storageApi from './api/common/storage'
-import taskApi from './api/common/task'
 import eagleApi from './api/eagle'
 import gptImageApi from './api/gpt-image'
+import staticApi from './api/gpt-image/assets'
+import taskApi from './api/gpt-image/tasks'
 import openaiApi from './api/openai'
 import ttsApi from './api/tts'
 import ttsInworldApi from './api/tts/inworld'
@@ -92,13 +92,14 @@ const routes = app
   .route('/api/gptImage', gptImageApi)
   .route('/api/gptImage', yunwuTokenApi)
   .route('/api/eagle', eagleApi)
-  // common
+  // 图片业务接口沿用既有 URL，任务与图库由生图业务服务编排。
   .route('/api/task', taskApi)
+  .route('/api/static', staticApi)
+  // common
   .route('/api/storage', storageApi)
   .route('/api/settings', settingsApi)
   .route('/api/relay', relayApi)
   .route('/api/log', logApi)
-  .route('/api/static', staticApi)
   .route('/api/config', configApi)
   // openai compatible
   .route('/v1', openaiApi)

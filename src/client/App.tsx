@@ -1,8 +1,8 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import pkg from '../../package.json'
-import { useGptImageStore } from './pages/common/GenImage/store'
-import { useVisionStore } from './pages/common/GenImage/visionStore'
+import { useGptImageStore } from './pages/common/GenImage/settings/store'
+import { useVisionStore } from './pages/common/GenImage/settings/visionStore'
 import { openNotificationModal } from './pages/common/Notification'
 import { Sidebar } from './pages/common/Sidebar'
 import { appRoutes } from './routes'
@@ -17,7 +17,7 @@ function App() {
   useEffect(() => {
     useGlobalStore.getState().fetchConfig()
     void useGptImageStore.getState().fetchConfig().catch(console.error)
-    useVisionStore.getState().fetchConfig()
+    void useVisionStore.getState().fetchConfig().catch(console.error)
 
     // 检查版本号并弹出通知
     const currentVersion = pkg.version

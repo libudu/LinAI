@@ -1,6 +1,7 @@
+import type { VisionConfigPatch } from '@/client/service/vision-settings'
 import type { VisionCustomEndpoint } from '@/shared/vision/endpoints'
 import { CloseOutlined } from '@ant-design/icons'
-import { Form, Input, message, Select } from 'antd'
+import { Alert, Button, Form, Input, message, Select, Spin } from 'antd'
 import {
   forwardRef,
   useEffect,
@@ -30,9 +31,10 @@ export interface VisionEndpointSettingProps {
   modelId: string
   customEndpoints: VisionCustomEndpoint[]
   presetApiKeys: Record<string, string>
-  setEndpoint: (baseUrl: string, modelId: string) => Promise<void>
-  setCustomEndpoints: (endpoints: VisionCustomEndpoint[]) => Promise<void>
-  setPresetApiKeys: (keys: Record<string, string>) => Promise<void>
+  loaded: boolean
+  error: Error | null
+  fetchConfig: () => Promise<void>
+  saveConfig: (patch: VisionConfigPatch) => Promise<void>
   /** 顶部提示标题与内容（各模块自定义） */
   noticeTitle: string
   notice: ReactNode
@@ -48,9 +50,10 @@ export const VisionEndpointSetting = forwardRef<
     modelId,
     customEndpoints,
     presetApiKeys,
-    setEndpoint,
-    setCustomEndpoints,
-    setPresetApiKeys,
+    loaded,
+    error,
+    fetchConfig,
+    saveConfig,
     noticeTitle,
     notice,
   } = props
@@ -145,18 +148,27 @@ export const VisionEndpointSetting = forwardRef<
     const target = customEndpoints.find((item) => item.id === id)
     if (!target) return
 
-    await setCustomEndpoints(customEndpoints.filter((item) => item.id !== id))
-    if (target.baseUrl === baseUrl && target.modelId === modelId) {
-      const preset = VISION_ENDPOINT_PRESETS[0]
-      await setEndpoint(preset.baseUrl, preset.modelId)
+    const isCurrent = target.baseUrl === baseUrl && target.modelId === modelId
+    const preset = VISION_ENDPOINT_PRESETS[0]
+    try {
+      await saveConfig({
+        visionCustomEndpoints: customEndpoints.filter((item) => item.id !== id),
+        ...(isCurrent
+          ? { visionBaseUrl: preset.baseUrl, visionModelId: preset.modelId }
+          : {}),
+      })
+      message.success('已删除自定义视觉接入点')
+    } catch (reason) {
+      message.error(reason instanceof Error ? reason.message : '删除失败')
     }
-    message.success('已删除自定义视觉接入点')
   }
 
   useImperativeHandle(ref, () => ({
     save: async () => {
+      if (!loaded) throw new Error('请等待视觉接入点设置加载完成')
       const values = await form.validateFields()
       const key = String(values.apiKey).trim()
+      const patch: VisionConfigPatch = {}
 
       let nextBaseUrl: string
       let nextModelId: string
@@ -187,51 +199,83 @@ export const VisionEndpointSetting = forwardRef<
                   apiKey: key,
                 },
               ]
-        await setCustomEndpoints(nextEndpoints)
+        patch.visionCustomEndpoints = nextEndpoints
       } else if (values.endpoint.startsWith('custom:')) {
         const custom = customEndpoints.find(
           (item) => customValue(item.id) === values.endpoint,
-        )!
+        )
+        if (!custom) throw new Error('自定义视觉接入点已删除')
         nextBaseUrl = values.baseUrl.trim()
         nextModelId = values.modelId.trim()
         const title = values.title.trim()
-        await setCustomEndpoints(
-          customEndpoints
-            .filter(
-              (item) => item.id === custom.id || Boolean(item.title?.trim()),
-            )
-            .map((item) =>
-              item.id === custom.id
-                ? {
-                    ...item,
-                    title,
-                    baseUrl: nextBaseUrl,
-                    modelId: nextModelId,
-                    apiKey: key,
-                  }
-                : item,
-            ),
-        )
+        patch.visionCustomEndpoints = customEndpoints
+          .filter(
+            (item) => item.id === custom.id || Boolean(item.title?.trim()),
+          )
+          .map((item) =>
+            item.id === custom.id
+              ? {
+                  ...item,
+                  title,
+                  baseUrl: nextBaseUrl,
+                  modelId: nextModelId,
+                  apiKey: key,
+                }
+              : item,
+          )
       } else {
         const preset = VISION_ENDPOINT_PRESETS.find(
           (item) => presetValue(item.label) === values.endpoint,
-        )!
+        )
+        if (!preset) throw new Error('视觉接入点预设不存在')
         nextBaseUrl = preset.baseUrl
         nextModelId = preset.modelId
-        await setPresetApiKeys({
+        patch.visionPresetApiKeys = {
           ...presetApiKeys,
           [preset.label]: key,
-        })
+        }
       }
 
-      await setEndpoint(nextBaseUrl, nextModelId)
+      await saveConfig({
+        ...patch,
+        visionBaseUrl: nextBaseUrl,
+        visionModelId: nextModelId,
+      })
       message.success('视觉接入点配置保存成功')
       return key
     },
   }))
 
+  const retryLoad = () => {
+    void fetchConfig().catch(() => undefined)
+  }
+
+  if (!loaded) {
+    return error ? (
+      <Alert
+        type="error"
+        title="视觉接入点设置加载失败"
+        description={error.message}
+        action={<Button onClick={retryLoad}>重试</Button>}
+      />
+    ) : (
+      <div className="p-8 text-center">
+        <Spin />
+      </div>
+    )
+  }
+
   return (
     <div className="px-4 py-2">
+      {error && (
+        <Alert
+          type="error"
+          title="视觉接入点设置同步失败"
+          description={error.message}
+          action={<Button onClick={retryLoad}>重试</Button>}
+          className="mb-4"
+        />
+      )}
       <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5">
         <div className="min-w-0">
           <div className="text-sm font-medium text-amber-800">

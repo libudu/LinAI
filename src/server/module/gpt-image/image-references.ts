@@ -6,6 +6,8 @@ import {
 import { activeGeneratedFiles } from '../../common/static/image-lifecycle'
 import { storageRegistry } from '../../common/storage/registry'
 import { taskService } from '../../common/task'
+// 图片引用规则只需本模块的存储资源，基础文件层不负责业务注册。
+import './storage'
 
 export function imageFilename(
   type: 'input' | 'generated',

@@ -1,4 +1,4 @@
-import { usePendingImages } from '@/client/pages/common/GenImage/TemplateSection/TemplateForm/Gallery/pendingImages'
+import { usePendingImages } from '@/client/features/image-assets'
 import {
   EAGLE_TRASH_FOLDER_ID,
   EAGLE_UNCLASSIFIED_FOLDER_ID,

@@ -1,9 +1,9 @@
 import { Tooltip } from 'antd'
 
-import { useGPTImageQuota } from '../GenImage/hooks/useGPTImageQuota'
-import { openGPTImageSettingModal } from '../GenImage/SettingModal'
+import { openGPTImageSettingModal } from '../GenImage/settings'
+import { useGPTImageQuota } from '../GenImage/settings/useGPTImageQuota'
 
-import { useGptImageStore } from '../GenImage/store'
+import { useGptImageStore } from '../GenImage/settings/store'
 
 // 展示与请求共用按 ID 解析的接入点，避免重复按地址反推。
 export function EndpointDisplay() {

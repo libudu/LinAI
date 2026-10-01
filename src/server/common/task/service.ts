@@ -1,16 +1,15 @@
 import type { GptImageQuality, GptImageSize } from '@/shared/image/params'
 import type { TaskInputSnapshot } from '@/shared/image/template'
 import { Logger } from '../logger'
-import { deleteUnreferencedImages } from '../static'
 import { changeBus } from '../storage/change-bus'
 import { StorageError } from '../storage/errors'
 import { TaskRepository } from './repository'
 import { TASKS_RESOURCE, type ComfyTaskMetadata, type Task } from './types'
 
 /**
- * 任务服务：任务状态流转、输出文件清理、启动恢复与变更事件发布。
+ * 任务服务：任务记录、状态流转、启动恢复与变更事件发布。
  * 持久化由 TaskRepository 负责；任务数据由后端生成和消费，
- * 所有状态变更必须经由本服务，保证状态、错误信息、输出文件和变更通知一致
+ * 所有状态变更必须经由本服务，保证状态、错误信息和变更通知一致；取消执行与文件清理由业务服务编排
  */
 export class TaskService {
   private readonly repository = new TaskRepository()
@@ -104,34 +103,19 @@ export class TaskService {
     return true
   }
 
-  /** 删除任务；keepImage 为 false 时同时删除已生成的输出图片 */
-  async deleteTask(id: string, keepImage?: boolean): Promise<boolean> {
+  /** 原子删除并取回删除瞬间的记录，供业务层清理该记录的输出。 */
+  async removeTask(id: string): Promise<Task | null> {
     await this.ready
     let target: Task
     try {
       target = await this.repository.remove(id)
     } catch (error) {
       if (error instanceof StorageError && error.code === 'NOT_FOUND')
-        return false
+        return null
       throw error
     }
     this.publishChange()
-
-    if (!keepImage) {
-      const urlsToDelete = target.outputUrls?.length
-        ? target.outputUrls
-        : target.outputUrl
-          ? [target.outputUrl]
-          : []
-
-      if (urlsToDelete.length) {
-        await deleteUnreferencedImages({
-          type: 'generated',
-          urls: urlsToDelete,
-        }).catch((error) => this.logger.error('任务输出图片清理失败', error))
-      }
-    }
-    return true
+    return target
   }
 }
 

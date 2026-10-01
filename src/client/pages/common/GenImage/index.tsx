@@ -1,5 +1,5 @@
-import { TaskList } from './TaskList'
-import { TemplateSection } from './TemplateSection'
+import { TaskList } from './tasks'
+import { TemplateSection } from './templates'
 
 export const GenImage = () => {
   return (

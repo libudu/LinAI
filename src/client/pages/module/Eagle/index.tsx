@@ -18,7 +18,7 @@ export function Eagle() {
   const { isMobile } = usePlatform()
 
   useEffect(() => {
-    fetchVisionConfig()
+    void fetchVisionConfig().catch(console.error)
     fetchEagleConfig().then(() => {
       // 配置拉取后再决定是否加载索引（未配置库路径时由引导页接管）
       if (useEagleConfig.getState().libraryPath) {
