@@ -9,8 +9,8 @@ import {
 } from '@ant-design/icons'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Button, Image } from 'antd'
-import React, { useEffect, useMemo, useRef } from 'react'
-import { eagleFileUrl, eagleThumbnailUrl } from '../../../api'
+import React, { useMemo, useRef } from 'react'
+import { eagleFileUrl } from '../../../api'
 import {
   SPECIAL_CATEGORY_LOW_QUALITY,
   SPECIAL_CATEGORY_UNCLASSIFIED,
@@ -49,13 +49,13 @@ const QuickCard = React.memo(function QuickCard({
           : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/80 dark:hover:border-slate-600'
       }`}
     >
-      {/* 顶部图片缩略图区域 */}
+      {/* 顶部原图预览区域 */}
       <div
         className="relative flex flex-1 items-center justify-center overflow-hidden bg-slate-100 dark:bg-slate-900/50"
         onClick={() => onSelect(result.itemId)}
       >
         <Image
-          src={eagleThumbnailUrl(result.itemId)}
+          src={eagleFileUrl(result.itemId)}
           preview={{ src: eagleFileUrl(result.itemId) }}
           alt={categoryName}
           loading="lazy"
@@ -165,20 +165,6 @@ export function QuickConfirmList({
     },
     overscan: 4,
   })
-
-  // 选中项切换时自动滚动到可视区域
-  useEffect(() => {
-    if (!selectedId) return
-    const index = flatItems.findIndex(
-      (it) => it.type === 'card' && it.result.itemId === selectedId,
-    )
-    if (index !== -1) {
-      virtualizer.scrollToIndex(index, {
-        align: 'auto',
-        behavior: 'auto',
-      })
-    }
-  }, [selectedId, flatItems, virtualizer])
 
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center">
