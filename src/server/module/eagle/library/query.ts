@@ -193,15 +193,15 @@ export const getItems = async (
 }
 
 /**
- * 图片整理专用：提取库中有描述的文件夹作为 AI 分类标准。
+ * 图片整理专用：提取有描述的文件夹作为 AI 分类标准；可限定为指定父目录的所有子孙目录。
  * 遍历策略：采用后序遍历（子目录先于父目录压入），确保更具体的子目录优先匹配，
  * 宽泛的父目录排在其后作为兜底分类标准。
  */
-export const getFolderStandards = async (): Promise<
-  OrganizeFolderStandard[]
-> => {
+export const getFolderStandards = async (
+  parentFolderId?: string,
+): Promise<OrganizeFolderStandard[]> => {
   const index = await ensureIndex()
-  return index ? buildFolderStandards(index.folders) : []
+  return index ? buildFolderStandards(index.folders, parentFolderId) : []
 }
 
 /** 图片整理专用：校验指定文件夹 ID 当前是否依然存在于库中（防御性检查快照失效） */

@@ -1,4 +1,5 @@
 import {
+  ORGANIZE_CLASSIFICATION_MODES,
   ORGANIZE_CONCURRENCY_DEFAULT,
   ORGANIZE_CONCURRENCY_MAX,
   ORGANIZE_CONCURRENCY_MIN,
@@ -20,7 +21,11 @@ export const eagleItemsQuerySchema = eagleScopeSchema.extend({
 
 export const taskIdentitySchema = z.object({ taskId: z.string().min(1) })
 
-export const organizeCreateTaskSchema = eagleScopeSchema.extend({
+export const organizePrepareSchema = eagleScopeSchema.extend({
+  classificationMode: z.enum(ORGANIZE_CLASSIFICATION_MODES).default('global'),
+})
+
+export const organizeCreateTaskSchema = organizePrepareSchema.extend({
   expectedTaskId: z.string().min(1).nullable(),
   count: z.number().int().min(1),
   compress: z.boolean(),

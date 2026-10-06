@@ -2,6 +2,10 @@ import type { EagleSortBy, EagleSortOrder } from './types'
 
 // Eagle 图片整理功能共享类型（前后端共用，无 UI / Node 依赖）
 
+export const ORGANIZE_CLASSIFICATION_MODES = ['global', 'subfolders'] as const
+export type OrganizeClassificationMode =
+  (typeof ORGANIZE_CLASSIFICATION_MODES)[number]
+
 /** 任务整体阶段 */
 export type OrganizePhase =
   | 'running' // 队列执行中
@@ -87,6 +91,9 @@ export interface OrganizePrepareResp {
   taskId: string | null
   /** 当前选择的图片来源范围名称 */
   sourceFolderName: string
+  classificationMode: OrganizeClassificationMode
+  /** 子目录分类绑定的父目录名称；追加时不随图片来源变化。 */
+  classificationFolderName?: string
   standards: OrganizeFolderStandard[]
   /** 当前范围内可处理图片总数（已排除 gif / 视频） */
   imageCount: number
@@ -103,6 +110,7 @@ export interface OrganizePrepareResp {
 /** 整理来源范围与排序；准备查询和新建请求共用。 */
 export interface OrganizePrepareParams {
   folderId?: string
+  classificationMode?: OrganizeClassificationMode
   sortBy: EagleSortBy
   sortOrder: EagleSortOrder
 }

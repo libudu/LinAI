@@ -2,6 +2,7 @@ import {
   ORGANIZE_CONCURRENCY_DEFAULT,
   ORGANIZE_CONCURRENCY_MAX,
   ORGANIZE_CONCURRENCY_MIN,
+  type OrganizeClassificationMode,
   type OrganizePrepareResp,
 } from '@/shared/eagle/organize'
 import { message } from 'antd'
@@ -84,6 +85,8 @@ export function useClassifyTask(
   const [count, setCount] = useState<number | null>(null)
   const [compress, setCompress] = useState(initialOptions.compress)
   const [concurrency, setConcurrency] = useState(initialOptions.concurrency)
+  const [classificationMode, setClassificationMode] =
+    useState<OrganizeClassificationMode>('global')
   const [submitting, setSubmitting] = useState(false)
   const [syncingStandards, setSyncingStandards] = useState(false)
   const [prepareRevision, setPrepareRevision] = useState(0)
@@ -95,6 +98,7 @@ export function useClassifyTask(
     setPrepare(null)
     fetchOrganizePrepare({
       folderId: currentFolderId || undefined,
+      classificationMode,
       sortBy,
       sortOrder,
     })
@@ -120,6 +124,7 @@ export function useClassifyTask(
     }
   }, [
     currentFolderId,
+    classificationMode,
     sortBy,
     sortOrder,
     status?.phase,
@@ -162,6 +167,15 @@ export function useClassifyTask(
     saveOptions({ compress: value })
   }
 
+  const handleClassificationModeChange = (
+    value: OrganizeClassificationMode,
+  ) => {
+    if (hasActiveTask || submitting || value === classificationMode) return
+    setPrepare(null)
+    setLoading(true)
+    setClassificationMode(value)
+  }
+
   const handleSyncStandards = async () => {
     if (!prepare?.taskId) return
     setSyncingStandards(true)
@@ -179,7 +193,14 @@ export function useClassifyTask(
   }
 
   const handleSubmit = async () => {
-    if (!count || !prepare || loading || submitting) return
+    if (
+      !count ||
+      !prepare ||
+      loading ||
+      submitting ||
+      !prepare.standards.length
+    )
+      return
     setSubmitting(true)
     const range = {
       folderId: currentFolderId || undefined,
@@ -194,6 +215,7 @@ export function useClassifyTask(
       } else {
         await createOrganizeTask({
           ...range,
+          classificationMode: prepare.classificationMode,
           compress,
           concurrency,
           expectedTaskId: prepare.taskId,
@@ -212,23 +234,13 @@ export function useClassifyTask(
     }
   }
 
-  const handleFolderSelect = async (folderId: string) => {
-    try {
-      await useEagleStore
-        .getState()
-        .selectFolder(folderId === '__all__' ? '' : folderId)
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '切换文件夹失败')
-    }
-  }
-
   return {
-    currentFolderId,
     prepare,
     loading,
     count,
     compress,
     concurrency,
+    classificationMode: prepare?.classificationMode ?? classificationMode,
     submitting,
     syncingStandards,
     hasActiveTask,
@@ -239,8 +251,8 @@ export function useClassifyTask(
     handleCountChange,
     handleConcurrencyChange,
     handleCompressChange,
+    handleClassificationModeChange,
     handleSyncStandards,
     handleSubmit,
-    handleFolderSelect,
   }
 }

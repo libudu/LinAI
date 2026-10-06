@@ -3,6 +3,7 @@ import {
   ORGANIZE_CONCURRENCY_MIN,
   ORGANIZE_VISION_USER_TEXT,
   buildOrganizeVisionSystemPrompt,
+  type OrganizeClassificationMode,
 } from '@/shared/eagle/organize'
 import {
   Button,
@@ -10,11 +11,11 @@ import {
   Empty,
   InputNumber,
   Modal,
+  Segmented,
   Spin,
   Tooltip,
 } from 'antd'
 import { useState } from 'react'
-import { FolderSelectModal } from '../components/FolderSelectModal'
 import { useClassifyTask } from './hooks/useClassifyTask'
 
 // 步骤 1 分类文件夹划定 / 追加图片：
@@ -30,14 +31,13 @@ export function StepClassify({
   conversionRevision?: number
 }) {
   const [promptOpen, setPromptOpen] = useState(false)
-  const [folderSelectOpen, setFolderSelectOpen] = useState(false)
   const {
-    currentFolderId,
     prepare,
     loading,
     count,
     compress,
     concurrency,
+    classificationMode,
     submitting,
     syncingStandards,
     hasActiveTask,
@@ -48,9 +48,9 @@ export function StepClassify({
     handleCountChange,
     handleConcurrencyChange,
     handleCompressChange,
+    handleClassificationModeChange,
     handleSyncStandards,
     handleSubmit,
-    handleFolderSelect,
   } = useClassifyTask(onSuccess, conversionRevision)
 
   if (loading) {
@@ -67,44 +67,25 @@ export function StepClassify({
         <span className="min-w-0 truncate text-sm">
           添加范围：{prepare?.sourceFolderName ?? '当前选中文件夹'}
         </span>
-        <Button onClick={() => setFolderSelectOpen(true)}>切换文件夹</Button>
-        {hasActiveTask && (
-          <span className="text-xs text-slate-400">
-            当前范围已入队 {prepare?.enqueuedCount ?? 0} 张，跨文件夹自动去重
-          </span>
-        )}
       </div>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
-        {standards.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center p-6">
-            <Empty description="没有包含描述的文件夹，请先在文件夹右键「编辑」中填写描述作为分类标准" />
-          </div>
-        ) : (
-          <div className="flex-1 divide-y divide-slate-100 overflow-y-auto dark:divide-slate-700/60">
-            {standards.map((standard, index) => (
-              <div
-                key={standard.folderId}
-                className="flex items-center gap-3 px-3 py-2"
-                title={`${standard.folderPath}：${standard.description}`}
-              >
-                <span className="w-6 shrink-0 text-right text-xs text-slate-400">
-                  {index + 1}
-                </span>
-                <span
-                  className="w-44 shrink-0 truncate text-sm font-medium"
-                  title={standard.folderPath}
-                >
-                  {standard.name}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-sm text-slate-500 dark:text-slate-400">
-                  {standard.description}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+      <div className="flex shrink-0 flex-wrap items-center gap-3">
+        <span className="text-sm">分类模式</span>
+        <Segmented<OrganizeClassificationMode>
+          value={classificationMode}
+          options={[
+            { value: 'global', label: '全局分类' },
+            { value: 'subfolders', label: '子目录分类' },
+          ]}
+          disabled={hasActiveTask || submitting}
+          onChange={handleClassificationModeChange}
+        />
+        <span className="text-xs text-slate-400">
+          {classificationMode === 'global'
+            ? '全库所有有描述的文件夹'
+            : `${prepare?.classificationFolderName ?? '当前文件夹'}下所有层级的有描述子目录（不含当前文件夹）`}
+          {hasActiveTask && '，追加时沿用当前任务的分类模式与标准'}
+        </span>
       </div>
-
       {hasActiveTask ? (
         <div className="flex shrink-0 flex-col gap-3">
           {availableCount === 0 ? (
@@ -160,6 +141,43 @@ export function StepClassify({
         </div>
       )}
 
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+        {standards.length === 0 ? (
+          <div className="flex flex-1 items-center justify-center p-6">
+            <Empty
+              description={
+                classificationMode === 'subfolders'
+                  ? '当前文件夹下没有包含描述的子目录，请先在子目录右键「编辑」中填写描述作为分类标准'
+                  : '没有包含描述的文件夹，请先在文件夹右键「编辑」中填写描述作为分类标准'
+              }
+            />
+          </div>
+        ) : (
+          <div className="flex-1 divide-y divide-slate-100 overflow-y-auto dark:divide-slate-700/60">
+            {standards.map((standard, index) => (
+              <div
+                key={standard.folderId}
+                className="flex items-center gap-3 px-3 py-2"
+                title={`${standard.folderPath}：${standard.description}`}
+              >
+                <span className="w-6 shrink-0 text-right text-xs text-slate-400">
+                  {index + 1}
+                </span>
+                <span
+                  className="w-44 shrink-0 truncate text-sm font-medium"
+                  title={standard.folderPath}
+                >
+                  {standard.name}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-sm text-slate-500 dark:text-slate-400">
+                  {standard.description}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="flex shrink-0 items-center justify-between border-t border-slate-200 pt-3 dark:border-slate-700">
         <div className="flex items-center gap-2">
           <Button
@@ -182,7 +200,9 @@ export function StepClassify({
             <Button
               type="primary"
               loading={submitting}
-              disabled={availableCount === 0 || !count}
+              disabled={
+                standards.length === 0 || availableCount === 0 || !count
+              }
               onClick={handleSubmit}
             >
               追加到队列
@@ -200,14 +220,6 @@ export function StepClassify({
         </div>
       </div>
 
-      <FolderSelectModal
-        open={folderSelectOpen}
-        onClose={() => setFolderSelectOpen(false)}
-        initialFolderId={currentFolderId || undefined}
-        includeAll
-        title="选择添加图片的文件夹"
-        onConfirm={(folder) => handleFolderSelect(folder.id)}
-      />
       <Modal
         open={promptOpen}
         title="将要发送的提示词"

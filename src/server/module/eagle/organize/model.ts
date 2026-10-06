@@ -1,5 +1,6 @@
 import {
   ORGANIZE_CONCURRENCY_DEFAULT,
+  type OrganizeClassificationMode,
   type OrganizeFolderStandard,
   type OrganizeItemRecord,
   type OrganizePhase,
@@ -16,7 +17,8 @@ export interface OrganizeTaskRecord {
   concurrency: number
   createdAt: number
   standards: OrganizeFolderStandard[]
-  /** 首批图片来源文件夹 ID，仅保留历史信息，不限制后续追加 */
+  classificationMode: OrganizeClassificationMode
+  /** 首批图片来源文件夹 ID；子目录分类绑定此目录，后续追加不改变分类范围。 */
   folderId?: string
   /** 首批图片来源文件夹名称 */
   folderName: string
@@ -35,12 +37,22 @@ export interface OrganizeTaskRecord {
 /** 旧任务允许缺少后来新增的配置与计数字段，仅在持久化边界使用。 */
 export type StoredOrganizeTask = Omit<
   OrganizeTaskRecord,
-  'folderName' | 'successCount' | 'failedCount' | 'concurrency' | 'taskId'
+  | 'folderName'
+  | 'successCount'
+  | 'failedCount'
+  | 'concurrency'
+  | 'taskId'
+  | 'classificationMode'
 > &
   Partial<
     Pick<
       OrganizeTaskRecord,
-      'folderName' | 'successCount' | 'failedCount' | 'concurrency' | 'taskId'
+      | 'folderName'
+      | 'successCount'
+      | 'failedCount'
+      | 'concurrency'
+      | 'taskId'
+      | 'classificationMode'
     >
   >
 
@@ -56,6 +68,7 @@ export const normalizeOrganizeTask = (
   ...structuredClone(task),
   // 旧任务使用稳定 ID，重启或重复读取不会改变其身份。
   taskId: task.taskId ?? `legacy-${task.createdAt}`,
+  classificationMode: task.classificationMode ?? 'global',
   folderName: task.folderName ?? '全部',
   successCount: task.successCount ?? 0,
   failedCount: task.failedCount ?? 0,

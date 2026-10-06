@@ -2,17 +2,17 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { organizeService } from '../../module/eagle/organize/service'
 import {
-  eagleScopeSchema,
   organizeAppendTaskSchema,
   organizeConfirmItemSchema,
   organizeCreateTaskSchema,
+  organizePrepareSchema,
   taskIdentitySchema,
 } from '../../module/eagle/schemas'
 import { actionResponse, errorResponse, validate } from './validation'
 
 // 链式注册保留全部路由输入/输出类型，供 AppType 与 Hono RPC 推导。
 const organizeApi = new Hono()
-  .get('/prepare', validate('query', eagleScopeSchema), async (c) => {
+  .get('/prepare', validate('query', organizePrepareSchema), async (c) => {
     const data = await organizeService.prepare(c.req.valid('query'))
     return c.json({ success: true as const, data })
   })

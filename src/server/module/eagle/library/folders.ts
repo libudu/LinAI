@@ -55,11 +55,20 @@ export const collectFolderPaths = (
   return entries
 }
 
-/** 仅有描述的目录参与分类，保留子目录优先、父目录兜底的顺序。 */
+/** 仅有描述的目录参与分类；指定父目录时只取其所有层级的子目录，保留完整路径与顺序。 */
 export const buildFolderStandards = (
   folders: EagleRawFolder[],
-): OrganizeFolderStandard[] =>
-  collectFolderPaths(folders).flatMap(({ folder, folderPath }) =>
+  parentFolderId?: string,
+): OrganizeFolderStandard[] => {
+  const descendantIds = parentFolderId
+    ? new Set(
+        collectFolderPaths(
+          findRawFolder(folders, parentFolderId)?.children ?? [],
+        ).map(({ folder }) => folder.id),
+      )
+    : null
+  return collectFolderPaths(folders).flatMap(({ folder, folderPath }) =>
+    (!descendantIds || descendantIds.has(folder.id)) &&
     folder.description?.trim()
       ? [
           {
@@ -71,6 +80,7 @@ export const buildFolderStandards = (
         ]
       : [],
   )
+}
 
 /** 按完整路径查找目录，保持已有的遍历和匹配顺序。 */
 export const findRawFolderIdByPath = (

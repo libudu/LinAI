@@ -1,4 +1,5 @@
 import {
+  type OrganizeClassificationMode,
   type OrganizeFolderStandard,
   type OrganizePrepareResp,
   type OrganizeStatus,
@@ -52,6 +53,16 @@ const getAvailableItemIds = (itemIds: string[], enqueuedIds: string[]) => {
   return [...new Set(itemIds)].filter((id) => !enqueued.has(id))
 }
 
+const getClassificationStandards = (
+  mode: OrganizeClassificationMode,
+  folderId?: string,
+): Promise<OrganizeFolderStandard[]> =>
+  mode === 'subfolders'
+    ? folderId
+      ? getFolderStandards(folderId)
+      : Promise.resolve([])
+    : getFolderStandards()
+
 export class TaskService {
   /** 服务重启后，正在执行的任务标记为已暂停（请求中断，in-flight 结果未落盘） */
   async recoverInterruptedTask(): Promise<void> {
@@ -102,7 +113,7 @@ export class TaskService {
     if (task && task.phase !== 'done') {
       const [allItems, latestStandards, history] = await Promise.all([
         getClassifiableItems(params),
-        getFolderStandards(),
+        getClassificationStandards(task.classificationMode, task.folderId),
         organizeRepository.getItemStatuses(),
       ])
       const imageCount = allItems.total
@@ -117,6 +128,11 @@ export class TaskService {
       return {
         taskId: task.taskId,
         sourceFolderName,
+        classificationMode: task.classificationMode,
+        classificationFolderName:
+          task.classificationMode === 'subfolders'
+            ? await resolveFolderName(task.folderId)
+            : undefined,
         standards: task.standards,
         imageCount,
         enqueuedCount: imageCount - availableCount,
@@ -126,13 +142,17 @@ export class TaskService {
       }
     }
 
+    const classificationMode = params.classificationMode ?? 'global'
     const [standards, items] = await Promise.all([
-      getFolderStandards(),
+      getClassificationStandards(classificationMode, params.folderId),
       getClassifiableItems(params),
     ])
     return {
       taskId: task?.taskId ?? null,
       sourceFolderName,
+      classificationMode,
+      classificationFolderName:
+        classificationMode === 'subfolders' ? sourceFolderName : undefined,
       standards,
       imageCount: items.total,
       enqueuedCount: 0,
@@ -152,12 +172,18 @@ export class TaskService {
         error: '当前仍有未完成的整理任务，请先处理或等待完成',
       }
     }
-    const standards = await getFolderStandards()
+    const standards = await getClassificationStandards(
+      params.classificationMode,
+      params.folderId,
+    )
     if (standards.length === 0) {
       return {
         ok: false,
         status: 400,
-        error: '没有包含描述的文件夹，请先在文件夹编辑中填写描述作为分类标准',
+        error:
+          params.classificationMode === 'subfolders'
+            ? '当前文件夹下没有包含描述的子目录，请先填写子目录描述作为分类标准'
+            : '没有包含描述的文件夹，请先在文件夹编辑中填写描述作为分类标准',
       }
     }
     const { total, itemIds } = await getClassifiableItems(params)
@@ -173,6 +199,7 @@ export class TaskService {
       concurrency: params.concurrency,
       createdAt: Date.now(),
       standards,
+      classificationMode: params.classificationMode,
       folderId: params.folderId,
       folderName,
       itemIds: itemIds.slice(0, Math.min(params.count, total)),
@@ -271,12 +298,18 @@ export class TaskService {
             : '当前没有正在进行或待确认的整理任务',
       }
     }
-    const latestStandards = await getFolderStandards()
+    const latestStandards = await getClassificationStandards(
+      task.classificationMode,
+      task.folderId,
+    )
     if (latestStandards.length === 0) {
       return {
         ok: false,
         status: 400,
-        error: '当前没有包含描述的文件夹，无法同步',
+        error:
+          task.classificationMode === 'subfolders'
+            ? '分类范围内没有包含描述的子目录，无法同步'
+            : '当前没有包含描述的文件夹，无法同步',
       }
     }
     const updated = await organizeRepository.mutateTask((current) => {
