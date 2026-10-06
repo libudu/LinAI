@@ -5,8 +5,13 @@ import {
   type EagleItem,
 } from '@/shared/eagle/types'
 import { Modal, message } from 'antd'
-import { useState } from 'react'
-import { addEagleItemToGallery, purgeEagleItem, updateEagleItem } from '../api'
+import { useRef, useState } from 'react'
+import {
+  addEagleItemToGallery,
+  deleteEagleItem,
+  purgeEagleItem,
+  updateEagleItem,
+} from '../api'
 import { confirmDeleteEagleItem } from '../components/confirmDeleteModal'
 import type { SelectedFolderInfo } from '../folders'
 import { requestEagleLibraryRefresh } from '../store'
@@ -35,6 +40,8 @@ const getInitialFolderId = (
 export function useResourceActions(currentFolderId: string) {
   const addPendingImage = usePendingImages((s) => s.add)
   const [movingItem, setMovingItem] = useState<EagleItem | null>(null)
+  const [trashingItem, setTrashingItem] = useState(false)
+  const trashingRef = useRef(false)
   const handleMoveFolder = async (folder: SelectedFolderInfo) => {
     const item = movingItem
     setMovingItem(null)
@@ -56,6 +63,24 @@ export function useResourceActions(currentFolderId: string) {
       name: item.name,
       onDeleted: () => requestEagleLibraryRefresh(),
     })
+  }
+
+  // 大图预览直接移入回收站，成功后关闭预览，避免列表刷新时预览索引错位。
+  const handleTrashItem = async (item: EagleItem, onDeleted: () => void) => {
+    if (trashingRef.current) return
+    trashingRef.current = true
+    setTrashingItem(true)
+    try {
+      await deleteEagleItem(item.id)
+      message.success('已移至回收站')
+      onDeleted()
+      await requestEagleLibraryRefresh()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '删除失败')
+    } finally {
+      trashingRef.current = false
+      setTrashingItem(false)
+    }
   }
 
   const handleAddToGallery = async (item: EagleItem) => {
@@ -95,6 +120,8 @@ export function useResourceActions(currentFolderId: string) {
     initialFolderId: getInitialFolderId(movingItem, currentFolderId),
     handleMoveFolder,
     handleDeleteItem,
+    handleTrashItem,
+    trashingItem,
     handleAddToGallery,
     handlePurgeItem,
   }

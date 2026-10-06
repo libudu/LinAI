@@ -1,7 +1,8 @@
 import { usePlatform } from '@/client/hooks/usePlatform'
 import { EAGLE_TRASH_FOLDER_ID, type EagleItem } from '@/shared/eagle/types'
+import { DeleteOutlined, LoadingOutlined } from '@ant-design/icons'
 import { Image, Modal, Pagination, Spin } from 'antd'
-import { useRef, useState } from 'react'
+import { cloneElement, useRef, useState, type ReactNode } from 'react'
 import { eagleFileUrl } from './api'
 import { FolderSelectModal } from './components/FolderSelectModal'
 import { ResourceGridItem } from './components/ResourceGridItem'
@@ -40,6 +41,8 @@ export function ResourceGrid() {
     initialFolderId,
     handleMoveFolder,
     handleDeleteItem,
+    handleTrashItem,
+    trashingItem,
     handleAddToGallery,
     handlePurgeItem,
   } = useResourceActions(currentFolderId)
@@ -123,6 +126,47 @@ export function ResourceGrid() {
           current: previewIndex,
           onOpenChange: (open) => setPreviewOpen(open),
           onChange: (current) => setPreviewIndex(current),
+          actionsRender: (originalNode, { current }) => {
+            const item = imageItems[current]
+            return (
+              <div className="flex max-w-[90vw] flex-col items-center gap-3">
+                {item && (
+                  <div className="max-h-[20vh] w-full overflow-y-auto rounded-lg bg-black/40 px-3 py-2 text-center text-sm wrap-anywhere whitespace-pre-wrap text-white">
+                    {item.name}.{item.ext}
+                  </div>
+                )}
+                {cloneElement(
+                  originalNode,
+                  undefined,
+                  (originalNode.props as { children?: ReactNode }).children,
+                  item && !isTrash && (
+                    <button
+                      key="trash"
+                      type="button"
+                      title="移到回收站"
+                      aria-label="移到回收站"
+                      className={
+                        trashingItem
+                          ? 'ant-image-preview-actions-action ant-image-preview-actions-action-disabled'
+                          : 'ant-image-preview-actions-action'
+                      }
+                      disabled={trashingItem}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        void handleTrashItem(item, () => setPreviewOpen(false))
+                      }}
+                    >
+                      {trashingItem ? (
+                        <LoadingOutlined />
+                      ) : (
+                        <DeleteOutlined style={{ color: '#f87171' }} />
+                      )}
+                    </button>
+                  ),
+                )}
+              </div>
+            )
+          },
         }}
       />
 
