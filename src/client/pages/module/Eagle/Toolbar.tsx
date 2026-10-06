@@ -51,6 +51,8 @@ export function Toolbar() {
     setShowFileName,
     showFileSize,
     setShowFileSize,
+    showFolderTree,
+    setShowFolderTree,
     showFolderDescription,
     setShowFolderDescription,
   } = useEagleStore()
@@ -211,7 +213,7 @@ export function Toolbar() {
             ) : null}
           </div>
         )}
-        {isMobile && (
+        {(isMobile || !showFolderTree) && (
           <Button
             icon={<FolderOutlined />}
             onClick={() => setFolderDrawerOpen(true)}
@@ -256,6 +258,12 @@ export function Toolbar() {
                 ]}
               />
               <div className="mt-3 flex flex-col gap-1">
+                <Checkbox
+                  checked={showFolderTree}
+                  onChange={(e) => setShowFolderTree(e.target.checked)}
+                >
+                  显示文件夹树
+                </Checkbox>
                 <Checkbox
                   checked={showFolderDescription}
                   onChange={(e) => setShowFolderDescription(e.target.checked)}

@@ -5,6 +5,7 @@ interface EaglePreferences {
   sortOrder: EagleSortOrder
   showFileName: boolean
   showFileSize: boolean
+  showFolderTree: boolean
   showFolderDescription: boolean
 }
 
@@ -15,10 +16,10 @@ const SELECTED_FOLDER_STORAGE_KEY = 'eagle_selected_folder'
 
 export type EagleImageSize = 'small' | 'medium' | 'large'
 
-// 纯前端展示选项持久化，默认均不勾选
+// 纯前端展示选项持久化，默认显示文件夹树，其余均不勾选
 export const loadViewOptions = (): Pick<
   EaglePreferences,
-  'showFileName' | 'showFileSize' | 'showFolderDescription'
+  'showFileName' | 'showFileSize' | 'showFolderTree' | 'showFolderDescription'
 > => {
   try {
     const raw = localStorage.getItem(DISPLAY_STORAGE_KEY)
@@ -27,6 +28,7 @@ export const loadViewOptions = (): Pick<
       return {
         showFileName: parsed.showFileName === true,
         showFileSize: parsed.showFileSize === true,
+        showFolderTree: parsed.showFolderTree !== false,
         showFolderDescription: parsed.showFolderDescription === true,
       }
     }
@@ -36,6 +38,7 @@ export const loadViewOptions = (): Pick<
   return {
     showFileName: false,
     showFileSize: false,
+    showFolderTree: true,
     showFolderDescription: false,
   }
 }
@@ -78,6 +81,7 @@ export const persistSelectedFolderId = (folderId: string) => {
 export const persistViewOptions = (state: {
   showFileName: boolean
   showFileSize: boolean
+  showFolderTree: boolean
   showFolderDescription: boolean
 }) => {
   localStorage.setItem(
@@ -85,6 +89,7 @@ export const persistViewOptions = (state: {
     JSON.stringify({
       showFileName: state.showFileName,
       showFileSize: state.showFileSize,
+      showFolderTree: state.showFolderTree,
       showFolderDescription: state.showFolderDescription,
     }),
   )

@@ -54,6 +54,8 @@ interface EagleState {
   showFileName: boolean
   /** 在格子底部展示文件大小 */
   showFileSize: boolean
+  /** 展示桌面端左侧文件夹树 */
+  showFolderTree: boolean
   /** 在文件夹树节点名称下方展示描述 */
   showFolderDescription: boolean
 
@@ -64,6 +66,7 @@ interface EagleState {
   setImageSize: (size: EagleImageSize) => void
   setShowFileName: (show: boolean) => void
   setShowFileSize: (show: boolean) => void
+  setShowFolderTree: (show: boolean) => void
   setShowFolderDescription: (show: boolean) => void
   /** 触发后端增量刷新后重拉数据 */
   reload: () => Promise<void>
@@ -180,6 +183,13 @@ export const useEagleStore = create<EagleState>()((set, get) => {
       set((state) => {
         persistViewOptions({ ...state, showFileSize: show })
         return { showFileSize: show }
+      })
+    },
+
+    setShowFolderTree: (show) => {
+      set((state) => {
+        persistViewOptions({ ...state, showFolderTree: show })
+        return { showFolderTree: show }
       })
     },
 

@@ -15,6 +15,7 @@ export function Eagle() {
   const { libraryPath, fetchEagleConfig } = useEagleConfig()
   const fetchVisionConfig = useEagleVisionConfig((s) => s.fetchConfig)
   const init = useEagleStore((s) => s.init)
+  const showFolderTree = useEagleStore((s) => s.showFolderTree)
   const { isMobile } = usePlatform()
 
   useEffect(() => {
@@ -53,8 +54,8 @@ export function Eagle() {
     // 主容器贴边拉满（路由配了 fullBleed）：视口高度即容器高度，让左右栏内部滚动；
     // md 以下还有全局 sticky 顶栏（h-10 内容 + py-2.5 + 1px 边框 = 61px），不减去会多出一条外层滚动条
     <div className="flex h-[calc(100dvh-61px)] overflow-hidden md:h-dvh">
-      {!isMobile && (
-        <div className="w-60 shrink-0 border-r border-slate-200 dark:border-slate-700">
+      {!isMobile && showFolderTree && (
+        <div className="w-[260px] shrink-0 border-r border-slate-200 dark:border-slate-700">
           <FolderTree />
         </div>
       )}
