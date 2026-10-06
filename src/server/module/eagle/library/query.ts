@@ -22,6 +22,7 @@ import {
   type EagleItem,
   type EagleLibraryOverview,
 } from '@/shared/eagle/types'
+import { createHash } from 'node:crypto'
 import path from 'path'
 import {
   buildFolderStandards,
@@ -42,7 +43,16 @@ import {
 } from './types'
 
 /** 将内部索引条目转换为面向客户端展示的 EagleItem 结构 */
-export const toEagleItem = (entry: EagleItemIndex): EagleItem => ({
+const contentVersion = (entry: EagleItemIndex, libraryPath: string) =>
+  createHash('sha256')
+    .update(JSON.stringify([libraryPath, entry.fileName, entry.lastModified]))
+    .digest('hex')
+    .slice(0, 24)
+
+export const toEagleItem = (
+  entry: EagleItemIndex,
+  libraryPath: string,
+): EagleItem => ({
   id: entry.id,
   name: entry.name,
   ext: entry.ext,
@@ -50,6 +60,7 @@ export const toEagleItem = (entry: EagleItemIndex): EagleItem => ({
   width: entry.width,
   height: entry.height,
   mtime: entry.mtime,
+  contentVersion: contentVersion(entry, libraryPath),
   folders: [...(entry.folders ?? [])],
   isVideo: VIDEO_EXTS.has(entry.ext),
   isGif: entry.ext === 'gif',
@@ -175,7 +186,9 @@ export const getItems = async (
   const list = sortedItems(index, params)
   return {
     total: list.length,
-    items: list.slice(offset, offset + limit).map(toEagleItem),
+    items: list
+      .slice(offset, offset + limit)
+      .map((entry) => toEagleItem(entry, index.libraryPath)),
   }
 }
 
@@ -282,6 +295,7 @@ export const getItemMediaSource = async (
     id,
     ext: entry.ext,
     lastModified: entry.lastModified,
+    contentVersion: contentVersion(entry, index.libraryPath),
     filePath: path.join(infoDir, entry.fileName),
     thumbnailPath: entry.thumbnailName
       ? path.join(infoDir, entry.thumbnailName)

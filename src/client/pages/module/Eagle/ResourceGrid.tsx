@@ -120,7 +120,9 @@ export function ResourceGrid() {
       )}
 
       <Image.PreviewGroup
-        items={imageItems.map((item) => eagleFileUrl(item.id))}
+        items={imageItems.map((item) =>
+          eagleFileUrl(item.id, item.contentVersion),
+        )}
         preview={{
           open: previewOpen,
           current: previewIndex,
@@ -181,7 +183,7 @@ export function ResourceGrid() {
       >
         {videoItem && (
           <video
-            src={eagleFileUrl(videoItem.id)}
+            src={eagleFileUrl(videoItem.id, videoItem.contentVersion)}
             controls
             autoPlay
             className="max-h-[70vh] w-full"

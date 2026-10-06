@@ -10,6 +10,8 @@ interface LibraryChanges {
   updated: Set<string>
   removed: Set<string>
   timestamp: number
+  /** 转换操作已同步落盘必要状态，收尾只发布事件，不能在删除源图后再写盘。 */
+  persisted?: boolean
 }
 
 /** 写操作不能把权限错误或损坏元数据伪装成条目不存在。 */
@@ -37,15 +39,17 @@ const commitChanges = async (
   const ids = [...updated, ...removed]
   if (ids.length === 0) return
   try {
-    await updateMtimes(index.libraryPath, updated, changes.timestamp)
-    await removeMtimes(index.libraryPath, removed)
-  } finally {
-    indexCache.markDirty(ids)
-    try {
-      await indexCache.persist()
-    } finally {
-      changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
+    if (!changes.persisted) {
+      try {
+        await updateMtimes(index.libraryPath, updated, changes.timestamp)
+        await removeMtimes(index.libraryPath, removed)
+      } finally {
+        indexCache.markDirty(ids)
+        await indexCache.persist()
+      }
     }
+  } finally {
+    changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
   }
 }
 

@@ -3,7 +3,9 @@ import { Hono, type Context } from 'hono'
 import { Readable } from 'node:stream'
 import { z } from 'zod'
 import {
+  convertHeifItem,
   deleteItem,
+  getConversionCandidates,
   getFolderTree,
   getItems,
   getLibraryOverview,
@@ -21,6 +23,7 @@ import {
   EagleMediaError,
   getMediaSource,
   getOriginalFile,
+  getPreview,
   getThumbnail,
 } from '../../module/eagle/media'
 
@@ -33,18 +36,52 @@ const mediaErrorResponse = (c: Context, error: unknown) => {
   throw error
 }
 
-/** 媒体响应缓存一天，过期后通过 lastModified ETag 条件验证 */
-const itemCacheHeaders = (etag: number) => ({
-  'Cache-Control': 'private, max-age=86400',
+/** 当前内容版本 URL 缓存一天；无版本或旧版本 URL 必须通过 ETag 重新验证。 */
+const itemCacheHeaders = (etag: string, version?: string) => ({
+  'Cache-Control':
+    version === etag ? 'private, max-age=86400' : 'private, no-cache',
   ETag: `"${etag}"`,
 })
 
 const notModified = (
   c: { req: { header: (n: string) => string | undefined } },
-  etag: number,
+  etag: string,
 ) => c.req.header('if-none-match') === `"${etag}"`
 
 const libraryApi = new Hono()
+  .get(
+    '/conversion/candidates',
+    validate(
+      'query',
+      z.object({
+        offset: z.coerce.number().int().min(0).default(0),
+        limit: z.coerce.number().int().min(1).max(100).default(50),
+        snapshot: z.enum(['true', 'false']).default('false'),
+      }),
+    ),
+    async (c) => {
+      const { offset, limit, snapshot } = c.req.valid('query')
+      return c.json({
+        success: true as const,
+        data: await getConversionCandidates(offset, limit, snapshot === 'true'),
+      })
+    },
+  )
+  .post(
+    '/conversion/items/:id',
+    validate(
+      'json',
+      z.object({ libraryId: z.string().regex(/^[a-f0-9]{64}$/) }),
+    ),
+    async (c) => {
+      const data = await convertHeifItem(
+        c.req.param('id'),
+        c.req.valid('json').libraryId,
+      )
+      if (!data) return errorResponse(c, 409, 'Eagle 资源库当前不可用')
+      return c.json({ success: true as const, data })
+    },
+  )
   // 目录树与全部/未分类/回收站计数，一次读取返回。
   .get('/overview', async (c) => {
     const overview = await getLibraryOverview()
@@ -154,15 +191,29 @@ const libraryApi = new Hono()
   })
 
   // 媒体路由只负责条件请求与响应，缩略图和图库导入由媒体服务处理。
+  .get('/items/:id/preview', async (c) => {
+    try {
+      const source = await getMediaSource(c.req.param('id'))
+      if (!source) return errorResponse(c, 404, '条目不存在')
+      if (notModified(c, source.contentVersion)) return c.body(null, 304)
+      const preview = await getPreview(source)
+      return c.body(preview.content, 200, {
+        'Content-Type': preview.contentType,
+        ...itemCacheHeaders(source.contentVersion, c.req.query('v')),
+      })
+    } catch (error) {
+      return mediaErrorResponse(c, error)
+    }
+  })
   .get('/items/:id/thumbnail', async (c) => {
     try {
       const source = await getMediaSource(c.req.param('id'))
       if (!source) return errorResponse(c, 404, '条目不存在')
-      if (notModified(c, source.lastModified)) return c.body(null, 304)
+      if (notModified(c, source.contentVersion)) return c.body(null, 304)
       const thumbnail = await getThumbnail(source)
       return c.body(thumbnail.content, 200, {
         'Content-Type': thumbnail.contentType,
-        ...itemCacheHeaders(source.lastModified),
+        ...itemCacheHeaders(source.contentVersion, c.req.query('v')),
       })
     } catch (error) {
       return mediaErrorResponse(c, error)
@@ -182,7 +233,7 @@ const libraryApi = new Hono()
   .get('/items/:id/file', async (c) => {
     const source = await getMediaSource(c.req.param('id'))
     if (!source) return errorResponse(c, 404, '条目不存在')
-    if (notModified(c, source.lastModified)) return c.body(null, 304)
+    if (notModified(c, source.contentVersion)) return c.body(null, 304)
     let file: Awaited<ReturnType<typeof getOriginalFile>>
     try {
       file = await getOriginalFile(source)
@@ -212,6 +263,7 @@ const libraryApi = new Hono()
             'Content-Range': `bytes ${start}-${end}/${size}`,
             'Content-Length': String(end - start + 1),
             'Accept-Ranges': 'bytes',
+            ...itemCacheHeaders(source.contentVersion, c.req.query('v')),
           },
         })
       }
@@ -226,7 +278,7 @@ const libraryApi = new Hono()
         'Content-Type': contentType,
         'Content-Length': String(size),
         'Accept-Ranges': 'bytes',
-        ...itemCacheHeaders(source.lastModified),
+        ...itemCacheHeaders(source.contentVersion, c.req.query('v')),
       },
     })
   })

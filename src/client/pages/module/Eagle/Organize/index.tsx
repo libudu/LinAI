@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { setEagleLibraryRefreshSuspended } from '../store'
 import { StepClassify } from './StepClassify'
 import { StepConfirm } from './StepConfirm'
+import { StepFormatConversion } from './StepFormatConversion'
 import { StepNavBar, type OrganizeStepKey } from './StepNavBar'
 import { StepRunning } from './StepRunning'
 import { useOrganizeTask } from './hooks/useOrganizeTask'
@@ -21,6 +22,7 @@ export function OrganizeModal({
   const [currentStep, setCurrentStep] = useState<OrganizeStepKey>('classify')
   const task = useOrganizeTask(open, status, loaded)
   const hasInitializedStepRef = useRef(false)
+  const [conversionRevision, setConversionRevision] = useState(0)
 
   const phase = status?.phase
   // 打开弹窗或状态首次加载时，智能推荐初始展示步骤
@@ -95,8 +97,25 @@ export function OrganizeModal({
             task={task}
           />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {open && (
+              <div
+                className={
+                  currentStep === 'convert'
+                    ? 'flex min-h-0 flex-1 flex-col'
+                    : 'hidden'
+                }
+              >
+                <StepFormatConversion
+                  open={open}
+                  onConverted={() =>
+                    setConversionRevision((revision) => revision + 1)
+                  }
+                />
+              </div>
+            )}
             {currentStep === 'classify' && (
               <StepClassify
+                conversionRevision={conversionRevision}
                 onClose={onClose}
                 onSuccess={() => setCurrentStep('running')}
               />

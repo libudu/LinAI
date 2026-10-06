@@ -109,7 +109,7 @@ export function ResourceGridItem({
         {...longPressHandlers}
       >
         <img
-          src={eagleThumbnailUrl(item.id)}
+          src={eagleThumbnailUrl(item.id, item.contentVersion)}
           alt={item.name}
           className="pointer-events-none h-full w-full object-cover"
           loading="lazy"

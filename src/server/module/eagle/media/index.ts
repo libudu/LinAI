@@ -6,6 +6,7 @@ import sharp from 'sharp'
 import type { EagleItemMediaSource } from '../library'
 import { getItemMediaSource, isVideoExt } from '../library'
 import { THUMB_SIZE, thumbnailCachePath } from './cache'
+import { encodeStaticHeif } from './heic'
 
 const MIME_BY_EXT: Record<string, string> = {
   jpg: 'image/jpeg',
@@ -58,6 +59,26 @@ export const getOriginalFile = async (source: EagleItemMediaSource) => {
   }
 }
 
+/** 浏览器不能直接显示 HEIC/HEIF；按需生成全尺寸预览，只读原文件、不写库。 */
+export const getPreview = async (source: EagleItemMediaSource) => {
+  const original = await getOriginalFile(source)
+  if (!['heic', 'heif'].includes(source.ext.toLowerCase())) {
+    return {
+      content: new Uint8Array(await fs.readFile(original.filePath)),
+      contentType: original.contentType,
+    }
+  }
+  try {
+    const { webp } = await encodeStaticHeif(
+      await fs.readFile(original.filePath),
+    )
+    return { content: new Uint8Array(webp), contentType: 'image/webp' }
+  } catch {
+    // 多图、序列或损坏内容无法可靠解码时，仍允许放大已有 Eagle 缩略图。
+    return getThumbnail(source)
+  }
+}
+
 /** 优先库内缩略图，缺失时生成应用缓存；同图请求串行，避免临时文件相互覆盖。 */
 export const getThumbnail = async (source: EagleItemMediaSource) => {
   if (source.thumbnailPath) {
@@ -78,7 +99,7 @@ export const getThumbnail = async (source: EagleItemMediaSource) => {
     }
   }
   await getOriginalFile(source)
-  const thumbPath = thumbnailCachePath(source.id)
+  const thumbPath = thumbnailCachePath(source.id, source.contentVersion)
   try {
     return await resourceLock.run(`eagle.thumbnail:${source.id}`, async () => {
       if (!(await fs.pathExists(thumbPath))) {

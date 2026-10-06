@@ -57,10 +57,35 @@ export const purgeEagleTrash = () => rpcData(eagleRpc.trash.purge.$post())
 export const trashAllUnclassifiedEagleItems = () =>
   rpcData(eagleRpc.unclassified.trash.$post())
 
-export const eagleThumbnailUrl = (id: string) =>
-  eagleRpc.items[':id'].thumbnail.$path({ param: { id } })
-export const eagleFileUrl = (id: string) =>
-  eagleRpc.items[':id'].file.$path({ param: { id } })
+export const eagleThumbnailUrl = (id: string, version?: string) =>
+  `${eagleRpc.items[':id'].thumbnail.$path({ param: { id } })}${version ? `?v=${version}` : ''}`
+export const eagleFileUrl = (id: string, version?: string) =>
+  `${eagleRpc.items[':id'].file.$path({ param: { id } })}${version ? `?v=${version}` : ''}`
+export const eaglePreviewUrl = (id: string, version?: string) =>
+  `${eagleRpc.items[':id'].preview.$path({ param: { id } })}${version ? `?v=${version}` : ''}`
+
+export const fetchConversionCandidates = (
+  offset = 0,
+  limit = 50,
+  snapshot = false,
+) =>
+  rpcData(
+    eagleRpc.conversion.candidates.$get({
+      query: {
+        offset: String(offset),
+        limit: String(limit),
+        snapshot: String(snapshot) as 'true' | 'false',
+      },
+    }),
+  )
+
+export const convertEagleHeif = (id: string, libraryId: string) =>
+  rpcData(
+    eagleRpc.conversion.items[':id'].$post({
+      param: { id },
+      json: { libraryId },
+    }),
+  )
 
 export const addEagleItemToGallery = async (id: string): Promise<string> => {
   const data = await rpcData(

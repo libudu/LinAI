@@ -9,11 +9,12 @@ export default defineConfig({
   outDir: 'dist/server',
   clean: true,
   env: {
-    APP_VERSION: pkg.version
+    APP_VERSION: pkg.version,
   },
   metafile: true,
-  noExternal: [/^(?!sharp$).*$/],
-  external: ['sharp'],
+  // 保留 heic-decode 的包结构及 libheif-js 内嵌 WASM，由 dist 生产依赖安装携带。
+  noExternal: [/^(?!(sharp|heic-decode|libheif-js)(\/|$)).*$/],
+  external: ['sharp', 'heic-decode', 'libheif-js', 'libheif-js/wasm-bundle'],
   esbuildPlugins: [
     {
       name: 'generate-package-json',
@@ -48,18 +49,18 @@ export default defineConfig({
             version: pkg.version,
             main: 'server/index.js',
             scripts: {
-              start: 'NODE_ENV=production node server/index.js'
+              start: 'NODE_ENV=production node server/index.js',
             },
-            dependencies
+            dependencies,
           }
 
           // 将 package.json 写入 outDir 父级，即 dist 目录
           fs.writeFileSync('dist/package.json', JSON.stringify(outPkg, null, 2))
           console.log(
-            '✅ Generated dist/package.json with external dependencies'
+            '✅ Generated dist/package.json with external dependencies',
           )
         })
-      }
-    }
-  ]
+      },
+    },
+  ],
 })

@@ -37,14 +37,18 @@ export const findRawFolder = (
 const appendFolderPath = (parentPath: string, name: string) =>
   parentPath ? `${parentPath}/${name}` : name
 
-/** 基于同一目录快照构造完整路径，后序遍历保证子分类先于父分类。 */
-const collectFolderPaths = (folders: EagleRawFolder[]) => {
+/** 基于同一目录快照构造路径；默认子分类优先，展示排序可用父目录优先的树顺序。 */
+export const collectFolderPaths = (
+  folders: EagleRawFolder[],
+  order: 'preorder' | 'postorder' = 'postorder',
+) => {
   const entries: Array<{ folder: EagleRawFolder; folderPath: string }> = []
   const walk = (nodes: EagleRawFolder[], parentPath: string) => {
     for (const folder of nodes) {
       const folderPath = appendFolderPath(parentPath, folder.name)
+      if (order === 'preorder') entries.push({ folder, folderPath })
       walk(folder.children ?? [], folderPath)
-      entries.push({ folder, folderPath })
+      if (order === 'postorder') entries.push({ folder, folderPath })
     }
   }
   walk(folders, '')

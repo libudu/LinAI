@@ -23,9 +23,11 @@ import { useClassifyTask } from './hooks/useClassifyTask'
 export function StepClassify({
   onClose,
   onSuccess,
+  conversionRevision,
 }: {
   onClose: () => void
   onSuccess?: () => void
+  conversionRevision?: number
 }) {
   const [promptOpen, setPromptOpen] = useState(false)
   const [folderSelectOpen, setFolderSelectOpen] = useState(false)
@@ -49,7 +51,7 @@ export function StepClassify({
     handleSyncStandards,
     handleSubmit,
     handleFolderSelect,
-  } = useClassifyTask(onSuccess)
+  } = useClassifyTask(onSuccess, conversionRevision)
 
   if (loading) {
     return (

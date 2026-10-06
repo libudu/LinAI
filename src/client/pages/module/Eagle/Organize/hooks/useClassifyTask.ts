@@ -70,7 +70,10 @@ const persistOrganizeOptions = (options: OrganizeOptions) => {
 }
 
 /** 准备范围、任务模式、选项持久化与提交；页面仅装配 UI。 */
-export function useClassifyTask(onSuccess?: () => void) {
+export function useClassifyTask(
+  onSuccess?: () => void,
+  conversionRevision = 0,
+) {
   const currentFolderId = useEagleStore((state) => state.currentFolderId)
   const sortBy = useEagleStore((state) => state.sortBy)
   const sortOrder = useEagleStore((state) => state.sortOrder)
@@ -123,6 +126,7 @@ export function useClassifyTask(onSuccess?: () => void) {
     status?.taskId,
     status?.total,
     prepareRevision,
+    conversionRevision,
   ])
 
   const hasActiveTask = prepare?.hasActiveTask ?? false

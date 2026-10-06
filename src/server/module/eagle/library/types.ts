@@ -59,6 +59,7 @@ export interface EagleItemMediaSource {
   id: string
   ext: string
   lastModified: number
+  contentVersion: string
   filePath: string
   thumbnailPath: string | null
 }

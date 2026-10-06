@@ -44,12 +44,18 @@ importers:
       fs-extra:
         specifier: ^11.3.4
         version: 11.3.4
+      heic-decode:
+        specifier: ^2.1.0
+        version: 2.1.0
       hono:
         specifier: ^4.12.14
         version: 4.12.14
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
+      libheif-js:
+        specifier: 1.23.5
+        version: 1.23.5
       openai:
         specifier: ^7.13.0
         version: 7.13.0(zod@4.3.6)
@@ -1877,6 +1883,10 @@ packages:
     resolution: {integrity: sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ==}
     engines: {node: '>= 0.4'}
 
+  heic-decode@2.1.0:
+    resolution: {integrity: sha512-0fB3O3WMk38+PScbHLVp66jcNhsZ/ErtQ6u2lMYu/YxXgbBtl+oKOhGQHa4RpvE68k8IzbWkABzHnyAIjR758A==}
+    engines: {node: '>=8.0.0'}
+
   hono@4.12.14:
     resolution: {integrity: sha512-am5zfg3yu6sqn5yjKBNqhnTX7Cv+m00ox+7jbaKkrLMRJ4rAdldd1xPd/JzbBWspqaQv6RSTrgFN95EsfhC+7w==}
     engines: {node: '>=16.9.0'}
@@ -2060,6 +2070,10 @@ packages:
 
   jws@4.0.1:
     resolution: {integrity: sha512-EKI/M/yqPncGUUh44xz0PxSidXFr/+r0pA70+gIYhjv+et7yxM+s29Y+VGDkovRofQem0fs7Uvf4+YmAdyRduA==}
+
+  libheif-js@1.23.5:
+    resolution: {integrity: sha512-umXZPthnWZtF3iG/5mQG+AZ2V6i0UeYpo3z2CkggTEgL8dKmIIwJT6TDuAMuabXa1yTW8uJ1ZAgR+CxNTklYYw==}
+    engines: {node: '>=8.0.0'}
 
   lie@3.3.0:
     resolution: {integrity: sha512-UaiMJzeWRlEujzAuw5LokY1L5ecNQYZKfmyZ9L7wDHb/p5etKaxXhohBcrw0EYby+G/NA52vRSN4N39dxHAIwQ==}
@@ -4699,6 +4713,10 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
+  heic-decode@2.1.0:
+    dependencies:
+      libheif-js: 1.23.5
+
   hono@4.12.14: {}
 
   hosted-git-info@2.8.9: {}
@@ -4887,6 +4905,8 @@ snapshots:
     dependencies:
       jwa: 2.0.1
       safe-buffer: 5.2.1
+
+  libheif-js@1.23.5: {}
 
   lie@3.3.0:
     dependencies:

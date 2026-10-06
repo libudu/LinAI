@@ -61,23 +61,32 @@ export const refreshIndex = async (): Promise<void> => {
   await ensureIndex()
   const libraryPath = (await getEagleSettings()).libraryPath || null
   if (!libraryPath) {
-    await indexCache.flush()
-    await flushMtime()
-    state = null
-    libraryChanges.reset()
-    loadingPromise = null
+    const clear = async () => {
+      await indexCache.flush()
+      await flushMtime()
+      state = null
+      libraryChanges.reset()
+      loadingPromise = null
+    }
+    if (state) await withLibraryLock(state.libraryPath, clear)
+    else await clear()
     return
   }
-  await withLibraryLock(libraryPath, async () => {
-    // 切库前等旧缓存落盘，避免旧分片写入覆盖新库缓存。
-    await indexCache.flush()
-    if (state?.libraryPath !== libraryPath) {
-      await flushMtime()
-      await initialLoad(libraryPath)
-    } else {
-      await syncIndex(libraryPath)
-      await indexCache.persist(true)
-    }
-    await flushMtime(libraryPath)
-  })
+  const refresh = () =>
+    withLibraryLock(libraryPath, async () => {
+      // 切库前等旧缓存落盘，避免旧分片写入覆盖新库缓存。
+      await indexCache.flush()
+      if (state?.libraryPath !== libraryPath) {
+        await flushMtime()
+        await initialLoad(libraryPath)
+      } else {
+        await syncIndex(libraryPath)
+        await indexCache.persist(true)
+      }
+      await flushMtime(libraryPath)
+    })
+  // 切库也等待旧库写入完成，避免旧操作的分片收尾写进新库缓存。
+  if (state && state.libraryPath !== libraryPath)
+    await withLibraryLock(state.libraryPath, refresh)
+  else await refresh()
 }
