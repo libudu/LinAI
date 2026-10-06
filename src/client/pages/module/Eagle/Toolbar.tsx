@@ -69,6 +69,11 @@ export function Toolbar() {
   const [folderDrawerOpen, setFolderDrawerOpen] = useState(false)
   const [organizeOpen, setOrganizeOpen] = useState(false)
 
+  const showOrganizeButton =
+    Boolean(currentFolderId) &&
+    currentFolderId !== EAGLE_UNCLASSIFIED_FOLDER_ID &&
+    currentFolderId !== EAGLE_TRASH_FOLDER_ID
+
   const currentFolderInfo = useMemo(() => {
     if (!currentFolderId) {
       return {
@@ -342,15 +347,17 @@ export function Toolbar() {
             全部移动到回收站
           </Button>
         )}
-        <Badge count={badgeCount} size="small" dot={badgeDot}>
-          <Button
-            type="primary"
-            icon={<AppstoreOutlined />}
-            onClick={handleOpenOrganize}
-          >
-            图片整理
-          </Button>
-        </Badge>
+        {showOrganizeButton && (
+          <Badge count={badgeCount} size="small" dot={badgeDot}>
+            <Button
+              type="primary"
+              icon={<AppstoreOutlined />}
+              onClick={handleOpenOrganize}
+            >
+              图片整理
+            </Button>
+          </Badge>
+        )}
       </Space>
 
       <Drawer
