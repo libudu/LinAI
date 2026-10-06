@@ -70,12 +70,21 @@ const ensureQueryVersion = () => {
 
 const sortedItems = (
   index: EagleIndexState,
-  params: Pick<GetItemsParams, 'folderId' | 'sortBy' | 'sortOrder'>,
+  params: Pick<GetItemsParams, 'folderId' | 'sortBy' | 'sortOrder' | 'keyword'>,
   classifiable = false,
 ): EagleItemIndex[] => {
   ensureQueryVersion()
   const { folderId, sortBy, sortOrder } = params
-  const key = JSON.stringify([folderId ?? '', sortBy, sortOrder, classifiable])
+  const keywords = (params.keyword?.toLowerCase() ?? '')
+    .split(/\s+/)
+    .filter(Boolean)
+  const key = JSON.stringify([
+    folderId ?? '',
+    sortBy,
+    sortOrder,
+    keywords,
+    classifiable,
+  ])
   const cached = itemViews.get(key)
   if (cached) {
     itemViews.delete(key)
@@ -97,6 +106,10 @@ const sortedItems = (
       (VIDEO_EXTS.has(item.ext) || ['gif', 'heif', 'heic'].includes(item.ext))
     )
       continue
+    if (keywords.length > 0) {
+      const name = item.name.toLowerCase()
+      if (!keywords.every((keyword) => name.includes(keyword))) continue
+    }
     list.push(item)
   }
   const direction = sortOrder === 'asc' ? 1 : -1
@@ -150,6 +163,7 @@ export const getLibraryOverview = async (): Promise<EagleLibraryOverview> => {
  * - 全部条目（排除回收站）；
  * - 虚拟文件夹：回收站 (__trash__)、未分类 (__unclassified__)；
  * - 指定真实文件夹过滤；
+ * - 文件名关键词匹配（空白分隔的关键词需全部包含，不区分大小写）；
  * - 内存排序与偏移分页切片。
  */
 export const getItems = async (

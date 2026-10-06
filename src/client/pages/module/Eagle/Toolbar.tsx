@@ -16,6 +16,7 @@ import {
   Checkbox,
   Drawer,
   Dropdown,
+  Input,
   Modal,
   Segmented,
   Select,
@@ -33,10 +34,13 @@ import { useEagleVisionConfig } from './settings/useEagleVisionConfig'
 import type { EagleImageSize } from './store'
 import { requestEagleLibraryRefresh, useEagleStore } from './store'
 
-// 资源列表顶部操作区：展示选项、刷新、图片整理；移动端提供文件夹抽屉入口
+// 资源列表顶部操作区：搜索、展示选项、刷新、图片整理；移动端提供文件夹抽屉入口
 export function Toolbar() {
   const {
     currentFolderId,
+    keyword,
+    setKeyword,
+    total,
     folders,
     allTotal,
     trashTotal,
@@ -126,6 +130,15 @@ export function Toolbar() {
     }
   }
 
+  const handleSearch = async (value: string) => {
+    try {
+      await setKeyword(value)
+    } catch (error) {
+      console.error('搜索 Eagle 资源失败', error)
+      message.error('搜索失败，请重试')
+    }
+  }
+
   // 图片整理依赖视觉接入点：未配置时先引导配置，保存成功后继续打开
   const handleOpenOrganize = () => {
     if (visionApiKey) {
@@ -200,7 +213,7 @@ export function Toolbar() {
                 {currentFolderInfo.name}
               </span>
               <span className="shrink-0 text-xs text-slate-400">
-                ({currentFolderInfo.count})
+                ({keyword ? total : currentFolderInfo.count})
               </span>
             </span>
             {currentFolderInfo.description ? (
@@ -221,6 +234,18 @@ export function Toolbar() {
             切换文件夹
           </Button>
         )}
+        <Input.Search
+          allowClear
+          defaultValue={keyword}
+          placeholder="搜索当前文件夹的文件名"
+          aria-label="搜索当前文件夹的文件名"
+          title="多个关键词用空格分隔，文件名需同时包含所有关键词"
+          className="w-52 md:w-64"
+          onSearch={handleSearch}
+        />
+      </Space>
+
+      <Space wrap className="ml-auto">
         <Dropdown
           trigger={isMobile ? ['click'] : ['hover']}
           menu={{ items: [] }}
@@ -295,9 +320,6 @@ export function Toolbar() {
         >
           刷新
         </Button>
-      </Space>
-
-      <Space>
         {currentFolderId === EAGLE_TRASH_FOLDER_ID && (
           <Button
             danger

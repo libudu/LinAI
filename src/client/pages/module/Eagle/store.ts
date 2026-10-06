@@ -35,6 +35,8 @@ interface EagleState {
   foldersLoading: boolean
   /** 当前选中文件夹，空字符串表示「全部」 */
   currentFolderId: string
+  /** 当前列表的文件名搜索词，不持久化 */
+  keyword: string
   items: EagleItem[]
   total: number
   /** 当前页码（从 1 开始） */
@@ -61,6 +63,7 @@ interface EagleState {
 
   init: () => Promise<void>
   selectFolder: (folderId: string) => Promise<void>
+  setKeyword: (keyword: string) => Promise<void>
   setSort: (sortBy: EagleSortBy, sortOrder: EagleSortOrder) => Promise<void>
   setPage: (page: number) => Promise<void>
   setImageSize: (size: EagleImageSize) => void
@@ -83,13 +86,14 @@ export const useEagleStore = create<EagleState>()((set, get) => {
   const loadPage = async (page: number, options?: { silent?: boolean }) => {
     const sequence = ++pageSequence
     requestedPage = page
-    const { currentFolderId, sortBy, sortOrder } = get()
+    const { currentFolderId, keyword, sortBy, sortOrder } = get()
     if (!options?.silent) {
       set({ listLoading: true })
     }
     try {
       const resp = await fetchEagleItems({
         folderId: currentFolderId || undefined,
+        keyword: keyword || undefined,
         sortBy,
         sortOrder,
         offset: (page - 1) * PAGE_SIZE,
@@ -97,11 +101,14 @@ export const useEagleStore = create<EagleState>()((set, get) => {
       })
       if (sequence !== pageSequence) return false
       set({ items: resp.items, total: resp.total, page })
-      if (!currentFolderId) set({ allTotal: resp.total })
-      else if (currentFolderId === EAGLE_UNCLASSIFIED_FOLDER_ID)
-        set({ unclassifiedTotal: resp.total })
-      else if (currentFolderId === EAGLE_TRASH_FOLDER_ID)
-        set({ trashTotal: resp.total })
+      // 搜索结果总数用于工具栏与分页，不覆盖文件夹树的完整计数。
+      if (!keyword) {
+        if (!currentFolderId) set({ allTotal: resp.total })
+        else if (currentFolderId === EAGLE_UNCLASSIFIED_FOLDER_ID)
+          set({ unclassifiedTotal: resp.total })
+        else if (currentFolderId === EAGLE_TRASH_FOLDER_ID)
+          set({ trashTotal: resp.total })
+      }
       return true
     } finally {
       if (sequence === pageSequence) {
@@ -127,6 +134,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
     folders: [],
     foldersLoading: false,
     currentFolderId: loadSelectedFolderId(),
+    keyword: '',
     items: [],
     total: 0,
     page: 1,
@@ -152,6 +160,12 @@ export const useEagleStore = create<EagleState>()((set, get) => {
       if (folderId === get().currentFolderId) return
       persistSelectedFolderId(folderId)
       set({ currentFolderId: folderId, items: [], total: 0, page: 1 })
+      await loadPage(1)
+    },
+
+    setKeyword: async (value) => {
+      const keyword = value.trim()
+      set({ keyword, items: [], total: 0, page: 1 })
       await loadPage(1)
     },
 

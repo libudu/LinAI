@@ -25,6 +25,7 @@ export function ResourceGrid() {
     setPage,
     imageSize,
     currentFolderId,
+    keyword,
   } = useEagleStore()
   const showFileName = useEagleStore((s) => s.showFileName)
   const showFileSize = useEagleStore((s) => s.showFileSize)
@@ -71,7 +72,7 @@ export function ResourceGrid() {
         </div>
       ) : items.length === 0 ? (
         <div className="flex flex-1 items-center justify-center text-slate-400">
-          暂无资源
+          {keyword ? '没有匹配的资源' : '暂无资源'}
         </div>
       ) : (
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4">

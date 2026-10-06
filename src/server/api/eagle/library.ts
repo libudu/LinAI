@@ -24,7 +24,7 @@ import {
   getThumbnail,
 } from '../../module/eagle/media'
 
-import { eagleScopeSchema } from '../../module/eagle/schemas'
+import { eagleItemsQuerySchema } from '../../module/eagle/schemas'
 import { errorResponse, validate } from './validation'
 
 const mediaErrorResponse = (c: Context, error: unknown) => {
@@ -57,29 +57,11 @@ const libraryApi = new Hono()
     return c.json({ success: true as const, data: folders })
   })
 
-  // 资源列表：服务端排序 + 分页
-  .get(
-    '/items',
-    validate(
-      'query',
-      eagleScopeSchema.extend({
-        offset: z.coerce.number().int().nonnegative().default(0),
-        limit: z.coerce.number().int().min(1).max(500).default(100),
-      }),
-    ),
-    async (c) => {
-      const { folderId, sortBy, sortOrder, offset, limit } =
-        c.req.valid('query')
-      const result = await getItems({
-        folderId,
-        sortBy,
-        sortOrder,
-        offset,
-        limit,
-      })
-      return c.json({ success: true as const, data: result })
-    },
-  )
+  // 资源列表：当前文件夹关键词过滤 + 服务端排序与分页
+  .get('/items', validate('query', eagleItemsQuerySchema), async (c) => {
+    const result = await getItems(c.req.valid('query'))
+    return c.json({ success: true as const, data: result })
+  })
 
   // 手动刷新：触发 mtime.json 增量校验
   .post('/refresh', async (c) => {

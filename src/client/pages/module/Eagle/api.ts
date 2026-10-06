@@ -1,14 +1,13 @@
 import { rpcData } from '@/client/service/http'
-import type { EagleSortBy, EagleSortOrder } from '@/shared/eagle/types'
 import type { InferRequestType } from 'hono/client'
 import { eagleRpc } from './rpc'
 
 export const fetchEagleOverview = () => rpcData(eagleRpc.overview.$get())
 
-export interface FetchEagleItemsParams {
-  folderId?: string
-  sortBy: EagleSortBy
-  sortOrder: EagleSortOrder
+export type FetchEagleItemsParams = Omit<
+  InferRequestType<typeof eagleRpc.items.$get>['query'],
+  'offset' | 'limit'
+> & {
   offset: number
   limit: number
 }

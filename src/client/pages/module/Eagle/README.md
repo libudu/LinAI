@@ -70,7 +70,7 @@ src/client/pages/module/Eagle/
 ├── refreshQueue.ts           # 串行刷新与失效补拉
 ├── FolderTree/               # 目录树、编辑与展开偏好
 ├── ResourceGrid.tsx          # 网格、分页与媒体预览
-├── Toolbar.tsx               # 展示选项、刷新、整理与文件夹抽屉
+├── Toolbar.tsx               # 搜索、展示选项、刷新、整理与文件夹抽屉
 ├── components/               # 资源卡片、文件夹选择与删除确认
 ├── hooks/useResourceActions.ts # 条目操作与弹窗状态
 └── Organize/
@@ -130,33 +130,33 @@ src/client/pages/module/Eagle/
 
 参数的完整定义见 `schemas.ts` 与 API 路由，前端类型由 Hono RPC 推导。
 
-| 方法   | 路径                                                                    | 说明                                                            |
-| ------ | ----------------------------------------------------------------------- | --------------------------------------------------------------- |
-| GET    | `/overview` / `/folders`                                                | 目录树与虚拟分类计数；`count` 为直接成员数，`totalCount` 含子孙 |
-| PUT    | `/folders/:id`                                                          | 编辑名称、描述                                                  |
-| GET    | `/items`                                                                | 按文件夹、排序、offset/limit 分页；未指定文件夹为全部           |
-| PUT    | `/items/:id`                                                            | 修改归属、标题                                                  |
-| DELETE | `/items/:id` / `/items/:id/purge`                                       | 移入回收站 / 彻底删除                                           |
-| POST   | `/items/:id/restore` / `/trash/purge`                                   | 还原条目 / 清空回收站                                           |
-| POST   | `/refresh`                                                              | 增量校验，切库时重建索引                                        |
-| GET    | `/items/:id/thumbnail` / `/items/:id/file`                              | 缩略图 / 原文件；原文件支持 Range                               |
-| POST   | `/items/:id/add-to-gallery`                                             | 导入输入图库                                                    |
-| GET    | `/organize/prepare`                                                     | 分类标准与当前范围可追加数量                                    |
-| GET    | `/organize/status` / `/organize/task`                                   | 轻量状态 / 任务详情                                             |
-| POST   | `/organize/task` / `/organize/task/append`                              | 新建 / 追加任务                                                 |
-| POST   | `/organize/task/pause` / `/organize/task/resume`                        | 暂停派发 / 恢复执行                                             |
-| POST   | `/organize/task/sync-standards`                                         | 非运行、未结束任务同步分类标准                                  |
-| POST   | `/organize/task/retry-failed` / `/organize/task/skip-failed`            | 重试 / 跳过失败项                                               |
-| POST   | `/organize/task/classify-successful`                                    | 暂停时仅保留成功图片进入确认                                    |
-| POST   | `/organize/task/clear`                                                  | 中止请求并清空任务与结果                                        |
-| GET    | `/organize/queue` / `/organize/failed-items`                            | 队列预览 / 失败详情                                             |
-| GET    | `/organize/results` / `/organize/results/:itemId`                       | 分页结果 / 单图详情                                             |
-| GET    | `/organize/results/changes`                                             | 成功结果增量同步：`items`、`removedIds`、版本与 `reset`         |
-| POST   | `/organize/results/reconcile`                                           | 显式校准缺失条目                                                |
-| POST   | `/organize/results/confirm-batch` / `/organize/results/:itemId/confirm` | 批量 / 单图确认写库                                             |
-| POST   | `/organize/results/:itemId/trash`                                       | 移入回收站并跳过                                                |
-| POST   | `/organize/results/:itemId/skip` / `/organize/results/:itemId/retry`    | 跳过 / 重新执行                                                 |
-| POST   | `/organize/results/:itemId/clear-classification`                        | 清除归属并跳过，转为手动处理                                    |
+| 方法   | 路径                                                                    | 说明                                                                      |
+| ------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| GET    | `/overview` / `/folders`                                                | 目录树与虚拟分类计数；`count` 为直接成员数，`totalCount` 含子孙           |
+| PUT    | `/folders/:id`                                                          | 编辑名称、描述                                                            |
+| GET    | `/items`                                                                | 按文件夹、keyword 文件名过滤、排序、offset/limit 分页；未指定文件夹为全部 |
+| PUT    | `/items/:id`                                                            | 修改归属、标题                                                            |
+| DELETE | `/items/:id` / `/items/:id/purge`                                       | 移入回收站 / 彻底删除                                                     |
+| POST   | `/items/:id/restore` / `/trash/purge`                                   | 还原条目 / 清空回收站                                                     |
+| POST   | `/refresh`                                                              | 增量校验，切库时重建索引                                                  |
+| GET    | `/items/:id/thumbnail` / `/items/:id/file`                              | 缩略图 / 原文件；原文件支持 Range                                         |
+| POST   | `/items/:id/add-to-gallery`                                             | 导入输入图库                                                              |
+| GET    | `/organize/prepare`                                                     | 分类标准与当前范围可追加数量                                              |
+| GET    | `/organize/status` / `/organize/task`                                   | 轻量状态 / 任务详情                                                       |
+| POST   | `/organize/task` / `/organize/task/append`                              | 新建 / 追加任务                                                           |
+| POST   | `/organize/task/pause` / `/organize/task/resume`                        | 暂停派发 / 恢复执行                                                       |
+| POST   | `/organize/task/sync-standards`                                         | 非运行、未结束任务同步分类标准                                            |
+| POST   | `/organize/task/retry-failed` / `/organize/task/skip-failed`            | 重试 / 跳过失败项                                                         |
+| POST   | `/organize/task/classify-successful`                                    | 暂停时仅保留成功图片进入确认                                              |
+| POST   | `/organize/task/clear`                                                  | 中止请求并清空任务与结果                                                  |
+| GET    | `/organize/queue` / `/organize/failed-items`                            | 队列预览 / 失败详情                                                       |
+| GET    | `/organize/results` / `/organize/results/:itemId`                       | 分页结果 / 单图详情                                                       |
+| GET    | `/organize/results/changes`                                             | 成功结果增量同步：`items`、`removedIds`、版本与 `reset`                   |
+| POST   | `/organize/results/reconcile`                                           | 显式校准缺失条目                                                          |
+| POST   | `/organize/results/confirm-batch` / `/organize/results/:itemId/confirm` | 批量 / 单图确认写库                                                       |
+| POST   | `/organize/results/:itemId/trash`                                       | 移入回收站并跳过                                                          |
+| POST   | `/organize/results/:itemId/skip` / `/organize/results/:itemId/retry`    | 跳过 / 重新执行                                                           |
+| POST   | `/organize/results/:itemId/clear-classification`                        | 清除归属并跳过，转为手动处理                                              |
 
 接口约定：
 
@@ -168,9 +168,9 @@ src/client/pages/module/Eagle/
 ## 前端数据流
 
 1. 页面加载库与视觉配置；有库路径时初始化目录概览，校验上次选中文件夹并获取第一页资源（每页 100）。
-2. 切换文件夹、排序、翻页重新查询资源；请求序号保护当前列表，旧响应不能覆盖新状态。
+2. 工具栏左侧支持当前文件夹的文件名关键词搜索，回车或点击搜索按钮执行，清空恢复完整列表；去除首尾空白且不区分大小写，关键词按空白分隔，文件名必须同时包含所有关键词（如 `A B` 匹配同时包含 A 和 B 的文件名，多余空白忽略）。服务端先过滤再排序、分页，覆盖当前文件夹的全部资源。搜索词不持久化，切换文件夹、排序、翻页和刷新时沿用当前搜索词；修改搜索词回到第一页。搜索时工具栏中的当前文件夹数量显示匹配总数，清空恢复原数量，文件夹树计数始终保留完整数量。请求序号保护当前列表，旧响应不能覆盖新状态。
 3. 库写操作后，`libraryRefresh.ts` 合并主动刷新与 SSE，静默更新目录和当前页；整理弹窗期间记脏，关闭后补拉。`refreshQueue.ts` 合并请求并处理刷新期间再次失效。
-4. 展示选项包含文件夹树、文件夹描述、文件名和文件大小。桌面目录树宽 260px，默认显示；隐藏或使用移动端时，通过工具栏抽屉切换文件夹。
+4. 展示选项和刷新按钮位于工具栏右侧、图片整理按钮左边。展示选项包含文件夹树、文件夹描述、文件名和文件大小。桌面目录树宽 260px，默认显示；隐藏或使用移动端时，通过工具栏抽屉切换文件夹。
 5. 目录展开与手动分类历史由 `EaglePreferenceDocument` 共享加载、订阅和串行保存，保留 revision 冲突检测与加载中操作重放。
 
 图片整理包含三个可自由切换的步骤：

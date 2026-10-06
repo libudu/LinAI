@@ -1,5 +1,6 @@
 /** Eagle 库原始结构、内部索引结构与业务参数；无运行时副作用。 */
-import type { EagleSortBy, EagleSortOrder } from '@/shared/eagle/types'
+import type { z } from 'zod'
+import type { eagleItemsQuerySchema } from '../schemas'
 
 // ---- Eagle 库内原始数据结构 ----
 
@@ -76,14 +77,8 @@ export interface EagleItemDetail {
   readonly folderPaths: string[]
 }
 
-/** 获取条目列表的分页与排序参数 */
-export interface GetItemsParams {
-  folderId?: string
-  sortBy: EagleSortBy
-  sortOrder: EagleSortOrder
-  offset: number
-  limit: number
-}
+/** 获取条目列表的过滤、分页与排序参数 */
+export type GetItemsParams = z.infer<typeof eagleItemsQuerySchema>
 
 /** 编辑条目的增量补丁数据 */
 export interface UpdateItemPatch {

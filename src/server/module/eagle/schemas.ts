@@ -12,6 +12,12 @@ export const eagleScopeSchema = z.object({
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
 })
 
+export const eagleItemsQuerySchema = eagleScopeSchema.extend({
+  keyword: z.string().trim().optional(),
+  offset: z.coerce.number().int().nonnegative().default(0),
+  limit: z.coerce.number().int().min(1).max(500).default(100),
+})
+
 export const taskIdentitySchema = z.object({ taskId: z.string().min(1) })
 
 export const organizeCreateTaskSchema = eagleScopeSchema.extend({
