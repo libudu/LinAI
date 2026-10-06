@@ -10,16 +10,13 @@ import {
 } from 'antd'
 import { useState } from 'react'
 import { eaglePreviewUrl, eagleThumbnailUrl } from '../api'
-import { useFormatConversion } from './hooks/useFormatConversion'
+import type { useFormatConversion } from './hooks/useFormatConversion'
 
 export function StepFormatConversion({
-  open,
-  onConverted,
+  conversion,
 }: {
-  open: boolean
-  onConverted: () => void
+  conversion: ReturnType<typeof useFormatConversion>
 }) {
-  const conversion = useFormatConversion(open, onConverted)
   const [view, setView] = useState<'candidates' | 'failed'>('candidates')
   const [failedPage, setFailedPage] = useState(1)
   const { data, failures, running, progress, pageSize } = conversion
@@ -33,7 +30,7 @@ export function StepFormatConversion({
   const items =
     view === 'failed'
       ? failedItems.slice((page - 1) * pageSize, page * pageSize)
-      : (data?.items ?? [])
+      : conversion.items
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
@@ -85,7 +82,8 @@ export function StepFormatConversion({
           />
           已处理 {progress.completed}/{progress.total}，成功{' '}
           {progress.succeeded}，失败或源图保留 {progress.failed}
-          {conversion.stopping && '；当前请求完成后停止'}
+          {running && `，同时处理 ${conversion.activeIds.length} 张`}
+          {conversion.stopping && '；已发出的请求完成后停止'}
         </div>
       )}
       {conversion.queryError && (
@@ -167,8 +165,8 @@ export function StepFormatConversion({
                     <Button
                       size="small"
                       type="primary"
-                      loading={conversion.currentId === item.id}
-                      disabled={running}
+                      loading={conversion.activeIds.includes(item.id)}
+                      disabled={running || conversion.loading}
                       onClick={() => void conversion.run(item)}
                     >
                       {failure?.committed

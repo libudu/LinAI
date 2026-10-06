@@ -7,6 +7,7 @@ export type OrganizeStepKey = 'convert' | 'classify' | 'running' | 'confirm'
 
 interface StepNavBarProps {
   currentStep: OrganizeStepKey
+  showFormatConversion: boolean
   onChange: (step: OrganizeStepKey) => void
   status: OrganizeStatus | null
   task: OrganizeTaskView | null
@@ -14,6 +15,7 @@ interface StepNavBarProps {
 
 export const StepNavBar: React.FC<StepNavBarProps> = ({
   currentStep,
+  showFormatConversion,
   onChange,
   status,
   task,
@@ -71,18 +73,20 @@ export const StepNavBar: React.FC<StepNavBarProps> = ({
 
   return (
     <div className="flex w-full shrink-0 flex-row gap-2 border-b border-slate-200 pb-2.5 md:w-40 md:flex-col md:gap-3 md:border-r md:border-b-0 md:pr-3 md:pb-0 dark:border-slate-700">
-      <button
-        type="button"
-        onClick={() => onChange('convert')}
-        className={`flex min-w-0 flex-1 flex-col gap-1 rounded-xl border p-2 text-left sm:p-3 md:flex-none ${currentStep === 'convert' ? 'border-sky-500 bg-sky-50' : 'border-slate-200 bg-slate-50 hover:border-sky-300'}`}
-      >
-        <span className="truncate text-xs font-semibold sm:text-sm">
-          格式转换
-        </span>
-        <span className="truncate text-[11px] text-slate-500 sm:text-xs">
-          可选 · HEIC / HEIF
-        </span>
-      </button>
+      {showFormatConversion && (
+        <button
+          type="button"
+          onClick={() => onChange('convert')}
+          className={`flex min-w-0 flex-1 flex-col gap-1 rounded-xl border p-2 text-left sm:p-3 md:flex-none ${currentStep === 'convert' ? 'border-sky-500 bg-sky-50' : 'border-slate-200 bg-slate-50 hover:border-sky-300'}`}
+        >
+          <span className="truncate text-xs font-semibold sm:text-sm">
+            格式转换
+          </span>
+          <span className="truncate text-[11px] text-slate-500 sm:text-xs">
+            可选 · HEIC / HEIF
+          </span>
+        </button>
+      )}
       {/* 01 待添加 */}
       <button
         type="button"

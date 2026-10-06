@@ -6,6 +6,7 @@ import { StepConfirm } from './StepConfirm'
 import { StepFormatConversion } from './StepFormatConversion'
 import { StepNavBar, type OrganizeStepKey } from './StepNavBar'
 import { StepRunning } from './StepRunning'
+import { useFormatConversion } from './hooks/useFormatConversion'
 import { useOrganizeTask } from './hooks/useOrganizeTask'
 import { useOrganizeStatus } from './store'
 
@@ -23,6 +24,14 @@ export function OrganizeModal({
   const task = useOrganizeTask(open, status, loaded)
   const hasInitializedStepRef = useRef(false)
   const [conversionRevision, setConversionRevision] = useState(0)
+  const conversion = useFormatConversion(open, () =>
+    setConversionRevision((revision) => revision + 1),
+  )
+  const showFormatConversion = open && conversion.availableAtOpen === true
+  const activeStep =
+    currentStep === 'convert' && !showFormatConversion
+      ? 'classify'
+      : currentStep
 
   const phase = status?.phase
   // 打开弹窗或状态首次加载时，智能推荐初始展示步骤
@@ -48,10 +57,11 @@ export function OrganizeModal({
   }, [open, loaded, status?.pendingConfirm, status?.failedCount, phase])
 
   useEffect(() => {
-    setEagleLibraryRefreshSuspended(open && phase !== 'done').catch((error) =>
+    // 弹窗内转换/整理的逐项事件只记脏，关闭后统一补拉主页面目录和列表。
+    setEagleLibraryRefreshSuspended(open).catch((error) =>
       console.error('刷新 Eagle 列表失败', error),
     )
-  }, [open, phase])
+  }, [open])
 
   useEffect(() => {
     return () => {
@@ -91,42 +101,38 @@ export function OrganizeModal({
       ) : (
         <div className="flex h-full min-h-0 flex-col gap-3 pt-1 md:flex-row md:gap-4">
           <StepNavBar
-            currentStep={currentStep}
+            currentStep={activeStep}
+            showFormatConversion={showFormatConversion}
             onChange={setCurrentStep}
             status={status}
             task={task}
           />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {open && (
+            {showFormatConversion && (
               <div
                 className={
-                  currentStep === 'convert'
+                  activeStep === 'convert'
                     ? 'flex min-h-0 flex-1 flex-col'
                     : 'hidden'
                 }
               >
-                <StepFormatConversion
-                  open={open}
-                  onConverted={() =>
-                    setConversionRevision((revision) => revision + 1)
-                  }
-                />
+                <StepFormatConversion conversion={conversion} />
               </div>
             )}
-            {currentStep === 'classify' && (
+            {activeStep === 'classify' && (
               <StepClassify
                 conversionRevision={conversionRevision}
                 onClose={onClose}
                 onSuccess={() => setCurrentStep('running')}
               />
             )}
-            {currentStep === 'running' && (
+            {activeStep === 'running' && (
               <StepRunning
                 onSwitchToClassify={() => setCurrentStep('classify')}
                 onSwitchToConfirm={() => setCurrentStep('confirm')}
               />
             )}
-            {currentStep === 'confirm' && (
+            {activeStep === 'confirm' && (
               <StepConfirm
                 task={task}
                 onSwitchToRunning={() => setCurrentStep('running')}
