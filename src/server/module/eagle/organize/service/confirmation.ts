@@ -3,11 +3,12 @@ import type {
   OrganizeFolderStandard,
   OrganizeItemRecord,
 } from '@/shared/eagle/organize'
+import { needsOrganizeRename } from '@/shared/eagle/organize'
 import { EAGLE_UNCLASSIFIED_FOLDER_ID } from '@/shared/eagle/types'
 import {
   findFolderIdByPath,
   folderExists,
-  getItemPresence,
+  getItemSnapshots,
   type UpdateItemPatch,
 } from '../../library'
 import { organizeRepository } from '../storage'
@@ -22,6 +23,7 @@ export type ConfirmationPlan =
 export const prepareConfirmation = async (
   item: OrganizeConfirmItem,
   standards: OrganizeFolderStandard[],
+  modelId: string,
 ): Promise<ConfirmationPlan> => {
   const fail = (status: 404 | 409, error: string): ConfirmationPlan => ({
     kind: 'resolved',
@@ -36,10 +38,13 @@ export const prepareConfirmation = async (
     }
   }
   if (record.status !== 'success') return fail(409, '仅判定成功的结果可以确认')
-  const presence = await getItemPresence(item.itemId)
-  if (presence === 'unavailable')
+  const snapshots = await getItemSnapshots([item.itemId])
+  if (!snapshots)
     return fail(409, 'Eagle 资源库当前不可用，请检查配置后重新确认')
-  if (presence === 'missing') return { kind: 'purged', record }
+  const entry = snapshots.get(item.itemId)
+  if (!entry) return { kind: 'purged', record }
+  const needsRename =
+    record.needsRename !== false && needsOrganizeRename(entry.name, modelId)
 
   const isUnclassified =
     item.folderId === EAGLE_UNCLASSIFIED_FOLDER_ID ||
@@ -61,7 +66,9 @@ export const prepareConfirmation = async (
     record,
     patch: {
       folderIds: isUnclassified ? [] : [folderId!],
-      name: item.withTitle ? record.title : undefined,
+      ...(item.withTitle && needsRename && record.title
+        ? { name: record.title }
+        : {}),
     },
   }
 }

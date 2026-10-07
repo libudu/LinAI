@@ -1,12 +1,30 @@
-import { RelayError, requestRegistry } from '../../common/relay'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import {
+  RelayError,
+  requestRegistry,
+  type RelayRequest,
+} from '../../common/relay'
 import { getEagleVisionEndpoint } from './settings'
 
 type EagleVisionEndpoint = Awaited<ReturnType<typeof getEagleVisionEndpoint>>
 
+const visionEndpointContext = new AsyncLocalStorage<EagleVisionEndpoint>()
+
+/** 服务端单图判定绑定接入点快照，保证提示词判断、实际请求模型与标题后缀一致。 */
+export const executeEagleVisionRequest = (
+  endpoint: EagleVisionEndpoint,
+  request: RelayRequest,
+  signal?: AbortSignal,
+): Promise<Response> =>
+  visionEndpointContext.run(endpoint, () =>
+    requestRegistry.execute('eagle.vision', request, signal),
+  )
+
 // Eagle 图片整理视觉判定中继：与 vision/relay.ts 同构（POST /chat/completions，非流式），
 // 接入点与密钥来自独立的 eagle-vision 设置；执行器在服务端直接调用 requestRegistry.execute
 requestRegistry.register<EagleVisionEndpoint>('eagle.vision', {
-  resolveContext: () => getEagleVisionEndpoint(),
+  resolveContext: () =>
+    visionEndpointContext.getStore() ?? getEagleVisionEndpoint(),
   resolveOrigin: (endpoint) => endpoint.baseUrl,
   allowedMethods: ['POST'],
   allowedPaths: ['/chat/completions'],

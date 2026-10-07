@@ -38,7 +38,14 @@ export function useConfirmQueue(options: UseConfirmResultsOptions) {
       >,
     ) => {
       const removed = takeItem(itemId)
-      if (removed) enqueue({ ...removed, ...decision, itemId })
+      if (removed)
+        enqueue({
+          ...removed,
+          ...decision,
+          itemId,
+          withTitle:
+            removed.originalItem.needsRename !== false && decision.withTitle,
+        })
     },
     [enqueue, takeItem],
   )

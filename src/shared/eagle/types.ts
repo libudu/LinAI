@@ -1,5 +1,8 @@
 // Eagle 图片管理模块共享类型（前后端共用，无 UI / Node 依赖）
 
+/** 本应用写入 Eagle 的条目名称长度上限。 */
+export const EAGLE_ITEM_NAME_MAX_LENGTH = 120
+
 /** 文件夹树虚拟节点：筛选未归入任何 Eagle 文件夹的条目 */
 export const EAGLE_UNCLASSIFIED_FOLDER_ID = '__unclassified__'
 

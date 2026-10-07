@@ -12,10 +12,12 @@ export function useConfirmSelection({
   taskCreatedAt,
   selectedId,
   folderPaths = EMPTY_PATHS,
+  needsRename = true,
 }: {
   taskCreatedAt?: number
   selectedId: string | null
   folderPaths?: string[]
+  needsRename?: boolean
 }) {
   const [titleDisabledIds, setTitleDisabledIds] = useState<Set<string>>(
     () => new Set(),
@@ -132,7 +134,7 @@ export function useConfirmSelection({
   )
   const handleToggleTitle = useCallback(
     (enabled: boolean) => {
-      if (!selectedId) return
+      if (!selectedId || !needsRename) return
       setTitleDisabledIds((current) => {
         const next = new Set(current)
         if (enabled) next.delete(selectedId)
@@ -140,7 +142,7 @@ export function useConfirmSelection({
         return next
       })
     },
-    [selectedId],
+    [selectedId, needsRename],
   )
 
   return {
@@ -157,6 +159,6 @@ export function useConfirmSelection({
     recordManualFolderUsage,
     isTitleEnabled,
     handleToggleTitle,
-    withTitle: selectedId ? isTitleEnabled(selectedId) : true,
+    withTitle: needsRename && (selectedId ? isTitleEnabled(selectedId) : true),
   }
 }

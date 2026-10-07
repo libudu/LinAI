@@ -6,6 +6,7 @@ import type {
   OrganizeResultDetail,
   OrganizeResultListItem,
 } from '@/shared/eagle/organize'
+import { needsOrganizeRename } from '@/shared/eagle/organize'
 import {
   deleteItem,
   getItemDetail,
@@ -15,6 +16,7 @@ import {
   updateItem,
   updateItems,
 } from '../../library'
+import { getEagleVisionEndpoint } from '../../settings'
 import { organizeExecutor } from '../executor'
 import { organizeRepository } from '../storage'
 import { transitionTask } from '../transitions'
@@ -51,11 +53,17 @@ export class ResultService {
   ): Promise<OrganizeResultListItem[]> {
     const list = await organizeRepository.listItems(status, options)
     // 分页后再查询素材投影，limit 较小时不再生成全结果的 ID/摘要 Map。
-    const itemMap = await getItemSnapshots(list.map((item) => item.itemId))
+    const [itemMap, endpoint] = await Promise.all([
+      getItemSnapshots(list.map((item) => item.itemId)),
+      getEagleVisionEndpoint(),
+    ])
     return list.map((item) => {
       const entry = itemMap?.get(item.itemId)
       return {
         ...item,
+        needsRename:
+          item.needsRename !== false &&
+          needsOrganizeRename(entry?.name ?? '', endpoint.modelId),
         mtime: entry?.mtime ?? 0,
         width: entry?.width,
         height: entry?.height,
@@ -82,7 +90,10 @@ export class ResultService {
       : await organizeRepository.getItemSummaries(changedIds)
     const succeeded = summaries.filter((item) => item.status === 'success')
     const successIds = new Set(succeeded.map((item) => item.itemId))
-    const itemMap = await getItemSnapshots(succeeded.map((item) => item.itemId))
+    const [itemMap, endpoint] = await Promise.all([
+      getItemSnapshots(succeeded.map((item) => item.itemId)),
+      getEagleVisionEndpoint(),
+    ])
     return {
       resultsVersion: results.version,
       libraryVersion: library.version,
@@ -92,6 +103,9 @@ export class ResultService {
         const entry = itemMap?.get(item.itemId)
         return {
           ...item,
+          needsRename:
+            item.needsRename !== false &&
+            needsOrganizeRename(entry?.name ?? '', endpoint.modelId),
           mtime: entry?.mtime ?? 0,
           width: entry?.width,
           height: entry?.height,
@@ -121,9 +135,17 @@ export class ResultService {
   async getResult(itemId: string): Promise<OrganizeResultDetail | null> {
     const record = await organizeRepository.getItem(itemId)
     if (!record) return null
-    const entry = await getItemDetail(itemId)
+    const [entry, endpoint] = await Promise.all([
+      getItemDetail(itemId),
+      getEagleVisionEndpoint(),
+    ])
+    const needsRename =
+      record.needsRename !== false &&
+      needsOrganizeRename(entry?.name ?? '', endpoint.modelId)
     return {
       ...record,
+      needsRename,
+      title: needsRename ? record.title : undefined,
       itemName: entry?.name ?? null,
       itemFolderPaths: entry?.folderPaths ?? [],
       width: entry?.width,
@@ -163,10 +185,14 @@ export class ResultService {
         })),
       }
     }
+    const endpoint = await getEagleVisionEndpoint()
     const plans = new Map<string, ConfirmationPlan>()
     for (const item of items) {
       if (!plans.has(item.itemId))
-        plans.set(item.itemId, await prepareConfirmation(item, task.standards))
+        plans.set(
+          item.itemId,
+          await prepareConfirmation(item, task.standards, endpoint.modelId),
+        )
     }
     const results = new Map<string, OrganizeConfirmItemResult>()
     const records: OrganizeItemRecord[] = []

@@ -1,4 +1,5 @@
 /** 库访问的内部基础设施：路径、格式约束、写锁与变更资源注册。 */
+import { EAGLE_ITEM_NAME_MAX_LENGTH } from '@/shared/eagle/types'
 import path from 'path'
 import { changeBus } from '../../../common/storage/change-bus'
 import { dataPath } from '../../../common/storage/data-path'
@@ -44,7 +45,7 @@ export const sanitizeItemName = (name: string): string =>
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/[\s.]+$/, '')
-    .slice(0, 120)
+    .slice(0, EAGLE_ITEM_NAME_MAX_LENGTH)
     .trim()
 
 /** Eagle 资源库操作互斥锁：确保对同一资源库的写操作与增量校验串行执行 */

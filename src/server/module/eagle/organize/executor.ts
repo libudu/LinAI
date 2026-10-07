@@ -234,6 +234,7 @@ class OrganizeExecutor {
       record = {
         itemId,
         status: 'success',
+        needsRename: outcome.needsRename,
         title: outcome.title,
         folderPaths: outcome.folderPaths,
         lowQuality: outcome.lowQuality,

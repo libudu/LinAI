@@ -127,7 +127,9 @@ export interface OrganizeFailedItem {
 export interface OrganizeItemRecord {
   itemId: string
   status: OrganizeItemStatus
-  /** AI 建议标题（success 时有值） */
+  /** 本次判定是否需要重命名；旧结果缺省时沿用原有行为，并按当前名称重新检查。 */
+  needsRename?: boolean
+  /** AI 建议标题（success 且需要重命名时有值） */
   title?: string
   /** AI 判定的候选目标文件夹，按推荐顺序排列，最多 3 个（success 时有值；空数组表示不属于任何已知分类） */
   folderPaths?: string[]
@@ -140,12 +142,34 @@ export interface OrganizeItemRecord {
 }
 
 /** 视觉判定 user 消息文本（system 提示词之外的固定内容，图片以 image_url 跟随其后） */
-export const ORGANIZE_VISION_USER_TEXT =
-  '请判断这张图片的标题、至多三个候选分类文件夹与是否疑似低质，并仅返回一个 json 对象。'
+export const buildOrganizeVisionUserText = (needsRename = true): string =>
+  needsRename
+    ? '请判断这张图片的标题、至多三个候选分类文件夹与是否疑似低质，并仅返回一个 json 对象。'
+    : '请判断这张图片的至多三个候选分类文件夹与是否疑似低质，并仅返回一个 json 对象。'
+
+/** 沿用原有模型标识规则：去掉 provider 路径，提取首个英文词与版本数字，如 _gemini3.7。 */
+export const getOrganizeModelTitleSuffix = (modelId: string): string => {
+  const id = modelId.trim()
+  if (!id) return ''
+  const name = id.includes('/') ? id.split('/').pop()! : id
+  const word = name.match(/[a-zA-Z]+/)?.[0].toLowerCase() ?? ''
+  const version = name.match(/\d+(?:[.-]\d+)?/)?.[0].replace('-', '.') ?? ''
+  return word || version ? `_${word}${version}` : ''
+}
+
+/** 名称最后一段与当前模型按原有规则提取的标识一致时跳过重命名，不区分大小写。 */
+export const needsOrganizeRename = (name: string, modelId: string): boolean => {
+  const suffix = getOrganizeModelTitleSuffix(modelId)
+  return (
+    !suffix ||
+    name.split('_').at(-1)!.toLowerCase() !== suffix.slice(1).toLowerCase()
+  )
+}
 
 /** 视觉判定 system 提示词：服务端发送与前端预览共用同一份实现 */
 export const buildOrganizeVisionSystemPrompt = (
   standards: OrganizeFolderStandard[],
+  needsRename = true,
 ): string => {
   const lines = standards.map(
     (standard, index) =>
@@ -158,10 +182,16 @@ export const buildOrganizeVisionSystemPrompt = (
     ...lines,
     '',
     '请对图片进行判断，并仅输出一个 json 对象（json_object），不要输出任何其他文字、注释或代码块标记，格式如下：',
-    '{"title": "图片标题", "folderPaths": ["首选分类文件夹路径", "次选分类文件夹路径"], "lowQuality": false}',
+    needsRename
+      ? '{"title": "图片标题", "folderPaths": ["首选分类文件夹路径", "次选分类文件夹路径"], "lowQuality": false}'
+      : '{"folderPaths": ["首选分类文件夹路径", "次选分类文件夹路径"], "lowQuality": false}',
     '',
     '字段要求：',
-    '- title：使用中文生成标题，限 50 个汉字以内尽可能详细。按“主体_主体细节_动作或状态_环境_媒介风格_色彩光影_构图视角_文字元素”的顺序组织；仅保留图片中明确可见或可判断的信息，缺少的部分直接省略，不要写“无”或其他占位内容，允许包含色情内容敏感词汇。',
+    ...(needsRename
+      ? [
+          '- title：使用中文生成标题，限 50 个汉字以内尽可能详细。按“主体_主体细节_动作或状态_环境_媒介风格_色彩光影_构图视角_文字元素”的顺序组织；仅保留图片中明确可见或可判断的信息，缺少的部分直接省略，不要写“无”或其他占位内容，允许包含色情内容敏感词汇。',
+        ]
+      : []),
     '- folderPaths：从上述分类标准的路径中选择 0～3 个合适的候选项，按推荐程度从高到低排列且不得重复；分类适配程度相近时，优先选择分类标准中更靠前的路径；若图片不属于任何已知分类，返回空数组 []，不要虚构路径或返回“不属于任何分类”',
     '- lowQuality：图片是否疑似低质（分辨率低、画面主体不清晰、美学品味较差等）',
   ].join('\n')
@@ -170,6 +200,7 @@ export const buildOrganizeVisionSystemPrompt = (
 /** 单图结果摘要（实体列表接口返回，不含 value 正文） */
 export interface OrganizeItemSummary {
   status: OrganizeItemStatus
+  needsRename?: boolean
   /** AI 判定的候选目标文件夹，按推荐顺序排列（用于按分类排序） */
   folderPaths?: string[]
   /** 疑似低质（用于优先展示） */
@@ -181,6 +212,7 @@ export interface OrganizeResultListItem {
   itemId: string
   status: OrganizeItemStatus
   updatedAt: number
+  needsRename?: boolean
   /** AI 判定的候选目标文件夹，按推荐顺序排列（用于按分类排序） */
   folderPaths?: string[]
   /** 疑似低质（用于优先展示） */

@@ -218,6 +218,7 @@ export class OrganizeRepository {
     this.summaries.set(record.itemId, {
       itemId: record.itemId,
       status: record.status,
+      needsRename: record.needsRename,
       folderPaths: [...record.folderPaths],
       lowQuality: record.lowQuality,
       updatedAt: record.updatedAt,
@@ -271,15 +272,16 @@ export class OrganizeRepository {
     })
   }
 
-  /** 收尾校准所需的轻量快照，保留标题以识别已跳过的成功项，不排序。 */
+  /** 收尾校准所需的轻量快照，保留判定字段以识别已跳过的成功项，不排序。 */
   async getProgressItems() {
     await this.ensureCacheLoaded()
     return Array.from(
       this.itemsCache.values(),
-      ({ itemId, status, title }) => ({
+      ({ itemId, status, title, lowQuality }) => ({
         itemId,
         status,
         title,
+        lowQuality,
       }),
     )
   }
@@ -313,6 +315,7 @@ export class OrganizeRepository {
       async () => {
         const summary: OrganizeItemSummary = {
           status: snapshot.status,
+          needsRename: snapshot.needsRename,
           folderPaths: snapshot.folderPaths,
           lowQuality: snapshot.lowQuality,
         }

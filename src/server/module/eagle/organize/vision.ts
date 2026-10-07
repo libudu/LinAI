@@ -1,13 +1,16 @@
 import type { OrganizeFolderStandard } from '@/shared/eagle/organize'
 import {
-  ORGANIZE_VISION_USER_TEXT,
   buildOrganizeVisionSystemPrompt,
+  buildOrganizeVisionUserText,
+  getOrganizeModelTitleSuffix,
+  needsOrganizeRename,
 } from '@/shared/eagle/organize'
+import { EAGLE_ITEM_NAME_MAX_LENGTH } from '@/shared/eagle/types'
 import fs from 'fs-extra'
 import sharp from 'sharp'
 import { z } from 'zod'
-import { requestRegistry } from '../../../common/relay'
 import { getItemMediaSource } from '../library'
+import { executeEagleVisionRequest } from '../relay'
 import { getEagleVisionEndpoint } from '../settings'
 import {
   EAGLE_VISION_IMAGE_MAX_DIMENSION,
@@ -21,44 +24,19 @@ import {
  */
 
 export interface VisionJudgeOutcome {
-  title: string
+  needsRename: boolean
+  title?: string
   folderPaths: string[]
   lowQuality: boolean
 }
 
-/**
- * 提取模型标识后缀：_【模型第一个词】【模型数字】
- * 用于在生成图片标题之后标识起标题的模型。
- * 例如：
- * - gemini-3.7-flash-high -> _gemini3.7
- * - gpt-5.6 -> _gpt5.6
- * - gpt-5.6-terra -> _gpt5.6
- * - claude-3-7-sonnet -> _claude3.7
- */
-const getModelTitleSuffix = (modelId?: string): string => {
-  if (!modelId || typeof modelId !== 'string') return ''
-  const trimmed = modelId.trim()
-  if (!trimmed) return ''
-
-  // 去除可能的 provider 路径前缀（如 "google/gemini-3.7-flash" -> "gemini-3.7-flash"）
-  const name = trimmed.includes('/') ? trimmed.split('/').pop()! : trimmed
-
-  // 提取第一个英文单词（连续字母）
-  const wordMatch = name.match(/[a-zA-Z]+/)
-  const word = wordMatch ? wordMatch[0].toLowerCase() : ''
-
-  // 提取模型版本数字（支持 3.7、3-7、5.6、4 等形式并转为小数点格式）
-  const versionMatch = name.match(/\d+(?:[.-]\d+)?/)
-  const num = versionMatch ? versionMatch[0].replace('-', '.') : ''
-
-  if (!word && !num) return ''
-  return `_${word}${num}`
-}
-
 const judgeResponseSchema = z.object({
-  title: z.string().min(1).max(200),
   folderPaths: z.array(z.string().min(1)).max(3),
   lowQuality: z.boolean(),
+})
+
+const judgeTitleResponseSchema = judgeResponseSchema.extend({
+  title: z.string().min(1).max(200),
 })
 
 const MIME_BY_EXT: Record<string, string> = {
@@ -148,20 +126,26 @@ export const judgeItem = async (
     options.compress,
   )
 
-  const response = await requestRegistry.execute(
-    'eagle.vision',
+  const endpoint = await getEagleVisionEndpoint()
+  const needsRename = needsOrganizeRename(source.name, endpoint.modelId)
+
+  const response = await executeEagleVisionRequest(
+    endpoint,
     {
       path: '/chat/completions',
       body: {
         messages: [
           {
             role: 'system',
-            content: buildOrganizeVisionSystemPrompt(options.standards),
+            content: buildOrganizeVisionSystemPrompt(
+              options.standards,
+              needsRename,
+            ),
           },
           {
             role: 'user',
             content: [
-              { type: 'text', text: ORGANIZE_VISION_USER_TEXT },
+              { type: 'text', text: buildOrganizeVisionUserText(needsRename) },
               { type: 'image_url', image_url: { url: dataUrl } },
             ],
           },
@@ -219,14 +203,19 @@ export const judgeItem = async (
   if (unknownPath) {
     throw new Error(`判定的文件夹不在分类标准中：${unknownPath}`)
   }
-  const endpoint = await getEagleVisionEndpoint()
-  const suffix = getModelTitleSuffix(endpoint.modelId)
-  const title = suffix
-    ? `${validated.data.title}${suffix}`
-    : validated.data.title
+  // 仅分类时不读取、校验或保留上游意外返回的标题，也不追加模型标识。
+  if (!needsRename) return { ...validated.data, needsRename }
+  const titled = judgeTitleResponseSchema.safeParse(parsed)
+  if (!titled.success) throw new Error('视觉返回的 JSON 结构不符合要求')
+  const suffix = getOrganizeModelTitleSuffix(endpoint.modelId)
+  const titleBudget = EAGLE_ITEM_NAME_MAX_LENGTH - suffix.length
+  if (titleBudget < 1) throw new Error('模型 ID 过长，无法保存在图片名称末段')
+  // 为模型标识预留长度，避免写库时截断后缀而导致同模型反复重命名。
+  const title = `${titled.data.title.slice(0, titleBudget)}${suffix}`
 
   return {
     ...validated.data,
+    needsRename,
     title,
   }
 }

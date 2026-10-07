@@ -1,8 +1,8 @@
 import {
   ORGANIZE_CONCURRENCY_MAX,
   ORGANIZE_CONCURRENCY_MIN,
-  ORGANIZE_VISION_USER_TEXT,
   buildOrganizeVisionSystemPrompt,
+  buildOrganizeVisionUserText,
   type OrganizeClassificationMode,
 } from '@/shared/eagle/organize'
 import {
@@ -31,6 +31,7 @@ export function StepClassify({
   conversionRevision?: number
 }) {
   const [promptOpen, setPromptOpen] = useState(false)
+  const [promptNeedsRename, setPromptNeedsRename] = useState(true)
   const {
     prepare,
     loading,
@@ -229,19 +230,28 @@ export function StepClassify({
       >
         <div className="flex flex-col gap-3">
           <div className="text-xs text-slate-500 dark:text-slate-400">
-            每张图片都会按下面的内容调用视觉模型：system 提示词相同，user
-            消息的文本部分固定、图片紧随其后上传。
+            模型标识沿用「首个英文词 + 版本数字」规则（如 gemini3.7）。名称按 _
+            分段后，最后一段与当前接入点的模型标识相同（不区分大小写）时仅分类，
+            标识不同则重新生成标题。图片紧随 user 文本上传。
           </div>
+          <Segmented<'rename' | 'classify'>
+            value={promptNeedsRename ? 'rename' : 'classify'}
+            options={[
+              { value: 'rename', label: '分类并重命名' },
+              { value: 'classify', label: '仅分类' },
+            ]}
+            onChange={(value) => setPromptNeedsRename(value === 'rename')}
+          />
           <div>
             <div className="mb-1 text-xs font-medium">System</div>
             <pre className="max-h-80 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs whitespace-pre-wrap dark:border-slate-700 dark:bg-slate-800/60">
-              {buildOrganizeVisionSystemPrompt(standards)}
+              {buildOrganizeVisionSystemPrompt(standards, promptNeedsRename)}
             </pre>
           </div>
           <div>
             <div className="mb-1 text-xs font-medium">User（文本部分）</div>
             <pre className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs whitespace-pre-wrap dark:border-slate-700 dark:bg-slate-800/60">
-              {ORGANIZE_VISION_USER_TEXT}
+              {buildOrganizeVisionUserText(promptNeedsRename)}
             </pre>
           </div>
         </div>

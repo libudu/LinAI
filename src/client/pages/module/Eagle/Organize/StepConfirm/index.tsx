@@ -96,6 +96,7 @@ export function StepConfirm({
     taskCreatedAt: task?.createdAt,
     selectedId,
     folderPaths: detail?.folderPaths,
+    needsRename: detail?.needsRename,
   })
 
   const canConfirm = Boolean(

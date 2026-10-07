@@ -146,29 +146,33 @@ export function DetailPanel({
               </div>
             </div>
             <div>
-              <div className="text-xs text-slate-400">原标题</div>
+              <div className="text-xs text-slate-400">
+                {detail.needsRename === false ? '文件名' : '原标题'}
+              </div>
               <div className="break-all">
                 {detail.itemName ?? '（条目已不在库中）'}
               </div>
             </div>
           </div>
 
-          <div>
-            <div className="text-xs text-slate-400">建议标题</div>
-            <Checkbox
-              className="items-start"
-              checked={withTitle}
-              onChange={(event) => onToggleTitle(event.target.checked)}
-            >
-              <span
-                className={`break-all transition-colors ${
-                  withTitle ? '' : 'text-slate-400 dark:text-slate-500'
-                }`}
+          {detail.needsRename !== false && (
+            <div>
+              <div className="text-xs text-slate-400">建议标题</div>
+              <Checkbox
+                className="items-start"
+                checked={withTitle}
+                onChange={(event) => onToggleTitle(event.target.checked)}
               >
-                {detail.title}
-              </span>
-            </Checkbox>
-          </div>
+                <span
+                  className={`break-all transition-colors ${
+                    withTitle ? '' : 'text-slate-400 dark:text-slate-500'
+                  }`}
+                >
+                  {detail.title}
+                </span>
+              </Checkbox>
+            </div>
+          )}
 
           <div>
             <div className="mb-1 text-xs text-slate-400">选择目标文件夹</div>
