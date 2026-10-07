@@ -220,7 +220,9 @@ export const judgeItem = async (
     : parsed
   // 子目录图片已预先筛选，不要求或保留模型意外返回的低质标记。
   const subfolders = options.classificationMode === 'subfolders'
-  const responseSchema = subfolders ? subfolderResponseSchema : judgeResponseSchema
+  const responseSchema = subfolders
+    ? subfolderResponseSchema
+    : judgeResponseSchema
   const validated = responseSchema.safeParse(judgeData)
   if (!validated.success) {
     throw new Error('视觉返回的 JSON 结构不符合要求')
