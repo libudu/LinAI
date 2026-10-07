@@ -38,6 +38,7 @@ export interface OrganizeFolderStandard {
 export interface OrganizeStatus {
   /** 修改请求必须携带的任务身份，创建时间仅用于展示与历史排序。 */
   taskId: string
+  classificationMode: OrganizeClassificationMode
   /** 任务创建时间 */
   createdAt: number
   phase: OrganizePhase

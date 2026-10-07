@@ -11,9 +11,11 @@ import { useRunningTask } from './hooks/useRunningTask'
 export function StepRunning({
   onSwitchToConfirm,
   onSwitchToClassify,
+  renameOnly = false,
 }: {
   onSwitchToConfirm?: () => void
   onSwitchToClassify?: () => void
+  renameOnly?: boolean
 }) {
   const {
     phase,
@@ -42,6 +44,7 @@ export function StepRunning({
       {isAllCompletedAndClean ? (
         /* 全部完成且无错误：居中展示继续添加 / 开始确认卡片 */
         <CompletedCards
+          renameOnly={renameOnly}
           onSwitchToClassify={onSwitchToClassify}
           onSwitchToConfirm={onSwitchToConfirm}
           addSubtitle={getAddSubtitle()}

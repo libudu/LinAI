@@ -30,6 +30,7 @@ export const isEqualStatus = (
   (!!a &&
     !!b &&
     a.taskId === b.taskId &&
+    a.classificationMode === b.classificationMode &&
     a.createdAt === b.createdAt &&
     a.phase === b.phase &&
     a.total === b.total &&

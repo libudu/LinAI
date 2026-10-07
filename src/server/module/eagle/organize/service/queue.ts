@@ -31,7 +31,12 @@ export class QueueService {
         state = 'processing'
       } else {
         const status = statusById.get(itemId)
-        if (!status || status === 'pending') {
+        if (
+          !status ||
+          status === 'pending' ||
+          (task.classificationMode === 'recursive-rename' &&
+            status === 'success')
+        ) {
           state = 'pending'
         } else if (status === 'failed') {
           state = 'failed'

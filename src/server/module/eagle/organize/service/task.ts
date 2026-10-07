@@ -103,10 +103,20 @@ export class TaskService {
       const task = await organizeRepository.getTask()
       if (!task) return
       await organizeRepository.mutateTask(async (latest) => {
-        const reconciled = transitionTask(latest, {
+        let reconciled = transitionTask(latest, {
           type: 'reconcile',
           items: await organizeRepository.getProgressItems(),
         })!
+        // 旧版待确认结果及写库后尚未落盘状态的结果，恢复后交给执行器直接改名。
+        if (
+          reconciled.classificationMode === 'recursive-rename' &&
+          reconciled.pendingConfirm > 0
+        )
+          reconciled = transitionTask(reconciled, {
+            type: 'items-changed',
+            changes: [],
+            resume: true,
+          })!
         return reconciled.phase === 'running'
           ? transitionTask(reconciled, { type: 'pause', reason: 'restart' })
           : reconciled
@@ -123,6 +133,7 @@ export class TaskService {
     if (!task) return null
     return {
       taskId: task.taskId,
+      classificationMode: task.classificationMode,
       createdAt: task.createdAt,
       phase: task.phase,
       total: task.itemIds.length,

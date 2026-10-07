@@ -8,6 +8,7 @@ export type OrganizeStepKey = 'convert' | 'classify' | 'running' | 'confirm'
 interface StepNavBarProps {
   currentStep: OrganizeStepKey
   showFormatConversion: boolean
+  showConfirm: boolean
   onChange: (step: OrganizeStepKey) => void
   status: OrganizeStatus | null
   task: OrganizeTaskView | null
@@ -16,6 +17,7 @@ interface StepNavBarProps {
 export const StepNavBar: React.FC<StepNavBarProps> = ({
   currentStep,
   showFormatConversion,
+  showConfirm,
   onChange,
   status,
   task,
@@ -41,7 +43,7 @@ export const StepNavBar: React.FC<StepNavBarProps> = ({
 
   const getAddSubtitle = () => {
     if (!hasActiveTask) {
-      return '新建分类任务'
+      return showConfirm ? '新建分类任务' : '新建重命名任务'
     }
     return '从任意文件夹追加图片'
   }
@@ -178,39 +180,43 @@ export const StepNavBar: React.FC<StepNavBarProps> = ({
       </button>
 
       {/* 03 待确认 */}
-      <button
-        type="button"
-        disabled={isStepConfirmDisabled}
-        onClick={() => !isStepConfirmDisabled && onChange('confirm')}
-        className={`group flex min-w-0 flex-1 flex-col gap-1 rounded-xl border p-2 text-left transition-all sm:gap-1.5 sm:p-3 md:flex-none ${
-          isStepConfirmDisabled
-            ? 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-40 dark:border-slate-800 dark:bg-slate-900/30'
-            : currentStep === 'confirm'
-              ? 'border-emerald-500 bg-emerald-50 shadow-xs dark:border-emerald-500 dark:bg-emerald-950/40'
-              : 'border-emerald-200/60 bg-emerald-50/30 hover:border-emerald-300 hover:bg-emerald-50/60 dark:border-emerald-900/40 dark:bg-emerald-950/15 dark:hover:border-emerald-800'
-        }`}
-      >
-        <div className="flex items-center justify-between">
-          <span
-            className={`truncate text-xs font-semibold sm:text-sm ${
-              currentStep === 'confirm'
-                ? 'text-emerald-600 dark:text-emerald-400'
-                : 'text-slate-800 dark:text-slate-200'
-            }`}
-          >
-            03 待确认
-          </span>
-        </div>
-        <div
-          className={`truncate text-[11px] sm:text-xs ${
-            currentStep === 'confirm'
-              ? 'text-emerald-600/80 dark:text-emerald-400/80'
-              : 'text-slate-500 dark:text-slate-400'
+      {showConfirm && (
+        <button
+          type="button"
+          disabled={isStepConfirmDisabled}
+          onClick={() => !isStepConfirmDisabled && onChange('confirm')}
+          className={`group flex min-w-0 flex-1 flex-col gap-1 rounded-xl border p-2 text-left transition-all sm:gap-1.5 sm:p-3 md:flex-none ${
+            isStepConfirmDisabled
+              ? 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-40 dark:border-slate-800 dark:bg-slate-900/30'
+              : currentStep === 'confirm'
+                ? 'border-emerald-500 bg-emerald-50 shadow-xs dark:border-emerald-500 dark:bg-emerald-950/40'
+                : 'border-emerald-200/60 bg-emerald-50/30 hover:border-emerald-300 hover:bg-emerald-50/60 dark:border-emerald-900/40 dark:bg-emerald-950/15 dark:hover:border-emerald-800'
           }`}
         >
-          {isStepConfirmDisabled ? '暂无待确认' : `${pendingConfirm} 张待查验`}
-        </div>
-      </button>
+          <div className="flex items-center justify-between">
+            <span
+              className={`truncate text-xs font-semibold sm:text-sm ${
+                currentStep === 'confirm'
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-slate-800 dark:text-slate-200'
+              }`}
+            >
+              03 待确认
+            </span>
+          </div>
+          <div
+            className={`truncate text-[11px] sm:text-xs ${
+              currentStep === 'confirm'
+                ? 'text-emerald-600/80 dark:text-emerald-400/80'
+                : 'text-slate-500 dark:text-slate-400'
+            }`}
+          >
+            {isStepConfirmDisabled
+              ? '暂无待确认'
+              : `${pendingConfirm} 张待查验`}
+          </div>
+        </button>
+      )}
     </div>
   )
 }

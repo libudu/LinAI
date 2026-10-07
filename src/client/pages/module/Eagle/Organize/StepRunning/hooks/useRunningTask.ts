@@ -218,7 +218,10 @@ export function useRunningTask() {
     if (!status) return
     Modal.confirm({
       title: '清空整理任务？',
-      content: '将强制停止所有请求并丢弃当前结果，回到第一步。',
+      content:
+        status.classificationMode === 'recursive-rename'
+          ? '将强制停止后续处理并清空任务记录，已修改的文件名会保留，回到第一步。'
+          : '将强制停止所有请求并丢弃当前结果，回到第一步。',
       okText: '清空',
       okType: 'danger',
       cancelText: '取消',

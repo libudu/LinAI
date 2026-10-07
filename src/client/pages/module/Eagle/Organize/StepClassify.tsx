@@ -15,7 +15,7 @@ import {
   Spin,
   Tooltip,
 } from 'antd'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { QueueList } from './StepRunning/QueueList'
 import { useClassifyTask } from './hooks/useClassifyTask'
 
@@ -26,10 +26,12 @@ export function StepClassify({
   onClose,
   onSuccess,
   conversionRevision,
+  onClassificationModeChange,
 }: {
   onClose: () => void
   onSuccess?: () => void
   conversionRevision?: number
+  onClassificationModeChange?: (mode: OrganizeClassificationMode) => void
 }) {
   const [promptOpen, setPromptOpen] = useState(false)
   const [promptNeedsRename, setPromptNeedsRename] = useState(true)
@@ -56,6 +58,9 @@ export function StepClassify({
   } = useClassifyTask(onSuccess, conversionRevision)
   const renameOnly = classificationMode === 'recursive-rename'
   const missingStandards = !renameOnly && standards.length === 0
+  useEffect(() => {
+    onClassificationModeChange?.(classificationMode)
+  }, [classificationMode, onClassificationModeChange])
 
   if (loading) {
     return (
@@ -86,7 +91,7 @@ export function StepClassify({
         />
         <span className="text-xs text-slate-400">
           {renameOnly
-            ? '递归检查当前文件夹及所有子目录，仅重命名不符合当前模型命名规则的图片，保留原目录归属'
+            ? '递归检查当前文件夹及所有子目录，直接重命名不符合当前模型命名规则的图片，无需手动确认，保留原目录归属'
             : classificationMode === 'global'
               ? '全库所有有描述的文件夹'
               : `${prepare?.classificationFolderName ?? '当前文件夹'}下所有层级的有描述子目录（不含当前文件夹）`}

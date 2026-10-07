@@ -1,3 +1,4 @@
+import type { OrganizeClassificationMode } from '@/shared/eagle/organize'
 import { Modal, Spin } from 'antd'
 import { useEffect, useRef, useState } from 'react'
 import { setEagleLibraryRefreshSuspended } from '../store'
@@ -21,6 +22,8 @@ export function OrganizeModal({
 }) {
   const { status, loaded } = useOrganizeStatus()
   const [currentStep, setCurrentStep] = useState<OrganizeStepKey>('classify')
+  const [selectedClassificationMode, setSelectedClassificationMode] =
+    useState<OrganizeClassificationMode>('global')
   const task = useOrganizeTask(open, status, loaded)
   const hasInitializedStepRef = useRef(false)
   const [conversionRevision, setConversionRevision] = useState(0)
@@ -28,10 +31,17 @@ export function OrganizeModal({
     setConversionRevision((revision) => revision + 1),
   )
   const showFormatConversion = open && conversion.availableAtOpen === true
+  const classificationMode =
+    status && (status.phase !== 'done' || currentStep !== 'classify')
+      ? status.classificationMode
+      : selectedClassificationMode
+  const showConfirm = classificationMode !== 'recursive-rename'
   const activeStep =
     currentStep === 'convert' && !showFormatConversion
       ? 'classify'
-      : currentStep
+      : currentStep === 'confirm' && !showConfirm
+        ? 'running'
+        : currentStep
 
   const phase = status?.phase
   // 打开弹窗或状态首次加载时，智能推荐初始展示步骤
@@ -42,19 +52,32 @@ export function OrganizeModal({
     }
     if (loaded && !hasInitializedStepRef.current) {
       hasInitializedStepRef.current = true
-      if (status?.pendingConfirm && status.pendingConfirm > 0) {
+      if (
+        status?.classificationMode !== 'recursive-rename' &&
+        status?.pendingConfirm &&
+        status.pendingConfirm > 0
+      ) {
         setCurrentStep('confirm')
       } else if (
         phase === 'running' ||
         phase === 'paused' ||
-        (status?.failedCount ?? 0) > 0
+        (status?.failedCount ?? 0) > 0 ||
+        (status?.classificationMode === 'recursive-rename' &&
+          (status.pendingConfirm ?? 0) > 0)
       ) {
         setCurrentStep('running')
       } else {
         setCurrentStep('classify')
       }
     }
-  }, [open, loaded, status?.pendingConfirm, status?.failedCount, phase])
+  }, [
+    open,
+    loaded,
+    status?.pendingConfirm,
+    status?.failedCount,
+    status?.classificationMode,
+    phase,
+  ])
 
   useEffect(() => {
     // 弹窗内转换/整理的逐项事件只记脏，关闭后统一补拉主页面目录和列表。
@@ -103,6 +126,7 @@ export function OrganizeModal({
           <StepNavBar
             currentStep={activeStep}
             showFormatConversion={showFormatConversion}
+            showConfirm={showConfirm}
             onChange={setCurrentStep}
             status={status}
             task={task}
@@ -122,6 +146,7 @@ export function OrganizeModal({
             {activeStep === 'classify' && (
               <StepClassify
                 conversionRevision={conversionRevision}
+                onClassificationModeChange={setSelectedClassificationMode}
                 onClose={onClose}
                 onSuccess={() => setCurrentStep('running')}
               />
@@ -129,7 +154,10 @@ export function OrganizeModal({
             {activeStep === 'running' && (
               <StepRunning
                 onSwitchToClassify={() => setCurrentStep('classify')}
-                onSwitchToConfirm={() => setCurrentStep('confirm')}
+                onSwitchToConfirm={
+                  showConfirm ? () => setCurrentStep('confirm') : undefined
+                }
+                renameOnly={!showConfirm}
               />
             )}
             {activeStep === 'confirm' && (

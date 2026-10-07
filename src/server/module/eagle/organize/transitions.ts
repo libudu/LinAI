@@ -67,9 +67,10 @@ export const transitionTask = (
         next.pendingConfirm +=
           Number(to === 'success') - Number(from === 'success')
         next.failedCount += Number(to === 'failed') - Number(from === 'failed')
-        // 成功计数包含已确认/跳过的成功项，仅重新执行时撤回上一轮成功。
+        // 成功计数包含已确认/跳过的成功项，重新执行或自动写库失败时撤回上一轮成功。
         if (to === 'success') next.successCount++
-        if (from === 'success' && to === 'pending') next.successCount--
+        if (from === 'success' && (to === 'pending' || to === 'failed'))
+          next.successCount--
       }
       next.executed = Math.max(0, next.executed)
       next.pendingConfirm = Math.max(0, next.pendingConfirm)

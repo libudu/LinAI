@@ -5,11 +5,14 @@ import type {
 } from '@/shared/eagle/organize'
 import { sendWindowsNotification } from '../../../common/notify'
 import { changeBus } from '../../../common/storage/change-bus'
+import { updateItem } from '../library'
+import { getEagleVisionEndpoint } from '../settings'
 import {
   ERROR_PAUSE_THRESHOLD,
   ORGANIZE_RESOURCE,
   REQUEST_INTERVAL_MS,
 } from './constants'
+import { prepareConfirmation } from './service/confirmation'
 import { organizeRepository } from './storage'
 import { transitionTask } from './transitions'
 import { judgeItem } from './vision'
@@ -116,7 +119,11 @@ class OrganizeExecutor {
     const done = new Set(
       itemIds.filter((id) => {
         const status = statuses.get(id)
-        return status !== undefined && status !== 'pending'
+        return (
+          status !== undefined &&
+          status !== 'pending' &&
+          !(classificationMode === 'recursive-rename' && status === 'success')
+        )
       }),
     )
     let cursor = 0
@@ -169,7 +176,12 @@ class OrganizeExecutor {
     if (
       latest.itemIds.some((id) => {
         const status = latestStatuses.get(id)
-        return status === undefined || status === 'pending'
+        return (
+          status === undefined ||
+          status === 'pending' ||
+          (latest.classificationMode === 'recursive-rename' &&
+            status === 'success')
+        )
       })
     ) {
       this.stopping = false
@@ -234,7 +246,12 @@ class OrganizeExecutor {
     const attempts = (previous?.attempts ?? 0) + 1
     let record: OrganizeItemRecord
     try {
-      const outcome = await judgeItem(itemId, options)
+      // 保留的成功结果可在服务重启后继续写库，无需重复请求模型。
+      const outcome =
+        options.classificationMode === 'recursive-rename' &&
+        previous?.status === 'success'
+          ? previous
+          : await judgeItem(itemId, options)
       record = {
         itemId,
         status: 'success',
@@ -259,8 +276,41 @@ class OrganizeExecutor {
     let didPauseOnError = false
     await organizeRepository.mutateTask(async (task) => {
       if (options.epoch !== this.epoch) return null
+      if (
+        task.classificationMode === 'recursive-rename' &&
+        record.status === 'success'
+      ) {
+        // 先保存建议标题，写库或最终状态落盘中断时可恢复；仅成功写库后计为已确认。
+        await organizeRepository.saveItem(record)
+        try {
+          const endpoint = await getEagleVisionEndpoint()
+          const plan = await prepareConfirmation(
+            { itemId, folderPath: '未分类', withTitle: true },
+            task.standards,
+            endpoint.modelId,
+            task.classificationMode,
+          )
+          if (options.epoch !== this.epoch) return null
+          if (plan.kind === 'resolved') {
+            if (!plan.result.ok) throw new Error(plan.result.error)
+          } else if (plan.kind === 'ready' && plan.patch.name !== undefined) {
+            if (!(await updateItem(itemId, plan.patch)))
+              throw new Error('Eagle 条目不存在')
+          }
+          record = { ...record, status: 'confirmed', updatedAt: Date.now() }
+        } catch (error) {
+          record = {
+            itemId,
+            status: 'failed',
+            error: error instanceof Error ? error.message : String(error),
+            attempts,
+            updatedAt: Date.now(),
+          }
+        }
+      }
+      if (options.epoch !== this.epoch) return null
       await organizeRepository.saveItem(record)
-      if (record.status === 'success') {
+      if (record.status === 'success' || record.status === 'confirmed') {
         this.consecutiveErrors = 0
       } else if (record.status === 'failed') {
         this.consecutiveErrors++
@@ -274,7 +324,13 @@ class OrganizeExecutor {
 
       const next = transitionTask(task, {
         type: 'items-changed',
-        changes: [{ from: previous?.status, to: record.status }],
+        changes:
+          record.status === 'confirmed'
+            ? [
+                { from: previous?.status, to: 'success' },
+                { from: 'success', to: 'confirmed' },
+              ]
+            : [{ from: previous?.status, to: record.status }],
       })!
       if (shouldPause) {
         didPauseOnError = true
@@ -310,7 +366,9 @@ class OrganizeExecutor {
         if (updated.failedCount === 0) {
           sendWindowsNotification(
             'LinAI 图片整理',
-            `全部图片处理完成（共 ${updated.executed} 张），请前往查验结果`,
+            updated.classificationMode === 'recursive-rename'
+              ? `图片重命名完成（共 ${updated.successCount} 张），已直接修改文件名`
+              : `全部图片处理完成（共 ${updated.executed} 张），请前往查验结果`,
           )
         } else {
           sendWindowsNotification(
