@@ -11,14 +11,21 @@ const EMPTY_PATHS: string[] = []
 export function useConfirmSelection({
   taskCreatedAt,
   selectedId,
-  folderPaths = EMPTY_PATHS,
+  folderPaths: recommendedFolderPaths = EMPTY_PATHS,
   needsRename = true,
+  manualFolderScope,
 }: {
   taskCreatedAt?: number
   selectedId: string | null
   folderPaths?: string[]
   needsRename?: boolean
+  manualFolderScope?: SelectedFolderInfo[]
 }) {
+  const folderPaths = useMemo(() => {
+    if (!manualFolderScope) return recommendedFolderPaths
+    const scopePaths = new Set(manualFolderScope.map((folder) => folder.path))
+    return recommendedFolderPaths.filter((path) => scopePaths.has(path))
+  }, [recommendedFolderPaths, manualFolderScope])
   const [titleDisabledIds, setTitleDisabledIds] = useState<Set<string>>(
     () => new Set(),
   )
@@ -42,22 +49,52 @@ export function useConfirmSelection({
     setPinnedOption(getSavedPinnedOption(taskCreatedAt))
   }, [taskCreatedAt])
 
-  const displayedManualFolders = useMemo(() => {
-    const recommended = new Set(folderPaths)
-    return sortedManualFolders.filter(
-      (folder) => !recommended.has(folder.folderPath),
-    )
-  }, [folderPaths, sortedManualFolders])
-
   const defaultOptionKey =
     pinnedOption?.key ?? (folderPaths[0] ? `ai:${folderPaths[0]}` : null)
   const activeOptionKey = selectedId
     ? (selectedOptionKeys[selectedId] ?? defaultOptionKey)
     : null
+  const availableManualFolders = useMemo(() => {
+    if (!manualFolderScope) return sortedManualFolders
+    const history = new Map(
+      manualFolders.map((folder) => [folder.folderId, folder]),
+    )
+    const scoped = manualFolderScope.map((folder) => ({
+      folderId: folder.id,
+      folderPath: folder.path,
+      count: history.get(folder.id)?.count ?? 0,
+    }))
+    const scopeIds = new Set(scoped.map((folder) => folder.folderId))
+    // 全库弹窗显式选中的范围外目录仍可用于当前图片或置顶复用。
+    for (const folder of manualFolders) {
+      if (
+        !scopeIds.has(folder.folderId) &&
+        (activeOptionKey === `manual:${folder.folderId}` ||
+          pinnedOption?.folderId === folder.folderId)
+      ) {
+        scoped.push(folder)
+      }
+    }
+    return scoped.sort((a, b) => b.count - a.count)
+  }, [
+    manualFolderScope,
+    sortedManualFolders,
+    manualFolders,
+    activeOptionKey,
+    pinnedOption,
+  ])
+  const displayedManualFolders = useMemo(() => {
+    const recommended = new Set(folderPaths)
+    return availableManualFolders.filter(
+      (folder) => !recommended.has(folder.folderPath),
+    )
+  }, [folderPaths, availableManualFolders])
   const selectedManualFolder = useMemo(() => {
     if (!activeOptionKey?.startsWith('manual:')) return null
     const folderId = activeOptionKey.slice('manual:'.length)
-    const found = manualFolders.find((folder) => folder.folderId === folderId)
+    const found = availableManualFolders.find(
+      (folder) => folder.folderId === folderId,
+    )
     if (found) return found
     if (pinnedOption?.folderId === folderId) {
       return {
@@ -67,7 +104,7 @@ export function useConfirmSelection({
       }
     }
     return null
-  }, [activeOptionKey, manualFolders, pinnedOption])
+  }, [activeOptionKey, availableManualFolders, pinnedOption])
   const selectedFolderPath = activeOptionKey?.startsWith('ai:')
     ? activeOptionKey.slice('ai:'.length)
     : (selectedManualFolder?.folderPath ?? null)
@@ -102,9 +139,13 @@ export function useConfirmSelection({
   const onManualFolderSelect = useCallback(
     (folder: SelectedFolderInfo) => {
       handleManualFolderSelect(folder)
-      selectOption(`manual:${folder.id}`)
+      selectOption(
+        manualFolderScope && folderPaths.includes(folder.path)
+          ? `ai:${folder.path}`
+          : `manual:${folder.id}`,
+      )
     },
-    [handleManualFolderSelect, selectOption],
+    [handleManualFolderSelect, selectOption, folderPaths, manualFolderScope],
   )
 
   const onRemoveManualFolder = useCallback(

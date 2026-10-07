@@ -19,7 +19,7 @@ type TaskEvent =
 
 export type OrganizeProgressItem = Pick<
   OrganizeItemRecord,
-  'itemId' | 'status' | 'title' | 'lowQuality'
+  'itemId' | 'status' | 'title' | 'lowQuality' | 'needsRename'
 >
 
 const isExecuted = (status?: OrganizeItemStatus) =>
@@ -116,7 +116,9 @@ export const transitionTask = (
           item.status === 'success' ||
           item.status === 'confirmed' ||
           (item.status === 'skipped' &&
-            (item.title !== undefined || item.lowQuality !== undefined))
+            (item.needsRename !== undefined ||
+              item.title !== undefined ||
+              item.lowQuality !== undefined))
         )
           successCount++
       }

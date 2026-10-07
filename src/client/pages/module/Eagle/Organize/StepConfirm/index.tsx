@@ -3,8 +3,9 @@ import type {
   OrganizeTaskView,
 } from '@/shared/eagle/organize'
 import { Button, Empty, Spin } from 'antd'
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { confirmDeleteEagleItem } from '../../components/confirmDeleteModal'
+import { buildFolderMap, collectFolderKeys, findFolder } from '../../folders'
 import { useEagleStore } from '../../store'
 import {
   clearOrganizeResultClassification,
@@ -35,6 +36,14 @@ export function StepConfirm({
 }) {
   const folders = useEagleStore((s) => s.folders)
   const renameOnly = task?.classificationMode === 'recursive-rename'
+  const manualFolderScope = useMemo(() => {
+    if (task?.classificationMode !== 'subfolders') return undefined
+    const parent = task.folderId ? findFolder(folders, task.folderId) : null
+    const descendantIds = new Set(collectFolderKeys(parent?.children ?? []))
+    return [...buildFolderMap(folders).values()].filter((folder) =>
+      descendantIds.has(folder.id),
+    )
+  }, [folders, task?.classificationMode, task?.folderId])
   const [quickMode, setQuickMode] = useState<boolean>(() => {
     try {
       return localStorage.getItem(CONFIRM_QUICK_MODE_STORAGE_KEY) === 'true'
@@ -99,6 +108,7 @@ export function StepConfirm({
     selectedId,
     folderPaths: detail?.folderPaths,
     needsRename: detail?.needsRename,
+    manualFolderScope,
   })
 
   const canConfirm = Boolean(
@@ -125,7 +135,7 @@ export function StepConfirm({
 
     // 检查是否为手动选择的文件夹，如果是则计数 +1 并持久化
     if (!renameOnly && selectedManualFolder) {
-      recordManualFolderUsage(selectedManualFolder.folderId)
+      recordManualFolderUsage(selectedManualFolder)
     }
 
     confirmCurrentItem({

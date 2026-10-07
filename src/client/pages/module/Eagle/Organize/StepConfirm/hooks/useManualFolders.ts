@@ -60,14 +60,23 @@ export function useManualFolders() {
   )
 
   const recordManualFolderUsage = useCallback(
-    (folderId: string) => {
-      updateFolders((folders) =>
-        folders.map((folder) =>
-          folder.folderId === folderId
-            ? { ...folder, count: folder.count + 1 }
-            : folder,
-        ),
-      )
+    (target: EagleManualFolderItem) => {
+      updateFolders((folders) => {
+        const found = folders.some(
+          (folder) => folder.folderId === target.folderId,
+        )
+        return found
+          ? folders.map((folder) =>
+              folder.folderId === target.folderId
+                ? {
+                    ...folder,
+                    folderPath: target.folderPath,
+                    count: folder.count + 1,
+                  }
+                : folder,
+            )
+          : [...folders, { ...target, count: 1 }]
+      })
     },
     [updateFolders],
   )

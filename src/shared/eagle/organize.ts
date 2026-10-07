@@ -70,6 +70,8 @@ export interface OrganizeConfirmBatchResult {
 export interface OrganizeTaskView {
   taskId: string
   classificationMode: OrganizeClassificationMode
+  /** 首批来源目录；子目录分类的确认候选范围绑定此目录。 */
+  folderId?: string
   phase: OrganizePhase
   pausedReason: 'user' | 'error' | 'restart' | null
   compress: boolean
@@ -141,7 +143,7 @@ export interface OrganizeItemRecord {
   title?: string
   /** AI 判定的候选目标文件夹，按推荐顺序排列，最多 3 个（success 时有值；空数组表示不属于任何已知分类） */
   folderPaths?: string[]
-  /** 疑似低质（success 时有值） */
+  /** 疑似低质（子目录分类不判定、不返回此字段） */
   lowQuality?: boolean
   /** 失败原因（failed 时有值） */
   error?: string
@@ -156,9 +158,7 @@ export const buildOrganizeVisionUserText = (
 ): string =>
   classificationMode === 'recursive-rename'
     ? '请判断这张图片的标题与是否疑似低质，并仅返回一个 json 对象。'
-    : needsRename
-      ? '请判断这张图片的标题、至多三个候选分类文件夹与是否疑似低质，并仅返回一个 json 对象。'
-      : '请判断这张图片的至多三个候选分类文件夹与是否疑似低质，并仅返回一个 json 对象。'
+    : `请判断这张图片的${needsRename ? '标题、' : ''}至多三个候选分类文件夹${classificationMode === 'subfolders' ? '' : '与是否疑似低质'}，并仅返回一个 json 对象。`
 
 /** 沿用原有模型标识规则：去掉 provider 路径，提取首个英文词与版本数字，如 _gemini3.7。 */
 export const getOrganizeModelTitleSuffix = (modelId: string): string => {
@@ -187,6 +187,8 @@ export const buildOrganizeVisionSystemPrompt = (
   classificationMode: OrganizeClassificationMode = 'global',
 ): string => {
   const renameOnly = classificationMode === 'recursive-rename'
+  const judgeQuality = classificationMode !== 'subfolders'
+  const qualityField = judgeQuality ? ', "lowQuality": false' : ''
   const lines = standards.map(
     (standard, index) =>
       `${index + 1}. ${standard.folderPath}：${standard.description}`,
@@ -207,8 +209,8 @@ export const buildOrganizeVisionSystemPrompt = (
     renameOnly
       ? '{"title": "图片标题", "lowQuality": false}'
       : needsRename
-        ? '{"title": "图片标题", "folderPaths": ["首选分类文件夹路径", "次选分类文件夹路径"], "lowQuality": false}'
-        : '{"folderPaths": ["首选分类文件夹路径", "次选分类文件夹路径"], "lowQuality": false}',
+        ? `{"title": "图片标题", "folderPaths": ["首选分类文件夹路径", "次选分类文件夹路径"]${qualityField}}`
+        : `{"folderPaths": ["首选分类文件夹路径", "次选分类文件夹路径"]${qualityField}}`,
     '',
     '字段要求：',
     ...(needsRename
@@ -221,7 +223,9 @@ export const buildOrganizeVisionSystemPrompt = (
           '- folderPaths：从上述分类标准的路径中选择 0～3 个合适的候选项，按推荐程度从高到低排列且不得重复；分类适配程度相近时，优先选择分类标准中更靠前的路径；若图片不属于任何已知分类，返回空数组 []，不要虚构路径或返回“不属于任何分类”',
         ]
       : []),
-    '- lowQuality：图片是否疑似低质（分辨率低、画面主体不清晰、美学品味较差等）',
+    ...(judgeQuality
+      ? ['- lowQuality：图片是否疑似低质（分辨率低、画面主体不清晰、美学品味较差等）']
+      : []),
   ].join('\n')
 }
 

@@ -1,4 +1,5 @@
 import type {
+  OrganizeClassificationMode,
   OrganizeConfirmBatchResult,
   OrganizeConfirmItemResult,
   OrganizeItemRecord,
@@ -28,6 +29,17 @@ import type {
   OrganizeTrashResult,
 } from './types'
 
+/** 子目录分类的旧结果也不再向确认视图返回低质标记。 */
+const toResultData = <T extends { lowQuality?: boolean }>(
+  item: T,
+  classificationMode?: OrganizeClassificationMode,
+): T => {
+  if (classificationMode !== 'subfolders') return item
+  const result = { ...item }
+  delete result.lowQuality
+  return result
+}
+
 export class ResultService {
   /** 结果状态落盘与任务计数转换共用任务串行队列，收尾不会读到半次决策。 */
   private async saveDecisions(
@@ -53,14 +65,15 @@ export class ResultService {
   ): Promise<OrganizeResultListItem[]> {
     const list = await organizeRepository.listItems(status, options)
     // 分页后再查询素材投影，limit 较小时不再生成全结果的 ID/摘要 Map。
-    const [itemMap, endpoint] = await Promise.all([
+    const [itemMap, endpoint, task] = await Promise.all([
       getItemSnapshots(list.map((item) => item.itemId)),
       getEagleVisionEndpoint(),
+      organizeRepository.getTask(),
     ])
     return list.map((item) => {
       const entry = itemMap?.get(item.itemId)
       return {
-        ...item,
+        ...toResultData(item, task?.classificationMode),
         needsRename:
           item.needsRename !== false &&
           needsOrganizeRename(entry?.name ?? '', endpoint.modelId),
@@ -90,9 +103,10 @@ export class ResultService {
       : await organizeRepository.getItemSummaries(changedIds)
     const succeeded = summaries.filter((item) => item.status === 'success')
     const successIds = new Set(succeeded.map((item) => item.itemId))
-    const [itemMap, endpoint] = await Promise.all([
+    const [itemMap, endpoint, task] = await Promise.all([
       getItemSnapshots(succeeded.map((item) => item.itemId)),
       getEagleVisionEndpoint(),
+      organizeRepository.getTask(),
     ])
     return {
       resultsVersion: results.version,
@@ -102,7 +116,7 @@ export class ResultService {
       items: succeeded.map((item) => {
         const entry = itemMap?.get(item.itemId)
         return {
-          ...item,
+          ...toResultData(item, task?.classificationMode),
           needsRename:
             item.needsRename !== false &&
             needsOrganizeRename(entry?.name ?? '', endpoint.modelId),
@@ -135,15 +149,16 @@ export class ResultService {
   async getResult(itemId: string): Promise<OrganizeResultDetail | null> {
     const record = await organizeRepository.getItem(itemId)
     if (!record) return null
-    const [entry, endpoint] = await Promise.all([
+    const [entry, endpoint, task] = await Promise.all([
       getItemDetail(itemId),
       getEagleVisionEndpoint(),
+      organizeRepository.getTask(),
     ])
     const needsRename =
       record.needsRename !== false &&
       needsOrganizeRename(entry?.name ?? '', endpoint.modelId)
     return {
-      ...record,
+      ...toResultData(record, task?.classificationMode),
       needsRename,
       title: needsRename ? record.title : undefined,
       itemName: entry?.name ?? null,

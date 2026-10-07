@@ -30,7 +30,7 @@ export interface VisionJudgeOutcome {
   needsRename: boolean
   title?: string
   folderPaths: string[]
-  lowQuality: boolean
+  lowQuality?: boolean
 }
 
 const judgeResponseSchema = z.object({
@@ -40,6 +40,11 @@ const judgeResponseSchema = z.object({
 
 const judgeTitleResponseSchema = judgeResponseSchema.extend({
   title: z.string().min(1).max(200),
+})
+
+const subfolderResponseSchema = judgeResponseSchema.omit({ lowQuality: true })
+const subfolderTitleResponseSchema = judgeTitleResponseSchema.omit({
+  lowQuality: true,
 })
 
 const renameResponseSchema = judgeTitleResponseSchema.omit({
@@ -213,7 +218,10 @@ export const judgeItem = async (
   const judgeData = renameResponse?.success
     ? { ...renameResponse.data, folderPaths: [] }
     : parsed
-  const validated = judgeResponseSchema.safeParse(judgeData)
+  // 子目录图片已预先筛选，不要求或保留模型意外返回的低质标记。
+  const subfolders = options.classificationMode === 'subfolders'
+  const responseSchema = subfolders ? subfolderResponseSchema : judgeResponseSchema
+  const validated = responseSchema.safeParse(judgeData)
   if (!validated.success) {
     throw new Error('视觉返回的 JSON 结构不符合要求')
   }
@@ -232,7 +240,10 @@ export const judgeItem = async (
   }
   // 仅分类时不读取、校验或保留上游意外返回的标题，也不追加模型标识。
   if (!needsRename) return { ...validated.data, needsRename }
-  const titled = judgeTitleResponseSchema.safeParse(judgeData)
+  const titleResponseSchema = subfolders
+    ? subfolderTitleResponseSchema
+    : judgeTitleResponseSchema
+  const titled = titleResponseSchema.safeParse(judgeData)
   if (!titled.success) throw new Error('视觉返回的 JSON 结构不符合要求')
   const suffix = getOrganizeModelTitleSuffix(endpoint.modelId)
   const titleBudget = EAGLE_ITEM_NAME_MAX_LENGTH - suffix.length

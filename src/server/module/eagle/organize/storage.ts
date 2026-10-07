@@ -277,11 +277,12 @@ export class OrganizeRepository {
     await this.ensureCacheLoaded()
     return Array.from(
       this.itemsCache.values(),
-      ({ itemId, status, title, lowQuality }) => ({
+      ({ itemId, status, title, lowQuality, needsRename }) => ({
         itemId,
         status,
         title,
         lowQuality,
+        needsRename,
       }),
     )
   }
