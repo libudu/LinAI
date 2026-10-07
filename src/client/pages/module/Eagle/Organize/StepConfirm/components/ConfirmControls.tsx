@@ -3,6 +3,7 @@ import { Select, Switch } from 'antd'
 import type { OrganizeSortType } from '../types'
 
 interface ConfirmControlsProps {
+  renameOnly?: boolean
   sortType: OrganizeSortType
   onSortTypeChange: (sortType: OrganizeSortType) => void
   quickMode: boolean
@@ -10,6 +11,7 @@ interface ConfirmControlsProps {
 }
 
 export function ConfirmControls({
+  renameOnly = false,
   sortType,
   onSortTypeChange,
   quickMode,
@@ -26,7 +28,7 @@ export function ConfirmControls({
         onChange={onSortTypeChange}
         className="w-28"
         options={[
-          { value: 'category', label: '图片分类' },
+          ...(!renameOnly ? [{ value: 'category', label: '图片分类' }] : []),
           { value: 'completion', label: '完成顺序' },
           { value: 'mtime_desc', label: '修改时间 新→旧' },
           { value: 'mtime_asc', label: '修改时间 旧→新' },

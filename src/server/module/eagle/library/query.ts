@@ -15,6 +15,7 @@ import type {
   OrganizeFolderStandard,
   OrganizePrepareParams,
 } from '@/shared/eagle/organize'
+import { needsOrganizeRename } from '@/shared/eagle/organize'
 import {
   EAGLE_TRASH_FOLDER_ID,
   EAGLE_UNCLASSIFIED_FOLDER_ID,
@@ -27,6 +28,7 @@ import path from 'path'
 import {
   buildFolderStandards,
   buildFolderTree,
+  collectFolderPaths,
   findRawFolder,
   findRawFolderIdByPath,
   resolveFolderPaths,
@@ -83,6 +85,7 @@ const sortedItems = (
   index: EagleIndexState,
   params: Pick<GetItemsParams, 'folderId' | 'sortBy' | 'sortOrder' | 'keyword'>,
   classifiable = false,
+  recursiveFolderIds?: Set<string>,
 ): EagleItemIndex[] => {
   ensureQueryVersion()
   const { folderId, sortBy, sortOrder } = params
@@ -95,6 +98,7 @@ const sortedItems = (
     sortOrder,
     keywords,
     classifiable,
+    recursiveFolderIds ? [...recursiveFolderIds] : null,
   ])
   const cached = itemViews.get(key)
   if (cached) {
@@ -110,6 +114,8 @@ const sortedItems = (
       if (item.isDeleted) continue
       if (folderId === EAGLE_UNCLASSIFIED_FOLDER_ID) {
         if (item.folders.length !== 0) continue
+      } else if (recursiveFolderIds) {
+        if (!item.folders.some((id) => recursiveFolderIds.has(id))) continue
       } else if (folderId && !item.folders.includes(folderId)) continue
     }
     if (
@@ -211,15 +217,28 @@ export const folderExists = async (folderId: string): Promise<boolean> => {
 }
 
 /**
- * 图片整理专用：获取当前文件夹下可参与 AI 分类的图片 ID 队列。
+ * 图片整理专用：获取当前文件夹下可处理的图片 ID 队列。
+ * 递归仅重命名包含当前目录与全部子孙目录，并筛掉已匹配当前模型标识的名称。
  * 自动排除回收站、gif 动图、视频及 heif/heic 等格式。
  */
 export const getClassifiableItems = async (
   params: OrganizePrepareParams,
+  modelId?: string,
 ): Promise<{ total: number; itemIds: string[] }> => {
   const index = await ensureIndex()
   if (!index) return { total: 0, itemIds: [] }
-  const list = sortedItems(index, params, true)
+  const renameOnly = params.classificationMode === 'recursive-rename'
+  const root =
+    renameOnly && params.folderId
+      ? findRawFolder(index.folders, params.folderId)
+      : null
+  if (renameOnly && !root) return { total: 0, itemIds: [] }
+  const recursiveFolderIds = root
+    ? new Set(collectFolderPaths([root]).map(({ folder }) => folder.id))
+    : undefined
+  const list = sortedItems(index, params, true, recursiveFolderIds).filter(
+    (item) => !renameOnly || needsOrganizeRename(item.name, modelId ?? ''),
+  )
   return { total: list.length, itemIds: list.map((item) => item.id) }
 }
 

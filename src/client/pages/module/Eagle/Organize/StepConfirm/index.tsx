@@ -34,6 +34,7 @@ export function StepConfirm({
   onSwitchToRunning?: () => void
 }) {
   const folders = useEagleStore((s) => s.folders)
+  const renameOnly = task?.classificationMode === 'recursive-rename'
   const [quickMode, setQuickMode] = useState<boolean>(() => {
     try {
       return localStorage.getItem(CONFIRM_QUICK_MODE_STORAGE_KEY) === 'true'
@@ -68,6 +69,7 @@ export function StepConfirm({
     taskId: task?.taskId,
     taskCreatedAt: task?.createdAt,
     folders,
+    renameOnly,
   })
 
   // 2. 详情拉取与原图预加载对象池
@@ -104,7 +106,7 @@ export function StepConfirm({
     detail &&
     detail.itemId === selectedId &&
     detail.status === 'success' &&
-    selectedFolderPath,
+    (renameOnly || selectedFolderPath),
   )
 
   // 5. 确认操作分流
@@ -117,22 +119,23 @@ export function StepConfirm({
       return
     }
 
-    if (!selectedId || !selectedFolderPath || !canConfirm) {
+    if (!selectedId || (!renameOnly && !selectedFolderPath) || !canConfirm) {
       return
     }
 
     // 检查是否为手动选择的文件夹，如果是则计数 +1 并持久化
-    if (selectedManualFolder) {
+    if (!renameOnly && selectedManualFolder) {
       recordManualFolderUsage(selectedManualFolder.folderId)
     }
 
     confirmCurrentItem({
-      folderPath: selectedFolderPath,
+      folderPath: renameOnly ? '未分类' : selectedFolderPath!,
       withTitle,
-      folderId: selectedManualFolder?.folderId,
+      folderId: renameOnly ? undefined : selectedManualFolder?.folderId,
     })
   }, [
     canConfirm,
+    renameOnly,
     confirmCurrentItem,
     confirmItemQuick,
     quickMode,
@@ -156,7 +159,9 @@ export function StepConfirm({
 
   // 7. 绑定快捷键（A: 清除分类, S: 不处理, D: 确认）
   useConfirmShortcuts({
-    onClear: () => runAction(clearOrganizeResultClassification),
+    onClear: () => {
+      if (!renameOnly) void runAction(clearOrganizeResultClassification)
+    },
     onSkip: () => runAction(skipOrganizeResult),
     onConfirm: () => void handleRunConfirm(),
     disabled: results.length === 0,
@@ -220,6 +225,7 @@ export function StepConfirm({
             </div>
 
             <ConfirmControls
+              renameOnly={renameOnly}
               sortType={sortType}
               onSortTypeChange={handleSortTypeChange}
               quickMode={quickMode}
@@ -233,7 +239,9 @@ export function StepConfirm({
             selectedId={selectedId}
             onSelect={setSelectedId}
             onConfirmItem={handleQuickItemConfirm}
-            onClearClassification={handleClearClassification}
+            onClearClassification={
+              renameOnly ? undefined : handleClearClassification
+            }
             onSkipItem={handleSkipItem}
             sortType={sortType}
           />
@@ -242,6 +250,7 @@ export function StepConfirm({
         <>
           {/* 顶部待确认缩略图条 */}
           <ThumbnailBar
+            renameOnly={renameOnly}
             results={results}
             selectedId={selectedId}
             onSelect={setSelectedId}
@@ -260,6 +269,7 @@ export function StepConfirm({
             />
 
             <DetailPanel
+              renameOnly={renameOnly}
               loading={detailLoading}
               detail={detail}
               withTitle={withTitle}
@@ -280,8 +290,10 @@ export function StepConfirm({
             selectedId={selectedId}
             canConfirm={canConfirm}
             onDelete={handleDelete}
-            onClearClassification={() =>
-              runAction(clearOrganizeResultClassification)
+            onClearClassification={
+              renameOnly
+                ? undefined
+                : () => runAction(clearOrganizeResultClassification)
             }
             onSkip={() => runAction(skipOrganizeResult)}
             onRetry={() => runAction(retryOrganizeResult)}

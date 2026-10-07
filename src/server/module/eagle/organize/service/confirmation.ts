@@ -1,4 +1,5 @@
 import type {
+  OrganizeClassificationMode,
   OrganizeConfirmItemResult,
   OrganizeFolderStandard,
   OrganizeItemRecord,
@@ -24,6 +25,7 @@ export const prepareConfirmation = async (
   item: OrganizeConfirmItem,
   standards: OrganizeFolderStandard[],
   modelId: string,
+  classificationMode: OrganizeClassificationMode,
 ): Promise<ConfirmationPlan> => {
   const fail = (status: 404 | 409, error: string): ConfirmationPlan => ({
     kind: 'resolved',
@@ -45,6 +47,18 @@ export const prepareConfirmation = async (
   if (!entry) return { kind: 'purged', record }
   const needsRename =
     record.needsRename !== false && needsOrganizeRename(entry.name, modelId)
+
+  // 仅重命名不提交 folderIds，写库时保留最新元数据中的全部目录归属。
+  if (classificationMode === 'recursive-rename') {
+    return {
+      kind: 'ready',
+      record,
+      patch:
+        item.withTitle && needsRename && record.title
+          ? { name: record.title }
+          : {},
+    }
+  }
 
   const isUnclassified =
     item.folderId === EAGLE_UNCLASSIFIED_FOLDER_ID ||

@@ -1,4 +1,5 @@
 import type {
+  OrganizeClassificationMode,
   OrganizeFolderStandard,
   OrganizeItemRecord,
 } from '@/shared/eagle/organize'
@@ -106,7 +107,8 @@ class OrganizeExecutor {
   private async runQueue(epoch: number, signal: AbortSignal): Promise<void> {
     const task = await organizeRepository.getTask()
     if (!task || task.phase !== 'running') return
-    const { itemIds, standards, compress, concurrency } = task
+    const { itemIds, standards, compress, concurrency, classificationMode } =
+      task
 
     // 恢复场景：跳过已有结果且非 pending 的前缀，得到下一个待派发位置。
     // 派发严格按序，已完成的结果实体必然构成前缀（in-flight 未落盘的项会被重新执行）
@@ -137,6 +139,7 @@ class OrganizeExecutor {
             await this.processItem(itemId, {
               compress,
               standards,
+              classificationMode,
               epoch,
               signal,
             })
@@ -222,6 +225,7 @@ class OrganizeExecutor {
     options: {
       compress: boolean
       standards: OrganizeFolderStandard[]
+      classificationMode: OrganizeClassificationMode
       epoch: number
       signal: AbortSignal
     },

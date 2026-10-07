@@ -6,7 +6,12 @@ import {
   type OrganizeTaskView,
 } from '@/shared/eagle/organize'
 import { randomUUID } from 'node:crypto'
-import { getClassifiableItems, getFolderStandards } from '../../library'
+import {
+  getClassifiableItems,
+  getFolderStandards,
+  getItemSnapshots,
+} from '../../library'
+import { getEagleVisionEndpoint } from '../../settings'
 import { organizeExecutor } from '../executor'
 import type { OrganizeTaskRecord } from '../model'
 import { organizeRepository } from '../storage'
@@ -57,11 +62,39 @@ const getClassificationStandards = (
   mode: OrganizeClassificationMode,
   folderId?: string,
 ): Promise<OrganizeFolderStandard[]> =>
-  mode === 'subfolders'
-    ? folderId
-      ? getFolderStandards(folderId)
-      : Promise.resolve([])
-    : getFolderStandards()
+  mode === 'recursive-rename'
+    ? Promise.resolve([])
+    : mode === 'subfolders'
+      ? folderId
+        ? getFolderStandards(folderId)
+        : Promise.resolve([])
+      : getFolderStandards()
+
+/** 仅重命名递归取来源目录，并按当前模型筛掉已符合命名规则的图片。 */
+const getSourceItems = async (
+  params: OrganizePrepareParams,
+  classificationMode = params.classificationMode ?? 'global',
+) => {
+  const modelId =
+    classificationMode === 'recursive-rename'
+      ? (await getEagleVisionEndpoint()).modelId
+      : undefined
+  return getClassifiableItems({ ...params, classificationMode }, modelId)
+}
+
+/** 与任务入队使用同一候选顺序，只查询前 50 条的名称，不返回完整素材列表。 */
+const getSourcePreview = async (
+  itemIds: string[],
+  classificationMode: OrganizeClassificationMode,
+): Promise<OrganizePrepareResp['previewItems']> => {
+  if (classificationMode !== 'recursive-rename') return undefined
+  const previewIds = itemIds.slice(0, 50)
+  const snapshots = await getItemSnapshots(previewIds)
+  return previewIds.map((itemId) => ({
+    itemId,
+    itemName: snapshots?.get(itemId)?.name ?? null,
+  }))
+}
 
 export class TaskService {
   /** 服务重启后，正在执行的任务标记为已暂停（请求中断，in-flight 结果未落盘） */
@@ -112,15 +145,16 @@ export class TaskService {
     const sourceFolderName = await resolveFolderName(params.folderId)
     if (task && task.phase !== 'done') {
       const [allItems, latestStandards, history] = await Promise.all([
-        getClassifiableItems(params),
+        getSourceItems(params, task.classificationMode),
         getClassificationStandards(task.classificationMode, task.folderId),
         organizeRepository.getItemStatuses(),
       ])
       const imageCount = allItems.total
-      const availableCount = getAvailableItemIds(allItems.itemIds, [
+      const availableItemIds = getAvailableItemIds(allItems.itemIds, [
         ...task.itemIds,
         ...history.keys(),
-      ]).length
+      ])
+      const availableCount = availableItemIds.length
       const hasStandardsMismatch = !areStandardsEqual(
         task.standards,
         latestStandards,
@@ -137,6 +171,10 @@ export class TaskService {
         imageCount,
         enqueuedCount: imageCount - availableCount,
         availableCount,
+        previewItems: await getSourcePreview(
+          availableItemIds,
+          task.classificationMode,
+        ),
         hasActiveTask: true,
         hasStandardsMismatch,
       }
@@ -145,7 +183,7 @@ export class TaskService {
     const classificationMode = params.classificationMode ?? 'global'
     const [standards, items] = await Promise.all([
       getClassificationStandards(classificationMode, params.folderId),
-      getClassifiableItems(params),
+      getSourceItems(params),
     ])
     return {
       taskId: task?.taskId ?? null,
@@ -157,6 +195,7 @@ export class TaskService {
       imageCount: items.total,
       enqueuedCount: 0,
       availableCount: items.total,
+      previewItems: await getSourcePreview(items.itemIds, classificationMode),
       hasActiveTask: false,
     }
   }
@@ -176,7 +215,10 @@ export class TaskService {
       params.classificationMode,
       params.folderId,
     )
-    if (standards.length === 0) {
+    if (
+      standards.length === 0 &&
+      params.classificationMode !== 'recursive-rename'
+    ) {
       return {
         ok: false,
         status: 400,
@@ -186,7 +228,7 @@ export class TaskService {
             : '没有包含描述的文件夹，请先在文件夹编辑中填写描述作为分类标准',
       }
     }
-    const { total, itemIds } = await getClassifiableItems(params)
+    const { total, itemIds } = await getSourceItems(params)
     if (total === 0) {
       return { ok: false, status: 400, error: '当前范围内没有可处理的图片' }
     }
@@ -232,7 +274,7 @@ export class TaskService {
       }
     }
     const [{ itemIds: allAvailable }, history] = await Promise.all([
-      getClassifiableItems(params),
+      getSourceItems(params, task.classificationMode),
       organizeRepository.getItemStatuses(),
     ])
     const historyIds = [...history.keys()]
@@ -302,6 +344,7 @@ export class TaskService {
       task.classificationMode,
       task.folderId,
     )
+    if (task.classificationMode === 'recursive-rename') return { ok: true }
     if (latestStandards.length === 0) {
       return {
         ok: false,

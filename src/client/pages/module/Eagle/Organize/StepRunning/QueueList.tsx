@@ -17,9 +17,16 @@ const QUEUE_STATE_CLASS: Record<OrganizeQueueItem['state'], string> = {
 interface QueueListProps {
   items: OrganizeQueueItem[]
   loading?: boolean
+  showState?: boolean
+  emptyDescription?: string
 }
 
-export function QueueList({ items, loading }: QueueListProps) {
+export function QueueList({
+  items,
+  loading,
+  showState = true,
+  emptyDescription = '没有排队中或执行中的条目',
+}: QueueListProps) {
   if (loading && items.length === 0) {
     return (
       <div className="flex h-full items-center justify-center py-6">
@@ -33,7 +40,7 @@ export function QueueList({ items, loading }: QueueListProps) {
       <div className="flex h-full items-center justify-center py-6">
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description="没有排队中或执行中的条目"
+          description={emptyDescription}
         />
       </div>
     )
@@ -41,7 +48,7 @@ export function QueueList({ items, loading }: QueueListProps) {
 
   return (
     <div className="h-full divide-y divide-slate-100 overflow-y-auto dark:divide-slate-700/60">
-      {items.map((item) => (
+      {items.map((item, index) => (
         <div key={item.itemId} className="flex items-center gap-3 px-1 py-2">
           <img
             src={eagleThumbnailUrl(item.itemId)}
@@ -50,9 +57,9 @@ export function QueueList({ items, loading }: QueueListProps) {
             className="h-10 w-10 shrink-0 rounded object-cover"
           />
           <span
-            className={`w-14 shrink-0 text-xs font-medium ${QUEUE_STATE_CLASS[item.state]}`}
+            className={`w-14 shrink-0 text-xs font-medium ${showState ? QUEUE_STATE_CLASS[item.state] : 'text-slate-400'}`}
           >
-            {QUEUE_STATE_TEXT[item.state]}
+            {showState ? QUEUE_STATE_TEXT[item.state] : index + 1}
           </span>
           <span
             className="min-w-0 flex-1 truncate text-xs text-slate-500 dark:text-slate-400"

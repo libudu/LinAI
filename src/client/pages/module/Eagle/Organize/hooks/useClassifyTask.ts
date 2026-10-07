@@ -107,7 +107,9 @@ export function useClassifyTask(
         setPrepare(data)
         setCount(
           data.availableCount > 0
-            ? Math.min(loadOrganizeOptions().count, data.availableCount)
+            ? data.classificationMode === 'recursive-rename'
+              ? data.availableCount
+              : Math.min(loadOrganizeOptions().count, data.availableCount)
             : null,
         )
       })
@@ -198,7 +200,8 @@ export function useClassifyTask(
       !prepare ||
       loading ||
       submitting ||
-      !prepare.standards.length
+      (!prepare.standards.length &&
+        prepare.classificationMode !== 'recursive-rename')
     )
       return
     setSubmitting(true)

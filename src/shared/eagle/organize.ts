@@ -2,7 +2,11 @@ import type { EagleSortBy, EagleSortOrder } from './types'
 
 // Eagle 图片整理功能共享类型（前后端共用，无 UI / Node 依赖）
 
-export const ORGANIZE_CLASSIFICATION_MODES = ['global', 'subfolders'] as const
+export const ORGANIZE_CLASSIFICATION_MODES = [
+  'global',
+  'subfolders',
+  'recursive-rename',
+] as const
 export type OrganizeClassificationMode =
   (typeof ORGANIZE_CLASSIFICATION_MODES)[number]
 
@@ -64,6 +68,7 @@ export interface OrganizeConfirmBatchResult {
 /** 任务详情视图（不含队列明细，GET /api/eagle/organize/task） */
 export interface OrganizeTaskView {
   taskId: string
+  classificationMode: OrganizeClassificationMode
   phase: OrganizePhase
   pausedReason: 'user' | 'error' | 'restart' | null
   compress: boolean
@@ -101,6 +106,8 @@ export interface OrganizePrepareResp {
   enqueuedCount: number
   /** 当前范围内尚未进入本轮任务的图片数（按 ID 做集合差） */
   availableCount: number
+  /** 递归仅重命名模式下，按来源排序返回尚未入队图片的前 50 条预览。 */
+  previewItems?: Pick<OrganizeQueueItem, 'itemId' | 'itemName'>[]
   /** 是否存在未完成任务；有则追加，无则新建 */
   hasActiveTask: boolean
   /** 当前任务分类标准与库中最新标准是否不一致（顺序/内容/增删），仅在存在未完成任务时计算 */
@@ -142,10 +149,15 @@ export interface OrganizeItemRecord {
 }
 
 /** 视觉判定 user 消息文本（system 提示词之外的固定内容，图片以 image_url 跟随其后） */
-export const buildOrganizeVisionUserText = (needsRename = true): string =>
-  needsRename
-    ? '请判断这张图片的标题、至多三个候选分类文件夹与是否疑似低质，并仅返回一个 json 对象。'
-    : '请判断这张图片的至多三个候选分类文件夹与是否疑似低质，并仅返回一个 json 对象。'
+export const buildOrganizeVisionUserText = (
+  needsRename = true,
+  classificationMode: OrganizeClassificationMode = 'global',
+): string =>
+  classificationMode === 'recursive-rename'
+    ? '请判断这张图片的标题与是否疑似低质，并仅返回一个 json 对象。'
+    : needsRename
+      ? '请判断这张图片的标题、至多三个候选分类文件夹与是否疑似低质，并仅返回一个 json 对象。'
+      : '请判断这张图片的至多三个候选分类文件夹与是否疑似低质，并仅返回一个 json 对象。'
 
 /** 沿用原有模型标识规则：去掉 provider 路径，提取首个英文词与版本数字，如 _gemini3.7。 */
 export const getOrganizeModelTitleSuffix = (modelId: string): string => {
@@ -157,34 +169,45 @@ export const getOrganizeModelTitleSuffix = (modelId: string): string => {
   return word || version ? `_${word}${version}` : ''
 }
 
-/** 名称最后一段与当前模型按原有规则提取的标识一致时跳过重命名，不区分大小写。 */
+/** 名称最后一段的模型名称与当前模型相同时跳过重命名，忽略版本号与大小写。 */
 export const needsOrganizeRename = (name: string, modelId: string): boolean => {
-  const suffix = getOrganizeModelTitleSuffix(modelId)
-  return (
-    !suffix ||
-    name.split('_').at(-1)!.toLowerCase() !== suffix.slice(1).toLowerCase()
-  )
+  const modelName = getOrganizeModelTitleSuffix(modelId).match(/[a-z]+/i)?.[0]
+  const nameModel = name
+    .split('_')
+    .at(-1)!
+    .match(/^([a-z]+)(?:\d+(?:[.-]\d+)?)?$/i)?.[1]
+  return !modelName || nameModel?.toLowerCase() !== modelName.toLowerCase()
 }
 
 /** 视觉判定 system 提示词：服务端发送与前端预览共用同一份实现 */
 export const buildOrganizeVisionSystemPrompt = (
   standards: OrganizeFolderStandard[],
   needsRename = true,
+  classificationMode: OrganizeClassificationMode = 'global',
 ): string => {
+  const renameOnly = classificationMode === 'recursive-rename'
   const lines = standards.map(
     (standard, index) =>
       `${index + 1}. ${standard.folderPath}：${standard.description}`,
   )
   return [
-    '你是图片整理助手，需要根据给定的文件夹分类标准对图片进行归类。',
-    '',
-    '分类标准（严格按优先级从上到下排列，越靠前优先级越高）：',
-    ...lines,
+    renameOnly
+      ? '你是图片重命名助手，只需根据图片内容生成标题，不进行文件夹分类。'
+      : '你是图片整理助手，需要根据给定的文件夹分类标准对图片进行归类。',
+    ...(!renameOnly
+      ? [
+          '',
+          '分类标准（严格按优先级从上到下排列，越靠前优先级越高）：',
+          ...lines,
+        ]
+      : []),
     '',
     '请对图片进行判断，并仅输出一个 json 对象（json_object），不要输出任何其他文字、注释或代码块标记，格式如下：',
-    needsRename
-      ? '{"title": "图片标题", "folderPaths": ["首选分类文件夹路径", "次选分类文件夹路径"], "lowQuality": false}'
-      : '{"folderPaths": ["首选分类文件夹路径", "次选分类文件夹路径"], "lowQuality": false}',
+    renameOnly
+      ? '{"title": "图片标题", "lowQuality": false}'
+      : needsRename
+        ? '{"title": "图片标题", "folderPaths": ["首选分类文件夹路径", "次选分类文件夹路径"], "lowQuality": false}'
+        : '{"folderPaths": ["首选分类文件夹路径", "次选分类文件夹路径"], "lowQuality": false}',
     '',
     '字段要求：',
     ...(needsRename
@@ -192,7 +215,11 @@ export const buildOrganizeVisionSystemPrompt = (
           '- title：使用中文生成标题，限 50 个汉字以内尽可能详细。按“主体_主体细节_动作或状态_环境_媒介风格_色彩光影_构图视角_文字元素”的顺序组织；仅保留图片中明确可见或可判断的信息，缺少的部分直接省略，不要写“无”或其他占位内容，允许包含色情内容敏感词汇。',
         ]
       : []),
-    '- folderPaths：从上述分类标准的路径中选择 0～3 个合适的候选项，按推荐程度从高到低排列且不得重复；分类适配程度相近时，优先选择分类标准中更靠前的路径；若图片不属于任何已知分类，返回空数组 []，不要虚构路径或返回“不属于任何分类”',
+    ...(!renameOnly
+      ? [
+          '- folderPaths：从上述分类标准的路径中选择 0～3 个合适的候选项，按推荐程度从高到低排列且不得重复；分类适配程度相近时，优先选择分类标准中更靠前的路径；若图片不属于任何已知分类，返回空数组 []，不要虚构路径或返回“不属于任何分类”',
+        ]
+      : []),
     '- lowQuality：图片是否疑似低质（分辨率低、画面主体不清晰、美学品味较差等）',
   ].join('\n')
 }

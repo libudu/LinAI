@@ -1,4 +1,7 @@
-import type { OrganizeFolderStandard } from '@/shared/eagle/organize'
+import type {
+  OrganizeClassificationMode,
+  OrganizeFolderStandard,
+} from '@/shared/eagle/organize'
 import {
   buildOrganizeVisionSystemPrompt,
   buildOrganizeVisionUserText,
@@ -37,6 +40,10 @@ const judgeResponseSchema = z.object({
 
 const judgeTitleResponseSchema = judgeResponseSchema.extend({
   title: z.string().min(1).max(200),
+})
+
+const renameResponseSchema = judgeTitleResponseSchema.omit({
+  folderPaths: true,
 })
 
 const MIME_BY_EXT: Record<string, string> = {
@@ -110,12 +117,19 @@ export const judgeItem = async (
   options: {
     compress: boolean
     standards: OrganizeFolderStandard[]
+    classificationMode: OrganizeClassificationMode
     /** 强制清空任务时中断上游请求 */
     signal?: AbortSignal
   },
 ): Promise<VisionJudgeOutcome> => {
   const source = await getItemMediaSource(itemId)
   if (!source) throw new Error('条目不存在或已从库中删除')
+  const endpoint = await getEagleVisionEndpoint()
+  const needsRename = needsOrganizeRename(source.name, endpoint.modelId)
+  const renameOnly = options.classificationMode === 'recursive-rename'
+  // 入队后名称可能已由其他操作修正，重试时同样避免无意义的模型请求。
+  if (renameOnly && !needsRename)
+    return { needsRename: false, folderPaths: [], lowQuality: false }
   if (!(await fs.pathExists(source.filePath))) {
     throw new Error('条目原文件不存在')
   }
@@ -125,9 +139,6 @@ export const judgeItem = async (
     source.ext,
     options.compress,
   )
-
-  const endpoint = await getEagleVisionEndpoint()
-  const needsRename = needsOrganizeRename(source.name, endpoint.modelId)
 
   const response = await executeEagleVisionRequest(
     endpoint,
@@ -140,12 +151,19 @@ export const judgeItem = async (
             content: buildOrganizeVisionSystemPrompt(
               options.standards,
               needsRename,
+              options.classificationMode,
             ),
           },
           {
             role: 'user',
             content: [
-              { type: 'text', text: buildOrganizeVisionUserText(needsRename) },
+              {
+                type: 'text',
+                text: buildOrganizeVisionUserText(
+                  needsRename,
+                  options.classificationMode,
+                ),
+              },
               { type: 'image_url', image_url: { url: dataUrl } },
             ],
           },
@@ -186,7 +204,16 @@ export const judgeItem = async (
   } catch {
     throw new Error('视觉返回的内容不是合法 JSON')
   }
-  const validated = judgeResponseSchema.safeParse(parsed)
+  // 仅重命名响应不要求分类字段，并丢弃模型意外返回的目录建议。
+  const renameResponse = renameOnly
+    ? renameResponseSchema.safeParse(parsed)
+    : null
+  if (renameResponse && !renameResponse.success)
+    throw new Error('视觉返回的 JSON 结构不符合要求')
+  const judgeData = renameResponse?.success
+    ? { ...renameResponse.data, folderPaths: [] }
+    : parsed
+  const validated = judgeResponseSchema.safeParse(judgeData)
   if (!validated.success) {
     throw new Error('视觉返回的 JSON 结构不符合要求')
   }
@@ -205,7 +232,7 @@ export const judgeItem = async (
   }
   // 仅分类时不读取、校验或保留上游意外返回的标题，也不追加模型标识。
   if (!needsRename) return { ...validated.data, needsRename }
-  const titled = judgeTitleResponseSchema.safeParse(parsed)
+  const titled = judgeTitleResponseSchema.safeParse(judgeData)
   if (!titled.success) throw new Error('视觉返回的 JSON 结构不符合要求')
   const suffix = getOrganizeModelTitleSuffix(endpoint.modelId)
   const titleBudget = EAGLE_ITEM_NAME_MAX_LENGTH - suffix.length

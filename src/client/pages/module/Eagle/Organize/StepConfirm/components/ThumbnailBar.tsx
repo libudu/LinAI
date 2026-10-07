@@ -16,6 +16,7 @@ import { buildConfirmListItems } from '../utils/list'
 import { ConfirmControls } from './ConfirmControls'
 
 interface ThumbnailBarProps {
+  renameOnly?: boolean
   results: OrganizeResultListItem[]
   selectedId: string | null
   onSelect: (itemId: string) => void
@@ -26,6 +27,7 @@ interface ThumbnailBarProps {
 }
 
 export function ThumbnailBar({
+  renameOnly = false,
   results,
   selectedId,
   onSelect,
@@ -163,6 +165,7 @@ export function ThumbnailBar({
 
       {/* 右侧排序与快速模式组件 */}
       <ConfirmControls
+        renameOnly={renameOnly}
         sortType={sortType}
         onSortTypeChange={onSortTypeChange}
         quickMode={quickMode}

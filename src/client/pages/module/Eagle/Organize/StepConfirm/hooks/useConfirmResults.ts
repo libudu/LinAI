@@ -22,17 +22,19 @@ export interface UseConfirmResultsOptions {
   taskId?: string
   taskCreatedAt?: number
   folders: EagleFolder[]
+  renameOnly?: boolean
 }
 
 export function useConfirmResults({
   taskId,
   taskCreatedAt,
   folders,
+  renameOnly = false,
 }: UseConfirmResultsOptions) {
   const [results, setResults] = useState<OrganizeResultListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [sortType, setSortType] = useState<OrganizeSortType>(() => {
+  const [savedSortType, setSortType] = useState<OrganizeSortType>(() => {
     try {
       const saved = localStorage.getItem(CONFIRM_SORT_STORAGE_KEY)
       if (
@@ -47,6 +49,8 @@ export function useConfirmResults({
     }
     return 'category'
   })
+  const sortType =
+    renameOnly && savedSortType === 'category' ? 'completion' : savedSortType
   const resultsRef = useRef<OrganizeResultListItem[]>([])
   const selectedIdRef = useRef(selectedId)
   selectedIdRef.current = selectedId

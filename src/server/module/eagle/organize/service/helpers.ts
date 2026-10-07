@@ -10,6 +10,7 @@ import type { OrganizeTaskRecord } from '../model'
 
 export const toTaskView = (record: OrganizeTaskRecord): OrganizeTaskView => ({
   taskId: record.taskId,
+  classificationMode: record.classificationMode,
   phase: record.phase,
   pausedReason: record.pausedReason,
   compress: record.compress,

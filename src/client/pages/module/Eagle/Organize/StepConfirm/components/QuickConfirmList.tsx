@@ -26,7 +26,7 @@ interface QuickCardProps {
   isSelected: boolean
   onSelect: (itemId: string) => void
   onConfirmItem: (item: OrganizeResultListItem) => void
-  onClearClassification: (item: OrganizeResultListItem) => void
+  onClearClassification?: (item: OrganizeResultListItem) => void
   onSkipItem: (item: OrganizeResultListItem) => void
 }
 
@@ -99,17 +99,21 @@ const QuickCard = React.memo(function QuickCard({
           确定(D)
         </Button>
 
-        <div className="grid grid-cols-2 gap-1.5">
-          <Button
-            size="large"
-            onClick={(e) => {
-              e.stopPropagation()
-              onClearClassification(result)
-            }}
-            className="px-1 text-xs"
-          >
-            清除分类(A)
-          </Button>
+        <div
+          className={`grid gap-1.5 ${onClearClassification ? 'grid-cols-2' : 'grid-cols-1'}`}
+        >
+          {onClearClassification && (
+            <Button
+              size="large"
+              onClick={(e) => {
+                e.stopPropagation()
+                onClearClassification(result)
+              }}
+              className="px-1 text-xs"
+            >
+              清除分类(A)
+            </Button>
+          )}
           <Button
             size="large"
             onClick={(e) => {
@@ -131,7 +135,7 @@ interface QuickConfirmListProps {
   selectedId: string | null
   onSelect: (itemId: string) => void
   onConfirmItem: (item: OrganizeResultListItem) => void
-  onClearClassification: (item: OrganizeResultListItem) => void
+  onClearClassification?: (item: OrganizeResultListItem) => void
   onSkipItem: (item: OrganizeResultListItem) => void
   sortType: OrganizeSortType
 }

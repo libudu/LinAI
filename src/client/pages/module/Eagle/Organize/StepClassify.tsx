@@ -16,6 +16,7 @@ import {
   Tooltip,
 } from 'antd'
 import { useState } from 'react'
+import { QueueList } from './StepRunning/QueueList'
 import { useClassifyTask } from './hooks/useClassifyTask'
 
 // 步骤 1 分类文件夹划定 / 追加图片：
@@ -53,6 +54,8 @@ export function StepClassify({
     handleSyncStandards,
     handleSubmit,
   } = useClassifyTask(onSuccess, conversionRevision)
+  const renameOnly = classificationMode === 'recursive-rename'
+  const missingStandards = !renameOnly && standards.length === 0
 
   if (loading) {
     return (
@@ -76,14 +79,17 @@ export function StepClassify({
           options={[
             { value: 'global', label: '全局分类' },
             { value: 'subfolders', label: '子目录分类' },
+            { value: 'recursive-rename', label: '递归仅重命名' },
           ]}
           disabled={hasActiveTask || submitting}
           onChange={handleClassificationModeChange}
         />
         <span className="text-xs text-slate-400">
-          {classificationMode === 'global'
-            ? '全库所有有描述的文件夹'
-            : `${prepare?.classificationFolderName ?? '当前文件夹'}下所有层级的有描述子目录（不含当前文件夹）`}
+          {renameOnly
+            ? '递归检查当前文件夹及所有子目录，仅重命名不符合当前模型命名规则的图片，保留原目录归属'
+            : classificationMode === 'global'
+              ? '全库所有有描述的文件夹'
+              : `${prepare?.classificationFolderName ?? '当前文件夹'}下所有层级的有描述子目录（不含当前文件夹）`}
           {hasActiveTask && '，追加时沿用当前任务的分类模式与标准'}
         </span>
       </div>
@@ -143,7 +149,28 @@ export function StepClassify({
       )}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
-        {standards.length === 0 ? (
+        {renameOnly ? (
+          <div className="flex min-h-0 flex-1 flex-col p-2">
+            <div className="shrink-0 border-b border-slate-100 px-1 pb-2 text-xs text-slate-400 dark:border-slate-700/60">
+              待重命名图片：共 {availableCount} 张，预览前{' '}
+              {prepare?.previewItems?.length ?? 0} 张（最多 50 张）
+            </div>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <QueueList
+                items={(prepare?.previewItems ?? []).map((item) => ({
+                  ...item,
+                  state: 'pending',
+                }))}
+                showState={false}
+                emptyDescription={
+                  hasActiveTask
+                    ? '当前文件夹及子目录内没有尚未入队的待重命名图片'
+                    : '当前文件夹及子目录内没有需要重命名的可处理图片'
+                }
+              />
+            </div>
+          </div>
+        ) : standards.length === 0 ? (
           <div className="flex flex-1 items-center justify-center p-6">
             <Empty
               description={
@@ -182,7 +209,7 @@ export function StepClassify({
       <div className="flex shrink-0 items-center justify-between border-t border-slate-200 pt-3 dark:border-slate-700">
         <div className="flex items-center gap-2">
           <Button
-            disabled={standards.length === 0}
+            disabled={missingStandards}
             onClick={() => setPromptOpen(true)}
           >
             预览提示词
@@ -201,9 +228,7 @@ export function StepClassify({
             <Button
               type="primary"
               loading={submitting}
-              disabled={
-                standards.length === 0 || availableCount === 0 || !count
-              }
+              disabled={missingStandards || availableCount === 0 || !count}
               onClick={handleSubmit}
             >
               追加到队列
@@ -212,7 +237,7 @@ export function StepClassify({
             <Button
               type="primary"
               loading={submitting}
-              disabled={standards.length === 0 || imageCount === 0 || !count}
+              disabled={missingStandards || imageCount === 0 || !count}
               onClick={handleSubmit}
             >
               确定
@@ -231,27 +256,38 @@ export function StepClassify({
         <div className="flex flex-col gap-3">
           <div className="text-xs text-slate-500 dark:text-slate-400">
             模型标识沿用「首个英文词 + 版本数字」规则（如 gemini3.7）。名称按 _
-            分段后，最后一段与当前接入点的模型标识相同（不区分大小写）时仅分类，
-            标识不同则重新生成标题。图片紧随 user 文本上传。
+            分段后，最后一段的模型名称与当前接入点相同（忽略版本号与大小写）时
+            {renameOnly ? '跳过处理' : '仅分类'}，模型名称不同则重新生成标题。
+            例如 gemini3.7 与 gemini3.8 视为相同模型名称。 图片紧随 user
+            文本上传。
           </div>
-          <Segmented<'rename' | 'classify'>
-            value={promptNeedsRename ? 'rename' : 'classify'}
-            options={[
-              { value: 'rename', label: '分类并重命名' },
-              { value: 'classify', label: '仅分类' },
-            ]}
-            onChange={(value) => setPromptNeedsRename(value === 'rename')}
-          />
+          {!renameOnly && (
+            <Segmented<'rename' | 'classify'>
+              value={promptNeedsRename ? 'rename' : 'classify'}
+              options={[
+                { value: 'rename', label: '分类并重命名' },
+                { value: 'classify', label: '仅分类' },
+              ]}
+              onChange={(value) => setPromptNeedsRename(value === 'rename')}
+            />
+          )}
           <div>
             <div className="mb-1 text-xs font-medium">System</div>
             <pre className="max-h-80 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs whitespace-pre-wrap dark:border-slate-700 dark:bg-slate-800/60">
-              {buildOrganizeVisionSystemPrompt(standards, promptNeedsRename)}
+              {buildOrganizeVisionSystemPrompt(
+                standards,
+                renameOnly || promptNeedsRename,
+                classificationMode,
+              )}
             </pre>
           </div>
           <div>
             <div className="mb-1 text-xs font-medium">User（文本部分）</div>
             <pre className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs whitespace-pre-wrap dark:border-slate-700 dark:bg-slate-800/60">
-              {buildOrganizeVisionUserText(promptNeedsRename)}
+              {buildOrganizeVisionUserText(
+                renameOnly || promptNeedsRename,
+                classificationMode,
+              )}
             </pre>
           </div>
         </div>

@@ -15,6 +15,7 @@ import type { PinnedFolderOption } from '../types'
 export type { PinnedFolderOption } from '../types'
 
 interface DetailPanelProps {
+  renameOnly?: boolean
   loading: boolean
   detail: OrganizeResultDetail | null
   withTitle: boolean
@@ -30,6 +31,7 @@ interface DetailPanelProps {
 }
 
 export function DetailPanel({
+  renameOnly = false,
   loading,
   detail,
   withTitle,
@@ -174,105 +176,111 @@ export function DetailPanel({
             </div>
           )}
 
-          <div>
-            <div className="mb-1 text-xs text-slate-400">选择目标文件夹</div>
-            {renderedOptions.length > 0 ? (
-              <Radio.Group
-                value={activeOptionKey}
-                onChange={(event) => onSelectOptionKey(event.target.value)}
-                className="flex w-full flex-col gap-1"
-              >
-                {renderedOptions.map((option) => {
-                  const isChecked = activeOptionKey === option.key
-                  return (
-                    <div
-                      key={option.key}
-                      onClick={() => onSelectOptionKey(option.key)}
-                      className={`group flex w-full cursor-pointer items-center justify-between rounded px-2 py-1.5 transition-colors ${
-                        isChecked
-                          ? 'bg-blue-50/70 dark:bg-blue-900/20'
-                          : 'hover:bg-slate-100/80 dark:hover:bg-slate-800/50'
-                      }`}
-                    >
-                      <div className="flex min-w-0 flex-1 items-center pr-2">
-                        <Radio value={option.key} className="w-full">
-                          <span className="text-base font-bold break-all">
-                            {option.type === 'manual' && (
-                              <span className="text-blue-500">
-                                【{option.count ?? 0}】
-                              </span>
-                            )}
-                            {option.folderPath}
-                          </span>
-                        </Radio>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-0.5">
-                        {option.canDelete && option.manualItem && (
+          {renameOnly ? (
+            <div className="text-xs text-slate-400">
+              仅重命名，保留全部原目录归属
+            </div>
+          ) : (
+            <div>
+              <div className="mb-1 text-xs text-slate-400">选择目标文件夹</div>
+              {renderedOptions.length > 0 ? (
+                <Radio.Group
+                  value={activeOptionKey}
+                  onChange={(event) => onSelectOptionKey(event.target.value)}
+                  className="flex w-full flex-col gap-1"
+                >
+                  {renderedOptions.map((option) => {
+                    const isChecked = activeOptionKey === option.key
+                    return (
+                      <div
+                        key={option.key}
+                        onClick={() => onSelectOptionKey(option.key)}
+                        className={`group flex w-full cursor-pointer items-center justify-between rounded px-2 py-1.5 transition-colors ${
+                          isChecked
+                            ? 'bg-blue-50/70 dark:bg-blue-900/20'
+                            : 'hover:bg-slate-100/80 dark:hover:bg-slate-800/50'
+                        }`}
+                      >
+                        <div className="flex min-w-0 flex-1 items-center pr-2">
+                          <Radio value={option.key} className="w-full">
+                            <span className="text-base font-bold break-all">
+                              {option.type === 'manual' && (
+                                <span className="text-blue-500">
+                                  【{option.count ?? 0}】
+                                </span>
+                              )}
+                              {option.folderPath}
+                            </span>
+                          </Radio>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-0.5">
+                          {option.canDelete && option.manualItem && (
+                            <Button
+                              type="text"
+                              size="small"
+                              danger
+                              icon={<DeleteOutlined />}
+                              title="删除记录"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onRemoveManualFolder(option.manualItem!)
+                              }}
+                              className="text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-500"
+                            />
+                          )}
                           <Button
                             type="text"
                             size="small"
-                            danger
-                            icon={<DeleteOutlined />}
-                            title="删除记录"
+                            icon={
+                              option.isPinned ? (
+                                <PushpinFilled />
+                              ) : (
+                                <PushpinOutlined />
+                              )
+                            }
+                            title={
+                              option.isPinned
+                                ? '取消置顶'
+                                : '置顶此选项（下一张图默认选中）'
+                            }
                             onClick={(e) => {
                               e.stopPropagation()
-                              onRemoveManualFolder(option.manualItem!)
+                              onTogglePin({
+                                key: option.key,
+                                type: option.type,
+                                folderPath: option.folderPath,
+                                folderId: option.folderId,
+                                count: option.count,
+                              })
                             }}
-                            className="text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-500"
+                            className={
+                              option.isPinned
+                                ? 'text-blue-500 opacity-100 hover:text-blue-600'
+                                : 'text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-blue-500'
+                            }
                           />
-                        )}
-                        <Button
-                          type="text"
-                          size="small"
-                          icon={
-                            option.isPinned ? (
-                              <PushpinFilled />
-                            ) : (
-                              <PushpinOutlined />
-                            )
-                          }
-                          title={
-                            option.isPinned
-                              ? '取消置顶'
-                              : '置顶此选项（下一张图默认选中）'
-                          }
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onTogglePin({
-                              key: option.key,
-                              type: option.type,
-                              folderPath: option.folderPath,
-                              folderId: option.folderId,
-                              count: option.count,
-                            })
-                          }}
-                          className={
-                            option.isPinned
-                              ? 'text-blue-500 opacity-100 hover:text-blue-600'
-                              : 'text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-blue-500'
-                          }
-                        />
+                        </div>
                       </div>
-                    </div>
-                  )
-                })}
-              </Radio.Group>
-            ) : (
-              <div className="text-slate-500 dark:text-slate-400">
-                不属于任何已知分类
+                    )
+                  })}
+                </Radio.Group>
+              ) : (
+                <div className="text-slate-500 dark:text-slate-400">
+                  不属于任何已知分类
+                </div>
+              )}
+              <div className="flex justify-end pt-1">
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<FolderAddOutlined />}
+                  onClick={() => setFolderSelectOpen(true)}
+                >
+                  手动选择文件夹
+                </Button>
               </div>
-            )}
-            <div className="flex justify-end pt-1">
-              <Button
-                type="link"
-                size="small"
-                icon={<FolderAddOutlined />}
-                onClick={() => setFolderSelectOpen(true)}
-              >
-                手动选择文件夹
-              </Button>
             </div>
-          </div>
+          )}
         </>
       )}
 

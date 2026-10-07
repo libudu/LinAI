@@ -4,7 +4,7 @@ interface ActionBarProps {
   selectedId: string | null
   canConfirm: boolean
   onDelete: () => void
-  onClearClassification: () => void
+  onClearClassification?: () => void
   onSkip: () => void
   onRetry: () => void
   onConfirm: () => void
@@ -33,9 +33,11 @@ export function ActionBar({
         </Button>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button disabled={!selectedId} onClick={onClearClassification}>
-          清除分类手动处理(A)
-        </Button>
+        {onClearClassification && (
+          <Button disabled={!selectedId} onClick={onClearClassification}>
+            清除分类手动处理(A)
+          </Button>
+        )}
         <Button
           type="primary"
           disabled={!selectedId || !canConfirm}

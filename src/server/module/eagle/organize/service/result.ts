@@ -191,7 +191,12 @@ export class ResultService {
       if (!plans.has(item.itemId))
         plans.set(
           item.itemId,
-          await prepareConfirmation(item, task.standards, endpoint.modelId),
+          await prepareConfirmation(
+            item,
+            task.standards,
+            endpoint.modelId,
+            task.classificationMode,
+          ),
         )
     }
     const results = new Map<string, OrganizeConfirmItemResult>()
@@ -230,6 +235,13 @@ export class ResultService {
   }
 
   async clearItemClassification(itemId: string): Promise<OrganizeActionResult> {
+    const task = await organizeRepository.getTask()
+    if (task?.classificationMode === 'recursive-rename')
+      return {
+        ok: false,
+        status: 409,
+        error: '递归仅重命名任务不允许清除目录归属',
+      }
     const record = await organizeRepository.getItem(itemId)
     if (!record) return { ok: false, status: 404, error: '结果不存在' }
     if (record.status !== 'success' && record.status !== 'failed')
