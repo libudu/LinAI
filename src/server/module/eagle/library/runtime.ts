@@ -1,11 +1,14 @@
 /** 库访问的内部基础设施：路径、格式约束、写锁与变更资源注册。 */
-import { EAGLE_ITEM_NAME_MAX_LENGTH } from '@/shared/eagle/types'
+import {
+  EAGLE_ITEM_NAME_MAX_LENGTH,
+  type EagleMediaType,
+} from '@/shared/eagle/types'
 import path from 'path'
 import { changeBus } from '../../../common/storage/change-bus'
 import { dataPath } from '../../../common/storage/data-path'
 import { resourceLock } from '../../../common/storage/resource-lock'
 
-/** 支持通过 HTML5 video 播放的视频扩展名集合 */
+/** Eagle 视频条目的扩展名集合，具体播放能力由浏览器决定。 */
 export const VIDEO_EXTS = new Set([
   'mp4',
   'webm',
@@ -14,6 +17,60 @@ export const VIDEO_EXTS = new Set([
   'mkv',
   'flv',
   'm4v',
+  'wmv',
+  'mpg',
+  'mpeg',
+  'm2v',
+  'ts',
+  'mts',
+  'm2ts',
+  '3gp',
+  '3g2',
+  'ogv',
+  'vob',
+  'rm',
+  'rmvb',
+])
+
+/** 图片包含 GIF、矢量图、设计源图和 RAW，不把音频、文档等其他资源视为图片。 */
+const IMAGE_EXTS = new Set([
+  'jpg',
+  'jpeg',
+  'jpe',
+  'jfif',
+  'png',
+  'apng',
+  'gif',
+  'webp',
+  'avif',
+  'jxl',
+  'bmp',
+  'tif',
+  'tiff',
+  'svg',
+  'ico',
+  'icns',
+  'heic',
+  'heif',
+  'psd',
+  'psb',
+  'ai',
+  'eps',
+  'raw',
+  'dng',
+  'cr2',
+  'cr3',
+  'crw',
+  'nef',
+  'nrw',
+  'arw',
+  'srf',
+  'sr2',
+  'raf',
+  'orf',
+  'rw2',
+  'pef',
+  'x3f',
 ])
 
 /** Eagle 条目唯一标识格式正则（字母数字组成） */
@@ -36,7 +93,12 @@ export const imagesDir = (libraryPath: string) =>
   path.join(libraryPath, 'images')
 
 /** 判断指定扩展名是否属于视频文件 */
-export const isVideoExt = (ext: string) => VIDEO_EXTS.has(ext)
+export const isVideoExt = (ext: string) => VIDEO_EXTS.has(ext.toLowerCase())
+
+/** 查询与批量操作共用媒体范围；未指定时保留全库查询。 */
+export const matchesMediaType = (ext: string, mediaType?: EagleMediaType) =>
+  !mediaType ||
+  (mediaType === 'video' ? isVideoExt(ext) : IMAGE_EXTS.has(ext.toLowerCase()))
 
 /** 条目名即文件名：去掉 Windows 文件名非法字符与首尾空白/点号，限制最大长度 120 字符 */
 export const sanitizeItemName = (name: string): string =>

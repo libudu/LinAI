@@ -2,6 +2,7 @@ import {
   EAGLE_TRASH_FOLDER_ID,
   EAGLE_UNCLASSIFIED_FOLDER_ID,
   type EagleFolder,
+  type EagleMediaType,
 } from '@/shared/eagle/types'
 import {
   DeleteOutlined,
@@ -9,7 +10,7 @@ import {
   FolderOutlined,
 } from '@ant-design/icons'
 import type { TreeDataNode } from 'antd'
-import { Tree } from 'antd'
+import { message, Segmented, Tree } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { requestEagleLibraryRefresh, useEagleStore } from '../store'
 import { EditFolderModal } from './EditFolderModal'
@@ -17,10 +18,10 @@ import { FolderContextMenu } from './FolderContextMenu'
 import './FolderTree.scss'
 import { useFolderExpansion } from './useFolderExpansion'
 
-// 节点标题：名称 + 灰色图片数（含子孙累计），开启展示时在名称下方加一行浅灰描述（单行超长省略）
+// 节点标题：名称 + 灰色数量，开启展示时在名称下方加一行浅灰描述（单行超长省略）
 const renderTitle = (
   name: string,
-  count: number,
+  count: number | string,
   description?: string,
   showDescription?: boolean,
 ) => (
@@ -44,21 +45,31 @@ const toTreeData = (
   folders: EagleFolder[],
   onEdit: (folder: EagleFolder) => void,
   showDescription: boolean,
+  showEmptyFolders: boolean,
 ): TreeDataNode[] =>
-  folders.map((folder) => ({
-    key: folder.id,
-    title: (
-      <FolderContextMenu folder={folder} onEdit={onEdit}>
-        {renderTitle(
-          folder.name,
-          folder.totalCount,
-          folder.description,
-          showDescription,
-        )}
-      </FolderContextMenu>
-    ),
-    children: toTreeData(folder.children, onEdit, showDescription),
-  }))
+  folders
+    .filter((folder) => showEmptyFolders || folder.totalCount > 0)
+    .map((folder) => ({
+      key: folder.id,
+      title: (
+        <FolderContextMenu folder={folder} onEdit={onEdit}>
+          {renderTitle(
+            folder.name,
+            folder.children.length > 0 && folder.count > 0
+              ? `${folder.count}/${folder.totalCount}`
+              : folder.totalCount,
+            folder.description,
+            showDescription,
+          )}
+        </FolderContextMenu>
+      ),
+      children: toTreeData(
+        folder.children,
+        onEdit,
+        showDescription,
+        showEmptyFolders,
+      ),
+    }))
 
 const findAncestorKeys = (
   folders: EagleFolder[],
@@ -86,10 +97,13 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
     foldersLoading,
     currentFolderId,
     selectFolder,
+    mediaType,
+    setMediaType,
     allTotal,
     unclassifiedTotal,
     trashTotal,
     showFolderDescription,
+    showEmptyFolders,
   } = useEagleStore()
   const { expandedKeys, expandedStateLoaded, handleExpand, revealAncestors } =
     useFolderExpansion(folders)
@@ -109,9 +123,21 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
         title: renderTitle('回收站', trashTotal),
         children: undefined,
       },
-      ...toTreeData(folders, setEditingFolder, showFolderDescription),
+      ...toTreeData(
+        folders,
+        setEditingFolder,
+        showFolderDescription,
+        showEmptyFolders,
+      ),
     ],
-    [folders, allTotal, showFolderDescription, unclassifiedTotal, trashTotal],
+    [
+      folders,
+      allTotal,
+      showFolderDescription,
+      showEmptyFolders,
+      unclassifiedTotal,
+      trashTotal,
+    ],
   )
 
   // 文件夹与展开状态就绪后，确保历史选中项可见并滚动到其位置
@@ -155,6 +181,23 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
 
   return (
     <div className="flex h-full flex-col">
+      <Segmented<EagleMediaType>
+        block
+        size="large"
+        className="shrink-0"
+        style={{ padding: 4, borderRadius: 0 }}
+        value={mediaType}
+        options={[
+          { value: 'image', label: '图片' },
+          { value: 'video', label: '视频' },
+        ]}
+        onChange={(value) => {
+          void setMediaType(value).catch((error) => {
+            console.error('切换 Eagle 资源类型失败', error)
+            message.error('加载资源失败，请刷新重试')
+          })
+        }}
+      />
       <div
         ref={scrollContainerRef}
         className="eagle-folder-tree min-h-0 flex-1 overflow-y-auto py-1"

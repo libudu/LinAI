@@ -27,7 +27,10 @@ import {
   getThumbnail,
 } from '../../module/eagle/media'
 
-import { eagleItemsQuerySchema } from '../../module/eagle/schemas'
+import {
+  eagleItemsQuerySchema,
+  eagleMediaQuerySchema,
+} from '../../module/eagle/schemas'
 import { errorResponse, validate } from './validation'
 
 const mediaErrorResponse = (c: Context, error: unknown) => {
@@ -83,14 +86,14 @@ const libraryApi = new Hono()
     },
   )
   // 目录树与全部/未分类/回收站计数，一次读取返回。
-  .get('/overview', async (c) => {
-    const overview = await getLibraryOverview()
+  .get('/overview', validate('query', eagleMediaQuerySchema), async (c) => {
+    const overview = await getLibraryOverview(c.req.valid('query').mediaType)
     return c.json({ success: true as const, data: overview })
   })
 
   // 文件夹树（含每文件夹图片数）
-  .get('/folders', async (c) => {
-    const folders = await getFolderTree()
+  .get('/folders', validate('query', eagleMediaQuerySchema), async (c) => {
+    const folders = await getFolderTree(c.req.valid('query').mediaType)
     return c.json({ success: true as const, data: folders })
   })
 
@@ -179,16 +182,20 @@ const libraryApi = new Hono()
   })
 
   // 全部彻底删除回收站文件（清空回收站）
-  .post('/trash/purge', async (c) => {
-    const count = await purgeTrash()
+  .post('/trash/purge', validate('query', eagleMediaQuerySchema), async (c) => {
+    const count = await purgeTrash(c.req.valid('query').mediaType)
     return c.json({ success: true as const, data: { count } })
   })
 
   // 全部移入回收站（未分类目录下所有条目）
-  .post('/unclassified/trash', async (c) => {
-    const count = await trashUnclassified()
-    return c.json({ success: true as const, data: { count } })
-  })
+  .post(
+    '/unclassified/trash',
+    validate('query', eagleMediaQuerySchema),
+    async (c) => {
+      const count = await trashUnclassified(c.req.valid('query').mediaType)
+      return c.json({ success: true as const, data: { count } })
+    },
+  )
 
   // 媒体路由只负责条件请求与响应，缩略图和图库导入由媒体服务处理。
   .get('/items/:id/preview', async (c) => {

@@ -38,6 +38,7 @@ import { requestEagleLibraryRefresh, useEagleStore } from './store'
 export function Toolbar() {
   const {
     currentFolderId,
+    mediaType,
     keyword,
     setKeyword,
     total,
@@ -57,6 +58,8 @@ export function Toolbar() {
     setShowFileSize,
     showFolderTree,
     setShowFolderTree,
+    showEmptyFolders,
+    setShowEmptyFolders,
     showFolderDescription,
     setShowFolderDescription,
   } = useEagleStore()
@@ -70,6 +73,7 @@ export function Toolbar() {
   const [organizeOpen, setOrganizeOpen] = useState(false)
 
   const showOrganizeButton =
+    mediaType === 'image' &&
     Boolean(currentFolderId) &&
     currentFolderId !== EAGLE_UNCLASSIFIED_FOLDER_ID &&
     currentFolderId !== EAGLE_TRASH_FOLDER_ID
@@ -161,7 +165,7 @@ export function Toolbar() {
   const handlePurgeAllTrash = () => {
     Modal.confirm({
       title: '全部彻底删除',
-      content: `确定要彻底删除回收站下的全部 ${trashTotal} 个文件吗？此操作将从磁盘永久删除原文件且无法撤销。`,
+      content: `确定要彻底删除回收站下的全部 ${trashTotal} 个${mediaType === 'image' ? '图片（含 GIF）' : '视频'}文件吗？此操作将从磁盘永久删除原文件且无法撤销。`,
       okText: '全部彻底删除',
       okType: 'danger',
       cancelText: '取消',
@@ -169,7 +173,7 @@ export function Toolbar() {
       onOk: async () => {
         setPurgingTrash(true)
         try {
-          const res = await purgeEagleTrash()
+          const res = await purgeEagleTrash(mediaType)
           message.success(`已彻底删除 ${res.count} 个文件`)
           await requestEagleLibraryRefresh()
         } catch (error) {
@@ -185,7 +189,7 @@ export function Toolbar() {
   const handleTrashAllUnclassified = () => {
     Modal.confirm({
       title: '全部移动到回收站',
-      content: `确定要将未分类下的全部 ${unclassifiedTotal} 个文件移动到回收站吗？`,
+      content: `确定要将未分类下的全部 ${unclassifiedTotal} 个${mediaType === 'image' ? '图片（含 GIF）' : '视频'}文件移动到回收站吗？`,
       okText: '全部移动到回收站',
       okType: 'danger',
       cancelText: '取消',
@@ -193,7 +197,7 @@ export function Toolbar() {
       onOk: async () => {
         setTrashingUnclassified(true)
         try {
-          const res = await trashAllUnclassifiedEagleItems()
+          const res = await trashAllUnclassifiedEagleItems(mediaType)
           message.success(`已将 ${res.count} 个文件移动到回收站`)
           await requestEagleLibraryRefresh()
         } catch (error) {
@@ -293,6 +297,12 @@ export function Toolbar() {
                   onChange={(e) => setShowFolderTree(e.target.checked)}
                 >
                   显示文件夹树
+                </Checkbox>
+                <Checkbox
+                  checked={showEmptyFolders}
+                  onChange={(e) => setShowEmptyFolders(e.target.checked)}
+                >
+                  显示空文件夹
                 </Checkbox>
                 <Checkbox
                   checked={showFolderDescription}

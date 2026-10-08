@@ -22,6 +22,7 @@ import {
   type EagleFolder,
   type EagleItem,
   type EagleLibraryOverview,
+  type EagleMediaType,
 } from '@/shared/eagle/types'
 import { createHash } from 'node:crypto'
 import path from 'path'
@@ -34,7 +35,12 @@ import {
   resolveFolderPaths,
 } from './folders'
 import { ensureIndex, libraryChanges } from './index-state'
-import { imagesDir, ITEM_ID_PATTERN, VIDEO_EXTS } from './runtime'
+import {
+  imagesDir,
+  ITEM_ID_PATTERN,
+  matchesMediaType,
+  VIDEO_EXTS,
+} from './runtime'
 import {
   type EagleIndexState,
   type EagleItemDetail,
@@ -71,19 +77,22 @@ export const toEagleItem = (
 
 // 查询条件最多保留 8 份排序视图；翻页只切片和投影，版本变化即丢弃旧视图。
 let cachedVersion = ''
-let overviewCache: EagleLibraryOverview | null = null
+const overviewCache = new Map<string, EagleLibraryOverview>()
 const itemViews = new Map<string, EagleItemIndex[]>()
 
 const ensureQueryVersion = () => {
   if (cachedVersion === libraryChanges.version) return
   cachedVersion = libraryChanges.version
-  overviewCache = null
+  overviewCache.clear()
   itemViews.clear()
 }
 
 const sortedItems = (
   index: EagleIndexState,
-  params: Pick<GetItemsParams, 'folderId' | 'sortBy' | 'sortOrder' | 'keyword'>,
+  params: Pick<
+    GetItemsParams,
+    'folderId' | 'sortBy' | 'sortOrder' | 'keyword' | 'mediaType'
+  >,
   classifiable = false,
   recursiveFolderIds?: Set<string>,
 ): EagleItemIndex[] => {
@@ -97,6 +106,7 @@ const sortedItems = (
     sortBy,
     sortOrder,
     keywords,
+    params.mediaType ?? '',
     classifiable,
     recursiveFolderIds ? [...recursiveFolderIds] : null,
   ])
@@ -108,6 +118,7 @@ const sortedItems = (
   }
   const list: EagleItemIndex[] = []
   for (const item of index.items.values()) {
+    if (!matchesMediaType(item.ext, params.mediaType)) continue
     if (folderId === EAGLE_TRASH_FOLDER_ID) {
       if (!item.isDeleted || classifiable) continue
     } else {
@@ -143,14 +154,19 @@ export const getLibraryChanges = async (since?: string) => {
 }
 
 /** 获取构建完成的完整文件夹树（含数量统计） */
-export const getFolderTree = async (): Promise<EagleFolder[]> =>
-  (await getLibraryOverview()).folders
+export const getFolderTree = async (
+  mediaType?: EagleMediaType,
+): Promise<EagleFolder[]> => (await getLibraryOverview(mediaType)).folders
 
 /** 一次遍历计算真实目录计数与虚拟目录总数，不构造或排序条目列表。 */
-export const getLibraryOverview = async (): Promise<EagleLibraryOverview> => {
+export const getLibraryOverview = async (
+  mediaType?: EagleMediaType,
+): Promise<EagleLibraryOverview> => {
   const index = await ensureIndex()
   ensureQueryVersion()
-  if (overviewCache) return overviewCache
+  const cacheKey = mediaType ?? ''
+  const cached = overviewCache.get(cacheKey)
+  if (cached) return cached
   const overview: EagleLibraryOverview = {
     folders: [],
     allTotal: 0,
@@ -160,6 +176,7 @@ export const getLibraryOverview = async (): Promise<EagleLibraryOverview> => {
   if (!index) return overview
   const counts = new Map<string, number>()
   for (const item of index.items.values()) {
+    if (!matchesMediaType(item.ext, mediaType)) continue
     if (item.isDeleted) {
       overview.trashTotal++
       continue
@@ -170,7 +187,7 @@ export const getLibraryOverview = async (): Promise<EagleLibraryOverview> => {
       counts.set(folderId, (counts.get(folderId) ?? 0) + 1)
   }
   overview.folders = buildFolderTree(index.folders, counts)
-  overviewCache = overview
+  overviewCache.set(cacheKey, overview)
   return overview
 }
 

@@ -1,8 +1,10 @@
 import { rpcData } from '@/client/service/http'
+import type { EagleMediaType } from '@/shared/eagle/types'
 import type { InferRequestType } from 'hono/client'
 import { eagleRpc } from './rpc'
 
-export const fetchEagleOverview = () => rpcData(eagleRpc.overview.$get())
+export const fetchEagleOverview = (mediaType: EagleMediaType) =>
+  rpcData(eagleRpc.overview.$get({ query: { mediaType } }))
 
 export type FetchEagleItemsParams = Omit<
   InferRequestType<typeof eagleRpc.items.$get>['query'],
@@ -53,9 +55,10 @@ export const purgeEagleItem = async (id: string): Promise<void> => {
   await rpcData(eagleRpc.items[':id'].purge.$delete({ param: { id } }))
 }
 
-export const purgeEagleTrash = () => rpcData(eagleRpc.trash.purge.$post())
-export const trashAllUnclassifiedEagleItems = () =>
-  rpcData(eagleRpc.unclassified.trash.$post())
+export const purgeEagleTrash = (mediaType: EagleMediaType) =>
+  rpcData(eagleRpc.trash.purge.$post({ query: { mediaType } }))
+export const trashAllUnclassifiedEagleItems = (mediaType: EagleMediaType) =>
+  rpcData(eagleRpc.unclassified.trash.$post({ query: { mediaType } }))
 
 export const eagleThumbnailUrl = (id: string, version?: string) =>
   `${eagleRpc.items[':id'].thumbnail.$path({ param: { id } })}${version ? `?v=${version}` : ''}`

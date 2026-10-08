@@ -6,6 +6,7 @@ interface EaglePreferences {
   showFileName: boolean
   showFileSize: boolean
   showFolderTree: boolean
+  showEmptyFolders: boolean
   showFolderDescription: boolean
 }
 
@@ -16,10 +17,14 @@ const SELECTED_FOLDER_STORAGE_KEY = 'eagle_selected_folder'
 
 export type EagleImageSize = 'small' | 'medium' | 'large'
 
-// 纯前端展示选项持久化，默认显示文件夹树，其余均不勾选
+// 纯前端展示选项持久化，默认显示文件夹树和空文件夹，其余均不勾选
 export const loadViewOptions = (): Pick<
   EaglePreferences,
-  'showFileName' | 'showFileSize' | 'showFolderTree' | 'showFolderDescription'
+  | 'showFileName'
+  | 'showFileSize'
+  | 'showFolderTree'
+  | 'showEmptyFolders'
+  | 'showFolderDescription'
 > => {
   try {
     const raw = localStorage.getItem(DISPLAY_STORAGE_KEY)
@@ -29,6 +34,7 @@ export const loadViewOptions = (): Pick<
         showFileName: parsed.showFileName === true,
         showFileSize: parsed.showFileSize === true,
         showFolderTree: parsed.showFolderTree !== false,
+        showEmptyFolders: parsed.showEmptyFolders !== false,
         showFolderDescription: parsed.showFolderDescription === true,
       }
     }
@@ -39,6 +45,7 @@ export const loadViewOptions = (): Pick<
     showFileName: false,
     showFileSize: false,
     showFolderTree: true,
+    showEmptyFolders: true,
     showFolderDescription: false,
   }
 }
@@ -82,6 +89,7 @@ export const persistViewOptions = (state: {
   showFileName: boolean
   showFileSize: boolean
   showFolderTree: boolean
+  showEmptyFolders: boolean
   showFolderDescription: boolean
 }) => {
   localStorage.setItem(
@@ -90,6 +98,7 @@ export const persistViewOptions = (state: {
       showFileName: state.showFileName,
       showFileSize: state.showFileSize,
       showFolderTree: state.showFolderTree,
+      showEmptyFolders: state.showEmptyFolders,
       showFolderDescription: state.showFolderDescription,
     }),
   )

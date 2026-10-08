@@ -3,6 +3,7 @@ import {
   EAGLE_UNCLASSIFIED_FOLDER_ID,
   type EagleFolder,
   type EagleItem,
+  type EagleMediaType,
   type EagleSortBy,
   type EagleSortOrder,
 } from '@/shared/eagle/types'
@@ -35,6 +36,8 @@ interface EagleState {
   foldersLoading: boolean
   /** 当前选中文件夹，空字符串表示「全部」 */
   currentFolderId: string
+  /** 当前资源类型，默认图片（包含 GIF） */
+  mediaType: EagleMediaType
   /** 当前列表的文件名搜索词，不持久化 */
   keyword: string
   items: EagleItem[]
@@ -58,11 +61,14 @@ interface EagleState {
   showFileSize: boolean
   /** 展示桌面端左侧文件夹树 */
   showFolderTree: boolean
+  /** 显示当前类型的递归总数为零的文件夹 */
+  showEmptyFolders: boolean
   /** 在文件夹树节点名称下方展示描述 */
   showFolderDescription: boolean
 
   init: () => Promise<void>
   selectFolder: (folderId: string) => Promise<void>
+  setMediaType: (mediaType: EagleMediaType) => Promise<void>
   setKeyword: (keyword: string) => Promise<void>
   setSort: (sortBy: EagleSortBy, sortOrder: EagleSortOrder) => Promise<void>
   setPage: (page: number) => Promise<void>
@@ -70,6 +76,7 @@ interface EagleState {
   setShowFileName: (show: boolean) => void
   setShowFileSize: (show: boolean) => void
   setShowFolderTree: (show: boolean) => void
+  setShowEmptyFolders: (show: boolean) => void
   setShowFolderDescription: (show: boolean) => void
   /** 触发后端增量刷新后重拉数据 */
   reload: () => Promise<void>
@@ -86,7 +93,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
   const loadPage = async (page: number, options?: { silent?: boolean }) => {
     const sequence = ++pageSequence
     requestedPage = page
-    const { currentFolderId, keyword, sortBy, sortOrder } = get()
+    const { currentFolderId, keyword, sortBy, sortOrder, mediaType } = get()
     if (!options?.silent) {
       set({ listLoading: true })
     }
@@ -94,6 +101,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
       const resp = await fetchEagleItems({
         folderId: currentFolderId || undefined,
         keyword: keyword || undefined,
+        mediaType,
         sortBy,
         sortOrder,
         offset: (page - 1) * PAGE_SIZE,
@@ -119,10 +127,11 @@ export const useEagleStore = create<EagleState>()((set, get) => {
 
   const loadFolders = async () => {
     const sequence = ++foldersSequence
+    const { mediaType } = get()
     set({ foldersLoading: true })
     try {
-      const overview = await fetchEagleOverview()
-      if (sequence !== foldersSequence) return get().folders
+      const overview = await fetchEagleOverview(mediaType)
+      if (sequence !== foldersSequence) return null
       set(overview)
       return overview.folders
     } finally {
@@ -134,6 +143,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
     folders: [],
     foldersLoading: false,
     currentFolderId: loadSelectedFolderId(),
+    mediaType: 'image',
     keyword: '',
     items: [],
     total: 0,
@@ -148,6 +158,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
 
     init: async () => {
       const folders = await loadFolders()
+      if (!folders) return
       const currentFolderId = get().currentFolderId
       if (currentFolderId && !hasFolder(folders, currentFolderId)) {
         persistSelectedFolderId('')
@@ -161,6 +172,25 @@ export const useEagleStore = create<EagleState>()((set, get) => {
       persistSelectedFolderId(folderId)
       set({ currentFolderId: folderId, items: [], total: 0, page: 1 })
       await loadPage(1)
+    },
+
+    setMediaType: async (mediaType) => {
+      if (mediaType === get().mediaType) return
+      // 立即作废旧类型的请求，避免切换时混入旧列表或计数。
+      pageSequence++
+      foldersSequence++
+      requestedPage = 1
+      set({
+        mediaType,
+        folders: [],
+        items: [],
+        total: 0,
+        page: 1,
+        allTotal: 0,
+        unclassifiedTotal: 0,
+        trashTotal: 0,
+      })
+      await Promise.all([loadFolders(), loadPage(1)])
     },
 
     setKeyword: async (value) => {
@@ -204,6 +234,13 @@ export const useEagleStore = create<EagleState>()((set, get) => {
       set((state) => {
         persistViewOptions({ ...state, showFolderTree: show })
         return { showFolderTree: show }
+      })
+    },
+
+    setShowEmptyFolders: (show) => {
+      set((state) => {
+        persistViewOptions({ ...state, showEmptyFolders: show })
+        return { showEmptyFolders: show }
       })
     },
 
