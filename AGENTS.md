@@ -1,6 +1,6 @@
 # LinAI
 
-个人 AI 工具箱桌面 Web 应用：React 前端 + Hono 后端的全栈 TypeScript 项目，最终打包成内置 Node.js 运行时的 Windows 免安装压缩包分发。主要功能模块：GPT 图像生成、语音合成（TTS）、小说生成（流式）、聊天代理。
+个人 AI 工具箱桌面 Web 应用：React 前端 + Hono 后端的全栈 TypeScript 项目，最终打包成内置 Node.js 运行时的 Windows 免安装压缩包分发。主要功能模块：图片生成、Eagle 图片管理与 AI 整理、拼豆图处理、语音合成（TTS）、小说生成（流式）、聊天代理。
 
 ## 开发约定（必须遵守）
 
@@ -8,16 +8,11 @@
 - 不要运行 build 命令
 - 仅在所有代码编写完成的最后运行类型检查，仅使用 `npx tsc --noEmit`，不要用 eslint、不要用 build 命令
 - 除非明确要求，否则禁止使用视觉能力验证结果，避免视觉能力造成过量 token 消耗
-
-## 技术栈
-
-- 前端：React 19 + Vite + react-router-dom + antd 6（zhCN）+ Tailwind CSS 4 + zustand + ahooks + sass
-- 后端：Hono 4 + @hono/node-server + zod（@hono/zod-validator）
-- 工具链：tsx（运行/监视 TS）、tsup（服务端打包）、prettier、husky
+- 涉及图片整理或 Eagle 的需求，先阅读 `src/client/pages/module/Eagle/README.md` 了解相关设计；不涉及则无需阅读
 
 ## 常用命令
 
-- `pnpm dev`：同时启动前端（vite，端口 5174，`/api` 代理到 3000）和后端（tsx watch，开发端口 3001）
+- `pnpm dev`：同时启动前端（vite，端口 5174，`/api` 与 `/v1` 代理到 3000）和后端（tsx watch，默认端口 3000，`NODE_ENV=development` 时为 3001）
 - `npx tsc --noEmit`：类型检查（改代码后唯一需要运行的检查命令）
 - `pnpm prettier`：格式化 `src/**/*.{js,jsx,ts,tsx,css,scss,md}`
 - 构建发布（AI 代理不要运行）：`pnpm build:private` / `pnpm build:public`（`*SkipTag` 变体跳过 git tag）
@@ -32,16 +27,16 @@
   - `store/global.ts`：zustand 全局状态（仅跨模块共享的少量状态）
   - `theme.tsx`：全局明暗主题 + 自定义强调色（`AppThemeProvider` / `useAppTheme`），localStorage 键 `app_theme` / `app_theme_accent`；暗色样式靠 `index.css` 中 `html[data-theme='dark']` 属性选择器映射 Tailwind 亮色类；独立 createRoot 的弹窗需自行包一层 `AppThemeProvider`
 - `src/server/`：后端
-  - `index.ts`：Hono 入口，所有 API 路由在此挂载（`/api/*`），导出 `AppType` 供前端 RPC 类型推导
+  - `index.ts`：Hono 入口，所有 API 路由在此挂载（`/api/*`，聊天兼容接口另挂 `/v1`），导出 `AppType` 供前端 RPC 类型推导
   - `api/`：HTTP 接口层，每个业务模块一个文件或同名文件夹；`api/common/` 为通用接口（storage/settings/relay/log/config）；图片任务和图库接口位于 `api/gpt-image/tasks.ts`、`assets.ts`，保留 `/api/task`、`/api/static` URL
   - `module/`：业务逻辑层；`common/`：基础设施（storage、settings、relay、static、task）
-  - `common/storage/`：可靠存储基础层（原子 JSON 读写、`.bak`/`.corrupt` 备份恢复、资源级串行队列、CollectionStore / EntityStore / DocumentStore、StorageRegistry、StorageError 统一错误、`dataPath()`、change-bus 变更总线），写盘失败抛错由全局 `app.onError` 映射为 404/409/413/500；资源在各模块 `module/<模块>/storage.ts` 注册（`common/storage/resources.ts` 副作用导入汇总，与 settings 同一模式），前端经 `/api/storage/collections|entities/:resource` 访问（信封结构见 `src/shared/storage/types.ts`，客户端封装在 `client/service/storage.ts`）；EntityStore 每实体一个 `<id>.json`、列表只返回 summary，小说（`data/novels/books/`）与 TTS 项目（`data/tts/projects/`）已迁入，业务修改全部在前端读改写整体保存；资源变更经 `/api/storage/events?resources=...` 订阅（SSE 只发资源 ID + 版本信息，前端收到后重新拉取）
+  - `common/storage/`：可靠存储基础层（原子 JSON 读写、`.bak` 备份与 `.corrupt-*` 损坏隔离、资源级串行队列、CollectionStore / EntityStore / DocumentStore、StorageRegistry、StorageError 统一错误、`dataPath()`、change-bus 变更总线），存储错误由全局 `app.onError` 映射为 404/409/413/500，写盘失败返回 500；资源在各模块 `module/<模块>/storage.ts` 注册（`common/storage/resources.ts` 副作用导入汇总，与 settings 同一模式），前端经 `/api/storage/collections|entities/:resource` 访问（信封结构见 `src/shared/storage/types.ts`，客户端封装在 `client/service/storage.ts`）；EntityStore 每实体一个 `<id>.json`、列表只返回 summary，小说（`data/novels/books/`）与 TTS 项目（`data/tts/projects/`）已迁入，业务修改全部在前端读改写整体保存；资源变更经 `/api/storage/events?resources=...` 订阅（SSE 只发资源 ID + 版本信息，前端收到后重新拉取）
   - `common/settings/`：注册式设置（SettingsRegistry），通用路由 `GET/PUT /api/settings/:id`，详见下文"模块与配置的实现方式"
-  - `common/relay/`：受限请求中继（RequestRegistry：origin/方法/路径白名单 + 服务端凭据注入 + SSE 透传），通用路由 `POST /api/relay/:target`，目标在各模块 `relay.ts` 注册（`common/relay/resources.ts` 副作用导入汇总；当前为 novel.openai、inworld）；带文件副作用或业务预处理的请求保留专用适配器，不开放任意 URL 代理
+  - `common/relay/`：受限请求中继（RequestRegistry：origin/方法/路径白名单 + 服务端凭据注入 + SSE 透传），通用路由 `POST /api/relay/:target`，目标在各模块 `relay.ts` 注册（`common/relay/resources.ts` 副作用导入汇总；当前为 novel.openai、inworld、vision.openai、eagle.vision）；带文件副作用或业务预处理的请求保留专用适配器，不开放任意 URL 代理
   - `common/task/`：生成任务（TaskRepository 私有复用 CollectionStore 持久化 `data/tasks.json`，不注册到通用存储；TaskService 负责记录与状态流转、启动恢复；`module/gpt-image/tasks.ts` 编排取消与输出清理，变更发布到 change bus 的 `image.tasks`）
   - `common/static/`：图片转换、原始文件列表和文件/缩略图操作，不读取业务引用；`module/gpt-image/assets.ts` 在生命周期锁中编排引用检查、图库列表及文件清理
   - `migrate.ts`：版本迁移脚本，供最终用户拖入新版压缩包升级
-- `src/shared/`：前后端实际共用的契约、常量与纯函数（无 UI、无 Node 依赖），如 `gpt-image/endpoints.ts`（接入点预设与识别规则）、`image/template.ts`（模板与任务快照）、`image/params.ts`（尺寸与质量）、`image/sources.ts`（任务来源）、`storage/types.ts`（通用存储信封）、`eagle/`（接口与设置契约）、`tts/inworld.ts`（音色响应）。小说与 TTS 项目模型由前端拥有，分别定义在 `client/pages/module/Novel/types.ts` 和 `client/pages/module/GeminiTTS/types.ts`；仅落盘或经通用存储传输不构成共享理由。设置继续从服务端 schema 推导类型，Hono RPC 继续复用 `AppType`，不手写重复契约
+- `src/shared/`：前后端实际共用的契约、常量与纯函数（无 UI、无 Node 依赖），如 `gpt-image/endpoints.ts`（接入点预设与识别规则）、`image/template.ts`（模板与任务快照）、`image/params.ts`（尺寸与质量）、`image/sources.ts`（任务来源）、`storage/types.ts`（通用存储信封）、`eagle/`（接口与整理契约）、`tts/inworld.ts`（音色响应）。小说与 TTS 项目模型由前端拥有，分别定义在 `client/pages/module/Novel/types.ts` 和 `client/pages/module/GeminiTTS/types.ts`；仅落盘或经通用存储传输不构成共享理由。设置继续从服务端 schema 推导类型，Hono RPC 继续复用 `AppType`，不手写重复契约
 - `data/`：运行时数据（不入库的用户数据），服务以 `process.cwd()/data` 定位
 - `data-template/`、`dist-template/`：发布模板（后者含便携 Node 运行时与启动/迁移 bat）
 - `scripts/post-build.ts`：构建后处理（git tag、复制模板、dist 内安装生产依赖、打 zip）
@@ -50,15 +45,15 @@
 
 后端会消费的模块配置（API Key、Base URL、模型 ID 等）统一走注册式 SettingsRegistry（参考 gpt-image / tts / novel）：
 
-1. **注册定义**：`src/server/module/<模块>/settings.ts`，调用 `settingsRegistry.register()` 声明 zod schema（字段唯一定义来源）、defaults 与旧格式迁移，落盘在模块自己的数据目录（如 `data/images/config.json`，自动迁移为 DocumentStore 信封结构）；导出异步的服务端内部辅助函数（如 `getYunwuApiKey`）。注册汇总在 `common/settings/resources.ts`
+1. **注册定义**：`src/server/module/<模块>/settings.ts`，调用 `settingsRegistry.register()` 声明 zod schema（字段唯一定义来源）、defaults 与旧格式迁移，落盘在模块自己的数据目录（如 `data/images/config.json`，自动迁移为 DocumentStore 信封结构）；导出异步的服务端内部辅助函数（如 `getGptImageSettings`）。注册汇总在 `common/settings/resources.ts`
 2. **接口层**：通用路由 `GET/PUT /api/settings/:id`（`api/common/settings.ts`），各模块不再实现自己的 `/config` 路由；本应用前后端均在用户本地，密钥明文回传，方便用户查看与复制
-3. **前端状态**：模块自己的 zustand store（如 `GenImage/settings/store.ts`、`Novel/SettingModal/useNovelConfig.ts`），经 `client/service/settings.ts` 的 `settingsClient` 整体读写（带 revision 冲突检测），启动时统一拉取一次；`gptImageApiKey` 按当前接入点从 keychain 派生（`resolveGptImageApiKey`），用于"是否已配置"判断与表单回填
+3. **前端状态**：模块自己的 zustand store（如 `GenImage/settings/store.ts`、`Novel/SettingModal/useNovelConfig.ts`），经 `client/service/settings.ts` 的 `settingsClient` 整体读写（带 revision 冲突检测），在应用启动或模块加载时拉取；`gptImageApiKey` 从 `resolveImageEndpoint` 解析的当前云端接入点派生，ComfyUI 不依赖此字段判断是否已配置
 
 纯前端拥有的业务数据（模板、小说、TTS 项目）不走 SettingsRegistry，走通用存储 `/api/storage/*`（见上目录结构）。真正全局的项仍在 `api/common/config.ts`（目前仅 localNetworkUrl）
 
 ## 构建与发布流程
 
-`vite build`（前端 → `dist/client`）→ `tsup`（服务端 → `dist/server`，playwright / sharp 保持 external）→ `scripts/post-build.ts`（产出 `LinAI v<版本>-private|public.zip`）。最终用户解压后用 `双击运行.bat` 启动，服务端直接托管 `dist/client` 并自动打开浏览器。`.env.public` 在 public 构建下注入 `VITE_IS_PUBLIC=true`。
+`vite build`（前端 → `dist/client`）→ `tsup`（服务端 → `dist/server`，sharp / heic-decode / libheif-js 保持 external）→ `scripts/post-build.ts`（产出 `LinAI v<版本>-private|public.zip`）。最终用户解压后用 `双击运行.bat` 启动，服务端直接托管 `dist/client` 并自动打开浏览器。`.env.public` 在 public 构建下注入 `VITE_IS_PUBLIC=true`。
 
 ## 代码风格
 
@@ -73,5 +68,5 @@
 
 ## 安全注意事项
 
-- 各模块 `data/` 下的 config.json 保存用户的 API 密钥，经 `/api/settings/:id` 明文读写（本地应用，方便用户查看复制），不得提交或泄露；仓库内 `data/` 下文件属于本地运行数据
+- 各模块 `data/` 下的设置文件保存用户的 API 密钥，经 `/api/settings/:id` 明文读写（本地应用，方便用户查看复制），不得提交或泄露；仓库内 `data/` 下文件属于本地运行数据
 - `.husky/pre-commit` 会拒绝 git `user.name` 含汉字的提交（避免真名泄露），提交前确保用户名不含中文
