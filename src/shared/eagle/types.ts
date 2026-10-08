@@ -33,6 +33,8 @@ export interface EagleItem {
   height: number
   /** 文件修改时间（排序依据） */
   mtime: number
+  /** Eagle 条目最近操作时间（排序依据） */
+  lastModified: number
   /** 按库身份和条目内容版本失效的媒体 URL 参数 */
   contentVersion: string
   /** 所属 Eagle 文件夹 ID 列表（未归档为空数组） */
@@ -55,5 +57,5 @@ export interface EagleLibraryOverview {
   trashTotal: number
 }
 
-export type EagleSortBy = 'mtime' | 'size'
+export type EagleSortBy = 'lastModified' | 'mtime' | 'size'
 export type EagleSortOrder = 'asc' | 'desc'

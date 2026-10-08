@@ -91,7 +91,8 @@ export function getOrUpdateCategoryOrder(
  *    - 第三层：固化表外兜底 —— 按当前剩余数量从多到少，数量相同时按文件夹树先后顺序排
  *    - 第四层：同分类内项 —— 保持任务完成顺序（updatedAt 正序）
  * 2. completion（完成顺序）：按任务完成时的队列添加顺序（updatedAt 正序）
- * 3. mtime_desc / mtime_asc（图片修改时间）：按图片原文件修改时间倒序 / 正序
+ * 3. lastModified_desc / lastModified_asc（操作时间）：按 Eagle 条目最近操作时间倒序 / 正序
+ * 4. mtime_desc / mtime_asc（图片修改时间）：按图片原文件修改时间倒序 / 正序
  */
 export function sortOrganizeResults(
   results: OrganizeResultListItem[],
@@ -103,6 +104,15 @@ export function sortOrganizeResults(
 
   if (sortType === 'completion') {
     return [...results].sort((a, b) => a.updatedAt - b.updatedAt)
+  }
+
+  if (sortType === 'lastModified_desc' || sortType === 'lastModified_asc') {
+    const direction = sortType === 'lastModified_asc' ? 1 : -1
+    return [...results].sort(
+      (a, b) =>
+        ((a.lastModified ?? 0) - (b.lastModified ?? 0)) * direction ||
+        a.updatedAt - b.updatedAt,
+    )
   }
 
   if (sortType === 'mtime_desc') {

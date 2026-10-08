@@ -14,7 +14,7 @@ export const eagleMediaQuerySchema = z.object({
 /** Eagle 请求参数的唯一校验定义；前端从 Hono RPC 推导输入。 */
 export const eagleScopeSchema = z.object({
   folderId: z.string().min(1).optional(),
-  sortBy: z.enum(['mtime', 'size']).default('mtime'),
+  sortBy: z.enum(['lastModified', 'mtime', 'size']).default('mtime'),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
 })
 

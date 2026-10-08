@@ -57,7 +57,9 @@ export const loadSort = (): Pick<EaglePreferences, 'sortBy' | 'sortOrder'> => {
     if (raw) {
       const parsed = JSON.parse(raw)
       if (
-        (parsed.sortBy === 'mtime' || parsed.sortBy === 'size') &&
+        (parsed.sortBy === 'lastModified' ||
+          parsed.sortBy === 'mtime' ||
+          parsed.sortBy === 'size') &&
         (parsed.sortOrder === 'asc' || parsed.sortOrder === 'desc')
       ) {
         return parsed

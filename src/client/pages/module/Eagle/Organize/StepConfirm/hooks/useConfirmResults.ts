@@ -40,6 +40,8 @@ export function useConfirmResults({
       if (
         saved === 'completion' ||
         saved === 'category' ||
+        saved === 'lastModified_desc' ||
+        saved === 'lastModified_asc' ||
         saved === 'mtime_desc' ||
         saved === 'mtime_asc'
       )

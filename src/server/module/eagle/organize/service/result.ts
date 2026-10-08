@@ -78,6 +78,7 @@ export class ResultService {
           item.needsRename !== false &&
           needsOrganizeRename(entry?.name ?? '', endpoint.modelId),
         mtime: entry?.mtime ?? 0,
+        lastModified: entry?.lastModified ?? 0,
         width: entry?.width,
         height: entry?.height,
         size: entry?.size,
@@ -121,6 +122,7 @@ export class ResultService {
             item.needsRename !== false &&
             needsOrganizeRename(entry?.name ?? '', endpoint.modelId),
           mtime: entry?.mtime ?? 0,
+          lastModified: entry?.lastModified ?? 0,
           width: entry?.width,
           height: entry?.height,
           size: entry?.size,

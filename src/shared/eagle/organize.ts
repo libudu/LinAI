@@ -253,6 +253,8 @@ export interface OrganizeResultListItem {
   lowQuality?: boolean
   /** 图片修改时间（用于按修改时间排序） */
   mtime?: number
+  /** Eagle 条目最近操作时间（用于按操作时间排序） */
+  lastModified?: number
   /** 原图宽度（像素） */
   width?: number
   /** 原图高度（像素） */

@@ -3,6 +3,8 @@ import type { OrganizeResultListItem } from '@/shared/eagle/organize'
 export type OrganizeSortType =
   | 'completion'
   | 'category'
+  | 'lastModified_desc'
+  | 'lastModified_asc'
   | 'mtime_desc'
   | 'mtime_asc'
 

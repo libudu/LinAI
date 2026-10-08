@@ -68,6 +68,7 @@ export const toEagleItem = (
   width: entry.width,
   height: entry.height,
   mtime: entry.mtime,
+  lastModified: entry.lastModified,
   contentVersion: contentVersion(entry, libraryPath),
   folders: [...(entry.folders ?? [])],
   isVideo: VIDEO_EXTS.has(entry.ext),
@@ -304,8 +305,8 @@ export const getItemSnapshots = async (
   for (const id of ids) {
     const item = index.items.get(id)
     if (item) {
-      const { name, mtime, width, height, size } = item
-      items.set(id, { name, mtime, width, height, size })
+      const { name, mtime, lastModified, width, height, size } = item
+      items.set(id, { name, mtime, lastModified, width, height, size })
     }
   }
   return items

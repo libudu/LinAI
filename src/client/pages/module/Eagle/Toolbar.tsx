@@ -273,6 +273,8 @@ export function Toolbar() {
                   setSort(by, order)
                 }}
                 options={[
+                  { value: 'lastModified_desc', label: '操作时间 新→旧' },
+                  { value: 'lastModified_asc', label: '操作时间 旧→新' },
                   { value: 'mtime_desc', label: '修改时间 新→旧' },
                   { value: 'mtime_asc', label: '修改时间 旧→新' },
                   { value: 'size_desc', label: '文件大小 大→小' },

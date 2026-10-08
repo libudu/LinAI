@@ -67,7 +67,10 @@ export interface EagleItemMediaSource {
 
 /** 整理列表所需的独立只读摘要，不包含索引的可变数组。 */
 export type EagleItemSnapshot = Readonly<
-  Pick<EagleItemIndex, 'name' | 'mtime' | 'width' | 'height' | 'size'>
+  Pick<
+    EagleItemIndex,
+    'name' | 'mtime' | 'lastModified' | 'width' | 'height' | 'size'
+  >
 >
 
 /** 单图详情投影：名称、尺寸和归属路径来自同一份索引，不包含缓存实现字段。 */

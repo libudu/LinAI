@@ -30,6 +30,8 @@ export function ConfirmControls({
         options={[
           ...(!renameOnly ? [{ value: 'category', label: '图片分类' }] : []),
           { value: 'completion', label: '完成顺序' },
+          { value: 'lastModified_desc', label: '操作时间 新→旧' },
+          { value: 'lastModified_asc', label: '操作时间 旧→新' },
           { value: 'mtime_desc', label: '修改时间 新→旧' },
           { value: 'mtime_asc', label: '修改时间 旧→新' },
         ]}
