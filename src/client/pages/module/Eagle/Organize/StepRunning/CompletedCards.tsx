@@ -30,8 +30,13 @@ export function CompletedCards({
         {/* 卡片 1：继续添加 (蓝/Sky) */}
         <button
           type="button"
+          disabled={!onSwitchToClassify}
           onClick={onSwitchToClassify}
-          className="group flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-sky-200/80 bg-sky-50/40 p-6 text-center shadow-xs transition-all hover:scale-[1.02] hover:border-sky-400 hover:bg-sky-50/80 hover:shadow-md active:scale-[0.99] dark:border-sky-900/50 dark:bg-sky-950/20 dark:hover:border-sky-700 dark:hover:bg-sky-950/40"
+          className={`group flex flex-col items-center justify-center gap-2 rounded-2xl border p-6 text-center shadow-xs transition-all ${
+            onSwitchToClassify
+              ? 'cursor-pointer border-sky-200/80 bg-sky-50/40 hover:scale-[1.02] hover:border-sky-400 hover:bg-sky-50/80 hover:shadow-md active:scale-[0.99] dark:border-sky-900/50 dark:bg-sky-950/20 dark:hover:border-sky-700 dark:hover:bg-sky-950/40'
+              : 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-50 dark:border-slate-800 dark:bg-slate-900/30'
+          }`}
         >
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-100 text-sky-600 transition-transform group-hover:scale-110 dark:bg-sky-900/60 dark:text-sky-400">
             <PlusOutlined className="text-xl" />
@@ -40,7 +45,11 @@ export function CompletedCards({
             继续添加
           </div>
           <div className="text-xs text-sky-600/80 dark:text-sky-400/80">
-            {renameOnly ? '新建重命名任务' : addSubtitle}
+            {!onSwitchToClassify
+              ? '请切换普通文件夹添加'
+              : renameOnly
+                ? '新建重命名任务'
+                : addSubtitle}
           </div>
         </button>
 

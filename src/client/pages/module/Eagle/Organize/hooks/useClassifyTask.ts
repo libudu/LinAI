@@ -7,6 +7,7 @@ import {
 } from '@/shared/eagle/organize'
 import { message } from 'antd'
 import { useEffect, useState } from 'react'
+import { findFolder } from '../../folders'
 import { useEagleStore } from '../../store'
 import {
   appendOrganizeTask,
@@ -195,6 +196,14 @@ export function useClassifyTask(
   }
 
   const handleSubmit = async () => {
+    // 特殊视图只作为已有任务入口，提交时再核对来源，禁止扩大到全库。
+    const source = useEagleStore.getState()
+    if (
+      source.currentFolderId !== currentFolderId ||
+      !currentFolderId ||
+      !findFolder(source.folders, currentFolderId)
+    )
+      return
     if (
       !count ||
       !prepare ||

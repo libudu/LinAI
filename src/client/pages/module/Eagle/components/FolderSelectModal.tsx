@@ -2,9 +2,13 @@ import {
   EAGLE_UNCLASSIFIED_FOLDER_ID,
   type EagleFolder,
 } from '@/shared/eagle/types'
-import { FolderOpenOutlined, FolderOutlined } from '@ant-design/icons'
+import {
+  FolderOpenOutlined,
+  FolderOutlined,
+  SearchOutlined,
+} from '@ant-design/icons'
 import type { TreeDataNode } from 'antd'
-import { Modal, Tree } from 'antd'
+import { Empty, Input, Modal, Tree } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   buildFolderMap,
@@ -30,6 +34,24 @@ const toSelectTreeData = (folders: EagleFolder[]): TreeDataNode[] =>
     children: toSelectTreeData(folder.children),
   }))
 
+// 保留匹配文件夹及其父目录，便于区分不同路径下的同名文件夹。
+const filterTreeData = (
+  nodes: TreeDataNode[],
+  keyword: string,
+): TreeDataNode[] =>
+  nodes.flatMap((node) => {
+    const children = filterTreeData(node.children ?? [], keyword)
+    return String(node.title).toLowerCase().includes(keyword) || children.length
+      ? [{ ...node, children }]
+      : []
+  })
+
+const collectTreeKeys = (nodes: TreeDataNode[]): string[] =>
+  nodes.flatMap((node) => [
+    String(node.key),
+    ...collectTreeKeys(node.children ?? []),
+  ])
+
 export function FolderSelectModal({
   open,
   onClose,
@@ -43,6 +65,8 @@ export function FolderSelectModal({
     initialFolderId ?? EAGLE_UNCLASSIFIED_FOLDER_ID,
   )
   const [expandedKeys, setExpandedKeys] = useState<string[]>([])
+  const [search, setSearch] = useState('')
+  const keyword = search.trim().toLowerCase()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const prevOpenRef = useRef(false)
 
@@ -71,6 +95,15 @@ export function FolderSelectModal({
     ],
     [folders, includeAll],
   )
+  const filteredTreeData = useMemo(
+    () => (keyword ? filterTreeData(treeData, keyword) : treeData),
+    [treeData, keyword],
+  )
+  const visibleKeys = useMemo(
+    () => collectTreeKeys(filteredTreeData),
+    [filteredTreeData],
+  )
+  const canConfirm = visibleKeys.includes(selectedKey)
 
   const scrollToSelected = useCallback(() => {
     const container = scrollContainerRef.current
@@ -91,8 +124,10 @@ export function FolderSelectModal({
   }, [])
 
   useEffect(() => {
+    const justOpened = open && !prevOpenRef.current
+    prevOpenRef.current = open
     if (open) {
-      if (!prevOpenRef.current) {
+      if (justOpened) {
         const targetKey =
           initialFolderId && folderMap.has(initialFolderId)
             ? initialFolderId
@@ -100,6 +135,7 @@ export function FolderSelectModal({
               ? '__all__'
               : EAGLE_UNCLASSIFIED_FOLDER_ID
         setSelectedKey(targetKey)
+        setSearch('')
         setExpandedKeys(collectFolderKeys(folders))
 
         const timer1 = setTimeout(scrollToSelected, 50)
@@ -110,10 +146,10 @@ export function FolderSelectModal({
         }
       }
     }
-    prevOpenRef.current = open
   }, [open, initialFolderId, folders, folderMap, scrollToSelected, includeAll])
 
   const handleOk = () => {
+    if (!canConfirm) return
     const info = folderMap.get(selectedKey)
     if (!info) return
     onClose()
@@ -126,7 +162,7 @@ export function FolderSelectModal({
       title={title}
       onCancel={onClose}
       onOk={handleOk}
-      okButtonProps={{ disabled: !selectedKey }}
+      okButtonProps={{ disabled: !canConfirm }}
       afterOpenChange={(visible) => {
         if (visible) scrollToSelected()
       }}
@@ -134,26 +170,39 @@ export function FolderSelectModal({
       centered
       width={460}
     >
+      <Input
+        className="mt-3"
+        prefix={<SearchOutlined />}
+        allowClear
+        value={search}
+        placeholder="搜索文件夹名称"
+        aria-label="搜索文件夹名称"
+        onChange={(event) => setSearch(event.target.value)}
+      />
       <div
         ref={scrollContainerRef}
         className="my-3 max-h-[55vh] min-h-[180px] overflow-y-auto rounded border border-slate-200 p-2 dark:border-slate-700"
       >
-        <Tree
-          treeData={treeData}
-          expandedKeys={expandedKeys}
-          onExpand={(keys) => setExpandedKeys(keys.map(String))}
-          selectedKeys={selectedKey ? [selectedKey] : []}
-          onSelect={(keys) => {
-            if (keys[0]) {
-              setSelectedKey(String(keys[0]))
+        {filteredTreeData.length === 0 ? (
+          <Empty description="没有匹配的文件夹" />
+        ) : (
+          <Tree
+            treeData={filteredTreeData}
+            expandedKeys={keyword ? visibleKeys : expandedKeys}
+            onExpand={(keys) => setExpandedKeys(keys.map(String))}
+            selectedKeys={selectedKey ? [selectedKey] : []}
+            onSelect={(keys) => {
+              if (keys[0]) {
+                setSelectedKey(String(keys[0]))
+              }
+            }}
+            showIcon
+            icon={({ expanded }) =>
+              expanded ? <FolderOpenOutlined /> : <FolderOutlined />
             }
-          }}
-          showIcon
-          icon={({ expanded }) =>
-            expanded ? <FolderOpenOutlined /> : <FolderOutlined />
-          }
-          blockNode
-        />
+            blockNode
+          />
+        )}
       </div>
     </Modal>
   )

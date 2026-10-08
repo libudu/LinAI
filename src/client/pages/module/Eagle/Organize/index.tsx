@@ -1,7 +1,8 @@
 import type { OrganizeClassificationMode } from '@/shared/eagle/organize'
 import { Modal, Spin } from 'antd'
 import { useEffect, useRef, useState } from 'react'
-import { setEagleLibraryRefreshSuspended } from '../store'
+import { findFolder } from '../folders'
+import { setEagleLibraryRefreshSuspended, useEagleStore } from '../store'
 import { StepClassify } from './StepClassify'
 import { StepConfirm } from './StepConfirm'
 import { StepFormatConversion } from './StepFormatConversion'
@@ -21,6 +22,10 @@ export function OrganizeModal({
   onClose: () => void
 }) {
   const { status, loaded } = useOrganizeStatus()
+  const currentFolderId = useEagleStore((state) => state.currentFolderId)
+  const folders = useEagleStore((state) => state.folders)
+  const canAddImages =
+    Boolean(currentFolderId) && Boolean(findFolder(folders, currentFolderId))
   const [currentStep, setCurrentStep] = useState<OrganizeStepKey>('classify')
   const [selectedClassificationMode, setSelectedClassificationMode] =
     useState<OrganizeClassificationMode>('global')
@@ -32,16 +37,21 @@ export function OrganizeModal({
   )
   const showFormatConversion = open && conversion.availableAtOpen === true
   const classificationMode =
-    status && (status.phase !== 'done' || currentStep !== 'classify')
+    status &&
+    (status.phase !== 'done' || currentStep !== 'classify' || !canAddImages)
       ? status.classificationMode
       : selectedClassificationMode
   const showConfirm = classificationMode !== 'recursive-rename'
   const activeStep =
     currentStep === 'convert' && !showFormatConversion
-      ? 'classify'
-      : currentStep === 'confirm' && !showConfirm
+      ? canAddImages
+        ? 'classify'
+        : 'running'
+      : currentStep === 'classify' && !canAddImages
         ? 'running'
-        : currentStep
+        : currentStep === 'confirm' && !showConfirm
+          ? 'running'
+          : currentStep
 
   const phase = status?.phase
   // 打开弹窗或状态首次加载时，智能推荐初始展示步骤
@@ -127,6 +137,7 @@ export function OrganizeModal({
             currentStep={activeStep}
             showFormatConversion={showFormatConversion}
             showConfirm={showConfirm}
+            canAddImages={canAddImages}
             onChange={setCurrentStep}
             status={status}
             task={task}
@@ -153,7 +164,9 @@ export function OrganizeModal({
             )}
             {activeStep === 'running' && (
               <StepRunning
-                onSwitchToClassify={() => setCurrentStep('classify')}
+                onSwitchToClassify={
+                  canAddImages ? () => setCurrentStep('classify') : undefined
+                }
                 onSwitchToConfirm={
                   showConfirm ? () => setCurrentStep('confirm') : undefined
                 }

@@ -21,7 +21,7 @@ import { useClassifyTask } from './hooks/useClassifyTask'
 
 // 步骤 1 分类文件夹划定 / 追加图片：
 // - 无未完成任务时：新建任务模式，配置数量、并发与压缩；
-// - 有未完成任务时：追加模式，可从任意文件夹添加，沿用任务设置与分类标准
+// - 有未完成任务时：追加模式，可从普通文件夹添加，沿用任务设置与分类标准
 export function StepClassify({
   onClose,
   onSuccess,

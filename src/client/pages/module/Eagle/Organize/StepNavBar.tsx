@@ -9,6 +9,7 @@ interface StepNavBarProps {
   currentStep: OrganizeStepKey
   showFormatConversion: boolean
   showConfirm: boolean
+  canAddImages: boolean
   onChange: (step: OrganizeStepKey) => void
   status: OrganizeStatus | null
   task: OrganizeTaskView | null
@@ -18,6 +19,7 @@ export const StepNavBar: React.FC<StepNavBarProps> = ({
   currentStep,
   showFormatConversion,
   showConfirm,
+  canAddImages,
   onChange,
   status,
   task,
@@ -42,10 +44,11 @@ export const StepNavBar: React.FC<StepNavBarProps> = ({
     !hasActiveTask && pendingConfirm === 0 && (task?.successCount ?? 0) === 0
 
   const getAddSubtitle = () => {
+    if (!canAddImages) return '请切换普通文件夹添加'
     if (!hasActiveTask) {
       return showConfirm ? '新建分类任务' : '新建重命名任务'
     }
-    return '从任意文件夹追加图片'
+    return '从普通文件夹追加图片'
   }
 
   const isRunningCompleted =
@@ -92,11 +95,14 @@ export const StepNavBar: React.FC<StepNavBarProps> = ({
       {/* 01 待添加 */}
       <button
         type="button"
-        onClick={() => onChange('classify')}
+        disabled={!canAddImages}
+        onClick={() => canAddImages && onChange('classify')}
         className={`group flex min-w-0 flex-1 flex-col gap-1 rounded-xl border p-2 text-left transition-all sm:gap-1.5 sm:p-3 md:flex-none ${
-          currentStep === 'classify'
-            ? 'border-sky-500 bg-sky-50 shadow-xs dark:border-sky-500 dark:bg-sky-950/40'
-            : 'border-sky-200/60 bg-sky-50/30 hover:border-sky-300 hover:bg-sky-50/60 dark:border-sky-900/40 dark:bg-sky-950/15 dark:hover:border-sky-800'
+          !canAddImages
+            ? 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-40 dark:border-slate-800 dark:bg-slate-900/30'
+            : currentStep === 'classify'
+              ? 'border-sky-500 bg-sky-50 shadow-xs dark:border-sky-500 dark:bg-sky-950/40'
+              : 'border-sky-200/60 bg-sky-50/30 hover:border-sky-300 hover:bg-sky-50/60 dark:border-sky-900/40 dark:bg-sky-950/15 dark:hover:border-sky-800'
         }`}
       >
         <div className="flex items-center justify-between">

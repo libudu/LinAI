@@ -72,11 +72,12 @@ export function Toolbar() {
   const [folderDrawerOpen, setFolderDrawerOpen] = useState(false)
   const [organizeOpen, setOrganizeOpen] = useState(false)
 
+  const canAddOrganizeImages =
+    Boolean(currentFolderId) && Boolean(findFolder(folders, currentFolderId))
+  const hasActiveOrganizeTask =
+    Boolean(organizeStatus) && organizeStatus?.phase !== 'done'
   const showOrganizeButton =
-    mediaType === 'image' &&
-    Boolean(currentFolderId) &&
-    currentFolderId !== EAGLE_UNCLASSIFIED_FOLDER_ID &&
-    currentFolderId !== EAGLE_TRASH_FOLDER_ID
+    mediaType === 'image' && (canAddOrganizeImages || hasActiveOrganizeTask)
 
   const currentFolderInfo = useMemo(() => {
     if (!currentFolderId) {
@@ -150,7 +151,7 @@ export function Toolbar() {
 
   // 图片整理依赖视觉接入点：未配置时先引导配置，保存成功后继续打开
   const handleOpenOrganize = () => {
-    if (visionApiKey) {
+    if (visionApiKey || (!canAddOrganizeImages && hasActiveOrganizeTask)) {
       setOrganizeOpen(true)
       return
     }
