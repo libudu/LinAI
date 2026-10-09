@@ -9,6 +9,7 @@ import {
   getFolderTree,
   getItems,
   getLibraryOverview,
+  isVideoExt,
   purgeItem,
   purgeTrash,
   refreshIndex,
@@ -27,6 +28,7 @@ import {
   getThumbnail,
 } from '../../module/eagle/media'
 
+import { getVideoContactSheet } from '../../module/eagle/media/video'
 import {
   eagleItemsQuerySchema,
   eagleMediaQuerySchema,
@@ -198,6 +200,24 @@ const libraryApi = new Hono()
   )
 
   // 媒体路由只负责条件请求与响应，缩略图和图库导入由媒体服务处理。
+  .get('/items/:id/video-contact-sheet', async (c) => {
+    const source = await getMediaSource(c.req.param('id'))
+    if (!source || !isVideoExt(source.ext))
+      return errorResponse(c, 404, '视频不存在')
+    try {
+      const { buffer } = await getVideoContactSheet(source, c.req.raw.signal)
+      return c.body(new Uint8Array(buffer), 200, {
+        'Content-Type': 'image/webp',
+        'Cache-Control': 'private, no-cache',
+      })
+    } catch (error) {
+      return errorResponse(
+        c,
+        500,
+        error instanceof Error ? error.message : '视频缩略图生成失败',
+      )
+    }
+  })
   .get('/items/:id/preview', async (c) => {
     try {
       const source = await getMediaSource(c.req.param('id'))

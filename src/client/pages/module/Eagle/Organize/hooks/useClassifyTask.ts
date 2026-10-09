@@ -77,6 +77,7 @@ export function useClassifyTask(
   conversionRevision = 0,
 ) {
   const currentFolderId = useEagleStore((state) => state.currentFolderId)
+  const mediaType = useEagleStore((state) => state.mediaType)
   const sortBy = useEagleStore((state) => state.sortBy)
   const sortOrder = useEagleStore((state) => state.sortOrder)
   const { status } = useOrganizeStatus()
@@ -98,6 +99,7 @@ export function useClassifyTask(
     setLoading(true)
     setPrepare(null)
     fetchOrganizePrepare({
+      mediaType,
       folderId: currentFolderId || undefined,
       classificationMode,
       sortBy,
@@ -127,6 +129,7 @@ export function useClassifyTask(
     }
   }, [
     currentFolderId,
+    mediaType,
     classificationMode,
     sortBy,
     sortOrder,
@@ -200,6 +203,7 @@ export function useClassifyTask(
     const source = useEagleStore.getState()
     if (
       source.currentFolderId !== currentFolderId ||
+      source.mediaType !== mediaType ||
       !currentFolderId ||
       !findFolder(source.folders, currentFolderId)
     )
@@ -215,6 +219,7 @@ export function useClassifyTask(
       return
     setSubmitting(true)
     const range = {
+      mediaType,
       folderId: currentFolderId || undefined,
       sortBy,
       sortOrder,
@@ -223,7 +228,7 @@ export function useClassifyTask(
     try {
       if (hasActiveTask && prepare.taskId) {
         await appendOrganizeTask({ ...range, taskId: prepare.taskId })
-        message.success('已追加图片到队列，重复图片自动过滤')
+        message.success('已追加资源到队列，重复条目自动过滤')
       } else {
         await createOrganizeTask({
           ...range,
@@ -238,7 +243,7 @@ export function useClassifyTask(
       reloadPrepare()
       onSuccess?.()
     } catch (error) {
-      const label = hasActiveTask ? '追加图片失败' : '创建图片整理任务失败'
+      const label = hasActiveTask ? '追加资源失败' : '创建整理任务失败'
       console.error(label, error)
       message.error(error instanceof Error ? error.message : label)
     } finally {
@@ -248,6 +253,7 @@ export function useClassifyTask(
 
   return {
     prepare,
+    mediaType,
     loading,
     count,
     compress,

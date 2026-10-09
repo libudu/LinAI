@@ -8,11 +8,15 @@ import {
   getOrganizeModelTitleSuffix,
   needsOrganizeRename,
 } from '@/shared/eagle/organize'
-import { EAGLE_ITEM_NAME_MAX_LENGTH } from '@/shared/eagle/types'
+import {
+  EAGLE_ITEM_NAME_MAX_LENGTH,
+  type EagleMediaType,
+} from '@/shared/eagle/types'
 import fs from 'fs-extra'
 import sharp from 'sharp'
 import { z } from 'zod'
-import { getItemMediaSource } from '../library'
+import { getItemMediaSource, isVideoExt } from '../library'
+import { getVideoContactSheet } from '../media/video'
 import { executeEagleVisionRequest } from '../relay'
 import { getEagleVisionEndpoint } from '../settings'
 import {
@@ -120,6 +124,7 @@ const stripCodeFence = (text: string): string => {
 export const judgeItem = async (
   itemId: string,
   options: {
+    mediaType: EagleMediaType
     compress: boolean
     standards: OrganizeFolderStandard[]
     classificationMode: OrganizeClassificationMode
@@ -129,6 +134,9 @@ export const judgeItem = async (
 ): Promise<VisionJudgeOutcome> => {
   const source = await getItemMediaSource(itemId)
   if (!source) throw new Error('条目不存在或已从库中删除')
+  const mediaType = isVideoExt(source.ext) ? 'video' : 'image'
+  if (mediaType !== options.mediaType)
+    throw new Error('条目媒体类型已变更，请重新添加')
   const endpoint = await getEagleVisionEndpoint()
   const needsRename = needsOrganizeRename(source.name, endpoint.modelId)
   const renameOnly = options.classificationMode === 'recursive-rename'
@@ -139,11 +147,13 @@ export const judgeItem = async (
     throw new Error('条目原文件不存在')
   }
 
-  const dataUrl = await loadImageDataUrl(
-    source.filePath,
-    source.ext,
-    options.compress,
-  )
+  const contactSheet =
+    mediaType === 'video'
+      ? await getVideoContactSheet(source, options.signal)
+      : null
+  const dataUrl = contactSheet
+    ? `data:image/webp;base64,${contactSheet.buffer.toString('base64')}`
+    : await loadImageDataUrl(source.filePath, source.ext, options.compress)
 
   const response = await executeEagleVisionRequest(
     endpoint,
@@ -157,6 +167,7 @@ export const judgeItem = async (
               options.standards,
               needsRename,
               options.classificationMode,
+              mediaType,
             ),
           },
           {
@@ -167,6 +178,8 @@ export const judgeItem = async (
                 text: buildOrganizeVisionUserText(
                   needsRename,
                   options.classificationMode,
+                  mediaType,
+                  contactSheet?.videoInfo,
                 ),
               },
               { type: 'image_url', image_url: { url: dataUrl } },

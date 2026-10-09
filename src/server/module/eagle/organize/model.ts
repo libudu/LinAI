@@ -6,9 +6,11 @@ import {
   type OrganizePhase,
   type OrganizeStatus,
 } from '@/shared/eagle/organize'
+import type { EagleMediaType } from '@/shared/eagle/types'
 
 /** 整理任务领域模型：队列与进度，服务和执行器共用，不依赖持久化实现 */
 export interface OrganizeTaskRecord {
+  mediaType: EagleMediaType
   taskId: string
   phase: OrganizePhase
   pausedReason: OrganizeStatus['pausedReason']
@@ -43,6 +45,7 @@ export type StoredOrganizeTask = Omit<
   | 'concurrency'
   | 'taskId'
   | 'classificationMode'
+  | 'mediaType'
 > &
   Partial<
     Pick<
@@ -53,6 +56,7 @@ export type StoredOrganizeTask = Omit<
       | 'concurrency'
       | 'taskId'
       | 'classificationMode'
+      | 'mediaType'
     >
   >
 
@@ -69,6 +73,7 @@ export const normalizeOrganizeTask = (
   // 旧任务使用稳定 ID，重启或重复读取不会改变其身份。
   taskId: task.taskId ?? `legacy-${task.createdAt}`,
   classificationMode: task.classificationMode ?? 'global',
+  mediaType: task.mediaType ?? 'image',
   folderName: task.folderName ?? '全部',
   successCount: task.successCount ?? 0,
   failedCount: task.failedCount ?? 0,

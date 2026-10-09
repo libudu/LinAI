@@ -94,7 +94,7 @@ export function useConfirmQueue(options: UseConfirmResultsOptions) {
       runAction(async (id, taskId) => {
         const { missing } = await trashOrganizeResult(id, taskId)
         message.success(
-          missing ? '图片已不存在，已跳过整理结果' : '已移至回收站',
+          missing ? '文件已不存在，已跳过整理结果' : '已移至回收站',
         )
       }, itemId),
     [runAction],

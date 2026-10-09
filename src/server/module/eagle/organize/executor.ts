@@ -3,6 +3,7 @@ import type {
   OrganizeFolderStandard,
   OrganizeItemRecord,
 } from '@/shared/eagle/organize'
+import type { EagleMediaType } from '@/shared/eagle/types'
 import { sendWindowsNotification } from '../../../common/notify'
 import { changeBus } from '../../../common/storage/change-bus'
 import { updateItem } from '../library'
@@ -63,7 +64,7 @@ class OrganizeExecutor {
       .then(() => {
         completedNormally = true
       })
-      .catch((error) => console.error('[Eagle] 图片整理队列执行异常', error))
+      .catch((error) => console.error('[Eagle] 资源整理队列执行异常', error))
       .finally(async () => {
         this.active = false
         if (this.abortController === controller) this.abortController = null
@@ -74,7 +75,7 @@ class OrganizeExecutor {
           const latest = await organizeRepository.getTask()
           if (epoch === this.epoch && latest?.phase === 'running') this.kick()
         } catch (error) {
-          console.error('[Eagle] 图片整理队列收尾检查失败', error)
+          console.error('[Eagle] 资源整理队列收尾检查失败', error)
         }
       })
     this.runPromise = promise
@@ -110,8 +111,14 @@ class OrganizeExecutor {
   private async runQueue(epoch: number, signal: AbortSignal): Promise<void> {
     const task = await organizeRepository.getTask()
     if (!task || task.phase !== 'running') return
-    const { itemIds, standards, compress, concurrency, classificationMode } =
-      task
+    const {
+      itemIds,
+      standards,
+      compress,
+      concurrency,
+      classificationMode,
+      mediaType,
+    } = task
 
     // 恢复场景：跳过已有结果且非 pending 的前缀，得到下一个待派发位置。
     // 派发严格按序，已完成的结果实体必然构成前缀（in-flight 未落盘的项会被重新执行）
@@ -144,6 +151,7 @@ class OrganizeExecutor {
           this.inFlight.add(itemId)
           try {
             await this.processItem(itemId, {
+              mediaType,
               compress,
               standards,
               classificationMode,
@@ -152,7 +160,7 @@ class OrganizeExecutor {
             })
           } catch (error) {
             // 结果落盘等基础设施异常：暂停队列，避免计数与实体脱节
-            console.error('[Eagle] 图片整理结果落盘失败，队列暂停', error)
+            console.error('[Eagle] 资源整理结果落盘失败，队列暂停', error)
             this.stopping = true
             await this.pauseAs('error')
             return
@@ -235,6 +243,7 @@ class OrganizeExecutor {
   private async processItem(
     itemId: string,
     options: {
+      mediaType: EagleMediaType
       compress: boolean
       standards: OrganizeFolderStandard[]
       classificationMode: OrganizeClassificationMode
@@ -341,8 +350,8 @@ class OrganizeExecutor {
     if (didPauseOnError) {
       this.stopping = true
       sendWindowsNotification(
-        'LinAI 图片整理',
-        `图片整理队列因连续失败达到 ${ERROR_PAUSE_THRESHOLD} 次已自动暂停，请检查原因`,
+        'LinAI 资源整理',
+        `资源整理队列因连续失败达到 ${ERROR_PAUSE_THRESHOLD} 次已自动暂停，请检查原因`,
       )
     }
     changeBus.publish({ resource: ORGANIZE_RESOURCE })
@@ -365,15 +374,15 @@ class OrganizeExecutor {
       if (updated.executed > 0) {
         if (updated.failedCount === 0) {
           sendWindowsNotification(
-            'LinAI 图片整理',
+            'LinAI 资源整理',
             updated.classificationMode === 'recursive-rename'
-              ? `图片重命名完成（共 ${updated.successCount} 张），已直接修改文件名`
-              : `全部图片处理完成（共 ${updated.executed} 张），请前往查验结果`,
+              ? `资源重命名完成（共 ${updated.successCount} 个），已直接修改文件名`
+              : `全部资源处理完成（共 ${updated.executed} 个），请前往查验结果`,
           )
         } else {
           sendWindowsNotification(
-            'LinAI 图片整理',
-            `图片处理完成：${updated.successCount} 张成功，${updated.failedCount} 张失败`,
+            'LinAI 资源整理',
+            `资源处理完成：${updated.successCount} 个成功，${updated.failedCount} 个失败`,
           )
         }
       }
@@ -392,8 +401,8 @@ class OrganizeExecutor {
     })
     if (didPause) {
       sendWindowsNotification(
-        'LinAI 图片整理',
-        '图片整理队列因异常已自动暂停，请检查',
+        'LinAI 资源整理',
+        '资源整理队列因异常已自动暂停，请检查',
       )
     }
     changeBus.publish({ resource: ORGANIZE_RESOURCE })

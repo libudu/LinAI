@@ -134,7 +134,7 @@ export function DetailPanel({
         <>
           {detail.lowQuality && (
             <div className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-600 dark:bg-amber-500/10 dark:text-amber-400">
-              疑似低质图片（分辨率低、画面主体不清晰、美学品味较差等）
+              疑似低质内容（分辨率低、画面主体不清晰、美学品味较差等）
             </div>
           )}
 

@@ -26,7 +26,7 @@ import { CONFIRM_QUICK_MODE_STORAGE_KEY } from './utils/storage'
 
 // 步骤 3 结果确认：纯净查验判定成功的结果（status === 'success'）
 // 普通模式（顶部缩略图条 + 左大图右信息面板 + 底部快捷操作）与快速模式（居中放大列表 + 卡片底部直接确定）
-// 预加载后续 5 张大图与详情（普通模式），重新执行不打断确认流
+// 预加载后续 5 个大图与详情（普通模式），重新执行不打断确认流
 export function StepConfirm({
   task,
   onSwitchToRunning,
@@ -230,7 +230,7 @@ export function StepConfirm({
                 ⚡ 快速整理模式
               </span>
               <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
-                待确认 {results.length} 张
+                待确认 {results.length} 个
               </span>
             </div>
 

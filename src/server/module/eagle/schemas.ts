@@ -28,6 +28,7 @@ export const eagleItemsQuerySchema = eagleScopeSchema.extend({
 export const taskIdentitySchema = z.object({ taskId: z.string().min(1) })
 
 export const organizePrepareSchema = eagleScopeSchema.extend({
+  mediaType: z.enum(EAGLE_MEDIA_TYPES).default('image'),
   classificationMode: z.enum(ORGANIZE_CLASSIFICATION_MODES).default('global'),
 })
 
@@ -44,6 +45,7 @@ export const organizeCreateTaskSchema = organizePrepareSchema.extend({
 })
 
 export const organizeAppendTaskSchema = eagleScopeSchema.extend({
+  mediaType: z.enum(EAGLE_MEDIA_TYPES).default('image'),
   taskId: taskIdentitySchema.shape.taskId,
   count: z.number().int().min(1),
 })

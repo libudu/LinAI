@@ -76,8 +76,7 @@ export function Toolbar() {
     Boolean(currentFolderId) && Boolean(findFolder(folders, currentFolderId))
   const hasActiveOrganizeTask =
     Boolean(organizeStatus) && organizeStatus?.phase !== 'done'
-  const showOrganizeButton =
-    mediaType === 'image' && (canAddOrganizeImages || hasActiveOrganizeTask)
+  const showOrganizeButton = canAddOrganizeImages || hasActiveOrganizeTask
 
   const currentFolderInfo = useMemo(() => {
     if (!currentFolderId) {
@@ -367,7 +366,7 @@ export function Toolbar() {
               icon={<AppstoreOutlined />}
               onClick={handleOpenOrganize}
             >
-              图片整理
+              {mediaType === 'video' ? '视频整理' : '图片整理'}
             </Button>
           </Badge>
         )}

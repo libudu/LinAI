@@ -241,11 +241,11 @@ export function useRunningTask() {
     if (!hasActiveTask) {
       return '新建分类任务'
     }
-    return '从任意文件夹追加图片'
+    return '从任意文件夹追加资源'
   }
 
   const getConfirmSubtitle = () => {
-    return pendingConfirm > 0 ? `${pendingConfirm} 张待查验` : '暂无待确认'
+    return pendingConfirm > 0 ? `${pendingConfirm} 个待查验` : '暂无待确认'
   }
 
   const queueItems = queue?.items ?? []

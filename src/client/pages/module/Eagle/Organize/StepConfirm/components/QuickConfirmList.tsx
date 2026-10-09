@@ -10,7 +10,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Button, Image } from 'antd'
 import React, { useMemo, useRef } from 'react'
-import { eagleFileUrl } from '../../../api'
+import { useOrganizeMedia } from '../../media'
 import {
   SPECIAL_CATEGORY_LOW_QUALITY,
   SPECIAL_CATEGORY_UNCLASSIFIED,
@@ -38,6 +38,7 @@ const QuickCard = React.memo(function QuickCard({
   onClearClassification,
   onSkipItem,
 }: QuickCardProps) {
+  const { previewUrl } = useOrganizeMedia()
   const categoryName = getOrganizeItemCategory(result)
 
   return (
@@ -55,8 +56,8 @@ const QuickCard = React.memo(function QuickCard({
         onClick={() => onSelect(result.itemId)}
       >
         <Image
-          src={eagleFileUrl(result.itemId)}
-          preview={{ src: eagleFileUrl(result.itemId) }}
+          src={previewUrl(result.itemId)}
+          preview={{ src: previewUrl(result.itemId) }}
           alt={categoryName}
           loading="lazy"
           placeholder={
@@ -71,7 +72,7 @@ const QuickCard = React.memo(function QuickCard({
           }}
         />
         <ImageSizeBadge
-          src={eagleFileUrl(result.itemId)}
+          src={previewUrl(result.itemId)}
           width={result.width}
           height={result.height}
           fileSize={result.size}
@@ -206,7 +207,7 @@ export function QuickConfirmList({
                           ? 'border-slate-300 bg-slate-100/70 dark:border-slate-600 dark:bg-slate-800/60'
                           : 'border-slate-300 bg-slate-50/80 dark:border-slate-600 dark:bg-slate-800/50'
                     }`}
-                    title={`${item.categoryName}（剩余 ${item.remainingCount} 张）`}
+                    title={`${item.categoryName}（剩余 ${item.remainingCount} 个）`}
                   >
                     <div
                       className={`flex h-14 w-14 items-center justify-center rounded-full ${
@@ -242,7 +243,7 @@ export function QuickConfirmList({
                           : 'bg-slate-200/70 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
                       }`}
                     >
-                      剩余 {item.remainingCount} 张
+                      剩余 {item.remainingCount} 个
                     </span>
                   </div>
                 ) : (

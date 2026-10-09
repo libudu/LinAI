@@ -49,7 +49,7 @@ export function useConfirmSubmission(options: UseConfirmSubmissionOptions) {
           if (failed.length > 0) {
             const first = results.get(failed[0].itemId)
             message.error(
-              `${failed.length} 张图片确认失败：${first && !first.ok ? first.error : '未收到处理结果'}`,
+              `${failed.length} 个文件确认失败：${first && !first.ok ? first.error : '未收到处理结果'}`,
             )
           }
         } catch (error) {

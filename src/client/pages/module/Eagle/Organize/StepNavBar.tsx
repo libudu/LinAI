@@ -2,6 +2,7 @@ import { usePlatform } from '@/client/hooks/usePlatform'
 import type { OrganizeStatus, OrganizeTaskView } from '@/shared/eagle/organize'
 import { Badge, Tag } from 'antd'
 import React from 'react'
+import { useOrganizeMedia } from './media'
 
 export type OrganizeStepKey = 'convert' | 'classify' | 'running' | 'confirm'
 
@@ -24,6 +25,7 @@ export const StepNavBar: React.FC<StepNavBarProps> = ({
   status,
   task,
 }) => {
+  const { mediaLabel, unit } = useOrganizeMedia()
   const { isMobile } = usePlatform()
   const hasActiveTask = !!status && status.phase !== 'done'
   const phase = status?.phase
@@ -44,11 +46,11 @@ export const StepNavBar: React.FC<StepNavBarProps> = ({
     !hasActiveTask && pendingConfirm === 0 && (task?.successCount ?? 0) === 0
 
   const getAddSubtitle = () => {
-    if (!canAddImages) return '请切换普通文件夹添加'
+    if (!canAddImages) return '请切换任务类型对应的普通文件夹'
     if (!hasActiveTask) {
       return showConfirm ? '新建分类任务' : '新建重命名任务'
     }
-    return '从普通文件夹追加图片'
+    return `从普通文件夹追加${mediaLabel}`
   }
 
   const isRunningCompleted =
@@ -219,7 +221,7 @@ export const StepNavBar: React.FC<StepNavBarProps> = ({
           >
             {isStepConfirmDisabled
               ? '暂无待确认'
-              : `${pendingConfirm} 张待查验`}
+              : `${pendingConfirm} ${unit}待查验`}
           </div>
         </button>
       )}

@@ -12,9 +12,18 @@ export default defineConfig({
     APP_VERSION: pkg.version,
   },
   metafile: true,
-  // 保留 heic-decode 的包结构及 libheif-js 内嵌 WASM，由 dist 生产依赖安装携带。
-  noExternal: [/^(?!(sharp|heic-decode|libheif-js)(\/|$)).*$/],
-  external: ['sharp', 'heic-decode', 'libheif-js', 'libheif-js/wasm-bundle'],
+  // 保留 HEIF WASM 与视频解码器的包结构，由 dist 生产依赖安装携带。
+  noExternal: [
+    /^(?!(sharp|heic-decode|libheif-js|ffmpeg-static|ffprobe-static)(\/|$)).*$/,
+  ],
+  external: [
+    'sharp',
+    'heic-decode',
+    'libheif-js',
+    'libheif-js/wasm-bundle',
+    'ffmpeg-static',
+    'ffprobe-static',
+  ],
   esbuildPlugins: [
     {
       name: 'generate-package-json',

@@ -66,6 +66,8 @@ export const eagleFileUrl = (id: string, version?: string) =>
   `${eagleRpc.items[':id'].file.$path({ param: { id } })}${version ? `?v=${version}` : ''}`
 export const eaglePreviewUrl = (id: string, version?: string) =>
   `${eagleRpc.items[':id'].preview.$path({ param: { id } })}${version ? `?v=${version}` : ''}`
+export const eagleVideoContactSheetUrl = (id: string) =>
+  eagleRpc.items[':id']['video-contact-sheet'].$path({ param: { id } })
 
 export const fetchConversionCandidates = (
   offset = 0,

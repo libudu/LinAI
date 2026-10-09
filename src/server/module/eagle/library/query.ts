@@ -7,7 +7,7 @@
  * - 服务端条目分页、排序与虚拟文件夹过滤（未分类、回收站）；
  * - 图片整理专项查询：
  *   - 有描述文件夹转分类标准（后序遍历保证子分类优先级高、父分类兜底）；
- *   - 分类范围可用图片筛选（过滤视频/动图/heif 等无法直接参与判定的格式）；
+ *   - 分类范围可用图片筛选（按任务媒体类型筛选；图片排除动图/heif 等无法直接参与判定的格式）；
  *   - 文件夹 ID 与路径的正反向安全解析。
  */
 
@@ -132,6 +132,7 @@ const sortedItems = (
     }
     if (
       classifiable &&
+      params.mediaType !== 'video' &&
       (VIDEO_EXTS.has(item.ext) || ['gif', 'heif', 'heic'].includes(item.ext))
     )
       continue
@@ -237,7 +238,7 @@ export const folderExists = async (folderId: string): Promise<boolean> => {
 /**
  * 图片整理专用：获取当前文件夹下可处理的图片 ID 队列。
  * 递归仅重命名包含当前目录与全部子孙目录，并筛掉已匹配当前模型标识的名称。
- * 自动排除回收站、gif 动图、视频及 heif/heic 等格式。
+ * 按媒体类型筛选；图片排除 gif/heif/heic，视频通过联系表参与判定，均排除回收站。
  */
 export const getClassifiableItems = async (
   params: OrganizePrepareParams,
@@ -254,7 +255,12 @@ export const getClassifiableItems = async (
   const recursiveFolderIds = root
     ? new Set(collectFolderPaths([root]).map(({ folder }) => folder.id))
     : undefined
-  const list = sortedItems(index, params, true, recursiveFolderIds).filter(
+  const list = sortedItems(
+    index,
+    { ...params, mediaType: params.mediaType ?? 'image' },
+    true,
+    recursiveFolderIds,
+  ).filter(
     (item) => !renameOnly || needsOrganizeRename(item.name, modelId ?? ''),
   )
   return { total: list.length, itemIds: list.map((item) => item.id) }

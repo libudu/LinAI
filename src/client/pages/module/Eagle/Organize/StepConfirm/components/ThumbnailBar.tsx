@@ -7,6 +7,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useEffect, useMemo, useRef } from 'react'
 import { eagleThumbnailUrl } from '../../../api'
+import { useOrganizeMedia } from '../../media'
 import {
   SPECIAL_CATEGORY_LOW_QUALITY,
   SPECIAL_CATEGORY_UNCLASSIFIED,
@@ -36,6 +37,7 @@ export function ThumbnailBar({
   quickMode,
   onQuickModeChange,
 }: ThumbnailBarProps) {
+  const { mediaType, previewUrl } = useOrganizeMedia()
   const parentRef = useRef<HTMLDivElement>(null)
 
   // 平铺分类标题与缩略图卡片项
@@ -106,7 +108,7 @@ export function ThumbnailBar({
                           ? 'border-slate-300 bg-slate-100/80 dark:border-slate-600 dark:bg-slate-800/80'
                           : 'border-slate-300 bg-slate-50/80 dark:border-slate-600 dark:bg-slate-800/60'
                     }`}
-                    title={`${item.categoryName}（剩余 ${item.remainingCount} 张）`}
+                    title={`${item.categoryName}（剩余 ${item.remainingCount} 个）`}
                   >
                     {item.categoryName === SPECIAL_CATEGORY_LOW_QUALITY ? (
                       <WarningOutlined className="mb-0.5 text-xs text-amber-500 dark:text-amber-400" />
@@ -131,7 +133,7 @@ export function ThumbnailBar({
                           : 'text-slate-500 dark:text-slate-400'
                       }`}
                     >
-                      剩余 {item.remainingCount} 张
+                      剩余 {item.remainingCount} 个
                     </span>
                   </div>
                 ) : (
@@ -145,7 +147,11 @@ export function ThumbnailBar({
                     }`}
                   >
                     <img
-                      src={eagleThumbnailUrl(item.result.itemId)}
+                      src={
+                        mediaType === 'video'
+                          ? previewUrl(item.result.itemId)
+                          : eagleThumbnailUrl(item.result.itemId)
+                      }
                       className="h-full w-full object-cover"
                       loading="lazy"
                       alt="thumbnail"

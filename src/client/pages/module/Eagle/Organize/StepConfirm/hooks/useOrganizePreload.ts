@@ -3,8 +3,8 @@ import type {
   OrganizeResultListItem,
 } from '@/shared/eagle/organize'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { eagleFileUrl } from '../../../api'
 import { fetchOrganizeResult } from '../../api'
+import { useOrganizeMedia } from '../../media'
 
 const PRELOAD_COUNT = 5
 
@@ -17,6 +17,7 @@ export function useOrganizePreload({
   selectedId: string | null
   quickMode: boolean
 }) {
+  const { previewUrl } = useOrganizeMedia()
   const [detailsMap, setDetailsMap] = useState<
     Record<string, OrganizeResultDetail>
   >({})
@@ -64,14 +65,14 @@ export function useOrganizePreload({
       if (!preloadedIdsRef.current.has(item.itemId)) {
         preloadedIdsRef.current.add(item.itemId)
         const img = new window.Image()
-        img.src = eagleFileUrl(item.itemId)
+        img.src = previewUrl(item.itemId)
         preloadImagesRef.current.push(img)
         if (preloadImagesRef.current.length > 20) {
           preloadImagesRef.current.shift()
         }
       }
     })
-  }, [quickMode, selectedId, results, detailsMap, fetchDetail])
+  }, [quickMode, selectedId, results, detailsMap, fetchDetail, previewUrl])
 
   const detail = selectedId ? (detailsMap[selectedId] ?? null) : null
   const detailLoading = Boolean(

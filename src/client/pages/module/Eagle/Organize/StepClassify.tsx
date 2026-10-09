@@ -37,6 +37,7 @@ export function StepClassify({
   const [promptNeedsRename, setPromptNeedsRename] = useState(true)
   const {
     prepare,
+    mediaType,
     loading,
     count,
     compress,
@@ -56,6 +57,8 @@ export function StepClassify({
     handleSyncStandards,
     handleSubmit,
   } = useClassifyTask(onSuccess, conversionRevision)
+  const mediaLabel = mediaType === 'video' ? '视频' : '图片'
+  const unit = mediaType === 'video' ? '个' : '张'
   const renameOnly = classificationMode === 'recursive-rename'
   const missingStandards = !renameOnly && standards.length === 0
   useEffect(() => {
@@ -91,7 +94,7 @@ export function StepClassify({
         />
         <span className="text-xs text-slate-400">
           {renameOnly
-            ? '递归检查当前文件夹及所有子目录，直接重命名不符合当前模型命名规则的图片，无需手动确认，保留原目录归属'
+            ? `递归检查当前文件夹及所有子目录，直接重命名不符合当前模型命名规则的${mediaLabel}，无需手动确认，保留原目录归属`
             : classificationMode === 'global'
               ? '全库所有有描述的文件夹'
               : `${prepare?.classificationFolderName ?? '当前文件夹'}下所有层级的有描述子目录（不含当前文件夹）`}
@@ -103,7 +106,7 @@ export function StepClassify({
           {availableCount === 0 ? (
             <Empty
               className="py-2"
-              description="当前范围没有尚未入队的图片，可切换其他文件夹继续添加"
+              description={`当前范围没有尚未入队的${mediaLabel}，可切换其他文件夹继续添加`}
             />
           ) : (
             <div className="flex items-center gap-3">
@@ -144,12 +147,21 @@ export function StepClassify({
               ）
             </span>
           </div>
-          <Checkbox
-            checked={compress}
-            onChange={(e) => handleCompressChange(e.target.checked)}
-          >
-            输入图片压缩节省 token
-          </Checkbox>
+          {mediaType === 'image' && (
+            <Checkbox
+              checked={compress}
+              onChange={(e) => handleCompressChange(e.target.checked)}
+            >
+              输入图片压缩节省 token
+            </Checkbox>
+          )}
+        </div>
+      )}
+
+      {mediaType === 'video' && (
+        <div className="shrink-0 text-xs text-slate-500">
+          本地按时长抽帧，保留视频比例；每帧长边最多 400/300px，最多 4×4/8×8
+          排列，白边与间隔均为 4px，WebP 质量 60。仅上传联系表图片。
         </div>
       )}
 
@@ -157,8 +169,8 @@ export function StepClassify({
         {renameOnly ? (
           <div className="flex min-h-0 flex-1 flex-col p-2">
             <div className="shrink-0 border-b border-slate-100 px-1 pb-2 text-xs text-slate-400 dark:border-slate-700/60">
-              待重命名图片：共 {availableCount} 张，预览前{' '}
-              {prepare?.previewItems?.length ?? 0} 张（最多 50 张）
+              待重命名{mediaLabel}：共 {availableCount} {unit}，预览前{' '}
+              {prepare?.previewItems?.length ?? 0} {unit}（最多 50 {unit}）
             </div>
             <div className="min-h-0 flex-1 overflow-hidden">
               <QueueList
@@ -169,8 +181,8 @@ export function StepClassify({
                 showState={false}
                 emptyDescription={
                   hasActiveTask
-                    ? '当前文件夹及子目录内没有尚未入队的待重命名图片'
-                    : '当前文件夹及子目录内没有需要重命名的可处理图片'
+                    ? `当前文件夹及子目录内没有尚未入队的待重命名${mediaLabel}`
+                    : `当前文件夹及子目录内没有需要重命名的可处理${mediaLabel}`
                 }
               />
             </div>
@@ -263,7 +275,8 @@ export function StepClassify({
             模型标识沿用「首个英文词 + 版本数字」规则（如 gemini3.7）。名称按 _
             分段后，最后一段的模型名称与当前接入点相同（忽略版本号与大小写）时
             {renameOnly ? '跳过处理' : '仅分类'}，模型名称不同则重新生成标题。
-            例如 gemini3.7 与 gemini3.8 视为相同模型名称。 图片紧随 user
+            例如 gemini3.7 与 gemini3.8 视为相同模型名称。{' '}
+            {mediaType === 'video' ? '视频联系表图片' : '图片'}紧随 user
             文本上传。
           </div>
           {!renameOnly && (
@@ -283,6 +296,7 @@ export function StepClassify({
                 standards,
                 renameOnly || promptNeedsRename,
                 classificationMode,
+                mediaType,
               )}
             </pre>
           </div>
@@ -292,6 +306,7 @@ export function StepClassify({
               {buildOrganizeVisionUserText(
                 renameOnly || promptNeedsRename,
                 classificationMode,
+                mediaType,
               )}
             </pre>
           </div>

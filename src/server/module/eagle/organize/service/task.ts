@@ -133,6 +133,7 @@ export class TaskService {
     if (!task) return null
     return {
       taskId: task.taskId,
+      mediaType: task.mediaType,
       classificationMode: task.classificationMode,
       createdAt: task.createdAt,
       phase: task.phase,
@@ -156,7 +157,10 @@ export class TaskService {
     const sourceFolderName = await resolveFolderName(params.folderId)
     if (task && task.phase !== 'done') {
       const [allItems, latestStandards, history] = await Promise.all([
-        getSourceItems(params, task.classificationMode),
+        getSourceItems(
+          { ...params, mediaType: task.mediaType },
+          task.classificationMode,
+        ),
         getClassificationStandards(task.classificationMode, task.folderId),
         organizeRepository.getItemStatuses(),
       ])
@@ -172,6 +176,7 @@ export class TaskService {
       )
       return {
         taskId: task.taskId,
+        mediaType: task.mediaType,
         sourceFolderName,
         classificationMode: task.classificationMode,
         classificationFolderName:
@@ -181,7 +186,8 @@ export class TaskService {
         standards: task.standards,
         imageCount,
         enqueuedCount: imageCount - availableCount,
-        availableCount,
+        availableCount:
+          (params.mediaType ?? 'image') === task.mediaType ? availableCount : 0,
         previewItems: await getSourcePreview(
           availableItemIds,
           task.classificationMode,
@@ -198,6 +204,7 @@ export class TaskService {
     ])
     return {
       taskId: task?.taskId ?? null,
+      mediaType: params.mediaType ?? 'image',
       sourceFolderName,
       classificationMode,
       classificationFolderName:
@@ -241,14 +248,15 @@ export class TaskService {
     }
     const { total, itemIds } = await getSourceItems(params)
     if (total === 0) {
-      return { ok: false, status: 400, error: '当前范围内没有可处理的图片' }
+      return { ok: false, status: 400, error: '当前范围内没有可处理的资源' }
     }
     const folderName = await resolveFolderName(params.folderId)
     const record: OrganizeTaskRecord = {
       taskId: randomUUID(),
+      mediaType: params.mediaType,
       phase: 'running',
       pausedReason: null,
-      compress: params.compress,
+      compress: params.mediaType === 'video' || params.compress,
       concurrency: params.concurrency,
       createdAt: Date.now(),
       standards,
@@ -281,7 +289,14 @@ export class TaskService {
       return {
         ok: false,
         status: 409,
-        error: '当前没有正在进行的任务可追加图片',
+        error: '当前没有正在进行的任务可追加资源',
+      }
+    }
+    if (task.mediaType !== params.mediaType) {
+      return {
+        ok: false,
+        status: 409,
+        error: '不能向当前任务追加其他媒体类型，请先完成或清空当前任务',
       }
     }
     const [{ itemIds: allAvailable }, history] = await Promise.all([
@@ -305,7 +320,7 @@ export class TaskService {
     })
     if (!updated) {
       return noAvailableItems
-        ? { ok: false, status: 400, error: '当前范围内没有更多可追加的图片' }
+        ? { ok: false, status: 400, error: '当前范围内没有更多可追加的资源' }
         : { ok: false, status: 409, error: '任务状态已变更，请刷新后重试' }
     }
     publishOrganizeChange()
