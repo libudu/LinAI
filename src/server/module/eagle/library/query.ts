@@ -294,6 +294,8 @@ export const getItemDetail = async (
   if (!index || !item) return null
   return {
     name: item.name,
+    ext: item.ext,
+    contentVersion: contentVersion(item, index.libraryPath),
     width: item.width,
     height: item.height,
     size: item.size,

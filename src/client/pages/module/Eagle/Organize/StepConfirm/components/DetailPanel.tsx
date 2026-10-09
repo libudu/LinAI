@@ -1,5 +1,10 @@
-import type { SelectedFolderInfo } from '@/client/pages/module/Eagle/folders'
+import { usePlatform } from '@/client/hooks/usePlatform'
+import {
+  buildFolderMap,
+  type SelectedFolderInfo,
+} from '@/client/pages/module/Eagle/folders'
 import type { EagleManualFolderItem } from '@/client/pages/module/Eagle/preferenceTypes'
+import { useEagleStore } from '@/client/pages/module/Eagle/store'
 import type { OrganizeResultDetail } from '@/shared/eagle/organize'
 import {
   DeleteOutlined,
@@ -45,6 +50,8 @@ export function DetailPanel({
   pinnedOption,
   onTogglePin,
 }: DetailPanelProps) {
+  const { isMobile } = usePlatform()
+  const folders = useEagleStore((s) => s.folders)
   const [folderSelectOpen, setFolderSelectOpen] = useState(false)
 
   // 组装所有渲染选项：若存在 pinnedOption，强制将其置顶为首项，其余项自然排后并去重
@@ -123,6 +130,19 @@ export function DetailPanel({
 
     return items
   }, [pinnedOption, folderPaths, displayedManualFolders])
+
+  const initialFolderId = useMemo(() => {
+    const selectedOption = renderedOptions.find(
+      (option) => option.key === activeOptionKey,
+    )
+    if (!selectedOption) return undefined
+    return (
+      selectedOption.folderId ??
+      [...buildFolderMap(folders).values()].find(
+        (folder) => folder.path === selectedOption.folderPath,
+      )?.id
+    )
+  }, [activeOptionKey, renderedOptions, folders])
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-y-auto rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700">
@@ -225,7 +245,11 @@ export function DetailPanel({
                                 e.stopPropagation()
                                 onRemoveManualFolder(option.manualItem!)
                               }}
-                              className="text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-500"
+                              className={`text-slate-400 transition-opacity hover:text-red-500 ${
+                                isMobile
+                                  ? 'opacity-100'
+                                  : 'opacity-0 group-hover:opacity-100'
+                              }`}
                             />
                           )}
                           <Button
@@ -256,7 +280,11 @@ export function DetailPanel({
                             className={
                               option.isPinned
                                 ? 'text-blue-500 opacity-100 hover:text-blue-600'
-                                : 'text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-blue-500'
+                                : `text-slate-400 transition-opacity hover:text-blue-500 ${
+                                    isMobile
+                                      ? 'opacity-100'
+                                      : 'opacity-0 group-hover:opacity-100'
+                                  }`
                             }
                           />
                         </div>
@@ -286,6 +314,7 @@ export function DetailPanel({
 
       <FolderSelectModal
         open={folderSelectOpen}
+        initialFolderId={initialFolderId}
         onClose={() => setFolderSelectOpen(false)}
         onConfirm={onManualFolderSelect}
       />

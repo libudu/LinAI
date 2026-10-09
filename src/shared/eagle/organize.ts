@@ -361,6 +361,9 @@ export interface OrganizeResultListItem {
 export interface OrganizeResultDetail extends OrganizeItemRecord {
   /** Eagle 条目当前名称；条目已从库中删除时为 null */
   itemName: string | null
+  /** 当前原文件扩展名和媒体内容版本，供确认页复用媒体预览。 */
+  itemExt?: string
+  contentVersion?: string
   /** Eagle 条目当前所在文件夹的完整路径；未归入文件夹或条目不存在时为空数组 */
   itemFolderPaths: string[]
   /** 原图宽度（像素） */

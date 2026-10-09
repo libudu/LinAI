@@ -74,9 +74,11 @@ export type EagleItemSnapshot = Readonly<
   >
 >
 
-/** 单图详情投影：名称、尺寸和归属路径来自同一份索引，不包含缓存实现字段。 */
+/** 单图详情投影：媒体信息和归属路径来自同一份索引。 */
 export interface EagleItemDetail {
   readonly name: string
+  readonly ext: string
+  readonly contentVersion: string
   readonly width: number
   readonly height: number
   readonly size: number

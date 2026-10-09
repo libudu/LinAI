@@ -164,6 +164,8 @@ export class ResultService {
       needsRename,
       title: needsRename ? record.title : undefined,
       itemName: entry?.name ?? null,
+      itemExt: entry?.ext,
+      contentVersion: entry?.contentVersion,
       itemFolderPaths: entry?.folderPaths ?? [],
       width: entry?.width,
       height: entry?.height,

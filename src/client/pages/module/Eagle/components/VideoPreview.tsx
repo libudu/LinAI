@@ -11,12 +11,19 @@ import {
 import { formatFileSize } from './formatFileSize'
 
 interface VideoPreviewProps {
-  item: EagleItem | null
+  item: Pick<
+    EagleItem,
+    'id' | 'name' | 'ext' | 'size' | 'contentVersion'
+  > | null
   onClose: () => void
 }
 
 /** 挂载即请求联系图，缺失时由接口生成；切换视频或关闭时卸载。 */
-function VideoContactSheetPreview({ item }: { item: EagleItem }) {
+function VideoContactSheetPreview({
+  item,
+}: {
+  item: NonNullable<VideoPreviewProps['item']>
+}) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [attempt, setAttempt] = useState(0)
 
