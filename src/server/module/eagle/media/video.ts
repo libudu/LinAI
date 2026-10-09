@@ -1,17 +1,16 @@
-import { dataPath } from '@/server/common/storage/data-path'
 import { resourceLock } from '@/server/common/storage/resource-lock'
 import type { OrganizeVideoInfo } from '@/shared/eagle/organize'
 import ffmpegPath from 'ffmpeg-static'
 import ffprobe from 'ffprobe-static'
 import fs from 'fs-extra'
 import { execFile } from 'node:child_process'
-import { createHash, randomUUID } from 'node:crypto'
-import path from 'node:path'
 import sharp from 'sharp'
-import type { EagleItemMediaSource } from '../library'
+import {
+  readVideoContactSheet,
+  saveVideoContactSheet,
+  type EagleItemMediaSource,
+} from '../library'
 import { getVideoContactSheetLayout } from './video-layout'
-
-const CACHE_DIR = dataPath('eagle', 'video-contact-sheets')
 
 /** 参数数组不经 shell，Windows 隐藏进程；清空任务时立即终止抽帧。 */
 const runMediaCommand = (
@@ -139,47 +138,36 @@ const createContactSheet = async (
     .toBuffer()
 }
 
-/** 只写应用缓存；按源文件属性失效，AI 与手动确认读取同一份联系表。 */
+/** 联系表随视频长期保存在库内；按需读取，改名、分类和搬迁库不使其失效。 */
 export const getVideoContactSheet = async (
   source: EagleItemMediaSource,
   signal?: AbortSignal,
 ): Promise<{ buffer: Buffer; videoInfo: OrganizeVideoInfo }> => {
-  const stat = await fs.stat(source.filePath)
-  const key = createHash('sha256')
-    .update(JSON.stringify(['v1', source.filePath, stat.size, stat.mtimeMs]))
-    .digest('hex')
-    .slice(0, 24)
-  const cachePath = path.join(CACHE_DIR, `${source.id}-${key}.webp`)
-  return resourceLock.run(`eagle.video:${source.id}`, async () => {
-    signal?.throwIfAborted()
-    const duration = await readVideoDuration(source.filePath, signal)
-    const layout = getVideoContactSheetLayout(duration)
-    const videoInfo: OrganizeVideoInfo = {
-      duration,
-      interval: layout.interval,
-      frameCount: layout.frameCount,
-      columns: layout.columns,
-      rows: layout.rows,
-    }
-    if (await fs.pathExists(cachePath))
-      return { buffer: await fs.readFile(cachePath), videoInfo }
-    // 限制本地解码并发，不随视觉请求并发（最多 20）启动大量 FFmpeg。
-    return resourceLock.run('eagle.video-decoder', async () => {
+  return resourceLock.run(
+    `eagle.video:${source.libraryPath}:${source.id}`,
+    async () => {
       signal?.throwIfAborted()
-      const buffer = await createContactSheet(source.filePath, layout, signal)
+      const stat = await fs.stat(source.filePath)
+      const stored = await readVideoContactSheet(source, stat)
       signal?.throwIfAborted()
-      const current = await fs.stat(source.filePath)
-      if (current.size !== stat.size || current.mtimeMs !== stat.mtimeMs)
-        throw new Error('视频在抽帧期间发生变更，请重试')
-      await fs.ensureDir(CACHE_DIR)
-      const temporaryPath = `${cachePath}.${randomUUID()}.tmp`
-      try {
-        await fs.writeFile(temporaryPath, buffer, { flag: 'wx' })
-        await fs.move(temporaryPath, cachePath, { overwrite: true })
-      } finally {
-        await fs.remove(temporaryPath)
-      }
-      return { buffer, videoInfo }
-    })
-  })
+      if (stored) return stored
+      // 限制本地解码并发，不随视觉请求并发（最多 20）启动大量 FFmpeg。
+      return resourceLock.run('eagle.video-decoder', async () => {
+        signal?.throwIfAborted()
+        const duration = await readVideoDuration(source.filePath, signal)
+        const layout = getVideoContactSheetLayout(duration)
+        const videoInfo: OrganizeVideoInfo = {
+          duration,
+          interval: layout.interval,
+          frameCount: layout.frameCount,
+          columns: layout.columns,
+          rows: layout.rows,
+        }
+        const buffer = await createContactSheet(source.filePath, layout, signal)
+        signal?.throwIfAborted()
+        await saveVideoContactSheet(source, stat, buffer, videoInfo, signal)
+        return { buffer, videoInfo }
+      })
+    },
+  )
 }

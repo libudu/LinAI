@@ -19,8 +19,29 @@ const SIZE_STORAGE_KEY = 'eagle_image_size'
 const DISPLAY_STORAGE_KEY = 'eagle_display_options'
 const SELECTED_FOLDER_STORAGE_KEY = 'eagle_selected_folder'
 const MEDIA_TYPE_STORAGE_KEY = 'eagle_media_type'
+const VIDEO_PREVIEW_MODE_STORAGE_KEY = 'eagle_video_preview_mode'
 
 export type EagleImageSize = 'small' | 'medium' | 'large'
+export type EagleVideoPreviewMode = 'video' | 'contact-sheet'
+
+export const loadVideoPreviewMode = (): EagleVideoPreviewMode => {
+  try {
+    return localStorage.getItem(VIDEO_PREVIEW_MODE_STORAGE_KEY) ===
+      'contact-sheet'
+      ? 'contact-sheet'
+      : 'video'
+  } catch {
+    return 'video'
+  }
+}
+
+export const persistVideoPreviewMode = (mode: EagleVideoPreviewMode) => {
+  try {
+    localStorage.setItem(VIDEO_PREVIEW_MODE_STORAGE_KEY, mode)
+  } catch {
+    // 本地存储不可用时仍保留当前页面内的选择。
+  }
+}
 
 // 纯前端展示选项持久化，默认显示文件夹树和空文件夹，其余均不勾选
 export const loadViewOptions = (): Pick<

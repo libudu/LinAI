@@ -36,3 +36,7 @@ export type {
   UpdateItemPatch,
   UpdateItemResult,
 } from './types'
+export {
+  readVideoContactSheet,
+  saveVideoContactSheet,
+} from './video-contact-sheet'

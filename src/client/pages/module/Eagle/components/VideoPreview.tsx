@@ -1,7 +1,13 @@
 import type { EagleItem } from '@/shared/eagle/types'
 import { CloseOutlined } from '@ant-design/icons'
-import { Modal } from 'antd'
-import { eagleFileUrl } from '../api'
+import { Button, Modal, Segmented, Spin } from 'antd'
+import { useState } from 'react'
+import { eagleFileUrl, eagleVideoContactSheetUrl } from '../api'
+import {
+  loadVideoPreviewMode,
+  persistVideoPreviewMode,
+  type EagleVideoPreviewMode,
+} from '../preferences'
 import { formatFileSize } from './formatFileSize'
 
 interface VideoPreviewProps {
@@ -9,8 +15,54 @@ interface VideoPreviewProps {
   onClose: () => void
 }
 
-/** 视频沿用大图预览的黑色遮罩，播放器与底部文件信息独立占用空间。 */
+/** 挂载即请求联系图，缺失时由接口生成；切换视频或关闭时卸载。 */
+function VideoContactSheetPreview({ item }: { item: EagleItem }) {
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [attempt, setAttempt] = useState(0)
+
+  return (
+    <>
+      <img
+        key={attempt}
+        src={`${eagleVideoContactSheetUrl(item.id)}?v=${item.contentVersion}&retry=${attempt}`}
+        alt={`${item.name}.${item.ext} 的联系图`}
+        className={`absolute inset-0 h-full w-full object-contain ${status === 'ready' ? '' : 'invisible'}`}
+        onLoad={() => setStatus('ready')}
+        onError={() => setStatus('error')}
+      />
+      {status === 'loading' && (
+        <div
+          role="status"
+          className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-sm text-white"
+        >
+          <Spin size="large" />
+          <span>正在加载或生成联系图…</span>
+        </div>
+      )}
+      {status === 'error' && (
+        <div
+          role="alert"
+          className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-sm text-white"
+        >
+          <span>联系图加载或生成失败</span>
+          <Button
+            onClick={() => {
+              setStatus('loading')
+              setAttempt((current) => current + 1)
+            }}
+          >
+            重试
+          </Button>
+        </div>
+      )}
+    </>
+  )
+}
+
+/** 视频沿用大图预览的黑色遮罩，记忆播放器/联系图模式，底部信息独立占用空间。 */
 export function VideoPreview({ item, onClose }: VideoPreviewProps) {
+  const [mode, setMode] = useState(loadVideoPreviewMode)
+
   return (
     <Modal
       open={item !== null}
@@ -52,14 +104,21 @@ export function VideoPreview({ item, onClose }: VideoPreviewProps) {
             <CloseOutlined />
           </button>
           <div className="relative min-h-0 w-full flex-1">
-            <video
-              key={`${item.id}:${item.contentVersion}`}
-              src={eagleFileUrl(item.id, item.contentVersion)}
-              controls
-              autoPlay
-              playsInline
-              className="absolute inset-0 h-full w-full object-contain"
-            />
+            {mode === 'video' ? (
+              <video
+                key={`${item.id}:${item.contentVersion}`}
+                src={eagleFileUrl(item.id, item.contentVersion)}
+                controls
+                autoPlay
+                playsInline
+                className="absolute inset-0 h-full w-full object-contain"
+              />
+            ) : (
+              <VideoContactSheetPreview
+                key={`${item.id}:${item.contentVersion}`}
+                item={item}
+              />
+            )}
           </div>
           <div className="max-h-[20dvh] max-w-full shrink-0 overflow-y-auto rounded-lg bg-black/40 px-3 py-2 text-center text-sm text-white">
             <div className="wrap-anywhere whitespace-pre-wrap">
@@ -69,6 +128,19 @@ export function VideoPreview({ item, onClose }: VideoPreviewProps) {
               {formatFileSize(item.size)}
             </div>
           </div>
+          <Segmented<EagleVideoPreviewMode>
+            className="shrink-0"
+            aria-label="视频预览方式"
+            value={mode}
+            options={[
+              { value: 'video', label: '视频' },
+              { value: 'contact-sheet', label: '联系图' },
+            ]}
+            onChange={(value) => {
+              setMode(value)
+              persistVideoPreviewMode(value)
+            }}
+          />
         </div>
       )}
     </Modal>

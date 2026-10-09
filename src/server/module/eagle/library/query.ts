@@ -336,6 +336,7 @@ export const getItemMediaSource = async (
   const infoDir = path.join(imagesDir(index.libraryPath), `${id}.info`)
   return {
     id,
+    libraryPath: index.libraryPath,
     name: entry.name,
     ext: entry.ext,
     lastModified: entry.lastModified,

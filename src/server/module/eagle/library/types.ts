@@ -57,6 +57,7 @@ export interface EagleIndexState {
 /** 同一份索引快照解析出的媒体路径，避免分次读取时混用切库前后的条目。 */
 export interface EagleItemMediaSource {
   id: string
+  libraryPath: string
   name: string
   ext: string
   lastModified: number

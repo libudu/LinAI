@@ -1,6 +1,6 @@
 # Eagle 图片管理模块
 
-浏览 Eagle 资源库（`.library`）中的图片、GIF 和视频，支持目录导航、搜索排序、预览、条目编辑、回收站、HEIC/HEIF 转换与 AI 图片/视频整理。本应用的配置、缓存和任务存放在 `data/eagle/`；编辑、回收站操作、格式转换、分类确认与递归仅重命名会写入 Eagle 库。
+浏览 Eagle 资源库（`.library`）中的图片、GIF 和视频，支持目录导航、搜索排序、预览、条目编辑、回收站、HEIC/HEIF 转换与 AI 图片/视频整理。本应用的配置、缓存和任务存放在 `data/eagle/`；编辑、回收站操作、格式转换、分类确认、递归仅重命名与视频联系表保存会写入 Eagle 库。
 
 ## 文件结构
 
@@ -20,7 +20,7 @@ src/server/module/eagle/
 ├── media/                    # 原文件、缩略图与导入图库
 │   ├── index.ts              # 媒体服务
 │   ├── heic.ts               # 静态 HEIC/HEIF 识别、WASM 解码与原分辨率 WebP 验证
-│   ├── video.ts               # 视频探测、抽帧、联系表合成与只读缓存
+│   ├── video.ts               # 视频探测、抽帧、联系表合成与按需复用
 │   └── cache.ts              # 回退缩略图缓存规则
 ├── library/                  # Eagle 库索引与读写
 │   ├── index.ts              # 对外业务门面
@@ -37,6 +37,7 @@ src/server/module/eagle/
 │   ├── item-operations.ts    # 条目编辑与改名回滚
 │   ├── conversion.ts        # 全库格式候选、安全替换与源图删除重试
 │   ├── trash-operations.ts   # 软删除、还原与彻底删除
+│   ├── video-contact-sheet.ts # 联系表旁文件读取、校验与库内持久化
 │   └── mutation.ts           # 写锁与索引、缓存、事件收尾
 └── organize/                 # AI 图片/视频整理
     ├── constants.ts          # 并发、压缩与失败处理常量
@@ -109,7 +110,10 @@ src/client/pages/module/Eagle/
 └── images/<id>.info/
     ├── <name>.<ext>          # 原文件
     ├── <name>_thumbnail.png  # Eagle 缩略图（可能不存在）
-    └── metadata.json        # 属性、folders[]、isDeleted
+    ├── metadata.json        # 属性、folders[]、isDeleted
+    └── linai/               # 视频联系表，按需生成，不参与启动扫描
+        ├── video-contact-sheet.webp
+        └── video-contact-sheet.json # 源文件指纹、时长、采样、版本与图片校验值
 ```
 
 条目归属记录在条目 metadata 的 `folders[]`，目录自身不保存成员列表。
@@ -119,7 +123,8 @@ src/client/pages/module/Eagle/
 | 库路径、视觉接入点                 | SettingsRegistry：`eagle` / `eagle-vision`                                                                                            |
 | 目录展开、手动分类历史             | 通用集合 `eagle.folder-tree` / `eagle.manual-folders`，固定 `preferences` 条目；`data/eagle/folder-tree.json` / `manual-folders.json` |
 | 整理任务、结果                     | 私有 DocumentStore / EntityStore：`data/eagle/organize/task.json`、`items/<itemId>.json`                                              |
-| 可重建缓存                         | `data/eagle/index-shards/`、`thumb/`、`video-contact-sheets/`                                                                         |
+| 可重建缓存                         | `data/eagle/index-shards/`、`thumb/`                                                                                                  |
+| 视频长期预览联系表                 | Eagle 库内 `images/<id>.info/linai/video-contact-sheet.{webp,json}`                                                                   |
 | 排序、展示选项、媒体类型、选中目录 | localStorage，经 `preferences.ts` 管理                                                                                                |
 
 偏好模型由前端拥有，任务模型由服务端 `organize/model.ts` 拥有；旧数据在存储边界归一化，旧目录展开记录仅在迁移写入成功后删除。
@@ -141,7 +146,7 @@ src/client/pages/module/Eagle/
 | DELETE | `/items/:id`、`/items/:id/purge`                                                                                           | 移入回收站、彻底删除                                                 |
 | POST   | `/items/:id/restore`、`/trash/purge`、`/unclassified/trash`                                                                | 还原、清空回收站、未分类批量移入回收站                               |
 | POST   | `/refresh`、`/items/:id/add-to-gallery`                                                                                    | 刷新索引、导入输入图库                                               |
-| GET    | `/items/:id/{thumbnail,file,preview,video-contact-sheet}`                                                                  | 缩略图、原文件、只读大图、视频联系表                                 |
+| GET    | `/items/:id/{thumbnail,file,preview,video-contact-sheet}`                                                                  | 缩略图、原文件、只读大图、视频联系表（缺失或失效时生成并保存）       |
 | GET    | `/conversion/candidates`                                                                                                   | 全库分页候选；`snapshot=true` 返回完整候选 ID 与摘要                 |
 | POST   | `/conversion/items/:id`                                                                                                    | 单张转换或源图删除重试                                               |
 | GET    | `/organize/prepare`、`/organize/status`、`/organize/task`、`/organize/queue`、`/organize/failed-items`                     | 准备、状态、任务、队列与失败详情                                     |
@@ -161,7 +166,7 @@ src/client/pages/module/Eagle/
 - 文件名搜索覆盖当前目录全部资源，忽略首尾空白和大小写，空白分隔的关键词须全部匹配；服务端先过滤再排序分页。搜索不持久化，切目录、排序、翻页、刷新时保留，改词回到第一页；资源数量显示匹配数，目录树保留完整计数。
 - 隐藏空目录仅影响展示：按当前类型递归总数判断，保留有资源子孙的父目录、虚拟导航和完整归档/整理目录数据；此选项默认开启并持久化。未分类批量移入回收站和回收站批量删除仅作用于当前媒体类型。
 - 普通目录可新建/追加整理；「全部」「未分类」「回收站」仅在有未完成任务时提供继续入口，可恢复、处理、确认已有任务，无需重新配置接入点。特殊视图禁止添加且不查询范围准备数据，提交时再次校验真实来源目录。
-- 图片大图预览提供完整文件名与移入回收站操作（无需二次确认，成功后关闭并刷新，失败保留预览）；右键删除仍需确认。视频独立预览原文件，显示完整文件名和大小，关闭后卸载播放器。
+- 图片大图预览提供完整文件名与移入回收站操作（无需二次确认，成功后关闭并刷新，失败保留预览）；右键删除仍需确认。视频独立预览弹窗显示完整文件名和大小，底部可切换视频/联系图，首次默认视频，选择保存在 localStorage 的 `eagle_video_preview_mode`，下次打开其他视频或刷新页面后沿用。联系图模式立即请求接口，缺失或失效时生成并保存，提供加载状态和失败重试；切换为联系图或关闭弹窗时卸载播放器。
 - `libraryRefresh.ts` 合并主动刷新与 SSE，整理弹窗打开期间记脏、关闭后补拉；`refreshQueue.ts` 串行合并刷新和失效补拉。请求序号/版本保护防止旧响应覆盖切库、切类型或新查询。
 - `EaglePreferenceDocument` 共享加载、订阅和串行保存目录展开/手动历史，保留 revision 冲突检测及加载中操作重放。
 
@@ -206,7 +211,7 @@ src/client/pages/module/Eagle/
 ## 视频整理
 
 - `media/video-layout.ts` 定义采样规则，`media/video.ts` 用 FFprobe 探测、FFmpeg 抽帧、sharp 合成。每视频仅上传一张质量 60 的 WebP 联系表，不上传原视频，不受图片压缩开关影响；分类手动确认后才改目录/名称，仅重命名仍自动执行。
-- 独立视频提示词与前端预览共用，逐视频注入实际时长、间隔、帧数、行列和时间位置；生成与提示词使用同一采样数据，命中缓存仍探测实际时长。模型结合多个时刻，不混淆采样间隔/原视频帧率，不推断音频、未采样情节或精确动作速度；预览说明运行时注入字段，不填虚构数值。
+- 独立视频提示词与前端预览共用，逐视频注入实际时长、间隔、帧数、行列和时间位置；生成与提示词使用同一采样数据，复用已有联系表时直接读取保存的时长和采样信息，不再运行 FFprobe。模型结合多个时刻，不混淆采样间隔/原视频帧率，不推断音频、未采样情节或精确动作速度；预览说明运行时注入字段，不填虚构数值。
 
 | 时长              | 采样间隔                                   | 单帧长边上限 | 最大布局 |
 | ----------------- | ------------------------------------------ | ------------ | -------- |
@@ -217,7 +222,9 @@ src/client/pages/module/Eagle/
 | > 256s            | 8s、16s、32s…按 2 的幂向上取整，最多 64 帧 | 300px        | 8×8      |
 
 - 从 0 秒按间隔采样，时间严格小于时长，逐行从左到右排列并按帧数减少行列；保持显示比例、处理旋转/像素比例、不裁剪，外缘与帧间 4px 白边、末行空位白色，提示词忽略白边/空位。长视频输入前 seek，避免从头解码。
-- 联系表缓存由源路径、大小、mtime 和规则版本派生，不写库；抽帧期间源变化报错。请求按条目去重，本地解码串行；子进程参数数组、隐藏 Windows 窗口、单命令 60s 超时，清空任务取消抽帧。失败进入既有重试/跳过流程。
+- 联系表定位为视频长期预览资源，保存在条目 `.info/linai/` 子目录，独立于 Eagle 自身缩略图和整理任务；改名、改分类、清空任务、复制或搬迁整个库时保留，彻底删除条目时随 `.info` 一起删除。启动扫描和普通视频列表不读取旁文件，仅分类或请求联系表时按需读取。
+- 配套 JSON 保存结构/生成规则版本、原视频大小与 mtime、时长、采样间隔/帧数/行列和 WebP 的 SHA-256，不存视频名称或绝对路径；源文件变化、版本不受支持、旁文件缺失或损坏时重新生成。库写入经 library 门面与写锁，抽帧在锁外完成，提交时重新校验库、条目及源文件；图片与 JSON 分别原子替换，校验值防止复用中断后不匹配的配对，不修改 Eagle 元数据或索引指纹。
+- 请求按库路径与条目 ID 去重，本地解码串行；子进程参数数组、隐藏 Windows 窗口、单命令 60s 超时，清空任务取消抽帧但保留已保存的联系表。失败进入既有重试/跳过流程。
 - `GET /items/:id/video-contact-sheet` 供确认页与预加载查看 AI 同款联系表，普通确认可打开原视频；处理中使用 Eagle 单帧缩略图，避免等待项提前解码。
 
 ## 维护约束与修改指南
