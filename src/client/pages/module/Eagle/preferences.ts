@@ -1,4 +1,8 @@
-import type { EagleSortBy, EagleSortOrder } from '@/shared/eagle/types'
+import type {
+  EagleMediaType,
+  EagleSortBy,
+  EagleSortOrder,
+} from '@/shared/eagle/types'
 
 interface EaglePreferences {
   sortBy: EagleSortBy
@@ -14,6 +18,7 @@ const SORT_STORAGE_KEY = 'eagle_sort'
 const SIZE_STORAGE_KEY = 'eagle_image_size'
 const DISPLAY_STORAGE_KEY = 'eagle_display_options'
 const SELECTED_FOLDER_STORAGE_KEY = 'eagle_selected_folder'
+const MEDIA_TYPE_STORAGE_KEY = 'eagle_media_type'
 
 export type EagleImageSize = 'small' | 'medium' | 'large'
 
@@ -78,12 +83,28 @@ export const loadImageSize = (): EagleImageSize => {
   return 'medium'
 }
 
-export const loadSelectedFolderId = () =>
-  localStorage.getItem(SELECTED_FOLDER_STORAGE_KEY) ?? ''
+export const loadMediaType = (): EagleMediaType =>
+  localStorage.getItem(MEDIA_TYPE_STORAGE_KEY) === 'video' ? 'video' : 'image'
 
-export const persistSelectedFolderId = (folderId: string) => {
-  if (folderId) localStorage.setItem(SELECTED_FOLDER_STORAGE_KEY, folderId)
-  else localStorage.removeItem(SELECTED_FOLDER_STORAGE_KEY)
+export const persistMediaType = (mediaType: EagleMediaType) => {
+  localStorage.setItem(MEDIA_TYPE_STORAGE_KEY, mediaType)
+}
+
+export const loadSelectedFolderId = (mediaType: EagleMediaType) =>
+  localStorage.getItem(`${SELECTED_FOLDER_STORAGE_KEY}_${mediaType}`) ??
+  // 旧版只有图片浏览记忆，首次读取时兼容旧记录。
+  (mediaType === 'image'
+    ? localStorage.getItem(SELECTED_FOLDER_STORAGE_KEY)
+    : null) ??
+  ''
+
+export const persistSelectedFolderId = (
+  mediaType: EagleMediaType,
+  folderId: string,
+) => {
+  localStorage.setItem(`${SELECTED_FOLDER_STORAGE_KEY}_${mediaType}`, folderId)
+  if (mediaType === 'image')
+    localStorage.removeItem(SELECTED_FOLDER_STORAGE_KEY)
 }
 
 // 视觉选项整体落盘，供各 setter 复用

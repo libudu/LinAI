@@ -13,10 +13,12 @@ import { findFolder } from './folders'
 import { LibraryRefreshController } from './libraryRefresh'
 import {
   loadImageSize,
+  loadMediaType,
   loadSelectedFolderId,
   loadSort,
   loadViewOptions,
   persistImageSize,
+  persistMediaType,
   persistSelectedFolderId,
   persistSort,
   persistViewOptions,
@@ -36,7 +38,7 @@ interface EagleState {
   foldersLoading: boolean
   /** 当前选中文件夹，空字符串表示「全部」 */
   currentFolderId: string
-  /** 当前资源类型，默认图片（包含 GIF） */
+  /** 当前资源类型，恢复上次选择，默认图片（包含 GIF） */
   mediaType: EagleMediaType
   /** 当前列表的文件名搜索词，不持久化 */
   keyword: string
@@ -87,6 +89,7 @@ interface EagleState {
 }
 
 export const useEagleStore = create<EagleState>()((set, get) => {
+  const initialMediaType = loadMediaType()
   let pageSequence = 0
   let foldersSequence = 0
   let requestedPage = 1
@@ -142,8 +145,8 @@ export const useEagleStore = create<EagleState>()((set, get) => {
   return {
     folders: [],
     foldersLoading: false,
-    currentFolderId: loadSelectedFolderId(),
-    mediaType: 'image',
+    currentFolderId: loadSelectedFolderId(initialMediaType),
+    mediaType: initialMediaType,
     keyword: '',
     items: [],
     total: 0,
@@ -161,7 +164,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
       if (!folders) return
       const currentFolderId = get().currentFolderId
       if (currentFolderId && !hasFolder(folders, currentFolderId)) {
-        persistSelectedFolderId('')
+        persistSelectedFolderId(get().mediaType, '')
         set({ currentFolderId: '' })
       }
       await loadPage(1)
@@ -169,7 +172,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
 
     selectFolder: async (folderId) => {
       if (folderId === get().currentFolderId) return
-      persistSelectedFolderId(folderId)
+      persistSelectedFolderId(get().mediaType, folderId)
       set({ currentFolderId: folderId, items: [], total: 0, page: 1 })
       await loadPage(1)
     },
@@ -180,8 +183,10 @@ export const useEagleStore = create<EagleState>()((set, get) => {
       pageSequence++
       foldersSequence++
       requestedPage = 1
+      persistMediaType(mediaType)
       set({
         mediaType,
+        currentFolderId: loadSelectedFolderId(mediaType),
         folders: [],
         items: [],
         total: 0,
@@ -190,7 +195,8 @@ export const useEagleStore = create<EagleState>()((set, get) => {
         unclassifiedTotal: 0,
         trashTotal: 0,
       })
-      await Promise.all([loadFolders(), loadPage(1)])
+      // 与首次进入一样校验记忆目录，已删除或切库后失效时回到「全部」。
+      await get().init()
     },
 
     setKeyword: async (value) => {

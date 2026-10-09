@@ -1,11 +1,12 @@
 import { usePlatform } from '@/client/hooks/usePlatform'
 import { EAGLE_TRASH_FOLDER_ID, type EagleItem } from '@/shared/eagle/types'
 import { DeleteOutlined, LoadingOutlined } from '@ant-design/icons'
-import { Image, Modal, Pagination, Spin } from 'antd'
+import { Image, Pagination, Spin } from 'antd'
 import { cloneElement, useRef, useState, type ReactNode } from 'react'
 import { eagleFileUrl } from './api'
 import { FolderSelectModal } from './components/FolderSelectModal'
 import { ResourceGridItem } from './components/ResourceGridItem'
+import { VideoPreview } from './components/VideoPreview'
 import { useResourceActions } from './hooks/useResourceActions'
 import { PAGE_SIZE, useEagleStore, type EagleImageSize } from './store'
 
@@ -47,7 +48,7 @@ export function ResourceGrid() {
     handlePurgeItem,
   } = useResourceActions(currentFolderId)
 
-  // 预览组只收图片（视频走 Modal 播放）
+  // 预览组只收图片，视频使用独立播放器预览。
   const imageItems = items.filter((item) => !item.isVideo)
 
   const handleClick = (item: EagleItem) => {
@@ -172,24 +173,7 @@ export function ResourceGrid() {
         }}
       />
 
-      <Modal
-        open={videoItem !== null}
-        footer={null}
-        onCancel={() => setVideoItem(null)}
-        width="80vw"
-        centered
-        destroyOnHidden
-        title={videoItem?.name}
-      >
-        {videoItem && (
-          <video
-            src={eagleFileUrl(videoItem.id, videoItem.contentVersion)}
-            controls
-            autoPlay
-            className="max-h-[70vh] w-full"
-          />
-        )}
-      </Modal>
+      <VideoPreview item={videoItem} onClose={() => setVideoItem(null)} />
     </div>
   )
 }

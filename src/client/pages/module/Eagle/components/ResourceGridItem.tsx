@@ -8,13 +8,7 @@ import {
 } from '@ant-design/icons'
 import { Dropdown } from 'antd'
 import { eagleThumbnailUrl } from '../api'
-
-/** 格式化文件大小，如 0.1MB / 256KB */
-const formatFileSize = (bytes: number) => {
-  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)}MB`
-  if (bytes >= 1024) return `${Math.round(bytes / 1024)}KB`
-  return `${bytes}B`
-}
+import { formatFileSize } from './formatFileSize'
 
 interface ResourceGridItemProps {
   item: EagleItem
