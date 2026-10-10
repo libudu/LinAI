@@ -21,6 +21,7 @@ src/server/module/eagle/
 │   ├── index.ts              # 媒体服务
 │   ├── heic.ts               # 静态 HEIC/HEIF 识别、WASM 解码与原分辨率 WebP 验证
 │   ├── video.ts               # 视频探测、抽帧、联系表合成与按需复用
+│   ├── video-metadata.ts      # FFmpeg 输入信息读取，供联系表与旋转验证共用
 │   ├── cache.ts              # 回退缩略图缓存规则
 │   ├── rotation.ts           # 图片旋转、视频转码与输出验证
 │   └── timestamps.ts         # 媒体内部时间戳与文件创建/修改时间保留
@@ -225,8 +226,8 @@ src/client/pages/module/Eagle/
 
 ## 视频整理
 
-- `media/video-layout.ts` 定义采样规则，`media/video.ts` 用 FFprobe 探测、FFmpeg 抽帧、sharp 合成。每视频仅上传一张质量 60 的 WebP 联系表，不上传原视频，不受图片压缩开关影响；分类手动确认后才改目录/名称，仅重命名仍自动执行。
-- 独立视频提示词与前端预览共用，逐视频注入实际时长、间隔、帧数、行列和时间位置；生成与提示词使用同一采样数据，复用已有联系表时直接读取保存的时长和采样信息，不再运行 FFprobe。模型结合多个时刻，不混淆采样间隔/原视频帧率，不推断音频、未采样情节或精确动作速度；预览说明运行时注入字段，不填虚构数值。
+- `media/video-layout.ts` 定义采样规则，`media/video-metadata.ts` 用 FFmpeg 读取输入时长和首个视频流尺寸，供联系表与旋转验证共用；只映射视频流并输出零时长的 null，不转码或扫描整个视频。优先读取视频流 DURATION 标签，否则使用容器时长（FFmpeg 日志精度为百分之一秒）；无法读取有效时长或尺寸时报错。`media/video.ts` 用 FFmpeg 抽帧、sharp 合成。每视频仅上传一张质量 60 的 WebP 联系表，不上传原视频，不受图片压缩开关影响；分类手动确认后才改目录/名称，仅重命名仍自动执行。
+- 独立视频提示词与前端预览共用，逐视频注入实际时长、间隔、帧数、行列和时间位置；生成与提示词使用同一采样数据，复用已有联系表时直接读取保存的时长和采样信息，不再探测视频。模型结合多个时刻，不混淆采样间隔/原视频帧率，不推断音频、未采样情节或精确动作速度；预览说明运行时注入字段，不填虚构数值。
 
 | 时长              | 采样间隔                                   | 单帧长边上限 | 最大布局 |
 | ----------------- | ------------------------------------------ | ------------ | -------- |
@@ -250,5 +251,5 @@ src/client/pages/module/Eagle/
 - **前端职责**：`useClassifyTask` 管准备，`useConfirmResults` 管结果，`useConfirmSelection` 管选择，`useConfirmSubmission` 管提交，`useManualFolders` 管历史；UI 负责展示，命令放 hooks/store。`submissionQueue.ts` 按任务身份串行单项/批量提交，失败只恢复对应项；`statusModel.ts` 派生乐观计数，服务端决定阶段，提交后校准。普通/快速确认共用 `StepConfirm/utils/list.ts` / `sort.ts`，删除并跳过使用单个 trash 命令。
 - **字段与排序**：列表字段修改 `shared/eagle/types.ts` 的 `EagleItem` 和 `library/query.ts` 的 `toEagleItem`，需缓存时同步索引类型、`scan.ts` 与旧缓存默认值；排序修改 `EagleSortBy`、query 和 Toolbar，兼容旧偏好。
 - **接口与配置**：API 在 library/organize 路由链式注册、zod 校验，前端对应 api 文件封装；请求响应由 Hono RPC、设置由服务端 schema 推导，仅实际共用的契约/纯函数放 shared，旧兼容留存储边界。设置放 `settings/`，表单保存失败向上传递；展示偏好用 localStorage，便携业务偏好走通用存储。
-- **媒体与发布**：目录纯逻辑放 `library/folders.ts`，媒体放 `media/`，缩略图缓存统一 `media/cache.ts`；原文件接口不要使用整读 Buffer 的 `common/static/serveImage`。`heic-decode` / `libheif-js` / `ffmpeg-static` / `ffprobe-static` / `exiftool-vendored` 保持 tsup external 和完整生产包，WASM 内嵌无需联网；安装配置允许 ffmpeg-static 二进制脚本，便携包携带解码器与 ExifTool 平台二进制。发布前手动验证 Eagle 刷新和便携兼容性。
+- **媒体与发布**：目录纯逻辑放 `library/folders.ts`，媒体放 `media/`，缩略图缓存统一 `media/cache.ts`；原文件接口不要使用整读 Buffer 的 `common/static/serveImage`。`heic-decode` / `libheif-js` / `ffmpeg-static` / `exiftool-vendored` 保持 tsup external 和完整生产包，WASM 内嵌无需联网；安装配置允许 ffmpeg-static 二进制脚本，便携包携带解码器与 ExifTool 平台二进制。发布前手动验证 Eagle 刷新和便携兼容性。
 - 代码完成后仅运行 `npx tsc --noEmit`，不运行 build 或 eslint；按项目约定格式化变更。

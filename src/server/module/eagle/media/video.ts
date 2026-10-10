@@ -1,7 +1,6 @@
 import { resourceLock } from '@/server/common/storage/resource-lock'
 import type { OrganizeVideoInfo } from '@/shared/eagle/organize'
 import ffmpegPath from 'ffmpeg-static'
-import ffprobe from 'ffprobe-static'
 import fs from 'fs-extra'
 import { execFile } from 'node:child_process'
 import sharp from 'sharp'
@@ -11,6 +10,7 @@ import {
   type EagleItemMediaSource,
 } from '../library'
 import { getVideoContactSheetLayout } from './video-layout'
+import { readVideoMetadata } from './video-metadata'
 
 /** 参数数组不经 shell，Windows 隐藏进程；清空任务时立即终止抽帧。 */
 const runMediaCommand = (
@@ -41,33 +41,6 @@ const runMediaCommand = (
       },
     )
   })
-}
-
-const readVideoDuration = async (filePath: string, signal?: AbortSignal) => {
-  const buffer = await runMediaCommand(
-    ffprobe.path,
-    [
-      '-v',
-      'error',
-      '-select_streams',
-      'v:0',
-      '-show_entries',
-      'stream=duration:format=duration',
-      '-of',
-      'json',
-      filePath,
-    ],
-    signal,
-  )
-  const info = JSON.parse(buffer.toString()) as {
-    streams?: { duration?: string }[]
-    format?: { duration?: string }
-  }
-  if (!info.streams?.length) throw new Error('文件没有可解码的视频画面')
-  const streamDuration = Number(info.streams[0].duration)
-  return Number.isFinite(streamDuration) && streamDuration > 0
-    ? streamDuration
-    : Number(info.format?.duration)
 }
 
 const createContactSheet = async (
@@ -154,7 +127,7 @@ export const getVideoContactSheet = async (
       // 限制本地解码并发，不随视觉请求并发（最多 20）启动大量 FFmpeg。
       return resourceLock.run('eagle.video-decoder', async () => {
         signal?.throwIfAborted()
-        const duration = await readVideoDuration(source.filePath, signal)
+        const { duration } = await readVideoMetadata(source.filePath, signal)
         const layout = getVideoContactSheetLayout(duration)
         const videoInfo: OrganizeVideoInfo = {
           duration,

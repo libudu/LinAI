@@ -1,10 +1,10 @@
 import ffmpegPath from 'ffmpeg-static'
-import ffprobe from 'ffprobe-static'
 import { execFile } from 'node:child_process'
 import fs from 'node:fs/promises'
 import sharp from 'sharp'
 import { encodeStaticHeif } from './heic'
 import { preserveMediaTimestamps } from './timestamps'
+import { readVideoMetadata } from './video-metadata'
 
 /** 转码允许长时间运行，参数不经过 shell，Windows 不弹出命令窗口。 */
 const run = (executable: string, args: string[], timeout = 60_000) =>
@@ -107,36 +107,9 @@ export const createRotatedMedia = async (
       24 * 60 * 60 * 1000,
     )
     await preserveMediaTimestamps(source, output)
-    const info = JSON.parse(
-      (
-        await run(ffprobe.path, [
-          '-v',
-          'error',
-          '-select_streams',
-          'v:0',
-          '-show_entries',
-          'stream=width,height,duration:format=duration',
-          '-of',
-          'json',
-          output,
-        ])
-      ).toString(),
-    ) as {
-      streams?: { width: number; height: number; duration?: string }[]
-      format?: { duration?: string }
-    }
-    const stream = info.streams?.[0]
-    const duration = Number(stream?.duration ?? info.format?.duration)
-    if (
-      !stream ||
-      !stream.width ||
-      !stream.height ||
-      !Number.isFinite(duration) ||
-      duration <= 0
-    )
-      throw new Error('旋转后的视频验证失败')
-    width = stream.width
-    height = stream.height
+    const info = await readVideoMetadata(output)
+    width = info.width
+    height = info.height
     const frame = await run(ffmpegPath, [
       '-hide_banner',
       '-loglevel',
