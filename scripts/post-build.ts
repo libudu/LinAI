@@ -67,22 +67,32 @@ async function main() {
   fs.copySync('data-template', 'dist/data', { overwrite: true })
   console.log('✅ [Post-build] Copied data-template contents to dist/data/')
 
-  // 4. 将 pnpm 项目级配置复制到 dist，确保 allowBuilds 等设置对独立安装生效
+  // 4. 发布依赖每次全新安装，避免已移除的包残留在 .pnpm 中被打进 ZIP。
+  const distDir = path.resolve('dist')
+  fs.removeSync(path.join(distDir, 'node_modules'))
+  fs.removeSync(path.join(distDir, 'pnpm-lock.yaml'))
+  console.log('✅ [Post-build] Cleaned previous production dependencies in dist/')
+
+  // 5. 将 pnpm 项目级配置复制到 dist，确保 allowBuilds 等设置对独立安装生效
   const pnpmWorkspacePath = 'pnpm-workspace.yaml'
   const distPnpmWorkspacePath = path.join('dist', 'pnpm-workspace.yaml')
+  fs.removeSync(distPnpmWorkspacePath)
   if (fs.existsSync(pnpmWorkspacePath)) {
     fs.copySync(pnpmWorkspacePath, distPnpmWorkspacePath, { overwrite: true })
     console.log('✅ [Post-build] Copied pnpm-workspace.yaml to dist/')
   }
 
-  // 5. 在 dist 目录中安装生产环境依赖
+  // 6. 平铺安装真实文件；shamefully-hoist 仍使用符号链接，ZIP 递归时会重复收录。
   console.log('📦 [Post-build] Installing production dependencies in dist/ ...')
-  execSync('pnpm install --prod --shamefully-hoist', {
-    cwd: 'dist',
-    stdio: 'inherit',
-  })
+  execSync(
+    'pnpm install --prod --config.node-linker=hoisted --package-import-method=copy',
+    {
+      cwd: distDir,
+      stdio: 'inherit',
+    },
+  )
 
-  // 6. 删除依赖配置
+  // 7. 删除依赖配置
   fs.removeSync('dist/package.json')
   fs.removeSync('dist/pnpm-lock.yaml')
   if (fs.existsSync(distPnpmWorkspacePath)) {
@@ -92,7 +102,7 @@ async function main() {
     '✅ [Post-build] Removed package.json, pnpm-lock.yaml and pnpm-workspace.yaml from dist/',
   )
 
-  // 7. 打包 dist 目录
+  // 8. 打包 dist 目录
   try {
     const pkg = fs.readJsonSync('package.json')
     const version = pkg.version
@@ -113,7 +123,12 @@ async function main() {
       const items = fs.readdirSync(folderPath)
       for (const item of items) {
         const itemPath = path.join(folderPath, item)
-        const stat = fs.statSync(itemPath)
+        const stat = fs.lstatSync(itemPath)
+        if (stat.isSymbolicLink()) {
+          throw new Error(
+            `发布目录不能包含符号链接，请检查依赖安装方式：${itemPath}`,
+          )
+        }
         if (stat.isDirectory()) {
           const subFolder = zipFolder.folder(item)
           if (subFolder) addFolderToZip(itemPath, subFolder)

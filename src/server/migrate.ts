@@ -78,35 +78,83 @@ async function run() {
   console.log('正在解压新版本文件，请稍候...')
   let extractedCount = 0
 
-  for (const relativePath of Object.keys(zip.files)) {
-    const file = zip.files[relativePath]
+  // 先解压新依赖，再整体替换旧目录，避免写入旧版 pnpm 链接或保留已移除的包。
+  const hasDependencies = Object.entries(zip.files).some(
+    ([relativePath, file]) =>
+      !file.dir && relativePath.startsWith(`${zipRootPath}node_modules/`),
+  )
+  const stagingDir = hasDependencies
+    ? await fs.mkdtemp(path.join(rootDir, '.linai-dependencies-'))
+    : null
+  const previousDependenciesPath = stagingDir
+    ? path.join(stagingDir, 'previous-node_modules')
+    : null
+  let dependenciesInstalled = false
 
-    // 忽略目录条目，在解压文件时会自动创建所需的目录
-    if (file.dir) continue
+  try {
+    for (const relativePath of Object.keys(zip.files)) {
+      const file = zip.files[relativePath]
 
-    // 只处理位于我们找到的根目录下的文件
-    if (!relativePath.startsWith(zipRootPath)) continue
+      // 忽略目录条目，在解压文件时会自动创建所需的目录
+      if (file.dir) continue
 
-    // 去掉顶层目录，获取实际相对于解压根目录的路径
-    const targetRelativePath = relativePath.substring(zipRootPath.length)
+      // 只处理位于我们找到的根目录下的文件
+      if (!relativePath.startsWith(zipRootPath)) continue
 
-    // 跳过 data、runtime 目录及其下的所有文件
-    if (
-      targetRelativePath.startsWith('data') ||
-      targetRelativePath.startsWith('runtime')
-    ) {
-      continue
+      // 去掉顶层目录，获取实际相对于解压根目录的路径
+      const targetRelativePath = relativePath.substring(zipRootPath.length)
+
+      // 跳过 data、runtime 目录及其下的所有文件
+      if (
+        targetRelativePath.startsWith('data') ||
+        targetRelativePath.startsWith('runtime')
+      ) {
+        continue
+      }
+
+      const targetDir =
+        stagingDir && targetRelativePath.startsWith('node_modules/')
+          ? stagingDir
+          : rootDir
+      const targetFullPath = path.join(targetDir, targetRelativePath)
+
+      // 确保目标目录存在
+      await fs.ensureDir(path.dirname(targetFullPath))
+
+      // 写入文件
+      const content = await file.async('nodebuffer')
+      await fs.writeFile(targetFullPath, content)
+      extractedCount++
     }
 
-    const targetFullPath = path.join(rootDir, targetRelativePath)
-
-    // 确保目标目录存在
-    await fs.ensureDir(path.dirname(targetFullPath))
-
-    // 写入文件
-    const content = await file.async('nodebuffer')
-    await fs.writeFile(targetFullPath, content)
-    extractedCount++
+    if (stagingDir && previousDependenciesPath) {
+      const dependenciesPath = path.join(rootDir, 'node_modules')
+      const hadDependencies = await fs.pathExists(dependenciesPath)
+      if (hadDependencies) {
+        await fs.move(dependenciesPath, previousDependenciesPath)
+      }
+      try {
+        await fs.move(path.join(stagingDir, 'node_modules'), dependenciesPath)
+        dependenciesInstalled = true
+      } catch (error) {
+        if (hadDependencies) {
+          await fs.move(previousDependenciesPath, dependenciesPath)
+        }
+        throw error
+      }
+    }
+  } finally {
+    if (stagingDir && previousDependenciesPath) {
+      if (
+        dependenciesInstalled ||
+        !(await fs.pathExists(previousDependenciesPath))
+      ) {
+        await fs.remove(stagingDir)
+      } else {
+        // 回滚失败时保留旧依赖，避免清理暂存目录造成数据丢失。
+        console.error(`旧依赖恢复失败，已保留在：${previousDependenciesPath}`)
+      }
+    }
   }
 
   console.log(`\n迁移完成！共更新/覆盖了 ${extractedCount} 个文件。`)
