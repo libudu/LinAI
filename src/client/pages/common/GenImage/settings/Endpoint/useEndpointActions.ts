@@ -140,9 +140,19 @@ export function useEndpointActions() {
     message.success('配置保存成功')
     return values.apiKey
   }
-  const save = (values: EndpointFormValues, workflowFile: File | null) =>
-    isComfyValue(values.endpoint)
-      ? saveComfy(values, workflowFile)
-      : saveOpenAi(values)
+  const save = async (
+    values: EndpointFormValues,
+    workflowFile: File | null,
+  ) => {
+    try {
+      return await (isComfyValue(values.endpoint)
+        ? saveComfy(values, workflowFile)
+        : saveOpenAi(values))
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '接入点保存失败')
+      // 继续抛出，让设置弹窗保持打开并保留用户选择的工作流文件。
+      throw error
+    }
+  }
   return { save, deleteCustom, deleteComfy }
 }

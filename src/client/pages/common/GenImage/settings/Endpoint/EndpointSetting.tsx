@@ -189,8 +189,8 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
               prompt、image 输入；标题不区分大小写。
             </li>
             <li>
-              如需随机种子，把带整数 seed
-              输入的采样器标题改为“LinAI@seed”，LinAI 每次提交时会替换 seed。
+              如需随机种子，把带整数 seed 或 noise_seed
+              输入的节点标题改为“LinAI@seed”，LinAI 每次提交时会替换对应的种子。
             </li>
             <li>
               在 ComfyUI 的“文件”菜单选择“导出工作流（API）”，将 JSON

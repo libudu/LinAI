@@ -11,11 +11,7 @@ import { INPUT_IMAGES_DIR } from '../../common/static'
 import { INPUT_IMAGES_API_PATH } from '../../common/static/enum'
 import { withImageLifecycle } from '../../common/static/image-lifecycle'
 import { taskService, type Task } from '../../common/task'
-import {
-  loadComfyWorkflow,
-  type Workflow,
-  type WorkflowMarkerIds,
-} from './comfyui-workflow'
+import { loadComfyWorkflow, type ValidatedWorkflow } from './comfyui-workflow'
 import { ImageSubmissionError } from './errors'
 import { GeneratedImageBatch } from './output-files'
 import { getComfyEndpoint } from './settings'
@@ -181,10 +177,10 @@ async function runComfyTask(
   taskId: string,
   snapshot: TaskInputSnapshot,
   inputPath: string,
-  workflow: Workflow,
-  ids: WorkflowMarkerIds,
+  validated: ValidatedWorkflow,
   run: ComfyTaskRun,
 ) {
+  const { workflow, ids, seed } = validated
   const output = new GeneratedImageBatch()
   const start = Date.now()
   try {
@@ -221,9 +217,8 @@ async function runComfyTask(
     const copy = structuredClone(workflow)
     copy[ids['LinAI@prompt']].inputs.prompt = snapshot.prompt
     copy[ids['LinAI@image1']].inputs.image = uploaded.name
-    const seedId = ids['LinAI@seed']
-    if (seedId)
-      copy[seedId].inputs.seed = Number(
+    if (seed)
+      copy[seed.nodeId].inputs[seed.inputName] = Number(
         randomBytes(8).readBigUInt64BE() & BigInt(Number.MAX_SAFE_INTEGER),
       )
     await waitForCancellation(run)
@@ -324,7 +319,7 @@ export async function submitComfyTask(
 ) {
   if (!snapshot.prompt.trim()) throw new ImageSubmissionError('请填写提示词')
   const inputPath = await checkedInputPath(snapshot.images)
-  const { workflow, ids } = await loadComfyWorkflow(endpoint.workflowId)
+  const validated = await loadComfyWorkflow(endpoint.workflowId)
   const baseUrl = normalizeComfyBaseUrl(endpoint.baseUrl)
   const taskId = randomUUID()
   const task = await taskService.createTaskFromSnapshot({
@@ -346,6 +341,6 @@ export async function submitComfyTask(
     cancelRequested: false,
   }
   activeRuns.set(task.id, run)
-  run.done = runComfyTask(task.id, snapshot, inputPath, workflow, ids, run)
+  run.done = runComfyTask(task.id, snapshot, inputPath, validated, run)
   return task.id
 }

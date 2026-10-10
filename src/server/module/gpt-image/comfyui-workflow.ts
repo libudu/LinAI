@@ -29,6 +29,7 @@ export type Workflow = Record<string, WorkflowNode>
 export type ValidatedWorkflow = {
   workflow: Workflow
   ids: WorkflowMarkerIds
+  seed?: { nodeId: string; inputName: 'seed' | 'noise_seed' }
 }
 
 export function validateWorkflow(raw: unknown): ValidatedWorkflow {
@@ -78,9 +79,18 @@ export function validateWorkflow(raw: unknown): ValidatedWorkflow {
       'LinAI@image1 节点的 inputs.image 必须是文件名字符串',
     )
   const seedId = ids['LinAI@seed']
-  if (seedId && !Number.isInteger(workflow[seedId].inputs.seed))
-    throw new ImageSubmissionError('LinAI@seed 节点的 inputs.seed 必须是整数')
-  return { workflow, ids }
+  let seed: ValidatedWorkflow['seed']
+  if (seedId) {
+    const inputs = workflow[seedId].inputs
+    // 普通采样器使用 seed，SamplerCustom 等节点使用 noise_seed。
+    const inputName = 'seed' in inputs ? 'seed' : 'noise_seed'
+    if (!Number.isInteger(inputs[inputName]))
+      throw new ImageSubmissionError(
+        'LinAI@seed 节点必须有整数类型的 inputs.seed 或 inputs.noise_seed',
+      )
+    seed = { nodeId: seedId, inputName }
+  }
+  return { workflow, ids, seed }
 }
 
 const workflowPath = (id: string) => {
