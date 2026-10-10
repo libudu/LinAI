@@ -34,7 +34,11 @@ export function ActionBar({
       </div>
       <div className="flex flex-wrap gap-2">
         {onClearClassification && (
-          <Button disabled={!selectedId} onClick={onClearClassification}>
+          <Button
+            disabled={!selectedId}
+            onClick={onClearClassification}
+            title="清空目录归属，并使用推荐文件名重命名"
+          >
             清除分类手动处理(A)
           </Button>
         )}

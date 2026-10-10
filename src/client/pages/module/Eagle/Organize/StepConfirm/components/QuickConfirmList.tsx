@@ -9,7 +9,7 @@ import {
 } from '@ant-design/icons'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Button, Image } from 'antd'
-import React, { useMemo, useRef } from 'react'
+import React, { useEffect, useMemo, useRef } from 'react'
 import { useOrganizeMedia } from '../../media'
 import {
   SPECIAL_CATEGORY_LOW_QUALITY,
@@ -106,6 +106,7 @@ const QuickCard = React.memo(function QuickCard({
           {onClearClassification && (
             <Button
               size="large"
+              title="清空目录归属，并使用推荐文件名重命名"
               onClick={(e) => {
                 e.stopPropagation()
                 onClearClassification(result)
@@ -139,6 +140,7 @@ interface QuickConfirmListProps {
   onClearClassification?: (item: OrganizeResultListItem) => void
   onSkipItem: (item: OrganizeResultListItem) => void
   sortType: OrganizeSortType
+  pinnedCategory: string | null
 }
 
 export function QuickConfirmList({
@@ -149,6 +151,7 @@ export function QuickConfirmList({
   onClearClassification,
   onSkipItem,
   sortType,
+  pinnedCategory,
 }: QuickConfirmListProps) {
   const parentRef = useRef<HTMLDivElement>(null)
 
@@ -170,6 +173,12 @@ export function QuickConfirmList({
     },
     overscan: 4,
   })
+
+  useEffect(() => {
+    if (sortType === 'category' && pinnedCategory) {
+      virtualizer.scrollToOffset(0)
+    }
+  }, [pinnedCategory, sortType, virtualizer])
 
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center">

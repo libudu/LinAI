@@ -139,21 +139,21 @@ src/client/pages/module/Eagle/
 
 完整参数以 `schemas.ts` 和路由代码为准，前端通过 Hono RPC 推导类型。下表 `{a,b}` 表示同一前缀下的多个接口：
 
-| 方法   | 路径                                                                                                                       | 用途                                                                 |
-| ------ | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| GET    | `/overview`、`/folders`、`/items`                                                                                          | 目录、计数、keyword 文件名搜索与 offset/limit 分页；未指定目录为全部 |
-| PUT    | `/folders/:id`、`/items/:id`                                                                                               | 目录名称/描述、条目标题/归属                                         |
-| DELETE | `/items/:id`、`/items/:id/purge`                                                                                           | 移入回收站、彻底删除                                                 |
-| POST   | `/items/:id/restore`、`/trash/purge`、`/unclassified/trash`                                                                | 还原、清空回收站、未分类批量移入回收站                               |
-| POST   | `/refresh`、`/items/:id/add-to-gallery`                                                                                    | 刷新索引、导入输入图库                                               |
-| GET    | `/items/:id/{thumbnail,file,preview,video-contact-sheet}`                                                                  | 缩略图、原文件、只读大图、视频联系表（缺失或失效时生成并保存）       |
-| GET    | `/conversion/candidates`                                                                                                   | 全库分页候选；`snapshot=true` 返回完整候选 ID 与摘要                 |
-| POST   | `/conversion/items/:id`                                                                                                    | 单张转换或源图删除重试                                               |
-| GET    | `/organize/prepare`、`/organize/status`、`/organize/task`、`/organize/queue`、`/organize/failed-items`                     | 准备、状态、任务、队列与失败详情                                     |
-| POST   | `/organize/task`、`/organize/task/{append,pause,resume,sync-standards,retry-failed,skip-failed,classify-successful,clear}` | 创建、追加、执行控制、标准同步、失败处理、仅保留成功项、清空         |
-| GET    | `/organize/results`、`/organize/results/:itemId`、`/organize/results/changes`                                              | 分页、详情与增量结果                                                 |
-| POST   | `/organize/results/reconcile`、`/organize/results/confirm-batch`                                                           | 缺失条目校准、批量确认                                               |
-| POST   | `/organize/results/:itemId/{confirm,trash,skip,retry,clear-classification}`                                                | 单项确认、移入回收站并跳过、跳过、重做、清除归属并跳过               |
+| 方法   | 路径                                                                                                                       | 用途                                                                   |
+| ------ | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| GET    | `/overview`、`/folders`、`/items`                                                                                          | 目录、计数、keyword 文件名搜索与 offset/limit 分页；未指定目录为全部   |
+| PUT    | `/folders/:id`、`/items/:id`                                                                                               | 目录名称/描述、条目标题/归属                                           |
+| DELETE | `/items/:id`、`/items/:id/purge`                                                                                           | 移入回收站、彻底删除                                                   |
+| POST   | `/items/:id/restore`、`/trash/purge`、`/unclassified/trash`                                                                | 还原、清空回收站、未分类批量移入回收站                                 |
+| POST   | `/refresh`、`/items/:id/add-to-gallery`                                                                                    | 刷新索引、导入输入图库                                                 |
+| GET    | `/items/:id/{thumbnail,file,preview,video-contact-sheet}`                                                                  | 缩略图、原文件、只读大图、视频联系表（缺失或失效时生成并保存）         |
+| GET    | `/conversion/candidates`                                                                                                   | 全库分页候选；`snapshot=true` 返回完整候选 ID 与摘要                   |
+| POST   | `/conversion/items/:id`                                                                                                    | 单张转换或源图删除重试                                                 |
+| GET    | `/organize/prepare`、`/organize/status`、`/organize/task`、`/organize/queue`、`/organize/failed-items`                     | 准备、状态、任务、队列与失败详情                                       |
+| POST   | `/organize/task`、`/organize/task/{append,pause,resume,sync-standards,retry-failed,skip-failed,classify-successful,clear}` | 创建、追加、执行控制、标准同步、失败处理、仅保留成功项、清空           |
+| GET    | `/organize/results`、`/organize/results/:itemId`、`/organize/results/changes`                                              | 分页、详情与增量结果                                                   |
+| POST   | `/organize/results/reconcile`、`/organize/results/confirm-batch`                                                           | 缺失条目校准、批量确认                                                 |
+| POST   | `/organize/results/:itemId/{confirm,trash,skip,retry,clear-classification}`                                                | 单项确认、移入回收站并跳过、跳过、重做、清除归属并按推荐标题改名后跳过 |
 
 - 响应为 `{ success: true, data }` 或 `{ success: false, error: { code, message } }`；校验失败 400，任务身份冲突 409 / `TASK_CHANGED`，存储错误保留原错误码。GET 不修改任务或计数，校准通过 POST 显式执行。
 - 条目 ID 满足 `^[A-Za-z0-9]+$`，文件路径从可信索引获取。媒体接口支持 ETag，原文件支持 Range；`contentVersion` 由库路径、原文件名、`lastModified` 派生，用于 URL 的 `v`、ETag 和回退缩略图缓存。无版本或旧版本 URL 必须重新验证。
@@ -184,7 +184,7 @@ src/client/pages/module/Eagle/
 
 - **01 待添加**：新建选择模式、数量、并发与压缩参数；分类无有效标准时禁止创建，仅重命名允许空标准但必须有有效来源，禁止扩大到全库。未完成任务可跨普通目录追加，沿用任务模式、标准和参数，按 Eagle ID 排除队列与本轮结果（含已确认/跳过项），串行更新时再次去重。子目录任务的目标范围始终绑定创建目录，标准差异检测与同步也使用该范围；仅非运行、未结束任务可同步标准，仅重命名不检测标准差异。仅重命名默认处理全部候选，`previewItems` 只预览前 50 条未入队项，不限制实际数量；目录、排序、模式或转换变化后刷新准备数据。
 - **02 处理中**：支持暂停派发、恢复、失败重试/跳过、清空；执行器限制并发与间隔，连续失败或落盘异常时暂停并通知。暂停可仅保留成功项进入确认。清空中止请求和后续处理，不撤销已写库修改。
-- **03 待确认**：仅展示分析成功项；普通模式选择推荐/手动目标和标题，快速模式按首选推荐确认，疑似低质与未分类置顶。支持清除归属、跳过、移入回收站、重做。递归仅重命名隐藏本步骤和确认入口。执行完且待确认、失败项均处理后进入 `done`。
+- **03 待确认**：仅展示分析成功项；普通模式选择推荐/手动目标和标题，快速模式按首选推荐确认，疑似低质与未分类默认置顶。两种视图均可手动置顶一个待确认分堆，选项仅含有待确认项的首选推荐类别、疑似低质和未分类，显示剩余数量；选择后切换为分类排序并选中该分堆首项，优先于默认特殊类别，其他分堆保持原顺序，支持取消置顶，同一任务内通过 sessionStorage 保留选择，与右侧确认目标的置顶独立。清除分类（A）清空全部目录归属、不采用推荐分类，同时使用推荐标题改名（不受标题勾选影响，仍遵循无需改名规则），写库成功后跳过结果。支持不处理（S）、确认（D）、移入回收站、重做。递归仅重命名隐藏本步骤和确认入口。执行完且待确认、失败项均处理后进入 `done`。
 - 子目录确认默认候选包含绑定目录的全部层级子目录（可无描述/历史，不含自身），置顶优先，其余按推荐顺序、手动使用次数、目录树顺序排序并按路径去重；首次使用也记录历史，不混入全库其他历史。手动选择仍可使用全库目录或置顶范围外目录；目录名称搜索保留匹配父路径，被过滤隐藏的选择不能提交。追加来源不改变默认候选范围。
 - 确认页通过增量接口合并/移除结果并本地排序，进入页面或任务身份变化时显式校准缺失项；reset 替换列表，仅接受响应后推进游标。任务切换、卸载及乐观操作后的过期响应不得覆盖当前状态。
 

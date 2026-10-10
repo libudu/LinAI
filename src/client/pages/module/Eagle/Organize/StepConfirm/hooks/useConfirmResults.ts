@@ -11,11 +11,17 @@ import {
   useOrganizeStatus,
 } from '../../store'
 import type { OrganizeSortType, PendingConfirmItem } from '../types'
-import { getOrUpdateCategoryOrder, sortOrganizeResults } from '../utils/sort'
+import {
+  getOrganizeItemCategory,
+  getOrUpdateCategoryOrder,
+  sortOrganizeResults,
+} from '../utils/sort'
 import {
   CONFIRM_SORT_STORAGE_KEY,
   getSavedCategoryOrder,
+  getSavedPinnedCategory,
   saveCategoryOrder,
+  savePinnedCategory,
 } from '../utils/storage'
 
 export interface UseConfirmResultsOptions {
@@ -53,6 +59,14 @@ export function useConfirmResults({
   })
   const sortType =
     renameOnly && savedSortType === 'category' ? 'completion' : savedSortType
+  const [categoryPin, setCategoryPin] = useState(() => ({
+    taskId,
+    category: getSavedPinnedCategory(taskId),
+  }))
+  const pinnedCategory =
+    categoryPin.taskId === taskId
+      ? categoryPin.category
+      : getSavedPinnedCategory(taskId)
   const resultsRef = useRef<OrganizeResultListItem[]>([])
   const selectedIdRef = useRef(selectedId)
   selectedIdRef.current = selectedId
@@ -88,7 +102,13 @@ export function useConfirmResults({
         getSavedCategoryOrder(taskCreatedAt),
       )
       saveCategoryOrder(taskCreatedAt, order)
-      const sorted = sortOrganizeResults(available, sortType, folders, order)
+      const sorted = sortOrganizeResults(
+        available,
+        sortType,
+        folders,
+        order,
+        pinnedCategory,
+      )
       replaceResults(sorted)
       setSelectedId((current) =>
         current && sorted.some((item) => item.itemId === current)
@@ -96,7 +116,7 @@ export function useConfirmResults({
           : (sorted[0]?.itemId ?? null),
       )
     },
-    [folders, replaceResults, sortType, taskCreatedAt],
+    [folders, pinnedCategory, replaceResults, sortType, taskCreatedAt],
   )
   const projectRef = useRef(projectResults)
   projectRef.current = projectResults
@@ -211,6 +231,23 @@ export function useConfirmResults({
     }
   }, [])
 
+  const handlePinnedCategoryChange = useCallback(
+    (category: string | null) => {
+      if (!taskId) return
+      const firstItem = category
+        ? resultsRef.current.find(
+            (item) => getOrganizeItemCategory(item) === category,
+          )
+        : undefined
+      if (category && !firstItem) return
+      setCategoryPin({ taskId, category })
+      savePinnedCategory(taskId, category)
+      if (category) handleSortTypeChange('category')
+      if (firstItem) setSelectedId(firstItem.itemId)
+    },
+    [handleSortTypeChange, taskId],
+  )
+
   /** 乐观移除与选中项切换只有这一份实现，普通/快速/单图操作共用。 */
   const removeItem = useCallback(
     (itemId: string) => {
@@ -250,11 +287,17 @@ export function useConfirmResults({
         getSavedCategoryOrder(taskCreatedAt),
       )
       saveCategoryOrder(taskCreatedAt, order)
-      const sorted = sortOrganizeResults(restored, sortType, folders, order)
+      const sorted = sortOrganizeResults(
+        restored,
+        sortType,
+        folders,
+        order,
+        pinnedCategory,
+      )
       replaceResults(sorted)
       setSelectedId((current) => current ?? sorted[0]?.itemId ?? null)
     },
-    [folders, replaceResults, sortType, taskCreatedAt, taskId],
+    [folders, pinnedCategory, replaceResults, sortType, taskCreatedAt, taskId],
   )
 
   const selectedItem = useMemo(
@@ -269,6 +312,8 @@ export function useConfirmResults({
     loading,
     sortType,
     handleSortTypeChange,
+    pinnedCategory,
+    handlePinnedCategoryChange,
     refreshResults,
     removeItem,
     restoreItems,

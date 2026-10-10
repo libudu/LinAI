@@ -20,6 +20,20 @@ export type ConfirmationPlan =
   | { kind: 'purged'; record: OrganizeItemRecord }
   | { kind: 'resolved'; result: OrganizeConfirmItemResult }
 
+/** 确认与清除分类共用推荐标题判断，已匹配当前模型的文件不重复改名。 */
+export const getOrganizeRenamePatch = (
+  record: Pick<OrganizeItemRecord, 'needsRename' | 'title'>,
+  currentName: string,
+  modelId: string,
+  withTitle: boolean,
+): UpdateItemPatch =>
+  withTitle &&
+  record.needsRename !== false &&
+  needsOrganizeRename(currentName, modelId) &&
+  record.title
+    ? { name: record.title }
+    : {}
+
 /** 单张和批量共用校验、目标解析、缺失条目自愈与幂等判断。 */
 export const prepareConfirmation = async (
   item: OrganizeConfirmItem,
@@ -45,18 +59,19 @@ export const prepareConfirmation = async (
     return fail(409, 'Eagle 资源库当前不可用，请检查配置后重新确认')
   const entry = snapshots.get(item.itemId)
   if (!entry) return { kind: 'purged', record }
-  const needsRename =
-    record.needsRename !== false && needsOrganizeRename(entry.name, modelId)
+  const renamePatch = getOrganizeRenamePatch(
+    record,
+    entry.name,
+    modelId,
+    item.withTitle,
+  )
 
   // 仅重命名不提交 folderIds，写库时保留最新元数据中的全部目录归属。
   if (classificationMode === 'recursive-rename') {
     return {
       kind: 'ready',
       record,
-      patch:
-        item.withTitle && needsRename && record.title
-          ? { name: record.title }
-          : {},
+      patch: renamePatch,
     }
   }
 
@@ -80,9 +95,7 @@ export const prepareConfirmation = async (
     record,
     patch: {
       folderIds: isUnclassified ? [] : [folderId!],
-      ...(item.withTitle && needsRename && record.title
-        ? { name: record.title }
-        : {}),
+      ...renamePatch,
     },
   }
 }

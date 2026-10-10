@@ -1,9 +1,43 @@
 import type { PinnedFolderOption } from '../types'
 
 export const CONFIRM_SORT_STORAGE_KEY = 'eagle_organize_confirm_sort'
-export const CONFIRM_QUICK_MODE_STORAGE_KEY = 'eagle_organize_confirm_quick_mode'
-export const CONFIRM_CATEGORY_ORDER_STORAGE_PREFIX = 'eagle_organize_category_order'
+export const CONFIRM_QUICK_MODE_STORAGE_KEY =
+  'eagle_organize_confirm_quick_mode'
+export const CONFIRM_CATEGORY_ORDER_STORAGE_PREFIX =
+  'eagle_organize_category_order'
 export const CONFIRM_PINNED_OPTION_STORAGE_KEY = 'eagle_organize_pinned_option'
+const CONFIRM_PINNED_CATEGORY_STORAGE_KEY = 'eagle_organize_pinned_category'
+
+/** 分堆置顶只在同一任务内复用，与确认目标文件夹的置顶独立。 */
+export const getSavedPinnedCategory = (taskId?: string): string | null => {
+  if (!taskId) return null
+  try {
+    const raw = sessionStorage.getItem(CONFIRM_PINNED_CATEGORY_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (parsed?.taskId === taskId && typeof parsed.category === 'string') {
+      return parsed.category
+    }
+  } catch {
+    // 忽略损坏的本地缓存
+  }
+  return null
+}
+
+export const savePinnedCategory = (taskId: string, category: string | null) => {
+  try {
+    if (category) {
+      sessionStorage.setItem(
+        CONFIRM_PINNED_CATEGORY_STORAGE_KEY,
+        JSON.stringify({ taskId, category }),
+      )
+    } else {
+      sessionStorage.removeItem(CONFIRM_PINNED_CATEGORY_STORAGE_KEY)
+    }
+  } catch {
+    // 忽略写入异常
+  }
+}
 
 export const getSavedPinnedOption = (
   taskCreatedAt?: number,

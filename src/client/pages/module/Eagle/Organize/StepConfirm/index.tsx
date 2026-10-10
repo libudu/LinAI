@@ -16,6 +16,7 @@ import { ActionBar } from './components/ActionBar'
 import { ConfirmControls } from './components/ConfirmControls'
 import { ConfirmImageViewer } from './components/ConfirmImageViewer'
 import { DetailPanel } from './components/DetailPanel'
+import { PinnedCategoryControl } from './components/PinnedCategoryControl'
 import { QuickConfirmList } from './components/QuickConfirmList'
 import { ThumbnailBar } from './components/ThumbnailBar'
 import { useConfirmQueue } from './hooks/useConfirmQueue'
@@ -70,6 +71,8 @@ export function StepConfirm({
     loading,
     sortType,
     handleSortTypeChange,
+    pinnedCategory,
+    handlePinnedCategoryChange,
     confirmItemQuick,
     confirmCurrentItem,
     runAction,
@@ -226,6 +229,13 @@ export function StepConfirm({
           {/* 快速模式头部控件栏 */}
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 pb-2 dark:border-slate-700/80">
             <div className="flex items-center gap-2">
+              {!renameOnly && (
+                <PinnedCategoryControl
+                  results={results}
+                  pinnedCategory={pinnedCategory}
+                  onChange={handlePinnedCategoryChange}
+                />
+              )}
               <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
                 ⚡ 快速整理模式
               </span>
@@ -254,6 +264,7 @@ export function StepConfirm({
             }
             onSkipItem={handleSkipItem}
             sortType={sortType}
+            pinnedCategory={pinnedCategory}
           />
         </>
       ) : (
@@ -268,6 +279,8 @@ export function StepConfirm({
             onSortTypeChange={handleSortTypeChange}
             quickMode={quickMode}
             onQuickModeChange={handleQuickModeChange}
+            pinnedCategory={pinnedCategory}
+            onPinnedCategoryChange={handlePinnedCategoryChange}
           />
 
           {/* 中部：左大图 + 右信息面板 */}

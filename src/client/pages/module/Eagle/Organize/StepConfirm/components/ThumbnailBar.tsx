@@ -15,6 +15,7 @@ import {
 } from '../types'
 import { buildConfirmListItems } from '../utils/list'
 import { ConfirmControls } from './ConfirmControls'
+import { PinnedCategoryControl } from './PinnedCategoryControl'
 
 interface ThumbnailBarProps {
   renameOnly?: boolean
@@ -25,6 +26,8 @@ interface ThumbnailBarProps {
   onSortTypeChange: (sortType: OrganizeSortType) => void
   quickMode: boolean
   onQuickModeChange: (quickMode: boolean) => void
+  pinnedCategory: string | null
+  onPinnedCategoryChange: (category: string | null) => void
 }
 
 export function ThumbnailBar({
@@ -36,6 +39,8 @@ export function ThumbnailBar({
   onSortTypeChange,
   quickMode,
   onQuickModeChange,
+  pinnedCategory,
+  onPinnedCategoryChange,
 }: ThumbnailBarProps) {
   const { mediaType, previewUrl } = useOrganizeMedia()
   const parentRef = useRef<HTMLDivElement>(null)
@@ -55,6 +60,12 @@ export function ThumbnailBar({
     overscan: 6,
   })
 
+  useEffect(() => {
+    if (sortType === 'category' && pinnedCategory) {
+      virtualizer.scrollToOffset(0)
+    }
+  }, [pinnedCategory, sortType, virtualizer])
+
   // 选中项切换时自动滚动到可视区域
   useEffect(() => {
     if (!selectedId) return
@@ -62,15 +73,25 @@ export function ThumbnailBar({
       (it) => it.type === 'card' && it.result.itemId === selectedId,
     )
     if (index !== -1) {
-      virtualizer.scrollToIndex(index, {
-        align: 'auto',
-        behavior: 'auto',
-      })
+      virtualizer.scrollToIndex(
+        sortType === 'category' && index === 1 ? 0 : index,
+        {
+          align: 'auto',
+          behavior: 'auto',
+        },
+      )
     }
-  }, [selectedId, flatItems, virtualizer])
+  }, [selectedId, flatItems, sortType, virtualizer])
 
   return (
     <div className="flex shrink-0 items-center gap-2">
+      {!renameOnly && (
+        <PinnedCategoryControl
+          results={results}
+          pinnedCategory={pinnedCategory}
+          onChange={onPinnedCategoryChange}
+        />
+      )}
       {/* 缩略图横向虚拟滚动列表 */}
       <div
         ref={parentRef}

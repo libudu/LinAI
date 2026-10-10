@@ -86,6 +86,7 @@ export function getOrUpdateCategoryOrder(
  * 待确认结果多维排序函数：
  *
  * 1. category（图片分类，默认）：
+ *    - 手动置顶类别优先于全部默认分类，其他类别沿用原有顺序
  *    - 第一层：特殊分类置顶 —— 疑似低质（优先级 0）> 未分类（优先级 1）> 常规分类（优先级 2）
  *    - 第二层：常规分类次序 —— 严格遵循任务固化的 categoryOrder（避免中途数量减少排位跳动）
  *    - 第三层：固化表外兜底 —— 按当前剩余数量从多到少，数量相同时按文件夹树先后顺序排
@@ -99,6 +100,7 @@ export function sortOrganizeResults(
   sortType: OrganizeSortType,
   folders: EagleFolder[],
   categoryOrder?: string[],
+  pinnedCategory?: string | null,
 ): OrganizeResultListItem[] {
   if (results.length <= 1) return results
 
@@ -146,6 +148,7 @@ export function sortOrganizeResults(
 
     // 特殊置顶分类优先级定义
     const getCategoryPriority = (cat: string): number => {
+      if (cat === pinnedCategory) return -1 // 手动选择的分堆优先于默认特殊分类
       if (cat === SPECIAL_CATEGORY_LOW_QUALITY) return 0 // 疑似低质最先展示
       if (cat === SPECIAL_CATEGORY_UNCLASSIFIED) return 1 // 无法分类其次展示
       return 2 // 常规文件夹分类

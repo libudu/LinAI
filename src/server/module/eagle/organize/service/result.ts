@@ -11,7 +11,6 @@ import { needsOrganizeRename } from '@/shared/eagle/organize'
 import {
   deleteItem,
   getItemDetail,
-  getItemPresence,
   getItemSnapshots,
   getLibraryChanges,
   updateItem,
@@ -21,7 +20,11 @@ import { getEagleVisionEndpoint } from '../../settings'
 import { organizeExecutor } from '../executor'
 import { organizeRepository } from '../storage'
 import { transitionTask } from '../transitions'
-import { prepareConfirmation, type ConfirmationPlan } from './confirmation'
+import {
+  getOrganizeRenamePatch,
+  prepareConfirmation,
+  type ConfirmationPlan,
+} from './confirmation'
 import { publishOrganizeChange } from './helpers'
 import type {
   OrganizeActionResult,
@@ -265,11 +268,22 @@ export class ResultService {
     if (!record) return { ok: false, status: 404, error: '结果不存在' }
     if (record.status !== 'success' && record.status !== 'failed')
       return { ok: false, status: 409, error: '该结果当前不需要确认' }
-    const presence = await getItemPresence(itemId)
-    if (presence === 'unavailable')
+    const snapshots = await getItemSnapshots([itemId])
+    if (!snapshots)
       return { ok: false, status: 409, error: 'Eagle 资源库当前不可用' }
-    if (presence === 'present') {
-      if (!(await updateItem(itemId, { folderIds: [] })))
+    const entry = snapshots.get(itemId)
+    if (entry) {
+      const endpoint = await getEagleVisionEndpoint()
+      const patch = {
+        folderIds: [],
+        ...getOrganizeRenamePatch(
+          record,
+          entry.name,
+          endpoint.modelId,
+          record.status === 'success',
+        ),
+      }
+      if (!(await updateItem(itemId, patch)))
         return { ok: false, status: 404, error: 'Eagle 条目不存在' }
     }
     await this.saveDecisions([record], 'skipped')
