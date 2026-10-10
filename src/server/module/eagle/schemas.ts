@@ -11,6 +11,24 @@ export const eagleMediaQuerySchema = z.object({
   mediaType: z.enum(EAGLE_MEDIA_TYPES).optional(),
 })
 
+/** 操作按数组顺序应用；新增操作时扩展此联合及媒体处理器。 */
+export const eagleMediaEditOperationSchema = z.discriminatedUnion('type', [
+  z.strictObject({
+    type: z.literal('rotate'),
+    degrees: z.union([z.literal(90), z.literal(180), z.literal(270)]),
+  }),
+])
+
+export const eagleMediaEditSaveSchema = z.strictObject({
+  contentVersion: z.string().min(1),
+  operations: z.array(eagleMediaEditOperationSchema).min(1).max(32),
+})
+
+export type EagleMediaEditOperation = z.infer<
+  typeof eagleMediaEditOperationSchema
+>
+export type EagleMediaEditSaveRequest = z.infer<typeof eagleMediaEditSaveSchema>
+
 /** Eagle 请求参数的唯一校验定义；前端从 Hono RPC 推导输入。 */
 export const eagleScopeSchema = z.object({
   folderId: z.string().min(1).optional(),

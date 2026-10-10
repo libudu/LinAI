@@ -5,7 +5,7 @@ import {
   RotateRightOutlined,
 } from '@ant-design/icons'
 import { Button, Modal, Segmented, Spin } from 'antd'
-import { type ComponentProps, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { eagleFileUrl, eagleVideoContactSheetUrl } from '../api'
 import {
   loadVideoPlaybackRate,
@@ -15,7 +15,9 @@ import {
   type EagleVideoPreviewMode,
 } from '../preferences'
 import { formatFileSize } from './formatFileSize'
-import { normalizeRotation, RotationSaveButton } from './RotationSaveButton'
+import { MediaEditSaveButton } from './MediaEditSaveButton'
+import { getRotationEditOperations, normalizeRotation } from './rotation'
+import { formatVideoDuration, VideoPlayer } from './VideoPlayer'
 
 interface VideoPreviewProps {
   item:
@@ -24,36 +26,6 @@ interface VideoPreviewProps {
     | null
   onClose: () => void
   allowOverwrite?: boolean
-}
-
-function formatVideoDuration(duration: number) {
-  const seconds = Math.floor(duration)
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const parts = [minutes, seconds % 60].map((part) =>
-    String(part).padStart(2, '0'),
-  )
-  if (hours > 0) parts.unshift(String(hours))
-  return parts.join(':')
-}
-
-/** 初始隐藏控件，首次点击后交由浏览器管理原生 UI 的显隐。 */
-function VideoPlayer(
-  props: Omit<ComponentProps<'video'>, 'controls' | 'onClick'>,
-) {
-  const [controlsEnabled, setControlsEnabled] = useState(false)
-
-  return (
-    <video
-      {...props}
-      controls={controlsEnabled}
-      onClick={(event) => {
-        if (controlsEnabled) return
-        event.preventDefault()
-        setControlsEnabled(true)
-      }}
-    />
-  )
 }
 
 /** 挂载即请求联系图，缺失时由接口生成；切换视频或关闭时卸载。 */
@@ -231,7 +203,6 @@ export function VideoPreview({
                 <VideoPlayer
                   key={videoKey}
                   src={eagleFileUrl(item.id, item.contentVersion)}
-                  controlsList="nofullscreen"
                   autoPlay
                   playsInline
                   onLoadedMetadata={(event) => {
@@ -257,9 +228,8 @@ export function VideoPreview({
                   }}
                   className="absolute top-1/2 left-1/2 object-contain"
                   style={{
-                    // 视频元素覆盖整行留白，让灰色区域沿用原生控件的显隐交互。
-                    width: sideways ? width * scale : '100%',
-                    height: sideways ? containerSize.width : height * scale,
+                    width: width * scale,
+                    height: height * scale,
                     transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
                   }}
                 />
@@ -316,11 +286,11 @@ export function VideoPreview({
                 </button>
                 {rotation !== 0 && <span className="text-sm">{rotation}°</span>}
                 {allowOverwrite && (
-                  <RotationSaveButton
+                  <MediaEditSaveButton
                     key={item.id}
                     id={item.id}
                     contentVersion={item.contentVersion}
-                    degrees={rotation}
+                    operations={getRotationEditOperations(rotation)}
                     video
                     onBusyChange={(busy) => {
                       setSaving(busy)

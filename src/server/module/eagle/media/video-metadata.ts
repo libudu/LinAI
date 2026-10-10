@@ -45,7 +45,8 @@ export const readVideoMetadata = async (
         maxBuffer: 2 * 1024 * 1024,
       },
       (error, _stdout, stderr) => {
-        if (error)
+        if (signal?.aborted) reject(signal.reason)
+        else if (error)
           reject(
             new Error(
               `视频信息读取失败：${stderr.trim().slice(-500) || error.message}`,

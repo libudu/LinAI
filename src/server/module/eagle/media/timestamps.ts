@@ -45,7 +45,9 @@ const readTimestampTags = async (tool: ExifTool, file: string) => {
 export const preserveMediaTimestamps = async (
   source: string,
   output: string,
+  signal?: AbortSignal,
 ) => {
+  signal?.throwIfAborted()
   // ExifTool 的 stay_open 协议按行传参，不能接受路径中的控制字符。
   if (/[\r\n\0]/.test(source + output))
     throw new Error('媒体路径包含不支持的控制字符')
@@ -55,8 +57,15 @@ export const preserveMediaTimestamps = async (
     useMWG: false,
     ignoreMinorErrors: false,
   })
+  let stopping: Promise<void> | undefined
+  const abort = () => {
+    stopping ??= tool.end(false)
+    void stopping.catch(() => undefined)
+  }
+  signal?.addEventListener('abort', abort, { once: true })
   try {
     const original = await readTimestampTags(tool, source)
+    signal?.throwIfAborted()
     const keys = Object.keys(original)
     if (!keys.length) return
     await tool.write(
@@ -72,7 +81,9 @@ export const preserveMediaTimestamps = async (
         ],
       },
     )
+    signal?.throwIfAborted()
     const saved = await readTimestampTags(tool, output)
+    signal?.throwIfAborted()
     const missing = keys.filter(
       (key) => JSON.stringify(saved[key]) !== JSON.stringify(original[key]),
     )
@@ -80,13 +91,22 @@ export const preserveMediaTimestamps = async (
       throw new Error(
         `输出格式无法完整保留媒体时间戳（${missing.join('、')}），未覆盖原文件`,
       )
+  } catch (error) {
+    signal?.throwIfAborted()
+    throw error
   } finally {
-    await tool.end()
+    signal?.removeEventListener('abort', abort)
+    await (stopping ?? tool.end(!signal?.aborted))
   }
 }
 
 /** Node utimes 不支持创建时间；Windows 用系统自带 .NET API，路径作为数据传入。 */
-export const preserveFileTimestamps = async (file: string, original: Stats) => {
+export const preserveFileTimestamps = async (
+  file: string,
+  original: Stats,
+  signal?: AbortSignal,
+) => {
+  signal?.throwIfAborted()
   if (process.platform === 'win32') {
     const script = [
       "$ErrorActionPreference = 'Stop'",
@@ -97,7 +117,7 @@ export const preserveFileTimestamps = async (file: string, original: Stats) => {
       '[System.IO.File]::SetCreationTimeUtc($timeInfo.path, $creation)',
     ].join('\n')
     await new Promise<void>((resolve, reject) => {
-      execFile(
+      const child = execFile(
         'powershell.exe',
         ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script],
         {
@@ -113,12 +133,18 @@ export const preserveFileTimestamps = async (file: string, original: Stats) => {
           },
         },
         (error) => {
-          if (error) reject(new Error(`保留文件创建时间失败：${error.message}`))
+          signal?.removeEventListener('abort', abort)
+          if (signal?.aborted) reject(signal.reason)
+          else if (error)
+            reject(new Error(`保留文件创建时间失败：${error.message}`))
           else resolve()
         },
       )
+      const abort = () => child.kill()
+      signal?.addEventListener('abort', abort, { once: true })
     })
   }
+  signal?.throwIfAborted()
   await fs.utimes(file, original.atimeMs / 1000, original.mtimeMs / 1000)
   const saved = await fs.lstat(file)
   if (

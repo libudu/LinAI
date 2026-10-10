@@ -3,6 +3,7 @@ import { Hono, type Context } from 'hono'
 import { Readable } from 'node:stream'
 import { z } from 'zod'
 import {
+  cancelMediaEditSaveJob,
   convertHeifItem,
   deleteItem,
   getConversionCandidates,
@@ -10,12 +11,14 @@ import {
   getItemDetail,
   getItems,
   getLibraryOverview,
+  getMediaEditSaveJob,
   isVideoExt,
   purgeItem,
   purgeTrash,
   refreshIndex,
   restoreItem,
-  rotateItem,
+  saveItemMediaEdits,
+  startMediaEditSaveJob,
   trashUnclassified,
   updateFolder,
   updateItem,
@@ -33,6 +36,7 @@ import {
 import { getVideoContactSheet } from '../../module/eagle/media/video'
 import {
   eagleItemsQuerySchema,
+  eagleMediaEditSaveSchema,
   eagleMediaQuerySchema,
 } from '../../module/eagle/schemas'
 import { errorResponse, validate } from './validation'
@@ -63,20 +67,39 @@ const libraryApi = new Hono()
     return c.json({ success: true as const, data })
   })
   .post(
-    '/items/:id/rotate',
-    validate(
-      'json',
-      z.object({
-        contentVersion: z.string().min(1),
-        degrees: z.union([z.literal(90), z.literal(180), z.literal(270)]),
-      }),
-    ),
+    '/items/:id/media-edits',
+    validate('json', eagleMediaEditSaveSchema),
     async (c) => {
-      const { contentVersion, degrees } = c.req.valid('json')
-      const data = await rotateItem(c.req.param('id'), contentVersion, degrees)
+      const data = await saveItemMediaEdits(
+        c.req.param('id'),
+        c.req.valid('json'),
+      )
       if (!data) return errorResponse(c, 409, 'Eagle 资源库当前不可用')
       return c.json({ success: true as const, data })
     },
+  )
+  .post(
+    '/items/:id/media-edits/jobs',
+    validate('json', eagleMediaEditSaveSchema),
+    (c) => {
+      return c.json({
+        success: true as const,
+        data: startMediaEditSaveJob(c.req.param('id'), c.req.valid('json')),
+      })
+    },
+  )
+  .get('/items/:id/media-edits/jobs/:jobId', (c) => {
+    c.header('Cache-Control', 'no-store')
+    return c.json({
+      success: true as const,
+      data: getMediaEditSaveJob(c.req.param('id'), c.req.param('jobId')),
+    })
+  })
+  .post('/items/:id/media-edits/jobs/:jobId/cancel', (c) =>
+    c.json({
+      success: true as const,
+      data: cancelMediaEditSaveJob(c.req.param('id'), c.req.param('jobId')),
+    }),
   )
   .get(
     '/conversion/candidates',

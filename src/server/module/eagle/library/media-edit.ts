@@ -1,13 +1,28 @@
 import { writeJsonFile } from '@/server/common/storage/json-file'
 import { resourceLock } from '@/server/common/storage/resource-lock'
 import { randomUUID } from 'node:crypto'
-import { constants, type Stats } from 'node:fs'
+import {
+  constants,
+  createReadStream,
+  createWriteStream,
+  type Stats,
+} from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import sharp from 'sharp'
 import { EagleError } from '../errors'
-import { createRotatedMedia, rotatedExtension } from '../media/rotation'
+import {
+  createEditedMedia,
+  editedMediaExtension,
+  type MediaEditProcessingOptions,
+} from '../media/edit'
 import { preserveFileTimestamps } from '../media/timestamps'
+import {
+  eagleMediaEditSaveSchema,
+  type EagleMediaEditSaveRequest,
+} from '../schemas'
 import { getEagleSettings } from '../settings'
 import { ensureIndex, indexCache, libraryChanges } from './index-state'
 import { removeMtimes, updateMtimes } from './mtime-state'
@@ -17,7 +32,7 @@ import { imagesDir, isVideoExt, ITEM_ID_PATTERN } from './runtime'
 import type { EagleIndexState, EagleItemIndex, EagleRawItemMeta } from './types'
 
 function conflict(message: string): never {
-  throw new EagleError('ROTATION_CONFLICT', 409, message)
+  throw new EagleError('MEDIA_EDIT_CONFLICT', 409, message)
 }
 
 const regularStat = async (file: string) => {
@@ -72,10 +87,10 @@ const checkedPaths = async (index: EagleIndexState, entry: EagleItemIndex) => {
     meta: child('metadata.json'),
     thumbnail: child(entry.thumbnailName ?? `${entry.name}_thumbnail.png`),
     target: child(
-      rotatedExtension(entry.ext, isVideoExt(entry.ext)) ===
+      editedMediaExtension(entry.ext, isVideoExt(entry.ext)) ===
         entry.ext.toLowerCase()
         ? entry.fileName
-        : `${entry.name}.${rotatedExtension(entry.ext, isVideoExt(entry.ext))}`,
+        : `${entry.name}.${editedMediaExtension(entry.ext, isVideoExt(entry.ext))}`,
     ),
   }
 }
@@ -94,21 +109,77 @@ const syncFile = async (file: string) => {
     await handle.close()
   }
 }
-const rotating = new Set<string>()
+const savingItems = new Set<string>()
 
-/** 锁外生成、锁内复核并替换；原始媒体成为可还原的独立 Eagle 回收站条目。 */
-export const rotateItem = async (
-  id: string,
-  contentVersion: string,
-  degrees: number,
+/** 排队时也可立即取消；队列到达已取消的任务时跳过，不再访问临时目录。 */
+const encodeInQueue = <T>(task: () => Promise<T>, signal?: AbortSignal) => {
+  signal?.throwIfAborted()
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => reject(signal?.reason)
+    signal?.addEventListener('abort', abort, { once: true })
+    void resourceLock
+      .run('eagle.media-edit-encoder', async () => {
+        signal?.removeEventListener('abort', abort)
+        signal?.throwIfAborted()
+        return task()
+      })
+      .then(resolve, reject)
+      .finally(() => signal?.removeEventListener('abort', abort))
+  })
+}
+
+/** 视频备份按字节报告进度，取消会关闭文件流，随后由既有回滚清理备份。 */
+const copyBackup = async (
+  source: string,
+  target: string,
+  size: number,
+  { signal, onProgress }: MediaEditProcessingOptions,
 ) => {
-  if (!ITEM_ID_PATTERN.test(id) || ![90, 180, 270].includes(degrees))
-    throw new EagleError('INVALID_REQUEST', 400, '旋转参数无效')
-  if (rotating.has(id)) conflict('此条目正在旋转，请等待处理完成')
-  rotating.add(id)
+  if (!signal) return fs.copyFile(source, target, constants.COPYFILE_EXCL)
+  signal.throwIfAborted()
+  let copied = 0
+  const progress = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      copied += chunk.length
+      onProgress?.({
+        percent: 95 + Math.min(3, (copied / Math.max(1, size)) * 3),
+        phase: 'backup',
+        canCancel: true,
+      })
+      callback(null, chunk)
+    },
+  })
+  try {
+    await pipeline(
+      createReadStream(source),
+      progress,
+      createWriteStream(target, { flags: 'wx' }),
+      { signal },
+    )
+  } catch (error) {
+    signal.throwIfAborted()
+    throw error
+  }
+}
+
+/** 保存媒体编辑：锁外生成、锁内复核并替换，原始媒体进入 Eagle 回收站。 */
+export const saveItemMediaEdits = async (
+  id: string,
+  request: EagleMediaEditSaveRequest,
+  options: MediaEditProcessingOptions = {},
+) => {
+  const { signal, onProgress } = options
+  signal?.throwIfAborted()
+  const parsed = eagleMediaEditSaveSchema.safeParse(request)
+  if (!ITEM_ID_PATTERN.test(id) || !parsed.success)
+    throw new EagleError('INVALID_REQUEST', 400, '媒体编辑保存参数无效')
+  const { contentVersion, operations } = parsed.data
+  if (savingItems.has(id)) conflict('此条目正在保存编辑，请等待处理完成')
+  savingItems.add(id)
   let cleanup: (() => Promise<void>) | undefined
   try {
     const snapshot = await withLibraryMutation(null, async (index) => {
+      signal?.throwIfAborted()
       await assertLibrary(index)
       const entry = index.items.get(id)
       if (
@@ -164,12 +235,13 @@ export const rotateItem = async (
       thumbnail,
       thumbnailStat,
     } = snapshot
-    const work = path.join(paths.dir, `.linai-rotate-${randomUUID()}`)
+    signal?.throwIfAborted()
+    const work = path.join(paths.dir, `.linai-media-edit-${randomUUID()}`)
     await fs.mkdir(work)
     const workStat = await fs.lstat(work)
     const output = path.join(
       work,
-      `output.${rotatedExtension(entry.ext, isVideoExt(entry.ext))}`,
+      `output.${editedMediaExtension(entry.ext, isVideoExt(entry.ext))}`,
     )
     const thumbOutput = path.join(work, 'thumbnail')
     const recovery = path.join(work, 'recovery')
@@ -188,16 +260,21 @@ export const rotateItem = async (
         })
       await fs.rmdir(work)
     }
-    const result = await resourceLock.run('eagle.rotation-encoder', () =>
-      createRotatedMedia(
-        paths.source,
-        output,
-        entry.ext,
-        isVideoExt(entry.ext),
-        degrees,
-      ),
+    const result = await encodeInQueue(
+      () =>
+        createEditedMedia(
+          paths.source,
+          output,
+          entry.ext,
+          isVideoExt(entry.ext),
+          operations,
+          options,
+        ),
+      signal,
     )
-    await preserveFileTimestamps(output, sourceStat)
+    signal?.throwIfAborted()
+    await preserveFileTimestamps(output, sourceStat, signal)
+    signal?.throwIfAborted()
     const outputStat = await regularStat(output)
     const thumbnailExt = path.extname(paths.thumbnail).slice(1).toLowerCase()
     const thumbBuffer = await sharp(result.thumbnail)
@@ -210,7 +287,10 @@ export const rotateItem = async (
     await fs.writeFile(thumbOutput, thumbBuffer, { flag: 'wx' })
     await syncFile(thumbOutput)
     const thumbOutputStat = await regularStat(thumbOutput)
+    signal?.throwIfAborted()
+    onProgress?.({ percent: 95, phase: 'backup', canCancel: true })
     return await withLibraryMutation(null, async (current, changes) => {
+      signal?.throwIfAborted()
       await assertLibrary(index)
       if (
         current !== index ||
@@ -237,7 +317,7 @@ export const rotateItem = async (
         !sameFile(outputStat, await regularStat(output)) ||
         !sameFile(thumbOutputStat, await regularStat(thumbOutput))
       )
-        conflict('旋转临时文件已变化，未覆盖')
+        conflict('编辑临时文件已变化，未覆盖')
       const trashId = randomUUID().replaceAll('-', '').toUpperCase()
       const trashDir = path.join(
         imagesDir(current.libraryPath),
@@ -270,7 +350,7 @@ export const rotateItem = async (
       }
       const nextMeta = {
         ...meta,
-        ext: rotatedExtension(entry.ext, isVideoExt(entry.ext)),
+        ext: editedMediaExtension(entry.ext, isVideoExt(entry.ext)),
         size: outputStat.size,
         width: result.width,
         height: result.height,
@@ -304,15 +384,20 @@ export const rotateItem = async (
       }
       try {
         // 独立复制避免外部编辑原文件时同步改变回收站备份；大视频复制也会显示等待。
-        await fs.copyFile(paths.source, trashSource, constants.COPYFILE_EXCL)
+        await copyBackup(paths.source, trashSource, sourceStat.size, options)
+        signal?.throwIfAborted()
         await syncFile(trashSource)
-        await preserveFileTimestamps(trashSource, sourceStat)
+        await preserveFileTimestamps(trashSource, sourceStat, signal)
+        signal?.throwIfAborted()
         backupSourceStat = await regularStat(trashSource)
         if (trashThumb && thumbnail)
           await fs.writeFile(trashThumb, thumbnail, { flag: 'wx' })
         await writeJsonFile(trashMetaPath, trashMeta, { backup: false })
         await assertUnchanged()
         await assertLibrary(index)
+        signal?.throwIfAborted()
+        // 从此处开始不再接受取消：完成原子提交或按既有流程完整回滚。
+        onProgress?.({ percent: 99, phase: 'committing', canCancel: false })
         if (paths.source === paths.target) await fs.rename(output, paths.target)
         else await fs.link(output, paths.target)
         placed = true
@@ -334,6 +419,8 @@ export const rotateItem = async (
         await persist()
         keepTrash = true
       } catch (error) {
+        // 备份阶段尚未替换任何文件，取消只需清理备份，不触发索引写入或回滚。
+        if (!placed && !thumbPlaced && !metadataWritten) throw error
         try {
           await checkedPaths(current, entry)
           if (
@@ -393,9 +480,9 @@ export const rotateItem = async (
           changes.persisted = true
         } catch (rollbackError) {
           keepTrash = true
-          console.error('[Eagle] 旋转替换回滚失败', rollbackError)
+          console.error('[Eagle] 媒体编辑保存回滚失败', rollbackError)
           throw new Error(
-            '旋转提交失败且未能完整回滚，原文件备份已保留在库内，请刷新检查回收站',
+            '媒体编辑提交失败且未能完整回滚，原文件备份已保留在库内，请刷新检查回收站',
           )
         }
         throw error
@@ -422,7 +509,7 @@ export const rotateItem = async (
             conflict('旧文件已被外部修改')
           await fs.unlink(paths.source)
         } catch (error) {
-          warning = `旋转已保存，但条目目录内的旧文件未清理：${error instanceof Error ? error.message : String(error)}`
+          warning = `编辑已保存，但条目目录内的旧文件未清理：${error instanceof Error ? error.message : String(error)}`
         }
       }
       return {
@@ -432,9 +519,14 @@ export const rotateItem = async (
       }
     })
   } finally {
-    rotating.delete(id)
-    await cleanup?.().catch((error) =>
-      console.error('[Eagle] 旋转临时文件清理失败', error),
-    )
+    try {
+      await cleanup?.().catch((error) => {
+        console.error('[Eagle] 媒体编辑临时文件清理失败', error)
+        if (signal?.aborted)
+          throw new Error('视频处理已停止，但临时文件清理失败，请检查条目目录')
+      })
+    } finally {
+      savingItems.delete(id)
+    }
   }
 }

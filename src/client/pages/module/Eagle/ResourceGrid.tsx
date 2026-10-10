@@ -5,8 +5,9 @@ import { Image, Pagination, Spin } from 'antd'
 import { cloneElement, useRef, useState, type ReactNode } from 'react'
 import { eagleFileUrl } from './api'
 import { FolderSelectModal } from './components/FolderSelectModal'
+import { MediaEditSaveButton } from './components/MediaEditSaveButton'
 import { ResourceGridItem } from './components/ResourceGridItem'
-import { RotationSaveButton } from './components/RotationSaveButton'
+import { getRotationEditOperations } from './components/rotation'
 import { VideoPreview } from './components/VideoPreview'
 import { useResourceActions } from './hooks/useResourceActions'
 import {
@@ -43,7 +44,7 @@ export function ResourceGrid() {
   const [previewIndex, setPreviewIndex] = useState(0)
   const [previewItems, setPreviewItems] = useState<EagleItem[]>([])
   const [videoItem, setVideoItem] = useState<EagleItem | null>(null)
-  const [savingRotation, setSavingRotation] = useState(false)
+  const [savingMediaEdits, setSavingMediaEdits] = useState(false)
   const {
     movingItem,
     setMovingItem,
@@ -140,10 +141,10 @@ export function ResourceGrid() {
           open: previewOpen,
           current: previewIndex,
           onOpenChange: (open) => {
-            if (!savingRotation) setPreviewOpen(open)
+            if (!savingMediaEdits) setPreviewOpen(open)
           },
           onChange: (current) => {
-            if (!savingRotation) setPreviewIndex(current)
+            if (!savingMediaEdits) setPreviewIndex(current)
           },
           actionsRender: (originalNode, { current, transform }) => {
             const item = displayedImages[current]
@@ -156,7 +157,7 @@ export function ResourceGrid() {
                 )}
                 <div
                   className={
-                    savingRotation ? 'pointer-events-none opacity-50' : ''
+                    savingMediaEdits ? 'pointer-events-none opacity-50' : ''
                   }
                 >
                   {cloneElement(
@@ -192,17 +193,17 @@ export function ResourceGrid() {
                   )}
                 </div>
                 {item && !isTrash && (
-                  <RotationSaveButton
+                  <MediaEditSaveButton
                     key={item.id}
                     id={item.id}
                     contentVersion={item.contentVersion}
-                    degrees={transform.rotate}
-                    onBusyChange={setSavingRotation}
+                    operations={getRotationEditOperations(transform.rotate)}
+                    onBusyChange={setSavingMediaEdits}
                     onSaved={() => {
                       setPreviewOpen(false)
-                      setSavingRotation(false)
+                      setSavingMediaEdits(false)
                       void requestEagleLibraryRefresh().catch((error) =>
-                        console.error('刷新旋转后的资源失败', error),
+                        console.error('刷新编辑后的资源失败', error),
                       )
                     }}
                   />

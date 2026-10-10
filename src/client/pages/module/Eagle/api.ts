@@ -50,12 +50,39 @@ export const deleteEagleItem = async (id: string): Promise<void> => {
 export const fetchEagleItemDetail = (id: string) =>
   rpcData(eagleRpc.items[':id'].detail.$get({ param: { id } }))
 
-export const rotateEagleItem = (
+export type SaveEagleItemMediaEditsParams = InferRequestType<
+  (typeof eagleRpc.items)[':id']['media-edits']['$post']
+>['json']
+
+export const saveEagleItemMediaEdits = (
+  id: string,
+  json: SaveEagleItemMediaEditsParams,
+) =>
+  rpcData(eagleRpc.items[':id']['media-edits'].$post({ param: { id }, json }))
+
+export const startEagleMediaEditSaveJob = (
   id: string,
   json: InferRequestType<
-    (typeof eagleRpc.items)[':id']['rotate']['$post']
+    (typeof eagleRpc.items)[':id']['media-edits']['jobs']['$post']
   >['json'],
-) => rpcData(eagleRpc.items[':id'].rotate.$post({ param: { id }, json }))
+) =>
+  rpcData(
+    eagleRpc.items[':id']['media-edits'].jobs.$post({ param: { id }, json }),
+  )
+
+export const fetchEagleMediaEditSaveJob = (id: string, jobId: string) =>
+  rpcData(
+    eagleRpc.items[':id']['media-edits'].jobs[':jobId'].$get({
+      param: { id, jobId },
+    }),
+  )
+
+export const cancelEagleMediaEditSaveJob = (id: string, jobId: string) =>
+  rpcData(
+    eagleRpc.items[':id']['media-edits'].jobs[':jobId'].cancel.$post({
+      param: { id, jobId },
+    }),
+  )
 
 export const restoreEagleItem = async (id: string): Promise<void> => {
   await rpcData(eagleRpc.items[':id'].restore.$post({ param: { id } }))

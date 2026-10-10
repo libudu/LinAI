@@ -2,7 +2,8 @@ import { ExportOutlined } from '@ant-design/icons'
 import { Image, message, type ImageProps } from 'antd'
 import { useEffect, useRef, useState } from 'react'
 import { eagleFileUrl, eaglePreviewUrl, fetchEagleItemDetail } from '../api'
-import { RotationSaveButton } from './RotationSaveButton'
+import { MediaEditSaveButton } from './MediaEditSaveButton'
+import { getRotationEditOperations } from './rotation'
 
 /** 整理普通/快速确认共用：打开时绑定内容版本，保存后立即刷新当前图片。 */
 export function RotatableImage({
@@ -65,11 +66,11 @@ export function RotatableImage({
             <div className={busy ? 'pointer-events-none opacity-50' : ''}>
               {originalNode}
             </div>
-            <RotationSaveButton
+            <MediaEditSaveButton
               key={itemId}
               id={itemId}
               contentVersion={version}
-              degrees={transform.rotate}
+              operations={getRotationEditOperations(transform.rotate)}
               onBusyChange={setBusy}
               onSaved={(item) => {
                 setMedia({ id: item.id, contentVersion: item.contentVersion })
