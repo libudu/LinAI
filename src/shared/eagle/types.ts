@@ -55,6 +55,8 @@ export interface EagleLibraryOverview {
   allTotal: number
   unclassifiedTotal: number
   trashTotal: number
+  /** 回收站原文件的总大小（字节，不含缩略图等附属文件） */
+  trashSize: number
 }
 
 export type EagleSortBy = 'lastModified' | 'mtime' | 'size'

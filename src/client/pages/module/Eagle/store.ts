@@ -52,6 +52,8 @@ interface EagleState {
   unclassifiedTotal: number
   /** 「回收站」虚拟文件夹的资源数 */
   trashTotal: number
+  /** 当前媒体类型的回收站原文件总大小（字节） */
+  trashSize: number
   listLoading: boolean
   sortBy: EagleSortBy
   sortOrder: EagleSortOrder
@@ -154,6 +156,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
     allTotal: 0,
     unclassifiedTotal: 0,
     trashTotal: 0,
+    trashSize: 0,
     listLoading: false,
     imageSize: loadImageSize(),
     ...loadSort(),
@@ -194,6 +197,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
         allTotal: 0,
         unclassifiedTotal: 0,
         trashTotal: 0,
+        trashSize: 0,
       })
       // 与首次进入一样校验记忆目录，已删除或切库后失效时回到「全部」。
       await get().init()

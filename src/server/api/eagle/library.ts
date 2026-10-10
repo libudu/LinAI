@@ -185,8 +185,8 @@ const libraryApi = new Hono()
 
   // 全部彻底删除回收站文件（清空回收站）
   .post('/trash/purge', validate('query', eagleMediaQuerySchema), async (c) => {
-    const count = await purgeTrash(c.req.valid('query').mediaType)
-    return c.json({ success: true as const, data: { count } })
+    const result = await purgeTrash(c.req.valid('query').mediaType)
+    return c.json({ success: true as const, data: result })
   })
 
   // 全部移入回收站（未分类目录下所有条目）

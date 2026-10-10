@@ -25,6 +25,7 @@ import {
 } from 'antd'
 import { useMemo, useState } from 'react'
 import { purgeEagleTrash, trashAllUnclassifiedEagleItems } from './api'
+import { formatFileSize } from './components/formatFileSize'
 import { findFolder } from './folders'
 import { FolderTree } from './FolderTree'
 import { OrganizeModal } from './Organize'
@@ -45,6 +46,7 @@ export function Toolbar() {
     folders,
     allTotal,
     trashTotal,
+    trashSize,
     unclassifiedTotal,
     sortBy,
     sortOrder,
@@ -165,7 +167,7 @@ export function Toolbar() {
   const handlePurgeAllTrash = () => {
     Modal.confirm({
       title: '全部彻底删除',
-      content: `确定要彻底删除回收站下的全部 ${trashTotal} 个${mediaType === 'image' ? '图片（含 GIF）' : '视频'}文件吗？此操作将从磁盘永久删除原文件且无法撤销。`,
+      content: `确定要彻底删除回收站下的全部 ${trashTotal} 个${mediaType === 'image' ? '图片（含 GIF）' : '视频'}文件吗？原文件总大小为 ${formatFileSize(trashSize)}。此操作将从磁盘永久删除原文件且无法撤销。`,
       okText: '全部彻底删除',
       okType: 'danger',
       cancelText: '取消',
@@ -174,7 +176,9 @@ export function Toolbar() {
         setPurgingTrash(true)
         try {
           const res = await purgeEagleTrash(mediaType)
-          message.success(`已彻底删除 ${res.count} 个文件`)
+          message.success(
+            `已彻底删除 ${res.count} 个文件，原文件总大小 ${formatFileSize(res.size)}`,
+          )
           await requestEagleLibraryRefresh()
         } catch (error) {
           message.error(error instanceof Error ? error.message : '删除失败')

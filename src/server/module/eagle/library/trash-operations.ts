@@ -83,16 +83,20 @@ export const purgeItem = async (id: string): Promise<boolean> => {
 }
 
 /** 并发批量操作失败后仍等待已启动工作结束，统一同步真正成功的条目。 */
-export const purgeTrash = (mediaType?: EagleMediaType): Promise<number> =>
-  withLibraryMutation(0, async (index, changes) => {
-    const ids = [...index.items.values()]
-      .filter((item) => item.isDeleted && matchesMediaType(item.ext, mediaType))
-      .map((item) => item.id)
-    await runPool(ids, SCAN_CONCURRENCY, async (id) => {
-      await removeItemFiles(index, id)
-      changes.removed.add(id)
+export const purgeTrash = (
+  mediaType?: EagleMediaType,
+): Promise<{ count: number; size: number }> =>
+  withLibraryMutation({ count: 0, size: 0 }, async (index, changes) => {
+    const items = [...index.items.values()].filter(
+      (item) => item.isDeleted && matchesMediaType(item.ext, mediaType),
+    )
+    let size = 0
+    await runPool(items, SCAN_CONCURRENCY, async (item) => {
+      await removeItemFiles(index, item.id)
+      changes.removed.add(item.id)
+      size += item.size
     })
-    return changes.removed.size
+    return { count: changes.removed.size, size }
   })
 
 export const trashUnclassified = (

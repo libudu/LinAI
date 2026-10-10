@@ -11,11 +11,14 @@ import { imagesDir, isVideoExt } from './runtime'
 import type { EagleItemMediaSource } from './types'
 
 const SCHEMA_VERSION = 1
-const GENERATOR_VERSION = 1
+/** 新生成联系表记录的规则版本；提高此值不会自动淘汰旧联系表。 */
+const GENERATOR_VERSION = 2
+/** 手动提高此值后，低于该版本的联系表在下次读取时重新生成。 */
+const MIN_REUSABLE_GENERATOR_VERSION = 1
 
 const contactSheetSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
-  generatorVersion: z.literal(GENERATOR_VERSION),
+  generatorVersion: z.number().int().min(MIN_REUSABLE_GENERATOR_VERSION),
   source: z.object({
     size: z.number().int().nonnegative(),
     mtimeMs: z.number().finite(),

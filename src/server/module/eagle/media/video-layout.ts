@@ -10,7 +10,8 @@ export const getVideoContactSheetLayout = (duration: number) => {
     2 ** Math.ceil(Math.log2(duration / capacity)),
   )
   const frameCount = Math.min(capacity, Math.ceil(duration / interval))
-  const columns = Math.min(gridSize, frameCount)
+  // 32 帧以内按 4 列排满每行，减少末行空位；更多帧使用 8 列。
+  const columns = Math.min(frameCount <= 32 ? 4 : 8, frameCount)
   return {
     interval,
     frameCount,

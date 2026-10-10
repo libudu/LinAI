@@ -160,8 +160,9 @@ export function StepClassify({
 
       {mediaType === 'video' && (
         <div className="shrink-0 text-xs text-slate-500">
-          本地按时长抽帧，保留视频比例；每帧长边最多 400/300px，最多 4×4/8×8
-          排列，白边与间隔均为 4px，WebP 质量 60。仅上传联系表图片。
+          本地按时长抽帧，保留视频比例；每帧长边最多 400/300px，32 帧以内按 4
+          列排列，超过 32 帧按 8 列排列，最多 8 行。白边与间隔均为 4px，WebP
+          质量 60。仅上传联系表图片。
         </div>
       )}
 

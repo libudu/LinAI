@@ -174,6 +174,7 @@ export const getLibraryOverview = async (
     allTotal: 0,
     unclassifiedTotal: 0,
     trashTotal: 0,
+    trashSize: 0,
   }
   if (!index) return overview
   const counts = new Map<string, number>()
@@ -181,6 +182,7 @@ export const getLibraryOverview = async (
     if (!matchesMediaType(item.ext, mediaType)) continue
     if (item.isDeleted) {
       overview.trashTotal++
+      overview.trashSize += item.size
       continue
     }
     overview.allTotal++
