@@ -47,6 +47,16 @@ export const deleteEagleItem = async (id: string): Promise<void> => {
   await rpcData(eagleRpc.items[':id'].$delete({ param: { id } }))
 }
 
+export const fetchEagleItemDetail = (id: string) =>
+  rpcData(eagleRpc.items[':id'].detail.$get({ param: { id } }))
+
+export const rotateEagleItem = (
+  id: string,
+  json: InferRequestType<
+    (typeof eagleRpc.items)[':id']['rotate']['$post']
+  >['json'],
+) => rpcData(eagleRpc.items[':id'].rotate.$post({ param: { id }, json }))
+
 export const restoreEagleItem = async (id: string): Promise<void> => {
   await rpcData(eagleRpc.items[':id'].restore.$post({ param: { id } }))
 }

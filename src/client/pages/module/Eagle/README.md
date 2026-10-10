@@ -21,7 +21,9 @@ src/server/module/eagle/
 │   ├── index.ts              # 媒体服务
 │   ├── heic.ts               # 静态 HEIC/HEIF 识别、WASM 解码与原分辨率 WebP 验证
 │   ├── video.ts               # 视频探测、抽帧、联系表合成与按需复用
-│   └── cache.ts              # 回退缩略图缓存规则
+│   ├── cache.ts              # 回退缩略图缓存规则
+│   ├── rotation.ts           # 图片旋转、视频转码与输出验证
+│   └── timestamps.ts         # 媒体内部时间戳与文件创建/修改时间保留
 ├── library/                  # Eagle 库索引与读写
 │   ├── index.ts              # 对外业务门面
 │   ├── types.ts              # 原始/索引模型与操作参数
@@ -36,6 +38,7 @@ src/server/module/eagle/
 │   ├── folder-operations.ts  # 文件夹编辑
 │   ├── item-operations.ts    # 条目编辑与改名回滚
 │   ├── conversion.ts        # 全库格式候选、安全替换与源图删除重试
+│   ├── rotation.ts          # 旋转替换、回收站备份与提交回滚
 │   ├── trash-operations.ts   # 软删除、还原与彻底删除
 │   ├── video-contact-sheet.ts # 联系表旁文件读取、校验与库内持久化
 │   └── mutation.ts           # 写锁与索引、缓存、事件收尾
@@ -139,21 +142,22 @@ src/client/pages/module/Eagle/
 
 完整参数以 `schemas.ts` 和路由代码为准，前端通过 Hono RPC 推导类型。下表 `{a,b}` 表示同一前缀下的多个接口：
 
-| 方法   | 路径                                                                                                                       | 用途                                                                   |
-| ------ | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| GET    | `/overview`、`/folders`、`/items`                                                                                          | 目录、计数、keyword 文件名搜索与 offset/limit 分页；未指定目录为全部   |
-| PUT    | `/folders/:id`、`/items/:id`                                                                                               | 目录名称/描述、条目标题/归属                                           |
-| DELETE | `/items/:id`、`/items/:id/purge`                                                                                           | 移入回收站、彻底删除                                                   |
-| POST   | `/items/:id/restore`、`/trash/purge`、`/unclassified/trash`                                                                | 还原、清空回收站、未分类批量移入回收站                                 |
-| POST   | `/refresh`、`/items/:id/add-to-gallery`                                                                                    | 刷新索引、导入输入图库                                                 |
-| GET    | `/items/:id/{thumbnail,file,preview,video-contact-sheet}`                                                                  | 缩略图、原文件、只读大图、视频联系表（缺失或失效时生成并保存）         |
-| GET    | `/conversion/candidates`                                                                                                   | 全库分页候选；`snapshot=true` 返回完整候选 ID 与摘要                   |
-| POST   | `/conversion/items/:id`                                                                                                    | 单张转换或源图删除重试                                                 |
-| GET    | `/organize/prepare`、`/organize/status`、`/organize/task`、`/organize/queue`、`/organize/failed-items`                     | 准备、状态、任务、队列与失败详情                                       |
-| POST   | `/organize/task`、`/organize/task/{append,pause,resume,sync-standards,retry-failed,skip-failed,classify-successful,clear}` | 创建、追加、执行控制、标准同步、失败处理、仅保留成功项、清空           |
-| GET    | `/organize/results`、`/organize/results/:itemId`、`/organize/results/changes`                                              | 分页、详情与增量结果                                                   |
-| POST   | `/organize/results/reconcile`、`/organize/results/confirm-batch`                                                           | 缺失条目校准、批量确认                                                 |
-| POST   | `/organize/results/:itemId/{confirm,trash,skip,retry,clear-classification}`                                                | 单项确认、移入回收站并跳过、跳过、重做、清除归属并按推荐标题改名后跳过 |
+| 方法       | 路径                                                                                                                       | 用途                                                                   |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| GET        | `/overview`、`/folders`、`/items`                                                                                          | 目录、计数、keyword 文件名搜索与 offset/limit 分页；未指定目录为全部   |
+| PUT        | `/folders/:id`、`/items/:id`                                                                                               | 目录名称/描述、条目标题/归属                                           |
+| DELETE     | `/items/:id`、`/items/:id/purge`                                                                                           | 移入回收站、彻底删除                                                   |
+| POST       | `/items/:id/restore`、`/trash/purge`、`/unclassified/trash`                                                                | 还原、清空回收站、未分类批量移入回收站                                 |
+| POST       | `/refresh`、`/items/:id/add-to-gallery`                                                                                    | 刷新索引、导入输入图库                                                 |
+| GET / POST | `/items/:id/detail`、`/items/:id/rotate`                                                                                   | 当前媒体详情、按内容版本校验的旋转覆盖                                 |
+| GET        | `/items/:id/{thumbnail,file,preview,video-contact-sheet}`                                                                  | 缩略图、原文件、只读大图、视频联系表（缺失或失效时生成并保存）         |
+| GET        | `/conversion/candidates`                                                                                                   | 全库分页候选；`snapshot=true` 返回完整候选 ID 与摘要                   |
+| POST       | `/conversion/items/:id`                                                                                                    | 单张转换或源图删除重试                                                 |
+| GET        | `/organize/prepare`、`/organize/status`、`/organize/task`、`/organize/queue`、`/organize/failed-items`                     | 准备、状态、任务、队列与失败详情                                       |
+| POST       | `/organize/task`、`/organize/task/{append,pause,resume,sync-standards,retry-failed,skip-failed,classify-successful,clear}` | 创建、追加、执行控制、标准同步、失败处理、仅保留成功项、清空           |
+| GET        | `/organize/results`、`/organize/results/:itemId`、`/organize/results/changes`                                              | 分页、详情与增量结果                                                   |
+| POST       | `/organize/results/reconcile`、`/organize/results/confirm-batch`                                                           | 缺失条目校准、批量确认                                                 |
+| POST       | `/organize/results/:itemId/{confirm,trash,skip,retry,clear-classification}`                                                | 单项确认、移入回收站并跳过、跳过、重做、清除归属并按推荐标题改名后跳过 |
 
 - 响应为 `{ success: true, data }` 或 `{ success: false, error: { code, message } }`；校验失败 400，任务身份冲突 409 / `TASK_CHANGED`，存储错误保留原错误码。GET 不修改任务或计数，校准通过 POST 显式执行。
 - 条目 ID 满足 `^[A-Za-z0-9]+$`，文件路径从可信索引获取。媒体接口支持 ETag，原文件支持 Range；`contentVersion` 由库路径、原文件名、`lastModified` 派生，用于 URL 的 `v`、ETag 和回退缩略图缓存。无版本或旧版本 URL 必须重新验证。
@@ -170,6 +174,16 @@ src/client/pages/module/Eagle/
 - 图片大图预览提供完整文件名与移入回收站操作（无需二次确认，成功后关闭并刷新，失败保留预览）；右键删除仍需确认。视频独立预览弹窗显示完整文件名、大小和宽高分辨率（播放器加载后优先使用实际视频尺寸）；原生播放器倍速选择保存在 localStorage 的 `eagle_video_playback_rate`，首次默认 1 倍，打开其他视频、切回视频模式或刷新后沿用。底部可切换视频/联系图，首次默认视频，选择保存在 localStorage 的 `eagle_video_preview_mode`，下次打开其他视频或刷新页面后沿用。联系图模式立即请求接口，缺失或失效时生成并保存，提供加载状态和失败重试；切换为联系图或关闭弹窗时卸载播放器。
 - `libraryRefresh.ts` 合并主动刷新与 SSE，整理弹窗打开期间记脏、关闭后补拉；`refreshQueue.ts` 串行合并刷新和失效补拉。请求序号/版本保护防止旧响应覆盖切库、切类型或新查询。
 - `EaglePreferenceDocument` 共享加载、订阅和串行保存目录展开/手动历史，保留 revision 冲突检测及加载中操作重放。
+
+### 旋转预览与覆盖
+
+- 资源浏览与整理普通/快速确认的图片全屏预览沿用图片旋转工具；视频全屏弹窗提供左右 90° 旋转，旋转后按可用空间重新适配。联系图只是视频的派生预览，不提供旋转覆盖。
+- 非零旋转角度（90°、180°、270°）显示「覆盖原文件」，只保存旋转，不保存图片预览的缩放、平移或翻转。请求携带预览的 `contentVersion`；图片整理预览打开时查询当前详情，资源浏览预览保留打开时的列表快照，防止排序或刷新换错条目。
+- 生成和验证在库锁外串行进行；提交经库写锁复核库、索引、完整元数据、原文件与缩略图，拒绝链接和越界路径。先独立复制原文件及原始元数据/缩略图为新的 `isDeleted` Eagle 条目，再替换当前条目的文件和缩略图并同步保存指纹、分片。保留当前 ID、名称、归属、其他元数据和修改时间排序；原始文件可从 **Eagle 回收站** 还原，整理结果与进度继续绑定当前 ID。
+- 图片按 EXIF 方向归正后旋转，常用栅格格式保留扩展名，其他可解码静态图片（含 HEIC/HEIF）输出 PNG；不保证非时间类 EXIF/HDR 保留，动画/多页图片拒绝覆盖，避免静默丢帧。视频输出 H.264/AAC MP4，应用原显示方向和像素比例，再进行指定旋转，清除输出旋转元数据，保持全部音轨，必要时补齐偶数尺寸。
+- 旋转输出通过随包携带的 `exiftool-vendored` 复制可读取的内部日期、时区和子秒标签（含 EXIF/XMP/IPTC、PNG、QuickTime 等），保持原始标签组和值，不推断时区、不复制旧方向、尺寸或时长；重新读取并逐字段验证，输出格式不支持或值不一致时拒绝覆盖。HEIC/HEIF 的时间字段从原文件读取，不依赖已经去除元数据的解码中间图。输出原文件与回收站备份恢复原文件系统修改/访问时间，Windows 用隐藏 PowerShell 的 .NET API 恢复创建时间并校验（毫秒级容差）；回滚同样恢复。Eagle 原有 `mtime` 和创建类字段保留，`lastModified` 继续记录本次操作，以驱动内容版本和增量刷新；系统状态变更时间 `ctime` 不作为可保留的媒体日期。
+- 保存期间显示等待状态并限制重复保存、关闭和切换预览；视频转码允许最多 24 小时。成功后刷新内容版本、尺寸和缩略图；原联系图根据源文件指纹失效并按需重新生成。确认页收到库变更后重新拉取详情，保留旧详情直至新响应返回，避免卸载在途视频预览。
+- 提交失败尝试恢复文件、缩略图、元数据及索引；回滚失败保留回收站原文件备份并报错。改格式后只有在提交持久化完成后才清理确切旧文件，清理失败返回警告；未知旁文件不删除。旋转不建立持久化任务或进程中断后的自动恢复队列。
 
 ## 整理流程
 
@@ -236,5 +250,5 @@ src/client/pages/module/Eagle/
 - **前端职责**：`useClassifyTask` 管准备，`useConfirmResults` 管结果，`useConfirmSelection` 管选择，`useConfirmSubmission` 管提交，`useManualFolders` 管历史；UI 负责展示，命令放 hooks/store。`submissionQueue.ts` 按任务身份串行单项/批量提交，失败只恢复对应项；`statusModel.ts` 派生乐观计数，服务端决定阶段，提交后校准。普通/快速确认共用 `StepConfirm/utils/list.ts` / `sort.ts`，删除并跳过使用单个 trash 命令。
 - **字段与排序**：列表字段修改 `shared/eagle/types.ts` 的 `EagleItem` 和 `library/query.ts` 的 `toEagleItem`，需缓存时同步索引类型、`scan.ts` 与旧缓存默认值；排序修改 `EagleSortBy`、query 和 Toolbar，兼容旧偏好。
 - **接口与配置**：API 在 library/organize 路由链式注册、zod 校验，前端对应 api 文件封装；请求响应由 Hono RPC、设置由服务端 schema 推导，仅实际共用的契约/纯函数放 shared，旧兼容留存储边界。设置放 `settings/`，表单保存失败向上传递；展示偏好用 localStorage，便携业务偏好走通用存储。
-- **媒体与发布**：目录纯逻辑放 `library/folders.ts`，媒体放 `media/`，缩略图缓存统一 `media/cache.ts`；原文件接口不要使用整读 Buffer 的 `common/static/serveImage`。`heic-decode` / `libheif-js` / `ffmpeg-static` / `ffprobe-static` 保持 tsup external 和完整生产包，WASM 内嵌无需联网；安装配置允许 ffmpeg-static 二进制脚本，便携包携带解码器。发布前手动验证 Eagle 刷新和便携兼容性。
+- **媒体与发布**：目录纯逻辑放 `library/folders.ts`，媒体放 `media/`，缩略图缓存统一 `media/cache.ts`；原文件接口不要使用整读 Buffer 的 `common/static/serveImage`。`heic-decode` / `libheif-js` / `ffmpeg-static` / `ffprobe-static` / `exiftool-vendored` 保持 tsup external 和完整生产包，WASM 内嵌无需联网；安装配置允许 ffmpeg-static 二进制脚本，便携包携带解码器与 ExifTool 平台二进制。发布前手动验证 Eagle 刷新和便携兼容性。
 - 代码完成后仅运行 `npx tsc --noEmit`，不运行 build 或 eslint；按项目约定格式化变更。

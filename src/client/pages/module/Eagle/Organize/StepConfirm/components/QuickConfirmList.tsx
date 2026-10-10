@@ -8,8 +8,11 @@ import {
   WarningOutlined,
 } from '@ant-design/icons'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Button, Image } from 'antd'
-import React, { useEffect, useMemo, useRef } from 'react'
+import { Button, Image, message } from 'antd'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { fetchEagleItemDetail } from '../../../api'
+import { RotatableImage } from '../../../components/RotatableImage'
+import { VideoPreview } from '../../../components/VideoPreview'
 import { useOrganizeMedia } from '../../media'
 import {
   SPECIAL_CATEGORY_LOW_QUALITY,
@@ -38,7 +41,11 @@ const QuickCard = React.memo(function QuickCard({
   onClearClassification,
   onSkipItem,
 }: QuickCardProps) {
-  const { previewUrl } = useOrganizeMedia()
+  const { previewUrl, mediaType } = useOrganizeMedia()
+  const [videoItem, setVideoItem] = useState<
+    ({ id: string } & Awaited<ReturnType<typeof fetchEagleItemDetail>>) | null
+  >(null)
+  const src = `${previewUrl(result.itemId)}?v=${result.lastModified ?? ''}`
   const categoryName = getOrganizeItemCategory(result)
 
   return (
@@ -55,24 +62,44 @@ const QuickCard = React.memo(function QuickCard({
         className="relative flex flex-1 items-center justify-center overflow-hidden bg-slate-100 dark:bg-slate-900/50"
         onClick={() => onSelect(result.itemId)}
       >
-        <Image
-          src={previewUrl(result.itemId)}
-          preview={{ src: previewUrl(result.itemId) }}
-          alt={categoryName}
-          loading="lazy"
-          placeholder={
-            <div className="flex h-full w-full items-center justify-center">
-              <PictureOutlined className="text-3xl text-slate-300 opacity-40 dark:text-slate-600" />
-            </div>
-          }
-          classNames={{
-            root: 'h-full w-full flex items-center justify-center',
-            image:
-              'h-full! w-full! object-contain! transition-transform duration-200 group-hover:scale-105',
-          }}
-        />
+        {mediaType === 'video' ? (
+          <Image
+            src={src}
+            preview={false}
+            onClick={() => {
+              void fetchEagleItemDetail(result.itemId)
+                .then((item) => setVideoItem({ id: result.itemId, ...item }))
+                .catch((error) =>
+                  message.error(
+                    error instanceof Error ? error.message : '加载视频信息失败',
+                  ),
+                )
+            }}
+            classNames={{
+              root: 'h-full w-full flex items-center justify-center',
+              image: 'h-full! w-full! object-contain! cursor-pointer',
+            }}
+          />
+        ) : (
+          <RotatableImage
+            itemId={result.itemId}
+            src={src}
+            alt={categoryName}
+            loading="lazy"
+            placeholder={
+              <div className="flex h-full w-full items-center justify-center">
+                <PictureOutlined className="text-3xl text-slate-300 opacity-40 dark:text-slate-600" />
+              </div>
+            }
+            classNames={{
+              root: 'h-full w-full flex items-center justify-center',
+              image:
+                'h-full! w-full! object-contain! transition-transform duration-200 group-hover:scale-105',
+            }}
+          />
+        )}
         <ImageSizeBadge
-          src={previewUrl(result.itemId)}
+          src={src}
           width={result.width}
           height={result.height}
           fileSize={result.size}
@@ -84,6 +111,7 @@ const QuickCard = React.memo(function QuickCard({
           </div>
         )}
       </div>
+      <VideoPreview item={videoItem} onClose={() => setVideoItem(null)} />
 
       {/* 底部信息与操作栏 */}
       <div className="flex shrink-0 flex-col gap-2 border-t border-slate-100 p-3 dark:border-slate-700/60">

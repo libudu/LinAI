@@ -26,6 +26,7 @@ export {
   getLibraryChanges,
   getLibraryOverview,
 } from './query'
+export { rotateItem } from './rotation'
 export { isVideoExt } from './runtime'
 export type {
   EagleItemDetail,

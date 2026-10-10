@@ -6,9 +6,15 @@ import { cloneElement, useRef, useState, type ReactNode } from 'react'
 import { eagleFileUrl } from './api'
 import { FolderSelectModal } from './components/FolderSelectModal'
 import { ResourceGridItem } from './components/ResourceGridItem'
+import { RotationSaveButton } from './components/RotationSaveButton'
 import { VideoPreview } from './components/VideoPreview'
 import { useResourceActions } from './hooks/useResourceActions'
-import { PAGE_SIZE, useEagleStore, type EagleImageSize } from './store'
+import {
+  PAGE_SIZE,
+  requestEagleLibraryRefresh,
+  useEagleStore,
+  type EagleImageSize,
+} from './store'
 
 // 图片大小档位对应的网格列数（小档为原始密度，逐档递减一列）
 const GRID_COLS: Record<EagleImageSize, string> = {
@@ -35,7 +41,9 @@ export function ResourceGrid() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewIndex, setPreviewIndex] = useState(0)
+  const [previewItems, setPreviewItems] = useState<EagleItem[]>([])
   const [videoItem, setVideoItem] = useState<EagleItem | null>(null)
+  const [savingRotation, setSavingRotation] = useState(false)
   const {
     movingItem,
     setMovingItem,
@@ -50,6 +58,7 @@ export function ResourceGrid() {
 
   // 预览组只收图片，视频使用独立播放器预览。
   const imageItems = items.filter((item) => !item.isVideo)
+  const displayedImages = previewOpen ? previewItems : imageItems
 
   const handleClick = (item: EagleItem) => {
     if (item.isVideo) {
@@ -57,6 +66,7 @@ export function ResourceGrid() {
       return
     }
     const index = imageItems.indexOf(item)
+    setPreviewItems(imageItems)
     setPreviewIndex(Math.max(0, index))
     setPreviewOpen(true)
   }
@@ -121,16 +131,20 @@ export function ResourceGrid() {
       )}
 
       <Image.PreviewGroup
-        items={imageItems.map((item) =>
+        items={displayedImages.map((item) =>
           eagleFileUrl(item.id, item.contentVersion),
         )}
         preview={{
           open: previewOpen,
           current: previewIndex,
-          onOpenChange: (open) => setPreviewOpen(open),
-          onChange: (current) => setPreviewIndex(current),
-          actionsRender: (originalNode, { current }) => {
-            const item = imageItems[current]
+          onOpenChange: (open) => {
+            if (!savingRotation) setPreviewOpen(open)
+          },
+          onChange: (current) => {
+            if (!savingRotation) setPreviewIndex(current)
+          },
+          actionsRender: (originalNode, { current, transform }) => {
+            const item = displayedImages[current]
             return (
               <div className="flex max-w-[90vw] flex-col items-center gap-3">
                 {item && (
@@ -138,34 +152,58 @@ export function ResourceGrid() {
                     {item.name}.{item.ext}
                   </div>
                 )}
-                {cloneElement(
-                  originalNode,
-                  undefined,
-                  (originalNode.props as { children?: ReactNode }).children,
-                  item && !isTrash && (
-                    <button
-                      key="trash"
-                      type="button"
-                      title="移到回收站"
-                      aria-label="移到回收站"
-                      className={
-                        trashingItem
-                          ? 'ant-image-preview-actions-action ant-image-preview-actions-action-disabled'
-                          : 'ant-image-preview-actions-action'
-                      }
-                      disabled={trashingItem}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        void handleTrashItem(item, () => setPreviewOpen(false))
-                      }}
-                    >
-                      {trashingItem ? (
-                        <LoadingOutlined />
-                      ) : (
-                        <DeleteOutlined style={{ color: '#f87171' }} />
-                      )}
-                    </button>
-                  ),
+                <div
+                  className={
+                    savingRotation ? 'pointer-events-none opacity-50' : ''
+                  }
+                >
+                  {cloneElement(
+                    originalNode,
+                    undefined,
+                    (originalNode.props as { children?: ReactNode }).children,
+                    item && !isTrash && (
+                      <button
+                        key="trash"
+                        type="button"
+                        title="移到回收站"
+                        aria-label="移到回收站"
+                        className={
+                          trashingItem
+                            ? 'ant-image-preview-actions-action ant-image-preview-actions-action-disabled'
+                            : 'ant-image-preview-actions-action'
+                        }
+                        disabled={trashingItem}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          void handleTrashItem(item, () =>
+                            setPreviewOpen(false),
+                          )
+                        }}
+                      >
+                        {trashingItem ? (
+                          <LoadingOutlined />
+                        ) : (
+                          <DeleteOutlined style={{ color: '#f87171' }} />
+                        )}
+                      </button>
+                    ),
+                  )}
+                </div>
+                {item && !isTrash && (
+                  <RotationSaveButton
+                    key={item.id}
+                    id={item.id}
+                    contentVersion={item.contentVersion}
+                    degrees={transform.rotate}
+                    onBusyChange={setSavingRotation}
+                    onSaved={() => {
+                      setPreviewOpen(false)
+                      setSavingRotation(false)
+                      void requestEagleLibraryRefresh().catch((error) =>
+                        console.error('刷新旋转后的资源失败', error),
+                      )
+                    }}
+                  />
                 )}
               </div>
             )
@@ -173,7 +211,11 @@ export function ResourceGrid() {
         }}
       />
 
-      <VideoPreview item={videoItem} onClose={() => setVideoItem(null)} />
+      <VideoPreview
+        item={videoItem}
+        onClose={() => setVideoItem(null)}
+        allowOverwrite={!isTrash}
+      />
     </div>
   )
 }

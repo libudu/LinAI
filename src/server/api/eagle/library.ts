@@ -7,6 +7,7 @@ import {
   deleteItem,
   getConversionCandidates,
   getFolderTree,
+  getItemDetail,
   getItems,
   getLibraryOverview,
   isVideoExt,
@@ -14,6 +15,7 @@ import {
   purgeTrash,
   refreshIndex,
   restoreItem,
+  rotateItem,
   trashUnclassified,
   updateFolder,
   updateItem,
@@ -54,6 +56,28 @@ const notModified = (
 ) => c.req.header('if-none-match') === `"${etag}"`
 
 const libraryApi = new Hono()
+  .get('/items/:id/detail', async (c) => {
+    c.header('Cache-Control', 'no-store')
+    const data = await getItemDetail(c.req.param('id'))
+    if (!data) return errorResponse(c, 404, '条目不存在')
+    return c.json({ success: true as const, data })
+  })
+  .post(
+    '/items/:id/rotate',
+    validate(
+      'json',
+      z.object({
+        contentVersion: z.string().min(1),
+        degrees: z.union([z.literal(90), z.literal(180), z.literal(270)]),
+      }),
+    ),
+    async (c) => {
+      const { contentVersion, degrees } = c.req.valid('json')
+      const data = await rotateItem(c.req.param('id'), contentVersion, degrees)
+      if (!data) return errorResponse(c, 409, 'Eagle 资源库当前不可用')
+      return c.json({ success: true as const, data })
+    },
+  )
   .get(
     '/conversion/candidates',
     validate(
