@@ -16,7 +16,6 @@ import { ActionBar } from './components/ActionBar'
 import { ConfirmControls } from './components/ConfirmControls'
 import { ConfirmImageViewer } from './components/ConfirmImageViewer'
 import { DetailPanel } from './components/DetailPanel'
-import { PinnedCategoryControl } from './components/PinnedCategoryControl'
 import { QuickConfirmList } from './components/QuickConfirmList'
 import { ThumbnailBar } from './components/ThumbnailBar'
 import { useConfirmQueue } from './hooks/useConfirmQueue'
@@ -226,16 +225,9 @@ export function StepConfirm({
     <div className="flex h-full min-h-0 flex-col gap-3">
       {quickMode ? (
         <>
-          {/* 快速模式头部控件栏 */}
+          {/* 快速模式标题与待确认数量 */}
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 pb-2 dark:border-slate-700/80">
             <div className="flex items-center gap-2">
-              {!renameOnly && (
-                <PinnedCategoryControl
-                  results={results}
-                  pinnedCategory={pinnedCategory}
-                  onChange={handlePinnedCategoryChange}
-                />
-              )}
               <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
                 ⚡ 快速整理模式
               </span>
@@ -243,29 +235,33 @@ export function StepConfirm({
                 待确认 {results.length} 个
               </span>
             </div>
+          </div>
 
+          {/* 左侧工具栏与快速模式图片卡片列表 */}
+          <div className="flex min-h-0 flex-1 items-center gap-2">
             <ConfirmControls
               renameOnly={renameOnly}
               sortType={sortType}
               onSortTypeChange={handleSortTypeChange}
               quickMode={quickMode}
               onQuickModeChange={handleQuickModeChange}
+              results={results}
+              pinnedCategory={pinnedCategory}
+              onPinnedCategoryChange={handlePinnedCategoryChange}
+            />
+            <QuickConfirmList
+              results={results}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onConfirmItem={handleQuickItemConfirm}
+              onClearClassification={
+                renameOnly ? undefined : handleClearClassification
+              }
+              onSkipItem={handleSkipItem}
+              sortType={sortType}
+              pinnedCategory={pinnedCategory}
             />
           </div>
-
-          {/* 快速模式居中放大的图片卡片列表 */}
-          <QuickConfirmList
-            results={results}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-            onConfirmItem={handleQuickItemConfirm}
-            onClearClassification={
-              renameOnly ? undefined : handleClearClassification
-            }
-            onSkipItem={handleSkipItem}
-            sortType={sortType}
-            pinnedCategory={pinnedCategory}
-          />
         </>
       ) : (
         <>

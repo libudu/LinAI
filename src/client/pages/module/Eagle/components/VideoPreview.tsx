@@ -26,6 +26,17 @@ interface VideoPreviewProps {
   allowOverwrite?: boolean
 }
 
+function formatVideoDuration(duration: number) {
+  const seconds = Math.floor(duration)
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const parts = [minutes, seconds % 60].map((part) =>
+    String(part).padStart(2, '0'),
+  )
+  if (hours > 0) parts.unshift(String(hours))
+  return parts.join(':')
+}
+
 /** 挂载即请求联系图，缺失时由接口生成；切换视频或关闭时卸载。 */
 function VideoContactSheetPreview({
   item,
@@ -90,14 +101,30 @@ export function VideoPreview({
   const item = saved?.inputKey === inputKey ? saved.item : inputItem
   const [mode, setMode] = useState(loadVideoPreviewMode)
   const [playbackRate, setPlaybackRate] = useState(loadVideoPlaybackRate)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
   const initializedVideoRef = useRef<HTMLVideoElement | null>(null)
-  const [videoResolution, setVideoResolution] = useState<{
+  const [videoMetadata, setVideoMetadata] = useState<{
     key: string
     width: number
     height: number
+    duration: number | null
   } | null>(null)
   const videoKey = item ? `${item.id}:${item.contentVersion}` : ''
-  const resolution = videoResolution?.key === videoKey ? videoResolution : item
+  const metadata = videoMetadata?.key === videoKey ? videoMetadata : null
+  const resolution =
+    metadata && metadata.width > 0 && metadata.height > 0 ? metadata : item
+  const duration = metadata?.duration ?? null
+  const readVideoMetadata = (video: HTMLVideoElement) => {
+    setVideoMetadata({
+      key: videoKey,
+      width: video.videoWidth,
+      height: video.videoHeight,
+      duration:
+        Number.isFinite(video.duration) && video.duration > 0
+          ? video.duration
+          : null,
+    })
+  }
   const [rotation, setRotation] = useState(0)
   const [saving, setSaving] = useState(false)
   const [container, setContainer] = useState<HTMLDivElement | null>(null)
@@ -126,6 +153,17 @@ export function VideoPreview({
     ) || 1
   const close = () => {
     if (!saving) onClose()
+  }
+  const togglePlayback = () => {
+    const video = videoRef.current
+    if (!video || saving) return
+    if (video.paused) {
+      void video.play().catch(() => {
+        // 原生控件仍可在视频就绪后重试播放。
+      })
+    } else {
+      video.pause()
+    }
   }
 
   return (
@@ -174,113 +212,150 @@ export function VideoPreview({
           <div
             ref={setContainer}
             className="relative min-h-0 w-full flex-1 overflow-hidden"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) close()
+            }}
           >
             {mode === 'video' ? (
-              <video
-                key={videoKey}
-                src={eagleFileUrl(item.id, item.contentVersion)}
-                controls
-                controlsList="nofullscreen"
-                autoPlay
-                playsInline
-                onLoadedMetadata={(event) => {
-                  const video = event.currentTarget
-                  video.defaultPlaybackRate = playbackRate
-                  video.playbackRate = playbackRate
-                  initializedVideoRef.current = video
-                  if (video.videoWidth > 0 && video.videoHeight > 0) {
-                    setVideoResolution({
-                      key: videoKey,
-                      width: video.videoWidth,
-                      height: video.videoHeight,
-                    })
-                  }
-                }}
-                onRateChange={(event) => {
-                  const video = event.currentTarget
-                  // 忽略载入元数据前播放器重置倍速产生的事件。
-                  if (
-                    initializedVideoRef.current !== video ||
-                    video.readyState < video.HAVE_METADATA
-                  )
-                    return
-                  setPlaybackRate(video.playbackRate)
-                  persistVideoPlaybackRate(video.playbackRate)
-                }}
-                className="absolute top-1/2 left-1/2 object-contain"
-                style={{
-                  width: width * scale,
-                  height: height * scale,
-                  transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
-                }}
-              />
-            ) : (
-              <VideoContactSheetPreview
-                key={`${item.id}:${item.contentVersion}`}
-                item={item}
-              />
-            )}
-          </div>
-          {mode === 'video' && (
-            <div className="flex shrink-0 flex-wrap items-center justify-center gap-3 rounded-full bg-black/40 px-4 py-2 text-white">
-              <button
-                type="button"
-                title="向左旋转 90°"
-                aria-label="向左旋转 90°"
-                className="cursor-pointer p-2 text-xl disabled:cursor-wait disabled:opacity-50"
-                disabled={saving}
-                onClick={() =>
-                  setRotation((value) => normalizeRotation(value - 90))
-                }
+              <div
+                className="absolute top-1/2 left-0 w-full -translate-y-1/2 bg-black/30"
+                style={{ height: (sideways ? width : height) * scale }}
+                onClick={(event) => event.stopPropagation()}
               >
-                <RotateLeftOutlined />
-              </button>
-              <button
-                type="button"
-                title="向右旋转 90°"
-                aria-label="向右旋转 90°"
-                className="cursor-pointer p-2 text-xl disabled:cursor-wait disabled:opacity-50"
-                disabled={saving}
-                onClick={() =>
-                  setRotation((value) => normalizeRotation(value + 90))
-                }
-              >
-                <RotateRightOutlined />
-              </button>
-              {rotation !== 0 && <span className="text-sm">{rotation}°</span>}
-              {allowOverwrite && (
-                <RotationSaveButton
-                  key={item.id}
-                  id={item.id}
-                  contentVersion={item.contentVersion}
-                  degrees={rotation}
-                  video
-                  onBusyChange={(busy) => {
-                    setSaving(busy)
-                    if (busy) initializedVideoRef.current?.pause()
+                <button
+                  type="button"
+                  aria-label="播放或暂停视频"
+                  className="absolute inset-0 cursor-pointer"
+                  disabled={saving}
+                  onClick={togglePlayback}
+                />
+                <video
+                  key={videoKey}
+                  ref={videoRef}
+                  src={eagleFileUrl(item.id, item.contentVersion)}
+                  controls
+                  controlsList="nofullscreen"
+                  autoPlay
+                  playsInline
+                  onLoadedMetadata={(event) => {
+                    const video = event.currentTarget
+                    video.defaultPlaybackRate = playbackRate
+                    video.playbackRate = playbackRate
+                    initializedVideoRef.current = video
+                    readVideoMetadata(video)
                   }}
-                  onSaved={(next) => {
-                    setSaved({ inputKey, item: next })
-                    setRotation(0)
-                    setSaving(false)
+                  onDurationChange={(event) =>
+                    readVideoMetadata(event.currentTarget)
+                  }
+                  onRateChange={(event) => {
+                    const video = event.currentTarget
+                    // 忽略载入元数据前播放器重置倍速产生的事件。
+                    if (
+                      initializedVideoRef.current !== video ||
+                      video.readyState < video.HAVE_METADATA
+                    )
+                      return
+                    setPlaybackRate(video.playbackRate)
+                    persistVideoPlaybackRate(video.playbackRate)
+                  }}
+                  className="absolute top-1/2 left-1/2 object-contain"
+                  style={{
+                    width: width * scale,
+                    height: height * scale,
+                    transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
                   }}
                 />
-              )}
-            </div>
-          )}
-          <div className="max-h-[20dvh] max-w-full shrink-0 overflow-y-auto rounded-lg bg-black/40 px-3 py-2 text-center text-sm text-white">
-            <div className="wrap-anywhere whitespace-pre-wrap">
-              {item.name}.{item.ext}
-            </div>
-            <div className="mt-1 text-white/70">
-              {formatFileSize(item.size)}
-              {resolution &&
-                (resolution.width ?? 0) > 0 &&
-                (resolution.height ?? 0) > 0 && (
-                  <span className="ml-3">
-                    {resolution.width} × {resolution.height}
+              </div>
+            ) : (
+              <>
+                <video
+                  key={videoKey}
+                  src={eagleFileUrl(item.id, item.contentVersion)}
+                  preload="metadata"
+                  className="hidden"
+                  onLoadedMetadata={(event) =>
+                    readVideoMetadata(event.currentTarget)
+                  }
+                  onDurationChange={(event) =>
+                    readVideoMetadata(event.currentTarget)
+                  }
+                />
+                <VideoContactSheetPreview key={videoKey} item={item} />
+              </>
+            )}
+          </div>
+          <div
+            className="flex w-full shrink-0 items-center justify-center gap-3"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) close()
+            }}
+          >
+            {mode === 'video' && (
+              <div className="flex shrink-0 items-center justify-center gap-3 rounded-full bg-black/40 px-4 py-2 text-white">
+                <button
+                  type="button"
+                  title="向左旋转 90°"
+                  aria-label="向左旋转 90°"
+                  className="cursor-pointer p-2 text-xl disabled:cursor-wait disabled:opacity-50"
+                  disabled={saving}
+                  onClick={() =>
+                    setRotation((value) => normalizeRotation(value - 90))
+                  }
+                >
+                  <RotateLeftOutlined />
+                </button>
+                <button
+                  type="button"
+                  title="向右旋转 90°"
+                  aria-label="向右旋转 90°"
+                  className="cursor-pointer p-2 text-xl disabled:cursor-wait disabled:opacity-50"
+                  disabled={saving}
+                  onClick={() =>
+                    setRotation((value) => normalizeRotation(value + 90))
+                  }
+                >
+                  <RotateRightOutlined />
+                </button>
+                {rotation !== 0 && <span className="text-sm">{rotation}°</span>}
+                {allowOverwrite && (
+                  <RotationSaveButton
+                    key={item.id}
+                    id={item.id}
+                    contentVersion={item.contentVersion}
+                    degrees={rotation}
+                    video
+                    onBusyChange={(busy) => {
+                      setSaving(busy)
+                      if (busy) initializedVideoRef.current?.pause()
+                    }}
+                    onSaved={(next) => {
+                      setSaved({ inputKey, item: next })
+                      setRotation(0)
+                      setSaving(false)
+                    }}
+                  />
+                )}
+              </div>
+            )}
+            <div className="max-h-[20dvh] min-w-0 overflow-y-auto rounded-lg bg-black/40 px-3 py-2 text-center text-sm text-white">
+              <div className="wrap-anywhere whitespace-pre-wrap">
+                {item.name}.{item.ext}
+              </div>
+              <div className="mt-1 text-white/70">
+                {formatFileSize(item.size)}
+                {resolution &&
+                  (resolution.width ?? 0) > 0 &&
+                  (resolution.height ?? 0) > 0 && (
+                    <span className="ml-3">
+                      {resolution.width} × {resolution.height}
+                    </span>
+                  )}
+                {duration !== null && (
+                  <span className="ml-3" title="视频时长">
+                    {formatVideoDuration(duration)}
                   </span>
                 )}
+              </div>
             </div>
           </div>
           <Segmented<EagleVideoPreviewMode>

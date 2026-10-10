@@ -21,7 +21,8 @@ export function useConfirmShortcuts({
       const target = event.target
       if (
         target instanceof HTMLElement &&
-        (target.isContentEditable ||
+        (target.closest('.eagle-folder-tree-select-modal') ||
+          target.isContentEditable ||
           target.tagName === 'TEXTAREA' ||
           target.tagName === 'SELECT' ||
           (target instanceof HTMLInputElement &&

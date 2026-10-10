@@ -209,7 +209,7 @@ export function QuickConfirmList({
   }, [pinnedCategory, sortType, virtualizer])
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col items-center justify-center">
       {/* 居中放大的卡片横向虚拟滚动容器 */}
       <div ref={parentRef} className="w-full overflow-x-auto px-6 py-4">
         <div

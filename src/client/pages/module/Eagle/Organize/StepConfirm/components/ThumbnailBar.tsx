@@ -15,7 +15,6 @@ import {
 } from '../types'
 import { buildConfirmListItems } from '../utils/list'
 import { ConfirmControls } from './ConfirmControls'
-import { PinnedCategoryControl } from './PinnedCategoryControl'
 
 interface ThumbnailBarProps {
   renameOnly?: boolean
@@ -85,13 +84,16 @@ export function ThumbnailBar({
 
   return (
     <div className="flex shrink-0 items-center gap-2">
-      {!renameOnly && (
-        <PinnedCategoryControl
-          results={results}
-          pinnedCategory={pinnedCategory}
-          onChange={onPinnedCategoryChange}
-        />
-      )}
+      <ConfirmControls
+        renameOnly={renameOnly}
+        sortType={sortType}
+        onSortTypeChange={onSortTypeChange}
+        quickMode={quickMode}
+        onQuickModeChange={onQuickModeChange}
+        results={results}
+        pinnedCategory={pinnedCategory}
+        onPinnedCategoryChange={onPinnedCategoryChange}
+      />
       {/* 缩略图横向虚拟滚动列表 */}
       <div
         ref={parentRef}
@@ -189,15 +191,6 @@ export function ThumbnailBar({
           })}
         </div>
       </div>
-
-      {/* 右侧排序与快速模式组件 */}
-      <ConfirmControls
-        renameOnly={renameOnly}
-        sortType={sortType}
-        onSortTypeChange={onSortTypeChange}
-        quickMode={quickMode}
-        onQuickModeChange={onQuickModeChange}
-      />
     </div>
   )
 }
