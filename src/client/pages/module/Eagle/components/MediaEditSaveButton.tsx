@@ -87,50 +87,53 @@ export function MediaEditSaveButton({
   if (!operations.length && !saving) return null
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <Button
-        icon={<SaveOutlined />}
-        loading={saving}
-        disabled={!contentVersion || !operations.length}
-        title="保存当前媒体编辑并覆盖，原文件移入 Eagle 回收站"
-        onClick={async (event) => {
-          event.stopPropagation()
-          if (savingRef.current || !contentVersion || !operations.length) return
-          savingRef.current = true
-          setSaving(true)
-          setJob(null)
-          setCancelling(false)
-          setPollError(false)
-          onBusyChange?.(true)
-          const hide = video ? () => {} : message.loading('正在保存图片…', 0)
-          try {
-            const request: SaveEagleItemMediaEditsParams = {
-              contentVersion,
-              operations: operations.map((operation) => ({ ...operation })),
+      {(!video || !saving) && (
+        <Button
+          icon={<SaveOutlined />}
+          loading={saving}
+          disabled={!contentVersion || !operations.length}
+          title="保存当前媒体编辑并覆盖，原文件移入 Eagle 回收站"
+          onClick={async (event) => {
+            event.stopPropagation()
+            if (savingRef.current || !contentVersion || !operations.length)
+              return
+            savingRef.current = true
+            setSaving(true)
+            setJob(null)
+            setCancelling(false)
+            setPollError(false)
+            onBusyChange?.(true)
+            const hide = video ? () => {} : message.loading('正在保存图片…', 0)
+            try {
+              const request: SaveEagleItemMediaEditsParams = {
+                contentVersion,
+                operations: operations.map((operation) => ({ ...operation })),
+              }
+              const result = video
+                ? await saveVideoEdits(request)
+                : await saveEagleItemMediaEdits(id, request)
+              if (!result) return
+              if (result.warning) message.warning(result.warning, 8)
+              else message.success('已覆盖原文件，原始文件已移入 Eagle 回收站')
+              if (mounted.current) onSaved(result.item)
+            } catch (error) {
+              message.error(
+                error instanceof Error ? error.message : '媒体编辑保存失败',
+              )
+            } finally {
+              hide()
+              jobIdRef.current = null
+              savingRef.current = false
+              if (mounted.current) {
+                setSaving(false)
+                onBusyChange?.(false)
+              }
             }
-            const result = video
-              ? await saveVideoEdits(request)
-              : await saveEagleItemMediaEdits(id, request)
-            if (!result) return
-            if (result.warning) message.warning(result.warning, 8)
-            else message.success('已覆盖原文件，原始文件已移入 Eagle 回收站')
-            if (mounted.current) onSaved(result.item)
-          } catch (error) {
-            message.error(
-              error instanceof Error ? error.message : '媒体编辑保存失败',
-            )
-          } finally {
-            hide()
-            jobIdRef.current = null
-            savingRef.current = false
-            if (mounted.current) {
-              setSaving(false)
-              onBusyChange?.(false)
-            }
-          }
-        }}
-      >
-        {saving ? (video ? '正在保存视频…' : '正在保存…') : '覆盖原文件'}
-      </Button>
+          }}
+        >
+          {saving ? '正在保存…' : '覆盖原文件'}
+        </Button>
+      )}
       {video && saving && (
         <div
           className="min-w-52 rounded-lg bg-black/60 px-3 py-2 text-white"

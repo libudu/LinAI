@@ -259,7 +259,7 @@ export function VideoPreview({
             }}
           >
             {mode === 'video' && (
-              <div className="flex shrink-0 items-center justify-center gap-3 rounded-full bg-black/40 px-4 py-2 text-white">
+              <div className="relative flex shrink-0 items-center justify-center gap-3 rounded-full bg-black/40 px-4 py-2 text-white">
                 <button
                   type="button"
                   title="向左旋转 90°"
@@ -284,24 +284,25 @@ export function VideoPreview({
                 >
                   <RotateRightOutlined />
                 </button>
-                {rotation !== 0 && <span className="text-sm">{rotation}°</span>}
                 {allowOverwrite && (
-                  <MediaEditSaveButton
-                    key={item.id}
-                    id={item.id}
-                    contentVersion={item.contentVersion}
-                    operations={getRotationEditOperations(rotation)}
-                    video
-                    onBusyChange={(busy) => {
-                      setSaving(busy)
-                      if (busy) initializedVideoRef.current?.pause()
-                    }}
-                    onSaved={(next) => {
-                      setSaved({ inputKey, item: next })
-                      setRotation(0)
-                      setSaving(false)
-                    }}
-                  />
+                  <div className="absolute top-1/2 right-full mr-3 -translate-y-1/2">
+                    <MediaEditSaveButton
+                      key={item.id}
+                      id={item.id}
+                      contentVersion={item.contentVersion}
+                      operations={getRotationEditOperations(rotation)}
+                      video
+                      onBusyChange={(busy) => {
+                        setSaving(busy)
+                        if (busy) initializedVideoRef.current?.pause()
+                      }}
+                      onSaved={(next) => {
+                        setSaved({ inputKey, item: next })
+                        setRotation(0)
+                        setSaving(false)
+                      }}
+                    />
+                  </div>
                 )}
               </div>
             )}
