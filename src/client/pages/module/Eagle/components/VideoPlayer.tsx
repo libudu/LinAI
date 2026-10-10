@@ -24,7 +24,7 @@ export function formatVideoDuration(time: number) {
 /** 控件独立于视频元素，画面旋转不会影响播放操作。 */
 export function VideoPlayer(props: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const [controlsEnabled, setControlsEnabled] = useState(false)
+  const [controlsVisible, setControlsVisible] = useState(false)
   const [playing, setPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
@@ -52,24 +52,22 @@ export function VideoPlayer(props: VideoPlayerProps) {
 
   return (
     <div
-      className="group relative h-full w-full"
+      className="relative h-full w-full"
       role="group"
       aria-label="视频播放器"
       tabIndex={0}
-      onClick={() => {
-        // 沿用首次点击显示控件的行为，之后点击画面或两侧留白播放/暂停。
-        if (!controlsEnabled) setControlsEnabled(true)
-        else togglePlayback()
+      onClick={(event) => {
+        // 视频两侧留白只切换控件显隐，不影响播放状态。
+        if (event.target === event.currentTarget)
+          setControlsVisible((visible) => !visible)
       }}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return
         if (event.key === ' ' || event.key === 'Enter') {
           event.preventDefault()
-          setControlsEnabled(true)
           togglePlayback()
         } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
           event.preventDefault()
-          setControlsEnabled(true)
           seek(currentTime + (event.key === 'ArrowRight' ? 5 : -5))
         }
       }}
@@ -78,6 +76,10 @@ export function VideoPlayer(props: VideoPlayerProps) {
         {...props}
         ref={videoRef}
         controls={false}
+        onClick={(event) => {
+          event.stopPropagation()
+          togglePlayback()
+        }}
         onLoadedMetadata={(event) => {
           props.onLoadedMetadata?.(event)
           const video = event.currentTarget
@@ -117,9 +119,9 @@ export function VideoPlayer(props: VideoPlayerProps) {
           setPlaybackRate(event.currentTarget.playbackRate)
         }}
       />
-      {controlsEnabled && (
+      {controlsVisible && (
         <div
-          className={`absolute inset-x-0 bottom-0 z-10 flex flex-wrap items-center gap-3 bg-black/75 px-3 py-2 text-white transition-opacity ${playing ? 'pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100' : ''}`}
+          className="absolute inset-x-0 bottom-0 z-10 flex flex-wrap items-center gap-3 bg-black/75 px-3 py-2 text-white"
           onClick={(event) => event.stopPropagation()}
         >
           <button

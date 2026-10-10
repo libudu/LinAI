@@ -8,6 +8,18 @@ const parseDuration = (value?: string) => {
     : NaN
 }
 
+/** 优先使用流级码率；MKV 常将平均码率保存在 BPS/BPS-eng 标签中。 */
+const parseStreamBitrate = (section: string) => {
+  const header = section.split(/\r?\n/, 1)[0]
+  const tagged = Number(section.match(/^\s+BPS(?:-\w+)?\s*:\s*(\d+)/im)?.[1])
+  const reported =
+    Number(header.match(/,\s*(\d+(?:\.\d+)?) kb\/s\b/)?.[1]) * 1000
+  const bitrate = tagged > 0 ? tagged : reported
+  return Number.isFinite(bitrate) && bitrate > 0
+    ? Math.round(bitrate)
+    : undefined
+}
+
 /** 只读输入头并映射首个视频流，不转码、不写文件，也不遍历整个视频。 */
 export const readVideoMetadata = async (
   filePath: string,
@@ -59,10 +71,8 @@ export const readVideoMetadata = async (
   signal?.throwIfAborted()
   // 只解析输入区段，避免把输出流或 codec tag 中的十六进制值当成尺寸。
   const input = diagnostics.split(/^Output #/m)[0]
-  const stream = input
-    .split(/^\s{2}Stream #0:/m)
-    .slice(1)
-    .find((section) => /^[^\r\n]*: Video:/.test(section))
+  const streams = input.split(/^\s{2}Stream #0:/m).slice(1)
+  const stream = streams.find((section) => /^[^\r\n]*: Video:/.test(section))
   if (!stream) throw new Error('文件没有可解码的视频画面')
   const dimensions = stream
     .split(/\r?\n/, 1)[0]
@@ -74,11 +84,34 @@ export const readVideoMetadata = async (
   const streamDuration = parseDuration(
     stream.match(/^\s+DURATION\s*:\s*(\S+)/im)?.[1],
   )
+  const containerDuration = parseDuration(
+    input.match(/^\s+Duration:\s*(\S+),/m)?.[1],
+  )
   const duration =
     Number.isFinite(streamDuration) && streamDuration > 0
       ? streamDuration
-      : parseDuration(input.match(/^\s+Duration:\s*(\S+),/m)?.[1])
+      : containerDuration
   if (!Number.isFinite(duration) || duration <= 0)
     throw new Error('无法读取有效的视频时长')
-  return { width, height, duration }
+  const header = stream.split(/\r?\n/, 1)[0]
+  const codec = header.match(/: Video:\s*(\w+)/)?.[1]
+  const pixelFormat = header.match(
+    /,\s*((?:yuv|yuva|gbrp|gray)[\w]*)(?=[\s,(]|$)/,
+  )?.[1]
+  const audio = streams
+    .filter((section) => /^[^\r\n]*: Audio:/.test(section))
+    .map((section) => ({
+      codec: section.match(/: Audio:\s*(\w+)/)?.[1],
+      bitrate: parseStreamBitrate(section),
+    }))
+  return {
+    width,
+    height,
+    duration,
+    containerDuration,
+    codec,
+    pixelFormat,
+    bitrate: parseStreamBitrate(stream),
+    audio,
+  }
 }

@@ -6,6 +6,7 @@ import sharp from 'sharp'
 import type { EagleMediaEditOperation } from '../schemas'
 import { encodeStaticHeif } from './heic'
 import { preserveMediaTimestamps } from './timestamps'
+import { getVideoEncodingArgs } from './video-encoding'
 import { readVideoMetadata } from './video-metadata'
 
 export interface MediaEditProcessingOptions {
@@ -125,6 +126,10 @@ export const createEditedMedia = async (
   if (video) {
     if (!ffmpegPath) throw new Error('当前平台缺少视频编码器')
     const original = await readVideoMetadata(source, signal)
+    const encodingArgs = getVideoEncodingArgs(
+      original,
+      (await fs.stat(source)).size,
+    )
     signal?.throwIfAborted()
     onProgress?.({ percent: 0, phase: 'encoding', canCancel: true })
     const editFilters = edits.flatMap((operation) => {
@@ -166,20 +171,7 @@ export const createEditedMedia = async (
           ...editFilters,
           'pad=ceil(iw/2)*2:ceil(ih/2)*2',
         ].join(','),
-        '-c:v',
-        'libx264',
-        '-preset',
-        'medium',
-        '-crf',
-        '18',
-        '-pix_fmt',
-        'yuv420p',
-        '-threads',
-        '2',
-        '-c:a',
-        'aac',
-        '-b:a',
-        '192k',
+        ...encodingArgs,
         '-map_metadata',
         '-1',
         '-metadata:s:v:0',
