@@ -25,7 +25,7 @@ const readMtime = async (
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
     if (!(error instanceof SyntaxError)) throw error
-    console.warn('[Eagle] 读取 mtime.json 失败，扫描将回退到条目元数据', error)
+    console.warn('[Eagle] 读取 mtime.json 失败，扫描将使用本地属性校验', error)
     return null
   }
 }
@@ -58,7 +58,7 @@ export const reloadMtime = async (
     }
   }
   cache = { libraryPath, map }
-  // 指纹文件缺失或损坏时让扫描重读元数据；保留 cache 供待写操作恢复。
+  // 指纹文件缺失或损坏时交给扫描校验本地属性，必要时重读元数据；保留 cache 供待写操作恢复。
   return disk ? map : null
 }
 

@@ -28,6 +28,15 @@ export interface EagleRawItemMeta {
 
 // ---- 索引条目（持久化到 data/eagle/index-shards/） ----
 
+/** LinAI 本地校验信息；不写入 Eagle 的 mtime.json，也不作为媒体内容版本。 */
+export interface EagleItemScanFingerprint {
+  metadataMtimeMs: number
+  metadataCtimeMs: number
+  metadataSize: number
+  directoryMtimeMs: number
+  directoryCtimeMs: number
+}
+
 /** 内存索引与本地缓存中的条目，避免高频 I/O 读磁盘 metadata.json 与 readdir 探测文件名 */
 export interface EagleItemIndex {
   id: string
@@ -45,6 +54,8 @@ export interface EagleItemIndex {
   thumbnailName: string | null
   /** 是否已移入回收站（Eagle 软删除标记） */
   isDeleted?: boolean
+  /** 旧缓存缺失时首次扫描补齐；读盘期间发生变化则不记录，下一次重新校验。 */
+  scanFingerprint?: EagleItemScanFingerprint
 }
 
 /** Eagle 内存索引运行期状态 */

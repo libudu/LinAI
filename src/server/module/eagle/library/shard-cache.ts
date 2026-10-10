@@ -9,6 +9,7 @@ import {
   INDEX_SHARDS_DIR,
   SHARD_COUNT,
 } from './runtime'
+import { indexElapsed, indexNow } from './timing'
 import type {
   EagleIndexShardMeta,
   EagleIndexState,
@@ -36,6 +37,7 @@ export class IndexShardCache {
 
   async persist(immediate = false): Promise<void> {
     if (immediate) return this.flush()
+    if (this.dirtyShards.size === 0) return
     if (this.timer) clearTimeout(this.timer)
     this.timer = setTimeout(() => {
       this.timer = null
@@ -58,6 +60,9 @@ export class IndexShardCache {
         const state = this.getState()
         if (!state) return
         const keys = [...this.dirtyShards]
+        // 无变化时不遍历整个索引，也不重写缓存元信息。
+        if (keys.length === 0) continue
+        const startedAt = indexNow()
         this.dirtyShards.clear()
         try {
           await fs.ensureDir(INDEX_SHARDS_DIR)
@@ -79,6 +84,9 @@ export class IndexShardCache {
             shardCount: SHARD_COUNT,
           }
           await writeJsonFile(INDEX_META_FILE, meta, { backup: false })
+          console.log(
+            `[Eagle] 索引缓存落盘：${indexElapsed(startedAt)}，${keys.length} / ${SHARD_COUNT} 个分片`,
+          )
         } catch (error) {
           // 失败后保留脏标记供下次重试；正在写入期间的新变更也保留。
           for (const key of keys) this.dirtyShards.add(key)
