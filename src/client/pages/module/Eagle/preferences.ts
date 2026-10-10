@@ -20,9 +20,29 @@ const DISPLAY_STORAGE_KEY = 'eagle_display_options'
 const SELECTED_FOLDER_STORAGE_KEY = 'eagle_selected_folder'
 const MEDIA_TYPE_STORAGE_KEY = 'eagle_media_type'
 const VIDEO_PREVIEW_MODE_STORAGE_KEY = 'eagle_video_preview_mode'
+const VIDEO_PLAYBACK_RATE_STORAGE_KEY = 'eagle_video_playback_rate'
 
 export type EagleImageSize = 'small' | 'medium' | 'large'
 export type EagleVideoPreviewMode = 'video' | 'contact-sheet'
+
+export const loadVideoPlaybackRate = (): number => {
+  try {
+    const rate = Number(localStorage.getItem(VIDEO_PLAYBACK_RATE_STORAGE_KEY))
+    if (Number.isFinite(rate) && rate >= 0.0625 && rate <= 16) return rate
+  } catch {
+    // 本地存储不可用时使用正常倍速。
+  }
+  return 1
+}
+
+export const persistVideoPlaybackRate = (rate: number) => {
+  if (!Number.isFinite(rate) || rate < 0.0625 || rate > 16) return
+  try {
+    localStorage.setItem(VIDEO_PLAYBACK_RATE_STORAGE_KEY, String(rate))
+  } catch {
+    // 本地存储不可用时仍保留当前页面内的选择。
+  }
+}
 
 export const loadVideoPreviewMode = (): EagleVideoPreviewMode => {
   try {

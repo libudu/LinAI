@@ -1,10 +1,12 @@
 import type { EagleItem } from '@/shared/eagle/types'
 import { CloseOutlined } from '@ant-design/icons'
 import { Button, Modal, Segmented, Spin } from 'antd'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { eagleFileUrl, eagleVideoContactSheetUrl } from '../api'
 import {
+  loadVideoPlaybackRate,
   loadVideoPreviewMode,
+  persistVideoPlaybackRate,
   persistVideoPreviewMode,
   type EagleVideoPreviewMode,
 } from '../preferences'
@@ -69,6 +71,15 @@ function VideoContactSheetPreview({
 /** 视频沿用大图预览的黑色遮罩，记忆播放器/联系图模式，底部信息独立占用空间。 */
 export function VideoPreview({ item, onClose }: VideoPreviewProps) {
   const [mode, setMode] = useState(loadVideoPreviewMode)
+  const [playbackRate, setPlaybackRate] = useState(loadVideoPlaybackRate)
+  const initializedVideoRef = useRef<HTMLVideoElement | null>(null)
+  const [videoResolution, setVideoResolution] = useState<{
+    key: string
+    width: number
+    height: number
+  } | null>(null)
+  const videoKey = item ? `${item.id}:${item.contentVersion}` : ''
+  const resolution = videoResolution?.key === videoKey ? videoResolution : item
 
   return (
     <Modal
@@ -113,11 +124,35 @@ export function VideoPreview({ item, onClose }: VideoPreviewProps) {
           <div className="relative min-h-0 w-full flex-1">
             {mode === 'video' ? (
               <video
-                key={`${item.id}:${item.contentVersion}`}
+                key={videoKey}
                 src={eagleFileUrl(item.id, item.contentVersion)}
                 controls
                 autoPlay
                 playsInline
+                onLoadedMetadata={(event) => {
+                  const video = event.currentTarget
+                  video.defaultPlaybackRate = playbackRate
+                  video.playbackRate = playbackRate
+                  initializedVideoRef.current = video
+                  if (video.videoWidth > 0 && video.videoHeight > 0) {
+                    setVideoResolution({
+                      key: videoKey,
+                      width: video.videoWidth,
+                      height: video.videoHeight,
+                    })
+                  }
+                }}
+                onRateChange={(event) => {
+                  const video = event.currentTarget
+                  // 忽略载入元数据前播放器重置倍速产生的事件。
+                  if (
+                    initializedVideoRef.current !== video ||
+                    video.readyState < video.HAVE_METADATA
+                  )
+                    return
+                  setPlaybackRate(video.playbackRate)
+                  persistVideoPlaybackRate(video.playbackRate)
+                }}
                 className="absolute inset-0 h-full w-full object-contain"
               />
             ) : (
@@ -133,6 +168,11 @@ export function VideoPreview({ item, onClose }: VideoPreviewProps) {
             </div>
             <div className="mt-1 text-white/70">
               {formatFileSize(item.size)}
+              {resolution && resolution.width > 0 && resolution.height > 0 && (
+                <span className="ml-3">
+                  {resolution.width} × {resolution.height}
+                </span>
+              )}
             </div>
           </div>
           <Segmented<EagleVideoPreviewMode>
