@@ -5,7 +5,7 @@ import {
   RotateRightOutlined,
 } from '@ant-design/icons'
 import { Button, Modal, Segmented, Spin } from 'antd'
-import { useEffect, useRef, useState } from 'react'
+import { type ComponentProps, useEffect, useRef, useState } from 'react'
 import { eagleFileUrl, eagleVideoContactSheetUrl } from '../api'
 import {
   loadVideoPlaybackRate,
@@ -35,6 +35,25 @@ function formatVideoDuration(duration: number) {
   )
   if (hours > 0) parts.unshift(String(hours))
   return parts.join(':')
+}
+
+/** 初始隐藏控件，首次点击后交由浏览器管理原生 UI 的显隐。 */
+function VideoPlayer(
+  props: Omit<ComponentProps<'video'>, 'controls' | 'onClick'>,
+) {
+  const [controlsEnabled, setControlsEnabled] = useState(false)
+
+  return (
+    <video
+      {...props}
+      controls={controlsEnabled}
+      onClick={(event) => {
+        if (controlsEnabled) return
+        event.preventDefault()
+        setControlsEnabled(true)
+      }}
+    />
+  )
 }
 
 /** 挂载即请求联系图，缺失时由接口生成；切换视频或关闭时卸载。 */
@@ -101,7 +120,6 @@ export function VideoPreview({
   const item = saved?.inputKey === inputKey ? saved.item : inputItem
   const [mode, setMode] = useState(loadVideoPreviewMode)
   const [playbackRate, setPlaybackRate] = useState(loadVideoPlaybackRate)
-  const videoRef = useRef<HTMLVideoElement | null>(null)
   const initializedVideoRef = useRef<HTMLVideoElement | null>(null)
   const [videoMetadata, setVideoMetadata] = useState<{
     key: string
@@ -154,18 +172,6 @@ export function VideoPreview({
   const close = () => {
     if (!saving) onClose()
   }
-  const togglePlayback = () => {
-    const video = videoRef.current
-    if (!video || saving) return
-    if (video.paused) {
-      void video.play().catch(() => {
-        // 原生控件仍可在视频就绪后重试播放。
-      })
-    } else {
-      video.pause()
-    }
-  }
-
   return (
     <Modal
       open={item !== null}
@@ -222,18 +228,9 @@ export function VideoPreview({
                 style={{ height: (sideways ? width : height) * scale }}
                 onClick={(event) => event.stopPropagation()}
               >
-                <button
-                  type="button"
-                  aria-label="播放或暂停视频"
-                  className="absolute inset-0 cursor-pointer"
-                  disabled={saving}
-                  onClick={togglePlayback}
-                />
-                <video
+                <VideoPlayer
                   key={videoKey}
-                  ref={videoRef}
                   src={eagleFileUrl(item.id, item.contentVersion)}
-                  controls
                   controlsList="nofullscreen"
                   autoPlay
                   playsInline
@@ -260,8 +257,9 @@ export function VideoPreview({
                   }}
                   className="absolute top-1/2 left-1/2 object-contain"
                   style={{
-                    width: width * scale,
-                    height: height * scale,
+                    // 视频元素覆盖整行留白，让灰色区域沿用原生控件的显隐交互。
+                    width: sideways ? width * scale : '100%',
+                    height: sideways ? containerSize.width : height * scale,
                     transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
                   }}
                 />
