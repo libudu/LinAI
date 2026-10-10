@@ -13,10 +13,10 @@ import {
 import { formatFileSize } from './formatFileSize'
 
 interface VideoPreviewProps {
-  item: Pick<
-    EagleItem,
-    'id' | 'name' | 'ext' | 'size' | 'contentVersion'
-  > | null
+  item:
+    | (Pick<EagleItem, 'id' | 'name' | 'ext' | 'size' | 'contentVersion'> &
+        Partial<Pick<EagleItem, 'width' | 'height'>>)
+    | null
   onClose: () => void
 }
 
@@ -168,11 +168,13 @@ export function VideoPreview({ item, onClose }: VideoPreviewProps) {
             </div>
             <div className="mt-1 text-white/70">
               {formatFileSize(item.size)}
-              {resolution && resolution.width > 0 && resolution.height > 0 && (
-                <span className="ml-3">
-                  {resolution.width} × {resolution.height}
-                </span>
-              )}
+              {resolution &&
+                (resolution.width ?? 0) > 0 &&
+                (resolution.height ?? 0) > 0 && (
+                  <span className="ml-3">
+                    {resolution.width} × {resolution.height}
+                  </span>
+                )}
             </div>
           </div>
           <Segmented<EagleVideoPreviewMode>

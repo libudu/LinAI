@@ -41,6 +41,8 @@ export const ConfirmImageViewer = React.memo(function ConfirmImageViewer({
           ext: detail.itemExt,
           contentVersion: detail.contentVersion,
           size: detail.size,
+          width: detail.width,
+          height: detail.height,
         }
       : null
 
