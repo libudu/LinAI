@@ -50,6 +50,7 @@ export function ResourceGrid() {
     initialFolderId,
     handleMoveFolder,
     handleDeleteItem,
+    handleDownloadItem,
     handleTrashItem,
     trashingItem,
     handleAddToGallery,
@@ -101,6 +102,7 @@ export function ResourceGrid() {
                 onClick={handleClick}
                 onMove={(targetItem) => setMovingItem(targetItem)}
                 onDelete={handleDeleteItem}
+                onDownload={handleDownloadItem}
                 onPurge={handlePurgeItem}
                 onAddToGallery={handleAddToGallery}
               />

@@ -2,6 +2,7 @@ import { useLongPressContextMenu } from '@/client/hooks/useLongPressContextMenu'
 import type { EagleItem } from '@/shared/eagle/types'
 import {
   DeleteOutlined,
+  DownloadOutlined,
   FolderOutlined,
   PlayCircleOutlined,
   PlusOutlined,
@@ -18,6 +19,7 @@ interface ResourceGridItemProps {
   onClick: (item: EagleItem) => void
   onMove: (item: EagleItem) => void
   onDelete: (item: EagleItem) => void
+  onDownload: (item: EagleItem) => void
   onPurge: (item: EagleItem) => void
   onAddToGallery: (item: EagleItem) => Promise<void>
 }
@@ -31,10 +33,16 @@ export function ResourceGridItem({
   onClick,
   onMove,
   onDelete,
+  onDownload,
   onPurge,
   onAddToGallery,
 }: ResourceGridItemProps) {
   const longPressHandlers = useLongPressContextMenu()
+  const downloadMenuItem = {
+    key: 'download',
+    icon: <DownloadOutlined />,
+    label: item.isVideo ? '下载视频' : '下载图片',
+  }
 
   const menuItems = isTrash
     ? [
@@ -43,6 +51,7 @@ export function ResourceGridItem({
           icon: <FolderOutlined />,
           label: '修改文件夹',
         },
+        downloadMenuItem,
         {
           key: 'purge',
           icon: <DeleteOutlined />,
@@ -65,6 +74,7 @@ export function ResourceGridItem({
           icon: <FolderOutlined />,
           label: '修改文件夹',
         },
+        downloadMenuItem,
         {
           key: 'delete',
           icon: <DeleteOutlined />,
@@ -82,6 +92,8 @@ export function ResourceGridItem({
           domEvent.stopPropagation()
           if (key === 'move') {
             onMove(item)
+          } else if (key === 'download') {
+            onDownload(item)
           } else if (key === 'add-to-gallery') {
             void onAddToGallery(item)
           } else if (key === 'delete') {

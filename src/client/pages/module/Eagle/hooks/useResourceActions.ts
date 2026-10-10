@@ -9,6 +9,7 @@ import { useRef, useState } from 'react'
 import {
   addEagleItemToGallery,
   deleteEagleItem,
+  eagleFileUrl,
   purgeEagleItem,
   updateEagleItem,
 } from '../api'
@@ -63,6 +64,15 @@ export function useResourceActions(currentFolderId: string) {
       name: item.name,
       onDeleted: () => requestEagleLibraryRefresh(),
     })
+  }
+
+  const handleDownloadItem = (item: EagleItem) => {
+    const link = document.createElement('a')
+    link.href = eagleFileUrl(item.id, item.contentVersion)
+    link.download = `${item.name}.${item.ext}`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
   }
 
   // 大图预览直接移入回收站，成功后关闭预览，避免列表刷新时预览索引错位。
@@ -120,6 +130,7 @@ export function useResourceActions(currentFolderId: string) {
     initialFolderId: getInitialFolderId(movingItem, currentFolderId),
     handleMoveFolder,
     handleDeleteItem,
+    handleDownloadItem,
     handleTrashItem,
     trashingItem,
     handleAddToGallery,
