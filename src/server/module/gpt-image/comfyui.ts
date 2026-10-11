@@ -117,7 +117,7 @@ const request = async (url: string, init?: RequestInit) => {
     })
   } catch (error) {
     throw new Error(
-      `无法连接本地 ComfyUI：${error instanceof Error ? error.message : String(error)}`,
+      `无法连接 ComfyUI：${error instanceof Error ? error.message : String(error)}`,
     )
   }
 }

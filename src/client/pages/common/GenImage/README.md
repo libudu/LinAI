@@ -90,7 +90,7 @@
 
 ## ComfyUI 工作流
 
-ComfyUI 只允许本机 HTTP 回环地址，规则统一在 `src/shared/gpt-image/comfyui.ts`。导入必须使用 **ComfyUI API 格式 JSON**，并有三个必需的 `_meta.title` 标记；标题匹配忽略大小写和首尾空格：
+ComfyUI 支持本机、局域网和公网的 HTTP/HTTPS 地址（IP 或域名），也支持反向代理路径前缀（如 `https://example.com/comfyui`）；不允许地址包含用户名、密码、查询参数或片段。地址规则统一在 `src/shared/gpt-image/comfyui.ts`，所有 ComfyUI 请求均由 LinAI 服务端发起。导入必须使用 **ComfyUI API 格式 JSON**，并有三个必需的 `_meta.title` 标记；标题匹配忽略大小写和首尾空格：
 
 | 节点标题       | 用途                                                                                                        |
 | -------------- | ----------------------------------------------------------------------------------------------------------- |

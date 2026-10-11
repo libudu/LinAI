@@ -1,4 +1,4 @@
-/** 本期仅允许服务端连接本机 ComfyUI；前后端共用同一地址规则。 */
+/** 前后端共用 ComfyUI 地址规则，支持本机、远程地址及反向代理路径前缀。 */
 export function normalizeComfyBaseUrl(value: string): string {
   let url: URL
   try {
@@ -7,17 +7,17 @@ export function normalizeComfyBaseUrl(value: string): string {
     throw new Error('ComfyUI 地址不是有效 URL')
   }
   if (
-    url.protocol !== 'http:' ||
-    !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) ||
+    !['http:', 'https:'].includes(url.protocol) ||
     url.username ||
     url.password ||
     url.search ||
-    url.hash ||
-    url.pathname !== '/'
+    url.hash
   ) {
-    throw new Error('ComfyUI 地址仅允许本机 HTTP 回环地址及端口')
+    throw new Error(
+      'ComfyUI 地址必须为 HTTP/HTTPS，且不能包含用户名、密码、查询参数或片段',
+    )
   }
-  return url.origin
+  return `${url.origin}${url.pathname.replace(/\/+$/, '')}`
 }
 
 export function isValidComfyBaseUrl(value: string): boolean {

@@ -38,7 +38,10 @@ const endpointFields = z.object({
       title: z.string().trim().min(1),
       baseUrl: z
         .string()
-        .refine(isValidComfyBaseUrl, 'ComfyUI 地址仅允许本机 HTTP 回环地址'),
+        .refine(
+          isValidComfyBaseUrl,
+          'ComfyUI 地址必须为 HTTP/HTTPS，且不能包含用户名、密码、查询参数或片段',
+        ),
       workflowId: z.string().uuid(),
       workflowName: z.string().min(1),
     }),

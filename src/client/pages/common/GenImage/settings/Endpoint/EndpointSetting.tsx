@@ -178,7 +178,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
       )}
       {isComfyForm ? (
         <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs leading-5 text-gray-700">
-          <div className="font-medium text-blue-700">接入本地 ComfyUI</div>
+          <div className="font-medium text-blue-700">接入 ComfyUI</div>
           <ol className="mt-1 list-decimal space-y-1 pl-4">
             <li>
               在 ComfyUI
@@ -267,7 +267,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
                 value: comfyValue(c.id),
               })),
               { label: '新增自定义接入点', value: NEW_CUSTOM_VALUE },
-              { label: '新增本地 ComfyUI 工作流', value: NEW_COMFY_VALUE },
+              { label: '新增 ComfyUI 工作流', value: NEW_COMFY_VALUE },
             ]}
           />
         </Form.Item>
@@ -302,13 +302,19 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
               ]}
               extra={
                 isComfyForm
-                  ? '仅支持本机 http://127.0.0.1、localhost 或 [::1] 地址'
+                  ? '支持本机、局域网或公网 HTTP/HTTPS 地址，可包含反向代理路径前缀'
                   : protocol === 'venice'
                     ? 'Venice 原生协议：带参考图时使用 image/multi-edit 接口'
                     : undefined
               }
             >
-              <Input placeholder="例如 https://api.example.com/v1" />
+              <Input
+                placeholder={
+                  isComfyForm
+                    ? '例如 http://192.168.1.100:8188 或 https://comfy.example.com'
+                    : '例如 https://api.example.com/v1'
+                }
+              />
             </Form.Item>
             {!isComfyForm && (
               <Form.Item
