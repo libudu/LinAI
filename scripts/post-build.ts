@@ -1,4 +1,4 @@
-import { execSync } from 'child_process'
+import { execFileSync, execSync } from 'child_process'
 import fs from 'fs-extra'
 import JSZip from 'jszip'
 import path from 'path'
@@ -67,13 +67,50 @@ async function main() {
   fs.copySync('data-template', 'dist/data', { overwrite: true })
   console.log('✅ [Post-build] Copied data-template contents to dist/data/')
 
-  // 4. 发布依赖每次全新安装，避免已移除的包残留在 .pnpm 中被打进 ZIP。
+  // 4. 复用项目已安装的 FFmpeg，避免全新安装发布依赖时再次从 GitHub 下载。
   const distDir = path.resolve('dist')
+  const distPkgPath = path.join(distDir, 'package.json')
+  const distPkg = fs.readJsonSync(distPkgPath)
+  const installEnv = { ...process.env }
+  let ffmpegFiles: { sourcePath: string; fileName: string }[] = []
+
+  if (distPkg.dependencies?.['ffmpeg-static']) {
+    const ffmpegDir = path.resolve('node_modules/ffmpeg-static')
+    const ffmpegPkg = fs.readJsonSync(path.join(ffmpegDir, 'package.json'))
+    const binaryName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
+    const binaryPath = path.join(ffmpegDir, binaryName)
+
+    ffmpegFiles = [binaryName, `${binaryName}.README`, `${binaryName}.LICENSE`].map(
+      (fileName) => {
+        const sourcePath = path.join(ffmpegDir, fileName)
+        if (!fs.existsSync(sourcePath) || !fs.statSync(sourcePath).isFile()) {
+          throw new Error(
+            `本地 FFmpeg 文件不完整，请先用 pnpm 重新安装：${sourcePath}`,
+          )
+        }
+        return { sourcePath, fileName }
+      },
+    )
+
+    // 下载失败也可能留下非空但损坏的二进制，不能仅按文件是否存在判断。
+    execFileSync(binaryPath, ['-version'], { timeout: 10_000, stdio: 'pipe' })
+
+    // 固定到本地包版本，确保复制的二进制与发布包一致。
+    distPkg.dependencies['ffmpeg-static'] = ffmpegPkg.version
+    fs.writeJsonSync(distPkgPath, distPkg, { spaces: 2 })
+    // install.js 会检查 FFMPEG_BIN 指向的文件并跳过下载；此变量仅传给安装子进程。
+    installEnv.FFMPEG_BIN = binaryPath
+    console.log(
+      `✅ [Post-build] Reusing local ffmpeg-static ${ffmpegPkg.version} binary`,
+    )
+  }
+
+  // 5. 发布依赖每次全新安装，避免已移除的包残留在 .pnpm 中被打进 ZIP。
   fs.removeSync(path.join(distDir, 'node_modules'))
   fs.removeSync(path.join(distDir, 'pnpm-lock.yaml'))
   console.log('✅ [Post-build] Cleaned previous production dependencies in dist/')
 
-  // 5. 将 pnpm 项目级配置复制到 dist，确保 allowBuilds 等设置对独立安装生效
+  // 6. 将 pnpm 项目级配置复制到 dist，确保 allowBuilds 等设置对独立安装生效
   const pnpmWorkspacePath = 'pnpm-workspace.yaml'
   const distPnpmWorkspacePath = path.join('dist', 'pnpm-workspace.yaml')
   fs.removeSync(distPnpmWorkspacePath)
@@ -82,17 +119,32 @@ async function main() {
     console.log('✅ [Post-build] Copied pnpm-workspace.yaml to dist/')
   }
 
-  // 6. 平铺安装真实文件；shamefully-hoist 仍使用符号链接，ZIP 递归时会重复收录。
+  // 7. 平铺安装真实文件；shamefully-hoist 仍使用符号链接，ZIP 递归时会重复收录。
+  // 禁用副作用缓存，避免跳过下载的 FFmpeg 安装结果污染后续正常安装。
   console.log('📦 [Post-build] Installing production dependencies in dist/ ...')
   execSync(
-    'pnpm install --prod --config.node-linker=hoisted --package-import-method=copy',
+    'pnpm install --prod --config.node-linker=hoisted --package-import-method=copy --config.side-effects-cache=false --reporter=append-only',
     {
       cwd: distDir,
       stdio: 'inherit',
+      env: installEnv,
     },
   )
 
-  // 7. 删除依赖配置
+  // 8. 将真实文件和许可证放入发布包，运行时无需本机路径或环境变量。
+  const distFfmpegDir = path.join(distDir, 'node_modules/ffmpeg-static')
+  for (const { sourcePath, fileName } of ffmpegFiles) {
+    fs.copyFileSync(sourcePath, path.join(distFfmpegDir, fileName))
+  }
+  if (ffmpegFiles.length > 0) {
+    execFileSync(path.join(distFfmpegDir, ffmpegFiles[0].fileName), ['-version'], {
+      timeout: 10_000,
+      stdio: 'pipe',
+    })
+    console.log('✅ [Post-build] Copied and verified FFmpeg binary in dist/')
+  }
+
+  // 9. 删除依赖配置
   fs.removeSync('dist/package.json')
   fs.removeSync('dist/pnpm-lock.yaml')
   if (fs.existsSync(distPnpmWorkspacePath)) {
@@ -102,7 +154,7 @@ async function main() {
     '✅ [Post-build] Removed package.json, pnpm-lock.yaml and pnpm-workspace.yaml from dist/',
   )
 
-  // 8. 打包 dist 目录
+  // 10. 打包 dist 目录
   try {
     const pkg = fs.readJsonSync('package.json')
     const version = pkg.version
