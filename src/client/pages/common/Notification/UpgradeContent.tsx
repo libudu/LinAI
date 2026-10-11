@@ -3,6 +3,11 @@ import copy from 'copy-to-clipboard'
 import { MessageList } from './MessageList'
 
 const upgradeHistory = [
+  `LinAI v2.1.0 更新内容 🐱：
+🔌 新增 ComfyUI 工作流生图接入，云端接入点升级至 gpt-image-2.5，支持 xhigh / max 画质
+🦅 Eagle 智能整理支持视频、子目录分类与递归仅重命名，新增快速确认和批量提交
+🎞️ Eagle 新增图片与视频旋转保存、HEIC/HEIF 转换及回收站管理，图片可加入生图待使用图库
+🧩 新增拼豆图处理，支持自动识别网格、取色微调、单格编辑、用量统计与像素图导出`,
   `LinAI v2.0.1 更新内容 🐱：
 🦅 新增 Eagle 图片管理模块，支持素材库浏览与基于 AI 视觉模型的智能整理分类
 🖌️ 输入图片新增自由涂抹与画面裁剪功能，生图前置调整更灵活
