@@ -4,7 +4,7 @@ import {
   RotateLeftOutlined,
   RotateRightOutlined,
 } from '@ant-design/icons'
-import { Button, Modal, Segmented, Spin } from 'antd'
+import { Button, ConfigProvider, Modal, Segmented, Spin } from 'antd'
 import { useEffect, useRef, useState } from 'react'
 import { eagleFileUrl, eagleVideoContactSheetUrl } from '../api'
 import {
@@ -215,16 +215,9 @@ export function VideoPreview({
                   onDurationChange={(event) =>
                     readVideoMetadata(event.currentTarget)
                   }
-                  onRateChange={(event) => {
-                    const video = event.currentTarget
-                    // 忽略载入元数据前播放器重置倍速产生的事件。
-                    if (
-                      initializedVideoRef.current !== video ||
-                      video.readyState < video.HAVE_METADATA
-                    )
-                      return
-                    setPlaybackRate(video.playbackRate)
-                    persistVideoPlaybackRate(video.playbackRate)
+                  onPlaybackRateChange={(rate) => {
+                    setPlaybackRate(rate)
+                    persistVideoPlaybackRate(rate)
                   }}
                   className="absolute top-1/2 left-1/2 object-contain"
                   style={{
@@ -259,7 +252,7 @@ export function VideoPreview({
             }}
           >
             {mode === 'video' && (
-              <div className="relative flex shrink-0 items-center justify-center gap-3 rounded-full bg-black/40 px-4 py-2 text-white">
+              <div className="relative flex h-15 shrink-0 items-center justify-center gap-3 rounded-full bg-black/40 px-4 py-2 text-white">
                 <button
                   type="button"
                   title="向左旋转 90°"
@@ -306,7 +299,39 @@ export function VideoPreview({
                 )}
               </div>
             )}
-            <div className="max-h-[20dvh] min-w-0 overflow-y-auto rounded-lg bg-black/40 px-3 py-2 text-center text-sm text-white">
+            <div className="flex h-15 shrink-0 items-center rounded-full bg-black/40 px-2 py-2">
+              <ConfigProvider
+                theme={{
+                  components: {
+                    Segmented: {
+                      trackBg: 'transparent',
+                      itemColor: 'rgba(255, 255, 255, 0.7)',
+                      itemHoverColor: '#fff',
+                      itemHoverBg: 'rgba(255, 255, 255, 0.12)',
+                      itemSelectedBg: 'rgba(255, 255, 255, 0.2)',
+                      itemSelectedColor: '#fff',
+                    },
+                  },
+                }}
+              >
+                <Segmented<EagleVideoPreviewMode>
+                  disabled={saving}
+                  size="large"
+                  shape="round"
+                  aria-label="视频预览方式"
+                  value={mode}
+                  options={[
+                    { value: 'video', label: '视频' },
+                    { value: 'contact-sheet', label: '联系图' },
+                  ]}
+                  onChange={(value) => {
+                    setMode(value)
+                    persistVideoPreviewMode(value)
+                  }}
+                />
+              </ConfigProvider>
+            </div>
+            <div className="max-h-[20dvh] min-h-15 min-w-0 overflow-y-auto rounded-lg bg-black/40 px-3 py-2 text-center text-sm text-white">
               <div className="wrap-anywhere whitespace-pre-wrap">
                 {item.name}.{item.ext}
               </div>
@@ -327,20 +352,6 @@ export function VideoPreview({
               </div>
             </div>
           </div>
-          <Segmented<EagleVideoPreviewMode>
-            disabled={saving}
-            className="shrink-0"
-            aria-label="视频预览方式"
-            value={mode}
-            options={[
-              { value: 'video', label: '视频' },
-              { value: 'contact-sheet', label: '联系图' },
-            ]}
-            onChange={(value) => {
-              setMode(value)
-              persistVideoPreviewMode(value)
-            }}
-          />
         </div>
       )}
     </Modal>

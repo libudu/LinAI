@@ -3,12 +3,15 @@ import {
   PlayCircleOutlined,
   SoundOutlined,
 } from '@ant-design/icons'
-import { type ComponentProps, useRef, useState } from 'react'
+import { type ComponentProps, useEffect, useRef, useState } from 'react'
+import { useVideoPlayerGestures } from './useVideoPlayerGestures'
 
 type VideoPlayerProps = Omit<
   ComponentProps<'video'>,
   'controls' | 'onClick' | 'ref'
->
+> & {
+  onPlaybackRateChange?: (rate: number) => void
+}
 
 export function formatVideoDuration(time: number) {
   const seconds = Math.floor(Number.isFinite(time) ? Math.max(0, time) : 0)
@@ -22,7 +25,10 @@ export function formatVideoDuration(time: number) {
 }
 
 /** 控件独立于视频元素，画面旋转不会影响播放操作。 */
-export function VideoPlayer(props: VideoPlayerProps) {
+export function VideoPlayer({
+  onPlaybackRateChange,
+  ...props
+}: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [controlsVisible, setControlsVisible] = useState(false)
   const [playing, setPlaying] = useState(false)
@@ -31,6 +37,13 @@ export function VideoPlayer(props: VideoPlayerProps) {
   const [volume, setVolume] = useState(1)
   const [muted, setMuted] = useState(false)
   const [playbackRate, setPlaybackRate] = useState(1)
+  const [controlsActivity, setControlsActivity] = useState(0)
+  const [controlsHovered, setControlsHovered] = useState(false)
+  const [controlsFocused, setControlsFocused] = useState(false)
+  const showControls = () => {
+    setControlsVisible(true)
+    setControlsActivity((value) => value + 1)
+  }
   const rates = [
     ...new Set([0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 3, 4, playbackRate]),
   ].sort((a, b) => a - b)
@@ -49,26 +62,57 @@ export function VideoPlayer(props: VideoPlayerProps) {
     video.currentTime = Math.min(duration, Math.max(0, time))
     setCurrentTime(video.currentTime)
   }
+  const { active, feedback, handlers } = useVideoPlayerGestures(
+    videoRef,
+    showControls,
+    togglePlayback,
+  )
+  const displayedTime = feedback?.mode === 'seek' ? feedback.time : currentTime
+  useEffect(() => {
+    if (
+      !controlsVisible ||
+      !playing ||
+      active ||
+      controlsHovered ||
+      controlsFocused
+    )
+      return
+    const timer = setTimeout(() => setControlsVisible(false), 3000)
+    return () => clearTimeout(timer)
+  }, [
+    controlsVisible,
+    controlsActivity,
+    playing,
+    active,
+    controlsHovered,
+    controlsFocused,
+  ])
 
   return (
     <div
-      className="relative h-full w-full"
+      {...handlers}
+      className="relative h-full w-full touch-none select-none"
       role="group"
       aria-label="视频播放器"
+      aria-description="单击显示控件，双击播放或暂停，长按临时使用 2 倍速，左右拖动后松开跳转进度"
       tabIndex={0}
       onClick={(event) => {
-        // 视频两侧留白只切换控件显隐，不影响播放状态。
-        if (event.target === event.currentTarget)
-          setControlsVisible((visible) => !visible)
+        // 指针点击由手势统一处理，兼容辅助技术发出的无指针点击。
+        if (event.detail === 0) showControls()
       }}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return
         if (event.key === ' ' || event.key === 'Enter') {
           event.preventDefault()
+          showControls()
           togglePlayback()
         } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
           event.preventDefault()
-          seek(currentTime + (event.key === 'ArrowRight' ? 5 : -5))
+          showControls()
+          seek(
+            (videoRef.current?.currentTime ?? 0) +
+              (event.key === 'ArrowRight' ? 5 : -5),
+          )
         }
       }}
     >
@@ -76,10 +120,7 @@ export function VideoPlayer(props: VideoPlayerProps) {
         {...props}
         ref={videoRef}
         controls={false}
-        onClick={(event) => {
-          event.stopPropagation()
-          togglePlayback()
-        }}
+        draggable={false}
         onLoadedMetadata={(event) => {
           props.onLoadedMetadata?.(event)
           const video = event.currentTarget
@@ -104,10 +145,12 @@ export function VideoPlayer(props: VideoPlayerProps) {
         onPause={(event) => {
           props.onPause?.(event)
           setPlaying(false)
+          showControls()
         }}
         onEnded={(event) => {
           props.onEnded?.(event)
           setPlaying(false)
+          showControls()
         }}
         onVolumeChange={(event) => {
           props.onVolumeChange?.(event)
@@ -119,10 +162,41 @@ export function VideoPlayer(props: VideoPlayerProps) {
           setPlaybackRate(event.currentTarget.playbackRate)
         }}
       />
+      {feedback && (
+        <div
+          role="status"
+          className="pointer-events-none absolute inset-x-0 top-6 z-20 flex justify-center text-white"
+        >
+          <div className="rounded-lg bg-black/75 px-4 py-2 text-sm tabular-nums">
+            {feedback.mode === 'speed' ? (
+              '长按 2× 倍速'
+            ) : (
+              <>
+                {feedback.offset < 0 ? '后退' : '前进'}{' '}
+                {Math.round(Math.abs(feedback.offset) * 10) / 10} 秒
+                <span className="ml-3">
+                  {formatVideoDuration(feedback.time)} /{' '}
+                  {formatVideoDuration(duration)}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       {controlsVisible && (
         <div
+          data-video-controls
           className="absolute inset-x-0 bottom-0 z-10 flex flex-wrap items-center gap-3 bg-black/75 px-3 py-2 text-white"
           onClick={(event) => event.stopPropagation()}
+          onPointerEnter={(event) => {
+            if (event.pointerType === 'mouse') setControlsHovered(true)
+          }}
+          onPointerLeave={() => setControlsHovered(false)}
+          onFocus={() => setControlsFocused(true)}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget))
+              setControlsFocused(false)
+          }}
         >
           <button
             type="button"
@@ -134,7 +208,8 @@ export function VideoPlayer(props: VideoPlayerProps) {
             {playing ? <PauseOutlined /> : <PlayCircleOutlined />}
           </button>
           <span className="text-xs tabular-nums">
-            {formatVideoDuration(currentTime)} / {formatVideoDuration(duration)}
+            {formatVideoDuration(displayedTime)} /{' '}
+            {formatVideoDuration(duration)}
           </span>
           <input
             type="range"
@@ -142,7 +217,7 @@ export function VideoPlayer(props: VideoPlayerProps) {
             min={0}
             max={duration || 1}
             step="any"
-            value={Math.min(currentTime, duration)}
+            value={Math.min(displayedTime, duration)}
             disabled={duration <= 0}
             className="min-w-16 flex-1 cursor-pointer accent-white"
             onChange={(event) => seek(Number(event.currentTarget.value))}
@@ -184,10 +259,12 @@ export function VideoPlayer(props: VideoPlayerProps) {
             className="cursor-pointer rounded bg-black px-1 py-1 text-sm text-white"
             value={playbackRate}
             onChange={(event) => {
-              if (videoRef.current)
-                videoRef.current.playbackRate = Number(
-                  event.currentTarget.value,
-                )
+              const video = videoRef.current
+              if (!video) return
+              const rate = Number(event.currentTarget.value)
+              video.playbackRate = rate
+              // 仅用户明确选择倍速时保存偏好，长按的临时 2 倍速不落盘。
+              onPlaybackRateChange?.(rate)
             }}
           >
             {rates.map((rate) => (
