@@ -5,7 +5,8 @@ import {
   RotateRightOutlined,
 } from '@ant-design/icons'
 import { Button, ConfigProvider, Modal, Segmented, Spin } from 'antd'
-import { useEffect, useRef, useState } from 'react'
+import dayjs from 'dayjs'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { eagleFileUrl, eagleVideoContactSheetUrl } from '../api'
 import {
   loadVideoPlaybackRate,
@@ -22,10 +23,16 @@ import { formatVideoDuration, VideoPlayer } from './VideoPlayer'
 interface VideoPreviewProps {
   item:
     | (Pick<EagleItem, 'id' | 'name' | 'ext' | 'size' | 'contentVersion'> &
-        Partial<Pick<EagleItem, 'width' | 'height'>>)
+        Partial<Pick<EagleItem, 'width' | 'height' | 'mtime'>>)
     | null
   onClose: () => void
   allowOverwrite?: boolean
+  /** 切换条目时可独立保持弹窗打开，item 为空时展示加载或失败状态。 */
+  open?: boolean
+  loading?: boolean
+  /** 预览右下角的自定义操作。 */
+  toolbarExtra?: ReactNode
+  onBusyChange?: (busy: boolean) => void
 }
 
 /** 挂载即请求联系图，缺失时由接口生成；切换视频或关闭时卸载。 */
@@ -81,6 +88,10 @@ export function VideoPreview({
   item: inputItem,
   onClose,
   allowOverwrite = true,
+  open = inputItem !== null,
+  loading = false,
+  toolbarExtra,
+  onBusyChange,
 }: VideoPreviewProps) {
   const inputKey = inputItem
     ? `${inputItem.id}:${inputItem.contentVersion}`
@@ -146,7 +157,7 @@ export function VideoPreview({
   }
   return (
     <Modal
-      open={item !== null}
+      open={open}
       onCancel={close}
       keyboard={!saving}
       maskClosable={!saving}
@@ -170,9 +181,9 @@ export function VideoPreview({
         body: { height: '100dvh', padding: 0 },
       }}
     >
-      {item && (
+      {item ? (
         <div
-          className="flex h-full flex-col items-center gap-3 px-4 pt-14 pb-4"
+          className="relative flex h-full flex-col items-center gap-3 px-4 pt-14 pb-6"
           onClick={(event) => {
             if (event.target === event.currentTarget) close()
           }}
@@ -246,13 +257,13 @@ export function VideoPreview({
             )}
           </div>
           <div
-            className="flex w-full shrink-0 items-center justify-center gap-3"
+            className="flex w-full shrink-0 -translate-x-10 flex-wrap items-center justify-center gap-3"
             onClick={(event) => {
               if (event.target === event.currentTarget) close()
             }}
           >
             {mode === 'video' && (
-              <div className="relative flex h-15 shrink-0 items-center justify-center gap-3 rounded-full bg-black/40 px-4 py-2 text-white">
+              <div className="relative flex h-14 shrink-0 items-center justify-center gap-3 rounded-full bg-black/40 px-4 py-2 text-white">
                 <button
                   type="button"
                   title="向左旋转 90°"
@@ -287,6 +298,7 @@ export function VideoPreview({
                       video
                       onBusyChange={(busy) => {
                         setSaving(busy)
+                        onBusyChange?.(busy)
                         if (busy) initializedVideoRef.current?.pause()
                       }}
                       onSaved={(next) => {
@@ -299,7 +311,7 @@ export function VideoPreview({
                 )}
               </div>
             )}
-            <div className="flex h-15 shrink-0 items-center rounded-full bg-black/40 px-2 py-2">
+            <div className="flex h-14 shrink-0 items-center rounded-full bg-black/40 px-2 py-2">
               <ConfigProvider
                 theme={{
                   components: {
@@ -331,11 +343,11 @@ export function VideoPreview({
                 />
               </ConfigProvider>
             </div>
-            <div className="max-h-[20dvh] min-h-15 min-w-0 overflow-y-auto rounded-lg bg-black/40 px-3 py-2 text-center text-sm text-white">
+            <div className="max-h-[20dvh] min-h-14 min-w-0 overflow-y-auto rounded-lg bg-black/40 px-3 py-2 text-center text-sm text-white">
               <div className="wrap-anywhere whitespace-pre-wrap">
                 {item.name}.{item.ext}
               </div>
-              <div className="mt-1 text-white/70">
+              <div className="text-white/70">
                 {formatFileSize(item.size)}
                 {resolution &&
                   (resolution.width ?? 0) > 0 &&
@@ -349,9 +361,45 @@ export function VideoPreview({
                     {formatVideoDuration(duration)}
                   </span>
                 )}
+                {typeof item.mtime === 'number' &&
+                  Number.isFinite(item.mtime) &&
+                  item.mtime > 0 && (
+                    <span className="ml-3 whitespace-nowrap" title="修改时间">
+                      {dayjs(item.mtime).format('YYYY-MM-DD HH:mm:ss')}
+                    </span>
+                  )}
               </div>
             </div>
           </div>
+          {toolbarExtra && (
+            <div
+              className="absolute right-6 bottom-7 z-10 flex items-center gap-2 rounded-full bg-black/40 px-4 py-2"
+              onClick={(event) => event.stopPropagation()}
+            >
+              {toolbarExtra}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div
+          className="flex h-full flex-col items-center justify-center gap-3 text-sm text-white"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) close()
+          }}
+        >
+          <button
+            type="button"
+            aria-label="关闭视频预览"
+            title="关闭视频预览"
+            className="absolute top-3 right-3 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60"
+            onClick={close}
+          >
+            <CloseOutlined />
+          </button>
+          {loading && <Spin size="large" />}
+          <span role={loading ? 'status' : 'alert'}>
+            {loading ? '正在加载视频信息…' : '视频信息加载失败'}
+          </span>
         </div>
       )}
     </Modal>

@@ -37,6 +37,7 @@ function isControl(target: EventTarget | null) {
 export function useVideoPlayerGestures(
   videoRef: RefObject<HTMLVideoElement | null>,
   showControls: () => void,
+  toggleControls: () => void,
   togglePlayback: () => void,
 ) {
   const gestureRef = useRef<Gesture | null>(null)
@@ -175,7 +176,6 @@ export function useVideoPlayerGestures(
       gesture.video.currentTime = gesture.seekTarget
       showControls()
     } else if (gesture.mode === 'pending') {
-      showControls()
       const lastTap = lastTapRef.current
       if (
         lastTap &&
@@ -183,8 +183,10 @@ export function useVideoPlayerGestures(
         Math.hypot(event.clientX - lastTap.x, event.clientY - lastTap.y) <= 32
       ) {
         lastTapRef.current = null
+        showControls()
         togglePlayback()
       } else {
+        toggleControls()
         lastTapRef.current = {
           time: event.timeStamp,
           x: event.clientX,

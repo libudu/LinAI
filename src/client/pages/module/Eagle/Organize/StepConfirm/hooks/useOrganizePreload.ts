@@ -66,8 +66,11 @@ export function useOrganizePreload({
       failedDetailIdsRef.current.add(itemId)
     } finally {
       fetchingDetailIdsRef.current.delete(itemId)
-      // 库变更发生在旧请求途中时，唤醒预加载以补拉最新详情。
-      if (revision !== libraryRevisionRef.current)
+      // 过期请求唤醒预加载补拉；失败也触发渲染，以结束详情加载状态。
+      if (
+        revision !== libraryRevisionRef.current ||
+        failedDetailIdsRef.current.has(itemId)
+      )
         setDetailsMap((current) => ({ ...current }))
     }
   }, [])

@@ -301,6 +301,7 @@ export const getItemDetail = async (
     width: item.width,
     height: item.height,
     size: item.size,
+    mtime: item.mtime,
     folderPaths: resolveFolderPaths(index.folders, item.folders),
   }
 }

@@ -359,6 +359,8 @@ export interface OrganizeResultListItem {
 
 /** 单图结果详情（GET /api/eagle/organize/results/:itemId），附条目当前名称便于对比建议标题 */
 export interface OrganizeResultDetail extends OrganizeItemRecord {
+  /** 原文件修改时间，供确认页媒体预览展示。 */
+  mtime?: number
   /** Eagle 条目当前名称；条目已从库中删除时为 null */
   itemName: string | null
   /** 当前原文件扩展名和媒体内容版本，供确认页复用媒体预览。 */

@@ -173,6 +173,7 @@ export class ResultService {
       width: entry?.width,
       height: entry?.height,
       size: entry?.size,
+      mtime: entry?.mtime,
     }
   }
 

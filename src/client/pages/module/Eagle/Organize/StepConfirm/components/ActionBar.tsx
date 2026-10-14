@@ -10,6 +10,38 @@ interface ActionBarProps {
   onConfirm: () => void
 }
 
+export function ConfirmActions({
+  selectedId,
+  canConfirm,
+  onClearClassification,
+  onConfirm,
+  disabled = false,
+}: Pick<
+  ActionBarProps,
+  'selectedId' | 'canConfirm' | 'onClearClassification' | 'onConfirm'
+> & { disabled?: boolean }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {onClearClassification && (
+        <Button
+          disabled={disabled || !selectedId}
+          onClick={onClearClassification}
+          title="清空目录归属，并使用推荐文件名重命名"
+        >
+          移至未分类(A)
+        </Button>
+      )}
+      <Button
+        type="primary"
+        disabled={disabled || !selectedId || !canConfirm}
+        onClick={onConfirm}
+      >
+        确认(D)
+      </Button>
+    </div>
+  )
+}
+
 export function ActionBar({
   selectedId,
   canConfirm,
@@ -32,24 +64,12 @@ export function ActionBar({
           不处理(S)
         </Button>
       </div>
-      <div className="flex flex-wrap gap-2">
-        {onClearClassification && (
-          <Button
-            disabled={!selectedId}
-            onClick={onClearClassification}
-            title="清空目录归属，并使用推荐文件名重命名"
-          >
-            清除分类手动处理(A)
-          </Button>
-        )}
-        <Button
-          type="primary"
-          disabled={!selectedId || !canConfirm}
-          onClick={onConfirm}
-        >
-          确认(D)
-        </Button>
-      </div>
+      <ConfirmActions
+        selectedId={selectedId}
+        canConfirm={canConfirm}
+        onClearClassification={onClearClassification}
+        onConfirm={onConfirm}
+      />
     </div>
   )
 }

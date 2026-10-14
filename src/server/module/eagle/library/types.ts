@@ -93,6 +93,8 @@ export interface EagleItemDetail {
   readonly width: number
   readonly height: number
   readonly size: number
+  /** 原文件修改时间。 */
+  readonly mtime: number
   readonly folderPaths: string[]
 }
 

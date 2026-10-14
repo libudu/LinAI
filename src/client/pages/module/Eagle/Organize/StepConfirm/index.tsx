@@ -5,6 +5,7 @@ import type {
 import { Button, Empty, Spin } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { confirmDeleteEagleItem } from '../../components/confirmDeleteModal'
+import { VideoPreview } from '../../components/VideoPreview'
 import { buildFolderMap, collectFolderKeys, findFolder } from '../../folders'
 import { useEagleStore } from '../../store'
 import {
@@ -12,7 +13,8 @@ import {
   retryOrganizeResult,
   skipOrganizeResult,
 } from '../api'
-import { ActionBar } from './components/ActionBar'
+import { useOrganizeMedia } from '../media'
+import { ActionBar, ConfirmActions } from './components/ActionBar'
 import { ConfirmControls } from './components/ConfirmControls'
 import { ConfirmImageViewer } from './components/ConfirmImageViewer'
 import { DetailPanel } from './components/DetailPanel'
@@ -35,6 +37,9 @@ export function StepConfirm({
   onSwitchToRunning?: () => void
 }) {
   const folders = useEagleStore((s) => s.folders)
+  const { mediaType } = useOrganizeMedia()
+  const [videoPreviewOpen, setVideoPreviewOpen] = useState(false)
+  const [videoPreviewSaving, setVideoPreviewSaving] = useState(false)
   const renameOnly = task?.classificationMode === 'recursive-rename'
   const manualFolderScope = useMemo(() => {
     if (task?.classificationMode !== 'subfolders') return undefined
@@ -87,8 +92,38 @@ export function StepConfirm({
   const { detail, detailLoading } = useOrganizePreload({
     results,
     selectedId,
-    quickMode,
+    quickMode: quickMode && !videoPreviewOpen,
   })
+
+  // 预览跟随确认列表的选中项；下一项详情加载期间保持弹窗打开。
+  const videoItem =
+    mediaType === 'video' &&
+    selectedId &&
+    detail?.itemId === selectedId &&
+    detail.itemName !== null &&
+    detail.itemExt &&
+    detail.contentVersion &&
+    detail.size !== undefined
+      ? {
+          id: selectedId,
+          name: detail.itemName,
+          ext: detail.itemExt,
+          contentVersion: detail.contentVersion,
+          size: detail.size,
+          mtime: detail.mtime,
+          width: detail.width,
+          height: detail.height,
+        }
+      : null
+
+  const handlePreviewVideo = useCallback(
+    (itemId: string) => {
+      if (videoPreviewSaving) return
+      setSelectedId(itemId)
+      setVideoPreviewOpen(true)
+    },
+    [setSelectedId, videoPreviewSaving],
+  )
 
   const {
     folderPaths,
@@ -123,6 +158,7 @@ export function StepConfirm({
 
   // 5. 确认操作分流
   const handleRunConfirm = useCallback(async () => {
+    if (videoPreviewSaving || (videoPreviewOpen && !videoItem)) return
     // 快速模式：直接按首选推荐分类确认当前选中项
     if (quickMode) {
       if (selectedItem) {
@@ -158,6 +194,9 @@ export function StepConfirm({
     selectedManualFolder,
     isTitleEnabled,
     withTitle,
+    videoPreviewSaving,
+    videoPreviewOpen,
+    videoItem,
   ])
 
   // 6. 移到回收站操作
@@ -169,14 +208,21 @@ export function StepConfirm({
     })
   }, [detail?.itemName, selectedId, trashItem])
 
-  // 7. 绑定快捷键（A: 清除分类, S: 不处理, D: 确认）
+  const handleClearCurrentClassification = useCallback(() => {
+    if (renameOnly || videoPreviewSaving || (videoPreviewOpen && !videoItem))
+      return
+    void runAction(clearOrganizeResultClassification)
+  }, [renameOnly, runAction, videoPreviewSaving, videoPreviewOpen, videoItem])
+
+  // 7. 绑定快捷键（A: 移至未分类, S: 不处理, D: 确认）
   useConfirmShortcuts({
-    onClear: () => {
-      if (!renameOnly) void runAction(clearOrganizeResultClassification)
-    },
+    onClear: handleClearCurrentClassification,
     onSkip: () => runAction(skipOrganizeResult),
     onConfirm: () => void handleRunConfirm(),
-    disabled: results.length === 0,
+    disabled:
+      results.length === 0 ||
+      videoPreviewSaving ||
+      (videoPreviewOpen && !videoItem),
   })
 
   const handleClearClassification = useCallback(
@@ -253,6 +299,7 @@ export function StepConfirm({
               results={results}
               selectedId={selectedId}
               onSelect={setSelectedId}
+              onPreviewVideo={handlePreviewVideo}
               onConfirmItem={handleQuickItemConfirm}
               onClearClassification={
                 renameOnly ? undefined : handleClearClassification
@@ -285,6 +332,9 @@ export function StepConfirm({
               selectedId={selectedId}
               item={selectedItem}
               detail={detail}
+              onPreviewVideo={() => {
+                if (selectedId) handlePreviewVideo(selectedId)
+              }}
             />
 
             <DetailPanel
@@ -304,21 +354,39 @@ export function StepConfirm({
             />
           </div>
 
-          {/* 底部操作：移到回收站 / 清除分类 / 不处理 / 重新执行 / 确认 */}
+          {/* 底部操作：移到回收站 / 移至未分类 / 不处理 / 重新执行 / 确认 */}
           <ActionBar
             selectedId={selectedId}
             canConfirm={canConfirm}
             onDelete={handleDelete}
             onClearClassification={
-              renameOnly
-                ? undefined
-                : () => runAction(clearOrganizeResultClassification)
+              renameOnly ? undefined : handleClearCurrentClassification
             }
             onSkip={() => runAction(skipOrganizeResult)}
             onRetry={() => runAction(retryOrganizeResult)}
             onConfirm={() => void handleRunConfirm()}
           />
         </>
+      )}
+      {mediaType === 'video' && (
+        <VideoPreview
+          open={videoPreviewOpen && Boolean(selectedId)}
+          loading={detailLoading}
+          item={videoPreviewOpen ? videoItem : null}
+          onClose={() => setVideoPreviewOpen(false)}
+          onBusyChange={setVideoPreviewSaving}
+          toolbarExtra={
+            <ConfirmActions
+              selectedId={selectedId}
+              canConfirm={quickMode ? Boolean(selectedItem) : canConfirm}
+              disabled={videoPreviewSaving || !videoItem}
+              onClearClassification={
+                renameOnly ? undefined : handleClearCurrentClassification
+              }
+              onConfirm={() => void handleRunConfirm()}
+            />
+          }
+        />
       )}
     </div>
   )

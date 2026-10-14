@@ -44,6 +44,12 @@ export function VideoPlayer({
     setControlsVisible(true)
     setControlsActivity((value) => value + 1)
   }
+  const toggleControls = () => {
+    setControlsVisible((visible) => !visible)
+    setControlsActivity((value) => value + 1)
+    setControlsHovered(false)
+    setControlsFocused(false)
+  }
   const rates = [
     ...new Set([0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 3, 4, playbackRate]),
   ].sort((a, b) => a - b)
@@ -65,6 +71,7 @@ export function VideoPlayer({
   const { active, feedback, handlers } = useVideoPlayerGestures(
     videoRef,
     showControls,
+    toggleControls,
     togglePlayback,
   )
   const displayedTime = feedback?.mode === 'seek' ? feedback.time : currentTime
@@ -94,11 +101,11 @@ export function VideoPlayer({
       className="relative h-full w-full touch-none select-none"
       role="group"
       aria-label="视频播放器"
-      aria-description="单击显示控件，双击播放或暂停，长按临时使用 2 倍速，左右拖动后松开跳转进度"
+      aria-description="单击显示或隐藏控件，双击播放或暂停，长按临时使用 2 倍速，左右拖动后松开跳转进度"
       tabIndex={0}
       onClick={(event) => {
         // 指针点击由手势统一处理，兼容辅助技术发出的无指针点击。
-        if (event.detail === 0) showControls()
+        if (event.detail === 0) toggleControls()
       }}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return

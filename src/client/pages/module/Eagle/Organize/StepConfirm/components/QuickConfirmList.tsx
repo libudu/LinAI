@@ -8,11 +8,9 @@ import {
   WarningOutlined,
 } from '@ant-design/icons'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Button, Image, message } from 'antd'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { fetchEagleItemDetail } from '../../../api'
+import { Button, Image } from 'antd'
+import React, { useEffect, useMemo, useRef } from 'react'
 import { RotatableImage } from '../../../components/RotatableImage'
-import { VideoPreview } from '../../../components/VideoPreview'
 import { useOrganizeMedia } from '../../media'
 import {
   SPECIAL_CATEGORY_LOW_QUALITY,
@@ -28,6 +26,7 @@ interface QuickCardProps {
   result: OrganizeResultListItem
   isSelected: boolean
   onSelect: (itemId: string) => void
+  onPreviewVideo: (itemId: string) => void
   onConfirmItem: (item: OrganizeResultListItem) => void
   onClearClassification?: (item: OrganizeResultListItem) => void
   onSkipItem: (item: OrganizeResultListItem) => void
@@ -37,14 +36,12 @@ const QuickCard = React.memo(function QuickCard({
   result,
   isSelected,
   onSelect,
+  onPreviewVideo,
   onConfirmItem,
   onClearClassification,
   onSkipItem,
 }: QuickCardProps) {
   const { previewUrl, mediaType } = useOrganizeMedia()
-  const [videoItem, setVideoItem] = useState<
-    ({ id: string } & Awaited<ReturnType<typeof fetchEagleItemDetail>>) | null
-  >(null)
   const src = `${previewUrl(result.itemId)}?v=${result.lastModified ?? ''}`
   const categoryName = getOrganizeItemCategory(result)
 
@@ -66,15 +63,7 @@ const QuickCard = React.memo(function QuickCard({
           <Image
             src={src}
             preview={false}
-            onClick={() => {
-              void fetchEagleItemDetail(result.itemId)
-                .then((item) => setVideoItem({ id: result.itemId, ...item }))
-                .catch((error) =>
-                  message.error(
-                    error instanceof Error ? error.message : '加载视频信息失败',
-                  ),
-                )
-            }}
+            onClick={() => onPreviewVideo(result.itemId)}
             classNames={{
               root: 'h-full w-full flex items-center justify-center',
               image: 'h-full! w-full! object-contain! cursor-pointer',
@@ -111,7 +100,6 @@ const QuickCard = React.memo(function QuickCard({
           </div>
         )}
       </div>
-      <VideoPreview item={videoItem} onClose={() => setVideoItem(null)} />
 
       {/* 底部信息与操作栏 */}
       <div className="flex shrink-0 flex-col gap-2 border-t border-slate-100 p-3 dark:border-slate-700/60">
@@ -141,7 +129,7 @@ const QuickCard = React.memo(function QuickCard({
               }}
               className="px-1 text-xs"
             >
-              清除分类(A)
+              移至未分类(A)
             </Button>
           )}
           <Button
@@ -164,6 +152,7 @@ interface QuickConfirmListProps {
   results: OrganizeResultListItem[]
   selectedId: string | null
   onSelect: (itemId: string) => void
+  onPreviewVideo: (itemId: string) => void
   onConfirmItem: (item: OrganizeResultListItem) => void
   onClearClassification?: (item: OrganizeResultListItem) => void
   onSkipItem: (item: OrganizeResultListItem) => void
@@ -175,6 +164,7 @@ export function QuickConfirmList({
   results,
   selectedId,
   onSelect,
+  onPreviewVideo,
   onConfirmItem,
   onClearClassification,
   onSkipItem,
@@ -288,6 +278,7 @@ export function QuickConfirmList({
                     result={item.result}
                     isSelected={item.result.itemId === selectedId}
                     onSelect={onSelect}
+                    onPreviewVideo={onPreviewVideo}
                     onConfirmItem={onConfirmItem}
                     onClearClassification={onClearClassification}
                     onSkipItem={onSkipItem}
