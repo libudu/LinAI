@@ -59,8 +59,11 @@ export function ThumbnailBar({
     overscan: 6,
   })
 
+  const previousPinnedCategoryRef = useRef(pinnedCategory)
   useEffect(() => {
-    if (sortType === 'category' && pinnedCategory) {
+    const clearedPin = previousPinnedCategoryRef.current && !pinnedCategory
+    previousPinnedCategoryRef.current = pinnedCategory
+    if ((sortType === 'category' && pinnedCategory) || clearedPin) {
       virtualizer.scrollToOffset(0)
     }
   }, [pinnedCategory, sortType, virtualizer])

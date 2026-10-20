@@ -22,6 +22,20 @@ export const getOrganizeItemCategory = (
   return item.folderPaths?.[0] || SPECIAL_CATEGORY_UNCLASSIFIED
 }
 
+/** 普通类别覆盖自身及所有子类；特殊分堆只匹配自身。 */
+export const isOrganizeCategoryInScope = (
+  category: string,
+  scope: string,
+): boolean =>
+  category === scope ||
+  (![SPECIAL_CATEGORY_LOW_QUALITY, SPECIAL_CATEGORY_UNCLASSIFIED].includes(
+    category,
+  ) &&
+    ![SPECIAL_CATEGORY_LOW_QUALITY, SPECIAL_CATEGORY_UNCLASSIFIED].includes(
+      scope,
+    ) &&
+    category.startsWith(`${scope}/`))
+
 /**
  * 分类顺序锁（Category Order Lock）：
  * 解决在图片整理确认过程中，某一分类的图片随着处理越来越少，重开窗口时由于剩余数量减少导致
@@ -86,7 +100,7 @@ export function getOrUpdateCategoryOrder(
  * 待确认结果多维排序函数：
  *
  * 1. category（图片分类，默认）：
- *    - 手动置顶类别优先于全部默认分类，其他类别沿用原有顺序
+ *    - 手动置顶类别及其子类优先于全部默认分类，范围内按目录树顺序排列，其他类别沿用原有顺序
  *    - 第一层：特殊分类置顶 —— 疑似低质（优先级 0）> 未分类（优先级 1）> 常规分类（优先级 2）
  *    - 第二层：常规分类次序 —— 严格遵循任务固化的 categoryOrder（避免中途数量减少排位跳动）
  *    - 第三层：固化表外兜底 —— 按当前剩余数量从多到少，数量相同时按文件夹树先后顺序排
@@ -148,7 +162,8 @@ export function sortOrganizeResults(
 
     // 特殊置顶分类优先级定义
     const getCategoryPriority = (cat: string): number => {
-      if (cat === pinnedCategory) return -1 // 手动选择的分堆优先于默认特殊分类
+      if (pinnedCategory && isOrganizeCategoryInScope(cat, pinnedCategory))
+        return -1 // 手动选择的类别及其子类优先于默认特殊分类
       if (cat === SPECIAL_CATEGORY_LOW_QUALITY) return 0 // 疑似低质最先展示
       if (cat === SPECIAL_CATEGORY_UNCLASSIFIED) return 1 // 无法分类其次展示
       return 2 // 常规文件夹分类
@@ -168,6 +183,17 @@ export function sortOrganizeResults(
       const priorityB = getCategoryPriority(catB)
       if (priorityA !== priorityB) {
         return priorityA - priorityB
+      }
+
+      // 置顶父类时，自身条目在前，子类按目录树的深度优先顺序排列。
+      if (priorityA === -1) {
+        if (catA === pinnedCategory) return -1
+        if (catB === pinnedCategory) return 1
+        return (
+          (folderOrderMap.get(catA) ?? Number.MAX_SAFE_INTEGER) -
+            (folderOrderMap.get(catB) ?? Number.MAX_SAFE_INTEGER) ||
+          catA.localeCompare(catB, 'zh-CN')
+        )
       }
 
       // 2. 常规分类优先使用固化顺序表（保证中途确认数量递减时不会乱跳）

@@ -41,8 +41,24 @@ export function PinnedCategoryControl({
     }
     return counts
   }, [results])
-  const activeCategory =
-    pinnedCategory && counts.has(pinnedCategory) ? pinnedCategory : null
+  const selectableCounts = useMemo(() => {
+    const totals = new Map(counts)
+    for (const [category, count] of counts) {
+      if (SPECIAL_CATEGORIES.includes(category)) continue
+      const parts = category.split('/')
+      for (let depth = 1; depth < parts.length; depth++) {
+        const parent = parts.slice(0, depth).join('/')
+        if (!SPECIAL_CATEGORIES.includes(parent)) {
+          totals.set(parent, (totals.get(parent) ?? 0) + count)
+        }
+      }
+    }
+    return totals
+  }, [counts])
+  const activeCategory = pinnedCategory
+  const remainingCount = activeCategory
+    ? (selectableCounts.get(activeCategory) ?? 0)
+    : 0
   const buttonLabel = activeCategory?.split('/').pop() || '选择类别'
   const treeData = useMemo<TreeDataNode[]>(() => {
     const tree: TreeDataNode[] = SPECIAL_CATEGORIES.filter((category) =>
@@ -70,7 +86,7 @@ export function PinnedCategoryControl({
         if (!node) {
           const count = SPECIAL_CATEGORIES.includes(path)
             ? undefined
-            : counts.get(path)
+            : selectableCounts.get(path)
           node = {
             key: `folder:${path}`,
             title: count ? `${parts[index]}（${count}）` : parts[index],
@@ -84,7 +100,7 @@ export function PinnedCategoryControl({
       }
     }
     return tree
-  }, [counts, folders])
+  }, [counts, folders, selectableCounts])
 
   return (
     <>
@@ -96,17 +112,24 @@ export function PinnedCategoryControl({
         <Button
           type={activeCategory ? 'primary' : 'default'}
           title={
-            activeCategory ? `已置顶：${activeCategory}` : '选择优先整理的类别'
+            activeCategory
+              ? `已置顶：${activeCategory}（剩余 ${remainingCount} 个）`
+              : '选择优先整理的类别'
           }
           aria-label={
             activeCategory
-              ? `置顶待确认类别：${activeCategory}`
+              ? `置顶待确认类别：${activeCategory}（剩余 ${remainingCount} 个）`
               : '选择置顶待确认类别'
           }
           className="w-36 shrink-0"
           onClick={() => setOpen(true)}
         >
-          <span className="min-w-0 flex-1 truncate">{buttonLabel}</span>
+          <span className="inline-flex max-w-full min-w-0 items-center">
+            <span className="min-w-0 truncate">{buttonLabel}</span>
+            {activeCategory && (
+              <span className="shrink-0">（{remainingCount}）</span>
+            )}
+          </span>
         </Button>
       </div>
       <FolderTreeSelectModal
@@ -119,7 +142,7 @@ export function PinnedCategoryControl({
         onClose={() => setOpen(false)}
         onConfirm={(key) => {
           const category = key.slice(key.indexOf(':') + 1)
-          if (counts.has(category)) onChange(category)
+          if (selectableCounts.has(category)) onChange(category)
         }}
         onClear={() => onChange(null)}
         clearDisabled={!activeCategory}

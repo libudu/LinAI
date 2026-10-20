@@ -14,6 +14,7 @@ import type { OrganizeSortType, PendingConfirmItem } from '../types'
 import {
   getOrganizeItemCategory,
   getOrUpdateCategoryOrder,
+  isOrganizeCategoryInScope,
   sortOrganizeResults,
 } from '../utils/sort'
 import {
@@ -234,19 +235,57 @@ export function useConfirmResults({
   const handlePinnedCategoryChange = useCallback(
     (category: string | null) => {
       if (!taskId) return
-      const firstItem = category
-        ? resultsRef.current.find(
-            (item) => getOrganizeItemCategory(item) === category,
-          )
-        : undefined
-      if (category && !firstItem) return
+      if (
+        category &&
+        !resultsRef.current.some((item) =>
+          isOrganizeCategoryInScope(getOrganizeItemCategory(item), category),
+        )
+      )
+        return
+      // 同步更新排序与选择，取消置顶时回到恢复排序后的首项。
+      const sorted = sortOrganizeResults(
+        resultsRef.current,
+        category ? 'category' : sortType,
+        folders,
+        getSavedCategoryOrder(taskCreatedAt),
+        category,
+      )
       setCategoryPin({ taskId, category })
       savePinnedCategory(taskId, category)
       if (category) handleSortTypeChange('category')
-      if (firstItem) setSelectedId(firstItem.itemId)
+      replaceResults(sorted)
+      setSelectedId(sorted[0]?.itemId ?? null)
     },
-    [handleSortTypeChange, taskId],
+    [
+      folders,
+      handleSortTypeChange,
+      replaceResults,
+      sortType,
+      taskCreatedAt,
+      taskId,
+    ],
   )
+
+  useEffect(() => {
+    // 已接受当前任务的结果后才检查，避免首次加载或切换任务时误清空置顶。
+    if (
+      loading ||
+      !pinnedCategory ||
+      snapshotTaskRef.current !== taskId ||
+      !versionsRef.current.resultsVersion
+    )
+      return
+    if (
+      !resultsRef.current.some((item) =>
+        isOrganizeCategoryInScope(
+          getOrganizeItemCategory(item),
+          pinnedCategory,
+        ),
+      )
+    ) {
+      handlePinnedCategoryChange(null)
+    }
+  }, [handlePinnedCategoryChange, loading, pinnedCategory, results, taskId])
 
   /** 乐观移除与选中项切换只有这一份实现，普通/快速/单图操作共用。 */
   const removeItem = useCallback(
