@@ -9,7 +9,7 @@ const client = settingsClient<NovelSettings>('novel')
 // 走注册式设置接口 /api/settings/novel
 interface NovelConfigState extends NovelSettings {
   revision: number
-  fetchNovelConfig: () => Promise<void>
+  fetchNovelConfig: () => Promise<boolean>
   setNovelConfig: (
     apiKey: string | null,
     baseUrl: string | null,
@@ -26,8 +26,10 @@ export const useNovelConfig = create<NovelConfigState>()((set, get) => ({
     try {
       const res = await client.get()
       set({ ...res.value, revision: res.revision })
+      return true
     } catch (error) {
       console.error('Failed to fetch novel config', error)
+      return false
     }
   },
   setNovelConfig: async (apiKey, baseUrl, modelId) => {
@@ -44,6 +46,7 @@ export const useNovelConfig = create<NovelConfigState>()((set, get) => ({
     } catch (error) {
       console.error('Failed to update novel config', error)
       message.error('设置保存失败')
+      throw error
     }
   },
 }))

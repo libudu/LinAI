@@ -1,5 +1,11 @@
-import { Form, Input, InputNumber, message } from 'antd'
-import { createRef, forwardRef, useEffect, useImperativeHandle } from 'react'
+import { Alert, Button, Form, Input, InputNumber, message, Spin } from 'antd'
+import {
+  createRef,
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useState,
+} from 'react'
 import { openCommonSettingModal } from '../../../common/components/SettingModal'
 import { DEFAULT_RECENT_FULL_CHAPTERS } from '../service/constants'
 import { useNovelStore } from '../store'
@@ -11,11 +17,33 @@ interface NovelSettingRef {
 
 const NovelSetting = forwardRef<NovelSettingRef>((_props, ref) => {
   const [form] = Form.useForm()
-  const { novelApiKey, novelBaseUrl, novelModelId, setNovelConfig } =
-    useNovelConfig()
+  const [loadStatus, setLoadStatus] = useState<'loading' | 'ready' | 'error'>(
+    'loading',
+  )
+  const [loadAttempt, setLoadAttempt] = useState(0)
+  const {
+    novelApiKey,
+    novelBaseUrl,
+    novelModelId,
+    fetchNovelConfig,
+    setNovelConfig,
+  } = useNovelConfig()
   const { currentNovel, updateNovelMeta } = useNovelStore()
 
   useEffect(() => {
+    let active = true
+    // 侧边栏可直接打开设置，不能依赖小说页面挂载时才读取配置。
+    setLoadStatus('loading')
+    void fetchNovelConfig().then((success) => {
+      if (active) setLoadStatus(success ? 'ready' : 'error')
+    })
+    return () => {
+      active = false
+    }
+  }, [fetchNovelConfig, loadAttempt])
+
+  useEffect(() => {
+    if (loadStatus !== 'ready') return
     form.setFieldsValue({
       apiKey: novelApiKey || '',
       baseUrl: novelBaseUrl || 'https://api.deepseek.com',
@@ -23,10 +51,16 @@ const NovelSetting = forwardRef<NovelSettingRef>((_props, ref) => {
       recentFullChapters:
         currentNovel?.recentFullChapters ?? DEFAULT_RECENT_FULL_CHAPTERS,
     })
-  }, [novelApiKey, novelBaseUrl, novelModelId, currentNovel, form])
+  }, [loadStatus, novelApiKey, novelBaseUrl, novelModelId, currentNovel, form])
 
   useImperativeHandle(ref, () => ({
     save: async () => {
+      if (loadStatus !== 'ready') {
+        message.warning(
+          loadStatus === 'loading' ? '配置正在加载，请稍候' : '请先重试加载配置',
+        )
+        throw new Error('小说配置尚未加载成功')
+      }
       const values = await form.validateFields()
       if (!values.apiKey) {
         message.warning('请输入 API Key')
@@ -50,6 +84,29 @@ const NovelSetting = forwardRef<NovelSettingRef>((_props, ref) => {
       return values.apiKey as string
     },
   }))
+
+  if (loadStatus === 'loading') {
+    return (
+      <div className="flex min-h-[200px] items-center justify-center">
+        <Spin />
+      </div>
+    )
+  }
+
+  if (loadStatus === 'error') {
+    return (
+      <Alert
+        type="error"
+        showIcon
+        title="小说配置加载失败，请重试"
+        action={
+          <Button size="small" onClick={() => setLoadAttempt((value) => value + 1)}>
+            重试
+          </Button>
+        }
+      />
+    )
+  }
 
   return (
     <div className="px-4 py-2">
