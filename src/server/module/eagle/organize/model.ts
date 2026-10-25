@@ -1,5 +1,7 @@
 import {
   ORGANIZE_CONCURRENCY_DEFAULT,
+  ORGANIZE_CONCURRENCY_MAX,
+  ORGANIZE_CONCURRENCY_MIN,
   type OrganizeClassificationMode,
   type OrganizeFolderStandard,
   type OrganizeItemRecord,
@@ -77,7 +79,13 @@ export const normalizeOrganizeTask = (
   folderName: task.folderName ?? '全部',
   successCount: task.successCount ?? 0,
   failedCount: task.failedCount ?? 0,
-  concurrency: task.concurrency ?? ORGANIZE_CONCURRENCY_DEFAULT,
+  concurrency: Math.min(
+    ORGANIZE_CONCURRENCY_MAX,
+    Math.max(
+      ORGANIZE_CONCURRENCY_MIN,
+      task.concurrency ?? ORGANIZE_CONCURRENCY_DEFAULT,
+    ),
+  ),
 })
 
 /** 兼容只发生在载入/写入边界；当前空数组优先于旧单分类字段。 */

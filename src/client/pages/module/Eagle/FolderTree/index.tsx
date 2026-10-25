@@ -208,7 +208,9 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
           onExpand={handleExpand}
           selectedKeys={[currentFolderId]}
           onSelect={(keys) => {
-            selectFolder((keys[0] as string) ?? '')
+            // 重复点击已选节点时 Tree 会返回空数组，保留当前目录。
+            if (keys.length === 0) return
+            selectFolder(keys[0] as string)
             onSelected?.()
           }}
           showIcon

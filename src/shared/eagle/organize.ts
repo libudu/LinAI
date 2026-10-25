@@ -90,10 +90,10 @@ export interface OrganizeTaskView {
   failedCount: number
 }
 
-/** 队列执行并发数：创建任务时用户输入，默认 20，范围 1~20 */
-export const ORGANIZE_CONCURRENCY_DEFAULT = 20
+/** 图片与视频整理的队列执行并发数：创建任务时用户输入，默认 10，范围 1~10 */
+export const ORGANIZE_CONCURRENCY_DEFAULT = 10
 export const ORGANIZE_CONCURRENCY_MIN = 1
-export const ORGANIZE_CONCURRENCY_MAX = 20
+export const ORGANIZE_CONCURRENCY_MAX = 10
 
 /** 步骤 1 准备数据（GET /api/eagle/organize/:mediaType/prepare） */
 export interface OrganizePrepareResp {

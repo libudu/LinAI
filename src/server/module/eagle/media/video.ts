@@ -124,7 +124,7 @@ export const getVideoContactSheet = async (
       const stored = await readVideoContactSheet(source, stat)
       signal?.throwIfAborted()
       if (stored) return stored
-      // 限制本地解码并发，不随视觉请求并发（最多 20）启动大量 FFmpeg。
+      // 限制本地解码并发，不随视觉请求并发启动大量 FFmpeg。
       return resourceLock.run('eagle.video-decoder', async () => {
         signal?.throwIfAborted()
         const { duration } = await readVideoMetadata(source.filePath, signal)
