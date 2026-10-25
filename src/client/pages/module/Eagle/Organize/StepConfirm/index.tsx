@@ -86,6 +86,7 @@ export function StepConfirm({
     taskId: task?.taskId,
     taskCreatedAt: task?.createdAt,
     folders,
+    standards: task?.standards,
     renameOnly,
   })
 
@@ -128,10 +129,12 @@ export function StepConfirm({
 
   const {
     folderPaths,
+    folderIds,
     displayedManualFolders,
     activeOptionKey,
     selectedManualFolder,
     selectedFolderPath,
+    selectedFolderId,
     pinnedOption,
     handleTogglePin,
     onManualFolderSelect,
@@ -146,6 +149,8 @@ export function StepConfirm({
     taskCreatedAt: task?.createdAt,
     selectedId,
     folderPaths: detail?.folderPaths,
+    folderIds: detail?.folderIds,
+    standards: task?.standards,
     needsRename: detail?.needsRename,
     manualFolderScope,
   })
@@ -181,7 +186,7 @@ export function StepConfirm({
     confirmCurrentItem({
       folderPath: renameOnly ? '未分类' : selectedFolderPath!,
       withTitle,
-      folderId: renameOnly ? undefined : selectedManualFolder?.folderId,
+      folderId: renameOnly ? undefined : selectedFolderId,
     })
   }, [
     canConfirm,
@@ -191,6 +196,7 @@ export function StepConfirm({
     quickMode,
     recordManualFolderUsage,
     selectedFolderPath,
+    selectedFolderId,
     selectedId,
     selectedItem,
     selectedManualFolder,
@@ -348,6 +354,7 @@ export function StepConfirm({
               activeOptionKey={activeOptionKey}
               onSelectOptionKey={selectOption}
               folderPaths={folderPaths}
+              folderIds={folderIds}
               displayedManualFolders={displayedManualFolders}
               onRemoveManualFolder={onRemoveManualFolder}
               onManualFolderSelect={onManualFolderSelect}

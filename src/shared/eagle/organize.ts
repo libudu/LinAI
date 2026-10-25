@@ -147,6 +147,8 @@ export interface OrganizeItemRecord {
   title?: string
   /** AI 判定的候选目标文件夹，按推荐顺序排列，最多 3 个（success 时有值；空数组表示不属于任何已知分类） */
   folderPaths?: string[]
+  /** 与 folderPaths 一一对应的稳定目录 ID；空字符串表示旧结果无法解析的目标。 */
+  folderIds?: string[]
   /** 疑似低质（子目录分类不判定、不返回此字段） */
   lowQuality?: boolean
   /** 失败原因（failed 时有值） */
@@ -331,6 +333,7 @@ export interface OrganizeItemSummary {
   needsRename?: boolean
   /** AI 判定的候选目标文件夹，按推荐顺序排列（用于按分类排序） */
   folderPaths?: string[]
+  folderIds?: string[]
   /** 疑似低质（用于优先展示，子目录分类不返回） */
   lowQuality?: boolean
 }
@@ -343,6 +346,7 @@ export interface OrganizeResultListItem {
   needsRename?: boolean
   /** AI 判定的候选目标文件夹，按推荐顺序排列（用于按分类排序） */
   folderPaths?: string[]
+  folderIds?: string[]
   /** 疑似低质（用于优先展示，子目录分类不返回） */
   lowQuality?: boolean
   /** 图片修改时间（用于按修改时间排序） */

@@ -1,5 +1,4 @@
 import type {
-  OrganizeClassificationMode,
   OrganizeConfirmBatchResult,
   OrganizeConfirmItemResult,
   OrganizeItemRecord,
@@ -18,6 +17,8 @@ import {
 } from '../../library'
 import { getEagleVisionEndpoint } from '../../settings'
 import type { OrganizeExecutor } from '../executor'
+import { bindOrganizeFolderIds, getOrganizeFolderPaths } from '../folders'
+import type { OrganizeTaskRecord } from '../model'
 import type { OrganizeRepository } from '../storage'
 import { transitionTask } from '../transitions'
 import {
@@ -32,14 +33,27 @@ import type {
   OrganizeTrashResult,
 } from './types'
 
-/** 子目录分类的旧结果也不再向确认视图返回低质标记。 */
-const toResultData = <T extends { lowQuality?: boolean }>(
+/** 展示按稳定 ID 解析当前路径；子目录分类不返回低质标记。 */
+const toResultData = <
+  T extends Pick<
+    OrganizeItemRecord,
+    'lowQuality' | 'folderPaths' | 'folderIds'
+  >,
+>(
   item: T,
-  classificationMode?: OrganizeClassificationMode,
+  task: OrganizeTaskRecord | null,
+  paths: Map<string, string>,
 ): T => {
-  if (classificationMode !== 'subfolders') return item
-  const result = { ...item }
-  delete result.lowQuality
+  const folderIds = bindOrganizeFolderIds(item, task?.standards ?? [])
+  const result = {
+    ...item,
+    folderIds,
+    // 删除的目录保留旧名称与原 ID，确认时明确报错，不能误归入同名新目录。
+    folderPaths: (item.folderPaths ?? []).map(
+      (path, index) => paths.get(folderIds[index]) ?? path,
+    ),
+  }
+  if (task?.classificationMode === 'subfolders') delete result.lowQuality
   return result
 }
 
@@ -73,15 +87,16 @@ export class ResultService {
   ): Promise<OrganizeResultListItem[]> {
     const list = await this.repository.listItems(status, options)
     // 分页后再查询素材投影，limit 较小时不再生成全结果的 ID/摘要 Map。
-    const [itemMap, endpoint, task] = await Promise.all([
+    const [itemMap, endpoint, task, paths] = await Promise.all([
       getItemSnapshots(list.map((item) => item.itemId)),
       getEagleVisionEndpoint(),
       this.repository.getTask(),
+      getOrganizeFolderPaths(),
     ])
     return list.map((item) => {
       const entry = itemMap?.get(item.itemId)
       return {
-        ...toResultData(item, task?.classificationMode),
+        ...toResultData(item, task, paths),
         needsRename:
           item.needsRename !== false &&
           needsOrganizeRename(entry?.name ?? '', endpoint.modelId),
@@ -112,10 +127,11 @@ export class ResultService {
       : await this.repository.getItemSummaries(changedIds)
     const succeeded = summaries.filter((item) => item.status === 'success')
     const successIds = new Set(succeeded.map((item) => item.itemId))
-    const [itemMap, endpoint, task] = await Promise.all([
+    const [itemMap, endpoint, task, paths] = await Promise.all([
       getItemSnapshots(succeeded.map((item) => item.itemId)),
       getEagleVisionEndpoint(),
       this.repository.getTask(),
+      getOrganizeFolderPaths(),
     ])
     return {
       resultsVersion: results.version,
@@ -125,7 +141,7 @@ export class ResultService {
       items: succeeded.map((item) => {
         const entry = itemMap?.get(item.itemId)
         return {
-          ...toResultData(item, task?.classificationMode),
+          ...toResultData(item, task, paths),
           needsRename:
             item.needsRename !== false &&
             needsOrganizeRename(entry?.name ?? '', endpoint.modelId),
@@ -159,16 +175,17 @@ export class ResultService {
   async getResult(itemId: string): Promise<OrganizeResultDetail | null> {
     const record = await this.repository.getItem(itemId)
     if (!record) return null
-    const [entry, endpoint, task] = await Promise.all([
+    const [entry, endpoint, task, paths] = await Promise.all([
       getItemDetail(itemId),
       getEagleVisionEndpoint(),
       this.repository.getTask(),
+      getOrganizeFolderPaths(),
     ])
     const needsRename =
       record.needsRename !== false &&
       needsOrganizeRename(entry?.name ?? '', endpoint.modelId)
     return {
-      ...toResultData(record, task?.classificationMode),
+      ...toResultData(record, task, paths),
       needsRename,
       title: needsRename ? record.title : undefined,
       itemName: entry?.name ?? null,

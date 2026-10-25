@@ -28,6 +28,7 @@ interface DetailPanelProps {
   activeOptionKey: string | null
   onSelectOptionKey: (key: string) => void
   folderPaths: string[]
+  folderIds: string[]
   displayedManualFolders: EagleManualFolderItem[]
   onRemoveManualFolder: (folder: EagleManualFolderItem) => void
   onManualFolderSelect: (folder: SelectedFolderInfo) => void
@@ -44,6 +45,7 @@ export function DetailPanel({
   activeOptionKey,
   onSelectOptionKey,
   folderPaths,
+  folderIds,
   displayedManualFolders,
   onRemoveManualFolder,
   onManualFolderSelect,
@@ -68,10 +70,10 @@ export function DetailPanel({
     }> = []
 
     if (pinnedOption) {
-      const manualItem = displayedManualFolders.find(
-        (m) =>
-          m.folderId === pinnedOption.folderId ||
-          m.folderPath === pinnedOption.folderPath,
+      const manualItem = displayedManualFolders.find((m) =>
+        pinnedOption.folderId !== undefined
+          ? m.folderId === pinnedOption.folderId
+          : m.folderPath === pinnedOption.folderPath,
       )
       items.push({
         key: pinnedOption.key,
@@ -94,14 +96,21 @@ export function DetailPanel({
     }
 
     // AI 推荐项（排除与置顶项重复的）
-    for (const fp of folderPaths) {
-      if (pinnedOption && pinnedOption.folderPath === fp) {
+    for (const [index, fp] of folderPaths.entries()) {
+      const folderId = folderIds[index]
+      if (
+        pinnedOption &&
+        (pinnedOption.folderId !== undefined
+          ? pinnedOption.folderId === folderId
+          : pinnedOption.folderPath === fp)
+      ) {
         continue
       }
       items.push({
-        key: `ai:${fp}`,
+        key: `ai:${folderId ?? fp}`,
         type: 'ai',
         folderPath: fp,
+        folderId,
         isPinned: false,
         canDelete: false,
       })
@@ -111,8 +120,9 @@ export function DetailPanel({
     for (const manual of displayedManualFolders) {
       if (
         pinnedOption &&
-        (pinnedOption.folderId === manual.folderId ||
-          pinnedOption.folderPath === manual.folderPath)
+        (pinnedOption.folderId !== undefined
+          ? pinnedOption.folderId === manual.folderId
+          : pinnedOption.folderPath === manual.folderPath)
       ) {
         continue
       }
@@ -129,7 +139,7 @@ export function DetailPanel({
     }
 
     return items
-  }, [pinnedOption, folderPaths, displayedManualFolders])
+  }, [pinnedOption, folderPaths, folderIds, displayedManualFolders])
 
   const initialFolderId = useMemo(() => {
     const selectedOption = renderedOptions.find(

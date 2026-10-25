@@ -1,9 +1,13 @@
-import type { SelectedFolderInfo } from '@/client/pages/module/Eagle/folders'
+import {
+  buildFolderMap,
+  type SelectedFolderInfo,
+} from '@/client/pages/module/Eagle/folders'
 import { EaglePreferenceDocument } from '@/client/pages/module/Eagle/preferenceDocument'
 import type {
   EagleManualFolderItem,
   EagleManualFoldersPreferences,
 } from '@/client/pages/module/Eagle/preferenceTypes'
+import { useEagleStore } from '@/client/pages/module/Eagle/store'
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 
 const manualFoldersDocument =
@@ -15,11 +19,19 @@ const manualFoldersDocument =
 /** 手动目标历史及使用频次；当前图片的选项由 useConfirmSelection 管理。 */
 export function useManualFolders() {
   const {
-    value: { folders: manualFolders },
+    value: { folders: savedManualFolders },
   } = useSyncExternalStore(
     manualFoldersDocument.subscribe,
     manualFoldersDocument.getSnapshot,
   )
+  const folders = useEagleStore((state) => state.folders)
+  const manualFolders = useMemo(() => {
+    const current = buildFolderMap(folders)
+    return savedManualFolders.map((folder) => ({
+      ...folder,
+      folderPath: current.get(folder.folderId)?.path ?? folder.folderPath,
+    }))
+  }, [folders, savedManualFolders])
 
   useEffect(() => {
     void manualFoldersDocument

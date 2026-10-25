@@ -1,6 +1,7 @@
 import {
   type OrganizeClassificationMode,
   type OrganizeFolderStandard,
+  type OrganizeItemRecord,
   type OrganizePrepareResp,
   type OrganizeStatus,
   type OrganizeTaskView,
@@ -13,6 +14,7 @@ import {
 } from '../../library'
 import { getEagleVisionEndpoint } from '../../settings'
 import type { OrganizeExecutor } from '../executor'
+import { bindOrganizeFolderIds } from '../folders'
 import type { OrganizeTaskRecord } from '../model'
 import type { OrganizeRepository } from '../storage'
 import { transitionTask } from '../transitions'
@@ -391,9 +393,23 @@ export class TaskService {
             : '当前没有包含描述的文件夹，无法同步',
       }
     }
-    const updated = await this.repository.mutateTask((current) => {
+    const updated = await this.repository.mutateTask(async (current) => {
       if (!current || current.phase === 'running' || current.phase === 'done')
         return null
+      // 先保存旧结果的稳定目标，再替换标准；中途失败仍保留可重试的旧快照。
+      const items = await this.repository.listItems()
+      const records: OrganizeItemRecord[] = []
+      for (const item of items) {
+        if (item.folderIds !== undefined || !item.folderPaths?.length) continue
+        const record = await this.repository.getItem(item.itemId)
+        if (record) {
+          records.push({
+            ...record,
+            folderIds: bindOrganizeFolderIds(record, current.standards),
+          })
+        }
+      }
+      await this.repository.saveItemsBatch(records)
       return {
         ...current,
         standards: latestStandards,

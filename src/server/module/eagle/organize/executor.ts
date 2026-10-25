@@ -9,6 +9,7 @@ import { changeBus } from '../../../common/storage/change-bus'
 import { updateItem } from '../library'
 import { getEagleVisionEndpoint } from '../settings'
 import { ERROR_PAUSE_THRESHOLD, REQUEST_INTERVAL_MS } from './constants'
+import { bindOrganizeFolderIds } from './folders'
 import { prepareConfirmation } from './service/confirmation'
 import type { OrganizeRepository } from './storage'
 import { transitionTask } from './transitions'
@@ -281,6 +282,7 @@ export class OrganizeExecutor {
         needsRename: outcome.needsRename,
         title: outcome.title,
         folderPaths: outcome.folderPaths,
+        folderIds: bindOrganizeFolderIds(outcome, options.standards),
         lowQuality: outcome.lowQuality,
         attempts,
         updatedAt: Date.now(),

@@ -227,6 +227,7 @@ export class OrganizeRepository {
       status: record.status,
       needsRename: record.needsRename,
       folderPaths: [...record.folderPaths],
+      folderIds: record.folderIds ? [...record.folderIds] : undefined,
       lowQuality: record.lowQuality,
       updatedAt: record.updatedAt,
     })
@@ -325,6 +326,7 @@ export class OrganizeRepository {
           status: snapshot.status,
           needsRename: snapshot.needsRename,
           folderPaths: snapshot.folderPaths,
+          folderIds: snapshot.folderIds,
           lowQuality: snapshot.lowQuality,
         }
         try {

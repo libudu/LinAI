@@ -56,6 +56,7 @@ export function useConfirmQueue(options: UseConfirmResultsOptions) {
     (item: OrganizeResultListItem, withTitle: boolean) => {
       enqueueConfirmation(item.itemId, {
         folderPath: item.folderPaths?.[0] || '未分类',
+        folderId: item.folderIds?.[0],
         withTitle,
       })
     },

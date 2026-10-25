@@ -12,6 +12,7 @@ import {
   getItemSnapshots,
   type UpdateItemPatch,
 } from '../../library'
+import { bindOrganizeFolderIds } from '../folders'
 import type { OrganizeRepository } from '../storage'
 import type { OrganizeConfirmItem } from './types'
 
@@ -78,13 +79,17 @@ export const prepareConfirmation = async (
 
   const isUnclassified =
     item.folderId === EAGLE_UNCLASSIFIED_FOLDER_ID ||
-    item.folderPath === '未分类' ||
-    item.folderPath === EAGLE_UNCLASSIFIED_FOLDER_ID
+    (item.folderId === undefined &&
+      (item.folderPath === '未分类' ||
+        item.folderPath === EAGLE_UNCLASSIFIED_FOLDER_ID))
   let folderId: string | null = null
   if (!isUnclassified) {
     // 显式 ID 优先于快照路径，手动选择不会被同名/旧路径覆盖。
     folderId =
       item.folderId ??
+      bindOrganizeFolderIds(record, standards)[
+        record.folderPaths.indexOf(item.folderPath)
+      ] ??
       standards.find((s) => s.folderPath === item.folderPath)?.folderId ??
       (await findFolderIdByPath(item.folderPath))
     if (!folderId || !(await folderExists(folderId))) {

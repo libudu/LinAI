@@ -1,8 +1,12 @@
 import { subscribeStorageEvent } from '@/client/service/storage-events'
-import type { OrganizeResultListItem } from '@/shared/eagle/organize'
+import type {
+  OrganizeFolderStandard,
+  OrganizeResultListItem,
+} from '@/shared/eagle/organize'
 import type { EagleFolder } from '@/shared/eagle/types'
 import { message } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { buildFolderMap } from '../../../folders'
 import { RefreshQueue } from '../../../refreshQueue'
 import { useOrganizeApi } from '../../api'
 import { useOrganizeActions, useOrganizeStatus } from '../../store'
@@ -15,6 +19,7 @@ import {
 } from '../utils/sort'
 import {
   CONFIRM_SORT_STORAGE_KEY,
+  createCategoryContext,
   getSavedCategoryOrder,
   getSavedPinnedCategory,
   saveCategoryOrder,
@@ -25,6 +30,7 @@ export interface UseConfirmResultsOptions {
   taskId?: string
   taskCreatedAt?: number
   folders: EagleFolder[]
+  standards?: OrganizeFolderStandard[]
   renameOnly?: boolean
 }
 
@@ -32,6 +38,7 @@ export function useConfirmResults({
   taskId,
   taskCreatedAt,
   folders,
+  standards,
   renameOnly = false,
 }: UseConfirmResultsOptions) {
   const { getOptimisticItemIds, refreshOrganizeStatus } = useOrganizeActions()
@@ -59,14 +66,12 @@ export function useConfirmResults({
   })
   const sortType =
     renameOnly && savedSortType === 'category' ? 'completion' : savedSortType
-  const [categoryPin, setCategoryPin] = useState(() => ({
-    taskId,
-    category: getSavedPinnedCategory(taskId),
-  }))
-  const pinnedCategory =
-    categoryPin.taskId === taskId
-      ? categoryPin.category
-      : getSavedPinnedCategory(taskId)
+  const categoryContext = useMemo(
+    () => createCategoryContext(folders, standards),
+    [folders, standards],
+  )
+  const [, setCategoryPinRevision] = useState(0)
+  const pinnedCategory = getSavedPinnedCategory(taskId, categoryContext)
   const resultsRef = useRef<OrganizeResultListItem[]>([])
   const selectedIdRef = useRef(selectedId)
   selectedIdRef.current = selectedId
@@ -90,18 +95,26 @@ export function useConfirmResults({
   const projectResults = useCallback(
     (hiddenAtStart = new Set<string>()) => {
       const hiddenNow = getOptimisticItemIds()
+      const folderMap = buildFolderMap(folders)
       const available = [...serverResultsRef.current.values()]
         .filter(
           (item) =>
             !hiddenAtStart.has(item.itemId) && !hiddenNow.has(item.itemId),
         )
+        .map((item) => ({
+          ...item,
+          folderPaths: item.folderPaths?.map(
+            (path, index) =>
+              folderMap.get(item.folderIds?.[index] ?? '')?.path ?? path,
+          ),
+        }))
         .sort((a, b) => b.updatedAt - a.updatedAt)
       const order = getOrUpdateCategoryOrder(
         available,
         folders,
-        getSavedCategoryOrder(taskId, taskCreatedAt),
+        getSavedCategoryOrder(taskId, taskCreatedAt, categoryContext),
       )
-      saveCategoryOrder(taskId, order)
+      saveCategoryOrder(taskId, order, categoryContext)
       const sorted = sortOrganizeResults(
         available,
         sortType,
@@ -116,7 +129,15 @@ export function useConfirmResults({
           : (sorted[0]?.itemId ?? null),
       )
     },
-    [folders, pinnedCategory, replaceResults, sortType, taskCreatedAt, taskId],
+    [
+      categoryContext,
+      folders,
+      pinnedCategory,
+      replaceResults,
+      sortType,
+      taskCreatedAt,
+      taskId,
+    ],
   )
   const projectRef = useRef(projectResults)
   projectRef.current = projectResults
@@ -246,17 +267,18 @@ export function useConfirmResults({
         resultsRef.current,
         category ? 'category' : sortType,
         folders,
-        getSavedCategoryOrder(taskId, taskCreatedAt),
+        getSavedCategoryOrder(taskId, taskCreatedAt, categoryContext),
         category,
       )
-      setCategoryPin({ taskId, category })
-      savePinnedCategory(taskId, category)
+      savePinnedCategory(taskId, category, categoryContext)
+      setCategoryPinRevision((revision) => revision + 1)
       if (category) handleSortTypeChange('category')
       replaceResults(sorted)
       setSelectedId(sorted[0]?.itemId ?? null)
     },
     [
       folders,
+      categoryContext,
       handleSortTypeChange,
       replaceResults,
       sortType,
@@ -322,9 +344,9 @@ export function useConfirmResults({
       const order = getOrUpdateCategoryOrder(
         restored,
         folders,
-        getSavedCategoryOrder(taskId, taskCreatedAt),
+        getSavedCategoryOrder(taskId, taskCreatedAt, categoryContext),
       )
-      saveCategoryOrder(taskId, order)
+      saveCategoryOrder(taskId, order, categoryContext)
       const sorted = sortOrganizeResults(
         restored,
         sortType,
@@ -335,7 +357,15 @@ export function useConfirmResults({
       replaceResults(sorted)
       setSelectedId((current) => current ?? sorted[0]?.itemId ?? null)
     },
-    [folders, pinnedCategory, replaceResults, sortType, taskCreatedAt, taskId],
+    [
+      categoryContext,
+      folders,
+      pinnedCategory,
+      replaceResults,
+      sortType,
+      taskCreatedAt,
+      taskId,
+    ],
   )
 
   const selectedItem = useMemo(
