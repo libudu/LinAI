@@ -9,7 +9,7 @@ import {
   FolderOpenOutlined,
   FolderOutlined,
 } from '@ant-design/icons'
-import type { TreeDataNode } from 'antd'
+import type { TreeDataNode, TreeProps } from 'antd'
 import { message, Segmented, Tree } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { requestEagleLibraryRefresh, useEagleStore } from '../store'
@@ -110,7 +110,7 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
   const [editingFolder, setEditingFolder] = useState<EagleFolder | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const initialSelectionRevealedRef = useRef(false)
-  const treeData = useMemo<TreeDataNode[]>(
+  const fixedTreeData = useMemo<TreeDataNode[]>(
     () => [
       { key: '', title: renderTitle('全部', allTotal), children: undefined },
       {
@@ -123,22 +123,38 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
         title: renderTitle('回收站', trashTotal),
         children: undefined,
       },
-      ...toTreeData(
+    ],
+    [allTotal, unclassifiedTotal, trashTotal],
+  )
+  const treeData = useMemo<TreeDataNode[]>(
+    () =>
+      toTreeData(
         folders,
         setEditingFolder,
         showFolderDescription,
         showEmptyFolders,
       ),
-    ],
-    [
-      folders,
-      allTotal,
-      showFolderDescription,
-      showEmptyFolders,
-      unclassifiedTotal,
-      trashTotal,
-    ],
+    [folders, showFolderDescription, showEmptyFolders],
   )
+  const treeProps: TreeProps = {
+    selectedKeys: [currentFolderId],
+    onSelect: (keys) => {
+      // 重复点击已选节点时 Tree 会返回空数组，保留当前目录。
+      if (keys.length === 0) return
+      selectFolder(keys[0] as string)
+      onSelected?.()
+    },
+    showIcon: true,
+    icon: (nodeProps) => {
+      const isTrash =
+        (nodeProps as { data?: { key?: string } })?.data?.key ===
+          EAGLE_TRASH_FOLDER_ID ||
+        (nodeProps as { eventKey?: string })?.eventKey === EAGLE_TRASH_FOLDER_ID
+      if (isTrash) return <DeleteOutlined />
+      return nodeProps.expanded ? <FolderOpenOutlined /> : <FolderOutlined />
+    },
+    blockNode: true,
+  }
 
   // 文件夹与展开状态就绪后，确保历史选中项可见并滚动到其位置
   useEffect(() => {
@@ -180,7 +196,7 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
   ])
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="eagle-folder-tree flex h-full min-h-0 flex-col overflow-hidden">
       <Segmented<EagleMediaType>
         block
         size="large"
@@ -198,36 +214,18 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
           })
         }}
       />
+      <div className="shrink-0 pt-1">
+        <Tree {...treeProps} treeData={fixedTreeData} />
+      </div>
       <div
         ref={scrollContainerRef}
-        className="eagle-folder-tree min-h-0 flex-1 overflow-y-auto py-1"
+        className="min-h-0 flex-1 overflow-y-auto pb-1"
       >
         <Tree
+          {...treeProps}
           treeData={treeData}
           expandedKeys={expandedKeys}
           onExpand={handleExpand}
-          selectedKeys={[currentFolderId]}
-          onSelect={(keys) => {
-            // 重复点击已选节点时 Tree 会返回空数组，保留当前目录。
-            if (keys.length === 0) return
-            selectFolder(keys[0] as string)
-            onSelected?.()
-          }}
-          showIcon
-          icon={(nodeProps) => {
-            const isTrash =
-              (nodeProps as { data?: { key?: string } })?.data?.key ===
-                EAGLE_TRASH_FOLDER_ID ||
-              (nodeProps as { eventKey?: string })?.eventKey ===
-                EAGLE_TRASH_FOLDER_ID
-            if (isTrash) return <DeleteOutlined />
-            return nodeProps.expanded ? (
-              <FolderOpenOutlined />
-            ) : (
-              <FolderOutlined />
-            )
-          }}
-          blockNode
         />
         {foldersLoading && (
           <div className="pt-2 text-center text-xs text-slate-400">加载中…</div>
