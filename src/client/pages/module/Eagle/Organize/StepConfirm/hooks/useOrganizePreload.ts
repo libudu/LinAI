@@ -4,7 +4,7 @@ import type {
   OrganizeResultListItem,
 } from '@/shared/eagle/organize'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchOrganizeResult } from '../../api'
+import { useOrganizeApi } from '../../api'
 import { useOrganizeMedia } from '../../media'
 
 const PRELOAD_COUNT = 5
@@ -18,6 +18,7 @@ export function useOrganizePreload({
   selectedId: string | null
   quickMode: boolean
 }) {
+  const { fetchOrganizeResult } = useOrganizeApi()
   const { previewUrl } = useOrganizeMedia()
   const [detailsMap, setDetailsMap] = useState<
     Record<string, OrganizeResultDetail>

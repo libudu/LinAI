@@ -5,8 +5,8 @@ import {
 } from '@/shared/eagle/types'
 import { changeBus } from '../../../../common/storage/change-bus'
 import { getFolderPaths } from '../../library'
-import { ORGANIZE_RESOURCE } from '../constants'
 import type { OrganizeTaskRecord } from '../model'
+import type { OrganizeRepository } from '../storage'
 
 export const toTaskView = (record: OrganizeTaskRecord): OrganizeTaskView => ({
   mediaType: record.mediaType,
@@ -26,8 +26,8 @@ export const toTaskView = (record: OrganizeTaskRecord): OrganizeTaskView => ({
   failedCount: record.failedCount,
 })
 
-export const publishOrganizeChange = (): void => {
-  changeBus.publish({ resource: ORGANIZE_RESOURCE })
+export const publishOrganizeChange = (repository: OrganizeRepository): void => {
+  changeBus.publish({ resource: repository.resource })
 }
 
 export const resolveFolderName = async (folderId?: string): Promise<string> => {

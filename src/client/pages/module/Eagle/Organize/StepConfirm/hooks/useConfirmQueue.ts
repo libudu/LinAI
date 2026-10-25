@@ -1,8 +1,8 @@
 import type { OrganizeResultListItem } from '@/shared/eagle/organize'
 import { message } from 'antd'
 import { useCallback } from 'react'
-import { trashOrganizeResult } from '../../api'
-import { beginOptimisticItem, cancelOptimisticItems } from '../../store'
+import { useOrganizeApi } from '../../api'
+import { useOrganizeActions } from '../../store'
 import type { PendingConfirmItem } from '../types'
 import {
   useConfirmResults,
@@ -12,6 +12,8 @@ import { useConfirmSubmission } from './useConfirmSubmission'
 
 /** 确认页门面：列表管理和串行提交各自独立，普通/快速确认只负责生成决策。 */
 export function useConfirmQueue(options: UseConfirmResultsOptions) {
+  const { beginOptimisticItem, cancelOptimisticItems } = useOrganizeActions()
+  const { trashOrganizeResult } = useOrganizeApi()
   const list = useConfirmResults(options)
   const { removeItem, restoreItems, selectedId } = list
   const { taskId } = options

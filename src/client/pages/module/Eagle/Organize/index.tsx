@@ -1,5 +1,5 @@
 import type { OrganizeClassificationMode } from '@/shared/eagle/organize'
-import { Alert, Modal, Spin } from 'antd'
+import { Modal, Spin } from 'antd'
 import { useEffect, useRef, useState } from 'react'
 import { findFolder } from '../folders'
 import { setEagleLibraryRefreshSuspended, useEagleStore } from '../store'
@@ -15,29 +15,14 @@ import { useOrganizeStatus } from './store'
 
 // 图片整理弹窗：左侧/顶部导航卡片栏 + 主操作区
 // 支持非互斥自由切换步骤与跨文件夹追加图片
-export function OrganizeModal({
-  open,
-  onClose,
-}: {
-  open: boolean
-  onClose: () => void
-}) {
+function OrganizeModalContent({ open, onClose }: OrganizeModalProps) {
   const { status, loaded } = useOrganizeStatus()
   const currentFolderId = useEagleStore((state) => state.currentFolderId)
   const folders = useEagleStore((state) => state.folders)
   const mediaType = useEagleStore((state) => state.mediaType)
-  const taskTypeMismatch = Boolean(
-    status && status.phase !== 'done' && status.mediaType !== mediaType,
-  )
   const canAddImages =
-    !taskTypeMismatch &&
-    Boolean(currentFolderId) &&
-    Boolean(findFolder(folders, currentFolderId))
+    Boolean(currentFolderId) && Boolean(findFolder(folders, currentFolderId))
   const [currentStep, setCurrentStep] = useState<OrganizeStepKey>('classify')
-  const displayMediaType =
-    status && (status.phase !== 'done' || currentStep !== 'classify')
-      ? status.mediaType
-      : mediaType
   const [selectedClassificationMode, setSelectedClassificationMode] =
     useState<OrganizeClassificationMode>('global')
   const task = useOrganizeTask(open, status, loaded)
@@ -116,7 +101,7 @@ export function OrganizeModal({
 
   return (
     <Modal
-      title={displayMediaType === 'video' ? '视频整理' : '图片整理'}
+      title={mediaType === 'video' ? '视频整理' : '图片整理'}
       open={open}
       onCancel={onClose}
       footer={null}
@@ -139,71 +124,77 @@ export function OrganizeModal({
         },
       }}
     >
-      <OrganizeMediaContext.Provider value={displayMediaType}>
-        {taskTypeMismatch && (
-          <Alert
-            className="mb-3"
-            type="info"
-            showIcon
-            title={`当前有未完成的${status?.mediaType === 'video' ? '视频' : '图片'}整理任务。请先完成或清空当前任务，再添加${mediaType === 'video' ? '视频' : '图片'}。`}
+      {!loaded ? (
+        <div className="flex flex-1 items-center justify-center">
+          <Spin />
+        </div>
+      ) : (
+        <div className="flex h-full min-h-0 flex-col gap-3 pt-1 md:flex-row md:gap-4">
+          <StepNavBar
+            currentStep={activeStep}
+            showFormatConversion={showFormatConversion}
+            showConfirm={showConfirm}
+            canAddImages={canAddImages}
+            onChange={setCurrentStep}
+            status={status}
+            task={task}
           />
-        )}
-        {!loaded ? (
-          <div className="flex flex-1 items-center justify-center">
-            <Spin />
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {showFormatConversion && (
+              <div
+                className={
+                  activeStep === 'convert'
+                    ? 'flex min-h-0 flex-1 flex-col'
+                    : 'hidden'
+                }
+              >
+                <StepFormatConversion conversion={conversion} />
+              </div>
+            )}
+            {activeStep === 'classify' && (
+              <StepClassify
+                conversionRevision={conversionRevision}
+                onClassificationModeChange={setSelectedClassificationMode}
+                onClose={onClose}
+                onSuccess={() => setCurrentStep('running')}
+              />
+            )}
+            {activeStep === 'running' && (
+              <StepRunning
+                onSwitchToClassify={
+                  canAddImages ? () => setCurrentStep('classify') : undefined
+                }
+                onSwitchToConfirm={
+                  showConfirm ? () => setCurrentStep('confirm') : undefined
+                }
+                renameOnly={!showConfirm}
+              />
+            )}
+            {activeStep === 'confirm' && (
+              <StepConfirm
+                key={task?.taskId ?? 'empty'}
+                task={task}
+                onSwitchToRunning={() => setCurrentStep('running')}
+              />
+            )}
           </div>
-        ) : (
-          <div className="flex h-full min-h-0 flex-col gap-3 pt-1 md:flex-row md:gap-4">
-            <StepNavBar
-              currentStep={activeStep}
-              showFormatConversion={showFormatConversion}
-              showConfirm={showConfirm}
-              canAddImages={canAddImages}
-              onChange={setCurrentStep}
-              status={status}
-              task={task}
-            />
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              {showFormatConversion && (
-                <div
-                  className={
-                    activeStep === 'convert'
-                      ? 'flex min-h-0 flex-1 flex-col'
-                      : 'hidden'
-                  }
-                >
-                  <StepFormatConversion conversion={conversion} />
-                </div>
-              )}
-              {activeStep === 'classify' && (
-                <StepClassify
-                  conversionRevision={conversionRevision}
-                  onClassificationModeChange={setSelectedClassificationMode}
-                  onClose={onClose}
-                  onSuccess={() => setCurrentStep('running')}
-                />
-              )}
-              {activeStep === 'running' && (
-                <StepRunning
-                  onSwitchToClassify={
-                    canAddImages ? () => setCurrentStep('classify') : undefined
-                  }
-                  onSwitchToConfirm={
-                    showConfirm ? () => setCurrentStep('confirm') : undefined
-                  }
-                  renameOnly={!showConfirm}
-                />
-              )}
-              {activeStep === 'confirm' && (
-                <StepConfirm
-                  task={task}
-                  onSwitchToRunning={() => setCurrentStep('running')}
-                />
-              )}
-            </div>
-          </div>
-        )}
-      </OrganizeMediaContext.Provider>
+        </div>
+      )}
     </Modal>
+  )
+}
+
+interface OrganizeModalProps {
+  open: boolean
+  onClose: () => void
+}
+
+export function OrganizeModal(props: OrganizeModalProps) {
+  const mediaType = useEagleStore((state) => state.mediaType)
+  return (
+    // 类型变化时重建弹窗 hooks；旧批次仍持有原类型 API 和状态实例。
+    <OrganizeMediaContext.Provider key={mediaType} value={mediaType}>
+      <OrganizeModalContent {...props} />
+    </OrganizeMediaContext.Provider>
   )
 }

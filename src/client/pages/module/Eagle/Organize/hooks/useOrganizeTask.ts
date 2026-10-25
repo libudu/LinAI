@@ -1,7 +1,7 @@
 import type { OrganizeStatus, OrganizeTaskView } from '@/shared/eagle/organize'
 import { useEffect, useRef, useState } from 'react'
 import { RefreshQueue } from '../../refreshQueue'
-import { fetchOrganizeTask } from '../api'
+import { useOrganizeApi } from '../api'
 
 /** 弹窗任务快照：仅打开、切轮次、阶段或队列总数变化时拉取。 */
 export function useOrganizeTask(
@@ -9,6 +9,7 @@ export function useOrganizeTask(
   status: OrganizeStatus | null,
   loaded: boolean,
 ) {
+  const { fetchOrganizeTask } = useOrganizeApi()
   const [task, setTask] = useState<OrganizeTaskView | null>(null)
   const mountedRef = useRef(false)
   const contextRef = useRef({ open, taskId: status?.taskId })

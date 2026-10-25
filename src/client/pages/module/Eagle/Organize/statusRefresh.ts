@@ -1,6 +1,7 @@
 import { subscribeStorageEvent } from '@/client/service/storage-events'
 import type { OrganizeStatus } from '@/shared/eagle/organize'
-import { fetchOrganizeStatus } from './api'
+import type { EagleMediaType } from '@/shared/eagle/types'
+import { getOrganizeApi } from './api'
 import type { OptimisticItems } from './statusModel'
 
 const MIN_REFRESH_INTERVAL_MS = 3000
@@ -23,7 +24,10 @@ export class OrganizeStatusRefresh {
   private revision = 0
   private waiters: Array<{ revision: number; resolve: () => void }> = []
 
-  constructor(private readonly options: StatusRefreshOptions) {}
+  constructor(
+    private readonly mediaType: EagleMediaType,
+    private readonly options: StatusRefreshOptions,
+  ) {}
 
   invalidate() {
     this.epoch++
@@ -62,7 +66,9 @@ export class OrganizeStatusRefresh {
             .filter(([, item]) => item.state === 'settled')
             .map(([id]) => id)
           try {
-            const status = await fetchOrganizeStatus()
+            const status = await getOrganizeApi(
+              this.mediaType,
+            ).fetchOrganizeStatus()
             if (epoch !== this.epoch) {
               this.pending = true
               continue
@@ -118,8 +124,9 @@ export class OrganizeStatusRefresh {
 
   subscribe = (): (() => void) => {
     if (this.subscribers++ === 0) {
-      this.unsubscribe = subscribeStorageEvent('eagle.organize', () =>
-        this.schedule(),
+      this.unsubscribe = subscribeStorageEvent(
+        `eagle.organize.${this.mediaType}`,
+        () => this.schedule(),
       )
       void this.refresh()
     }

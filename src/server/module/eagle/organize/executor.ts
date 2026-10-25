@@ -8,13 +8,9 @@ import { sendWindowsNotification } from '../../../common/notify'
 import { changeBus } from '../../../common/storage/change-bus'
 import { updateItem } from '../library'
 import { getEagleVisionEndpoint } from '../settings'
-import {
-  ERROR_PAUSE_THRESHOLD,
-  ORGANIZE_RESOURCE,
-  REQUEST_INTERVAL_MS,
-} from './constants'
+import { ERROR_PAUSE_THRESHOLD, REQUEST_INTERVAL_MS } from './constants'
 import { prepareConfirmation } from './service/confirmation'
-import { organizeRepository } from './storage'
+import type { OrganizeRepository } from './storage'
 import { transitionTask } from './transitions'
 import { judgeItem } from './vision'
 
@@ -27,7 +23,15 @@ import { judgeItem } from './vision'
  *   过期轮次的结果不再落盘，也不会在收尾时重启队列
  * 队列推进在服务端后台进行，不依赖前端在线。
  */
-class OrganizeExecutor {
+export class OrganizeExecutor {
+  constructor(private readonly repository: OrganizeRepository) {}
+
+  private get notificationTitle() {
+    return this.repository.mediaType === 'video'
+      ? 'LinAI 视频整理'
+      : 'LinAI 图片整理'
+  }
+
   /** 连续失败计数：任意一次成功重置为 0，连续达到 10 次时暂停队列 */
   private consecutiveErrors = 0
   /** runQueue 是否在执行中（kick 的幂等依据） */
@@ -69,11 +73,16 @@ class OrganizeExecutor {
         this.active = false
         if (this.abortController === controller) this.abortController = null
         if (this.runPromise === promise) this.runPromise = null
-        if (!completedNormally || epoch !== this.epoch) return
+        if (!completedNormally || epoch !== this.epoch || this.stopping) return
         // 收尾期间可能收到追加或恢复请求，kick 当时因 active 而没有启动新轮次。
         try {
-          const latest = await organizeRepository.getTask()
-          if (epoch === this.epoch && latest?.phase === 'running') this.kick()
+          const latest = await this.repository.getTask()
+          if (
+            epoch === this.epoch &&
+            !this.stopping &&
+            latest?.phase === 'running'
+          )
+            this.kick()
         } catch (error) {
           console.error('[Eagle] 资源整理队列收尾检查失败', error)
         }
@@ -109,8 +118,14 @@ class OrganizeExecutor {
   }
 
   private async runQueue(epoch: number, signal: AbortSignal): Promise<void> {
-    const task = await organizeRepository.getTask()
-    if (!task || task.phase !== 'running') return
+    const task = await this.repository.getTask()
+    if (
+      !task ||
+      task.phase !== 'running' ||
+      this.stopping ||
+      epoch !== this.epoch
+    )
+      return
     const {
       itemIds,
       standards,
@@ -122,7 +137,7 @@ class OrganizeExecutor {
 
     // 恢复场景：跳过已有结果且非 pending 的前缀，得到下一个待派发位置。
     // 派发严格按序，已完成的结果实体必然构成前缀（in-flight 未落盘的项会被重新执行）
-    const statuses = await organizeRepository.getItemStatuses()
+    const statuses = await this.repository.getItemStatuses()
     const done = new Set(
       itemIds.filter((id) => {
         const status = statuses.get(id)
@@ -172,15 +187,15 @@ class OrganizeExecutor {
     )
     await Promise.all(lanes)
 
-    // 强制清空后的过期轮次：不收尾、不重启队列
-    if (epoch !== this.epoch) return
+    // 暂停落盘前仍可能读到 running；停止标记只能由显式 kick 解除。
+    if (epoch !== this.epoch || this.stopping) return
 
     // 派发结束：任务仍在 running 说明队列可能「排空期间被恢复」（kick 幂等返回）。
     // 是否重拉以实体状态为准（存在 pending 或未落盘项）而非 executed 计数——
     // 计数可能因写盘异常与实体脱节，按计数判断会无限重拉
-    const latest = await organizeRepository.getTask()
+    const latest = await this.repository.getTask()
     if (!latest || latest.phase !== 'running') return
-    const latestStatuses = await organizeRepository.getItemStatuses()
+    const latestStatuses = await this.repository.getItemStatuses()
     if (
       latest.itemIds.some((id) => {
         const status = latestStatuses.get(id)
@@ -192,14 +207,13 @@ class OrganizeExecutor {
         )
       })
     ) {
-      this.stopping = false
       return this.runQueue(epoch, signal)
     }
-    const finalized = await this.finalize()
+    const finalized = await this.finalize(epoch)
     if (!finalized) return this.runQueue(epoch, signal)
   }
 
-  /** 串行分配请求启动时隙，使全局相邻两次派发至少间隔 0.5 秒 */
+  /** 串行分配请求启动时隙，使同一任务相邻两次派发至少间隔 0.5 秒 */
   private async waitForDispatch(
     epoch: number,
     signal: AbortSignal,
@@ -251,7 +265,7 @@ class OrganizeExecutor {
       signal: AbortSignal
     },
   ): Promise<void> {
-    const previous = await organizeRepository.getItem(itemId)
+    const previous = await this.repository.getItem(itemId)
     const attempts = (previous?.attempts ?? 0) + 1
     let record: OrganizeItemRecord
     try {
@@ -283,17 +297,18 @@ class OrganizeExecutor {
     // 强制清空（epoch 已变）后丢弃过期结果，不再落盘
     if (options.epoch !== this.epoch) return
     let didPauseOnError = false
-    await organizeRepository.mutateTask(async (task) => {
+    await this.repository.mutateTask(async (task) => {
       if (options.epoch !== this.epoch) return null
       if (
         task.classificationMode === 'recursive-rename' &&
         record.status === 'success'
       ) {
         // 先保存建议标题，写库或最终状态落盘中断时可恢复；仅成功写库后计为已确认。
-        await organizeRepository.saveItem(record)
+        await this.repository.saveItem(record)
         try {
           const endpoint = await getEagleVisionEndpoint()
           const plan = await prepareConfirmation(
+            this.repository,
             { itemId, folderPath: '未分类', withTitle: true },
             task.standards,
             endpoint.modelId,
@@ -318,7 +333,7 @@ class OrganizeExecutor {
         }
       }
       if (options.epoch !== this.epoch) return null
-      await organizeRepository.saveItem(record)
+      await this.repository.saveItem(record)
       if (record.status === 'success' || record.status === 'confirmed') {
         this.consecutiveErrors = 0
       } else if (record.status === 'failed') {
@@ -343,45 +358,48 @@ class OrganizeExecutor {
       })!
       if (shouldPause) {
         didPauseOnError = true
+        // 写盘前即停止派发，避免稍后的恢复被旧请求收尾重新停止。
+        this.stopping = true
         return transitionTask(next, { type: 'pause', reason: 'error' })
       }
       return next
     })
     if (didPauseOnError) {
-      this.stopping = true
       sendWindowsNotification(
-        'LinAI 资源整理',
+        this.notificationTitle,
         `资源整理队列因连续失败达到 ${ERROR_PAUSE_THRESHOLD} 次已自动暂停，请检查原因`,
       )
     }
-    changeBus.publish({ resource: ORGANIZE_RESOURCE })
+    changeBus.publish({ resource: this.repository.resource })
   }
 
   /**
    * 全部执行过一遍：以结果实体为准重算任务计数（计数可能因写盘异常与实体脱节），
    * 有待确认/失败 → confirming，否则 → done。在任务串行更新内读取最新结果快照。
    */
-  private async finalize(): Promise<boolean> {
-    const updated = await organizeRepository.mutateTask(async (task) =>
-      transitionTask(task, {
+  private async finalize(epoch: number): Promise<boolean> {
+    const updated = await this.repository.mutateTask(async (task) => {
+      const items = await this.repository.getProgressItems()
+      if (epoch !== this.epoch || this.stopping) return null
+      return transitionTask(task, {
         type: 'finalize',
-        items: await organizeRepository.getProgressItems(),
-      }),
-    )
-    if (updated) {
+        items,
+      })
+    })
+    if (updated && epoch === this.epoch && !this.stopping) {
       this.consecutiveErrors = 0
-      changeBus.publish({ resource: ORGANIZE_RESOURCE })
+      changeBus.publish({ resource: this.repository.resource })
       if (updated.executed > 0) {
         if (updated.failedCount === 0) {
           sendWindowsNotification(
-            'LinAI 资源整理',
+            this.notificationTitle,
             updated.classificationMode === 'recursive-rename'
               ? `资源重命名完成（共 ${updated.successCount} 个），已直接修改文件名`
               : `全部资源处理完成（共 ${updated.executed} 个），请前往查验结果`,
           )
         } else {
           sendWindowsNotification(
-            'LinAI 资源整理',
+            this.notificationTitle,
             `资源处理完成：${updated.successCount} 个成功，${updated.failedCount} 个失败`,
           )
         }
@@ -392,7 +410,7 @@ class OrganizeExecutor {
 
   private async pauseAs(reason: 'error'): Promise<void> {
     let didPause = false
-    await organizeRepository.mutateTask((task) => {
+    await this.repository.mutateTask((task) => {
       if (task.phase === 'running') {
         didPause = true
         return transitionTask(task, { type: 'pause', reason })
@@ -401,12 +419,10 @@ class OrganizeExecutor {
     })
     if (didPause) {
       sendWindowsNotification(
-        'LinAI 资源整理',
+        this.notificationTitle,
         '资源整理队列因异常已自动暂停，请检查',
       )
     }
-    changeBus.publish({ resource: ORGANIZE_RESOURCE })
+    changeBus.publish({ resource: this.repository.resource })
   }
 }
-
-export const organizeExecutor = new OrganizeExecutor()

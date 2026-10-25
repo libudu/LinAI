@@ -3,6 +3,7 @@ import type {
   OrganizeItemStatus,
   OrganizeItemSummary,
 } from '@/shared/eagle/organize'
+import type { EagleMediaType } from '@/shared/eagle/types'
 import type { StoredEntity } from '@/shared/storage/types'
 import fs from 'fs-extra'
 import path from 'path'
@@ -40,17 +41,23 @@ import { transitionTask } from './transitions'
 type ItemListEntry = { itemId: string; updatedAt: number } & OrganizeItemSummary
 
 export class OrganizeRepository {
-  private readonly itemsDir = dataPath('eagle', 'organize', 'items')
-
-  private readonly taskStore = new DocumentStore<StoredOrganizeTask>(
-    dataPath('eagle', 'organize', 'task.json'),
-    { maxValueLength: 16 * 1024 * 1024 },
-  )
-
-  private readonly itemStore = new EntityStore<
+  private readonly itemsDir: string
+  private readonly taskStore: DocumentStore<StoredOrganizeTask>
+  private readonly itemStore: EntityStore<
     StoredOrganizeItem,
     OrganizeItemSummary
-  >(this.itemsDir)
+  >
+  readonly resource: string
+
+  constructor(readonly mediaType: EagleMediaType) {
+    const directory = dataPath('eagle', 'organize', mediaType)
+    this.itemsDir = path.join(directory, 'items')
+    this.taskStore = new DocumentStore(path.join(directory, 'task.json'), {
+      maxValueLength: 16 * 1024 * 1024,
+    })
+    this.itemStore = new EntityStore(this.itemsDir)
+    this.resource = `eagle.organize.${mediaType}`
+  }
 
   /** 任务文档内存缓存：加速 status/task/queue 等高频状态查询 */
   private taskCache: OrganizeTaskRecord | null = null
@@ -312,7 +319,7 @@ export class OrganizeRepository {
   private async persistItem(record: OrganizeItemRecord): Promise<void> {
     const snapshot = normalizeOrganizeItem(record)
     await resourceLock.run(
-      `eagle.organize:item:${snapshot.itemId}`,
+      `${this.resource}:item:${snapshot.itemId}`,
       async () => {
         const summary: OrganizeItemSummary = {
           status: snapshot.status,
@@ -386,6 +393,3 @@ export class OrganizeRepository {
     this.cacheLoaded = true
   }
 }
-
-/** 全局单例：service 与 executor 必须共用同一实例（mutateTask 串行语义） */
-export const organizeRepository = new OrganizeRepository()

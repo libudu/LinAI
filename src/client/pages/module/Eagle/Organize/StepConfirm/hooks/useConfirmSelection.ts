@@ -9,12 +9,14 @@ const EMPTY_PATHS: string[] = []
 
 /** 每图目标、默认推荐、置顶与标题开关；手动历史仍由 useManualFolders 保存。 */
 export function useConfirmSelection({
+  taskId,
   taskCreatedAt,
   selectedId,
   folderPaths: recommendedFolderPaths = EMPTY_PATHS,
   needsRename = true,
   manualFolderScope,
 }: {
+  taskId?: string
   taskCreatedAt?: number
   selectedId: string | null
   folderPaths?: string[]
@@ -33,7 +35,7 @@ export function useConfirmSelection({
     Record<string, string>
   >({})
   const [pinnedOption, setPinnedOption] = useState<PinnedFolderOption | null>(
-    () => getSavedPinnedOption(taskCreatedAt),
+    () => getSavedPinnedOption(taskId, taskCreatedAt),
   )
   const {
     manualFolders,
@@ -46,8 +48,8 @@ export function useConfirmSelection({
   useEffect(() => {
     setTitleDisabledIds(new Set())
     setSelectedOptionKeys({})
-    setPinnedOption(getSavedPinnedOption(taskCreatedAt))
-  }, [taskCreatedAt])
+    setPinnedOption(getSavedPinnedOption(taskId, taskCreatedAt))
+  }, [taskId, taskCreatedAt])
 
   const defaultOptionKey =
     pinnedOption?.key ?? (folderPaths[0] ? `ai:${folderPaths[0]}` : null)
@@ -129,11 +131,11 @@ export function useConfirmSelection({
     (option: PinnedFolderOption) => {
       const next = pinnedOption?.key === option.key ? null : option
       setPinnedOption(next)
-      savePinnedOption(taskCreatedAt, next)
+      savePinnedOption(taskId, next)
       if (next) selectOption(next.key)
       else selectRecommended()
     },
-    [pinnedOption, taskCreatedAt, selectOption, selectRecommended],
+    [pinnedOption, taskId, selectOption, selectRecommended],
   )
 
   const onManualFolderSelect = useCallback(
@@ -153,7 +155,7 @@ export function useConfirmSelection({
       handleRemoveManualFolder(folder)
       if (pinnedOption?.folderId === folder.folderId) {
         setPinnedOption(null)
-        savePinnedOption(taskCreatedAt, null)
+        savePinnedOption(taskId, null)
         selectRecommended()
       } else if (activeOptionKey === `manual:${folder.folderId}`) {
         selectOption(null)
@@ -162,7 +164,7 @@ export function useConfirmSelection({
     [
       handleRemoveManualFolder,
       pinnedOption,
-      taskCreatedAt,
+      taskId,
       selectRecommended,
       activeOptionKey,
       selectOption,

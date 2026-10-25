@@ -8,11 +8,7 @@ import { confirmDeleteEagleItem } from '../../components/confirmDeleteModal'
 import { VideoPreview } from '../../components/VideoPreview'
 import { buildFolderMap, collectFolderKeys, findFolder } from '../../folders'
 import { useEagleStore } from '../../store'
-import {
-  clearOrganizeResultClassification,
-  retryOrganizeResult,
-  skipOrganizeResult,
-} from '../api'
+import { useOrganizeApi } from '../api'
 import { useOrganizeMedia } from '../media'
 import { ActionBar, ConfirmActions } from './components/ActionBar'
 import { ConfirmControls } from './components/ConfirmControls'
@@ -36,6 +32,11 @@ export function StepConfirm({
   task?: OrganizeTaskView | null
   onSwitchToRunning?: () => void
 }) {
+  const {
+    clearOrganizeResultClassification,
+    retryOrganizeResult,
+    skipOrganizeResult,
+  } = useOrganizeApi()
   const folders = useEagleStore((s) => s.folders)
   const { mediaType } = useOrganizeMedia()
   const [videoPreviewOpen, setVideoPreviewOpen] = useState(false)
@@ -141,6 +142,7 @@ export function StepConfirm({
     handleToggleTitle,
     withTitle,
   } = useConfirmSelection({
+    taskId: task?.taskId,
     taskCreatedAt: task?.createdAt,
     selectedId,
     folderPaths: detail?.folderPaths,

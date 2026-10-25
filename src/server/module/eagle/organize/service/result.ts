@@ -17,8 +17,8 @@ import {
   updateItems,
 } from '../../library'
 import { getEagleVisionEndpoint } from '../../settings'
-import { organizeExecutor } from '../executor'
-import { organizeRepository } from '../storage'
+import type { OrganizeExecutor } from '../executor'
+import type { OrganizeRepository } from '../storage'
 import { transitionTask } from '../transitions'
 import {
   getOrganizeRenamePatch,
@@ -44,14 +44,19 @@ const toResultData = <T extends { lowQuality?: boolean }>(
 }
 
 export class ResultService {
+  constructor(
+    private readonly repository: OrganizeRepository,
+    private readonly executor: OrganizeExecutor,
+  ) {}
+
   /** 结果状态落盘与任务计数转换共用任务串行队列，收尾不会读到半次决策。 */
   private async saveDecisions(
     records: OrganizeItemRecord[],
     status: 'confirmed' | 'skipped',
   ) {
     if (records.length === 0) return
-    await organizeRepository.mutateTask(async (task) => {
-      await organizeRepository.saveItemsBatch(
+    await this.repository.mutateTask(async (task) => {
+      await this.repository.saveItemsBatch(
         records.map((record) => ({ ...record, status, updatedAt: Date.now() })),
       )
       return transitionTask(task, {
@@ -59,19 +64,19 @@ export class ResultService {
         changes: records.map((record) => ({ from: record.status, to: status })),
       })
     })
-    publishOrganizeChange()
+    publishOrganizeChange(this.repository)
   }
 
   async listResults(
     status?: OrganizeItemStatus,
     options?: { offset?: number; limit?: number },
   ): Promise<OrganizeResultListItem[]> {
-    const list = await organizeRepository.listItems(status, options)
+    const list = await this.repository.listItems(status, options)
     // 分页后再查询素材投影，limit 较小时不再生成全结果的 ID/摘要 Map。
     const [itemMap, endpoint, task] = await Promise.all([
       getItemSnapshots(list.map((item) => item.itemId)),
       getEagleVisionEndpoint(),
-      organizeRepository.getTask(),
+      this.repository.getTask(),
     ])
     return list.map((item) => {
       const entry = itemMap?.get(item.itemId)
@@ -95,7 +100,7 @@ export class ResultService {
     libraryVersion?: string
   }) {
     const [results, library] = await Promise.all([
-      organizeRepository.getItemChanges(options.resultsVersion),
+      this.repository.getItemChanges(options.resultsVersion),
       getLibraryChanges(options.libraryVersion),
     ])
     const reset = results.ids === null || library.ids === null
@@ -103,14 +108,14 @@ export class ResultService {
       ...new Set([...(results.ids ?? []), ...(library.ids ?? [])]),
     ]
     const summaries = reset
-      ? await organizeRepository.listItems('success')
-      : await organizeRepository.getItemSummaries(changedIds)
+      ? await this.repository.listItems('success')
+      : await this.repository.getItemSummaries(changedIds)
     const succeeded = summaries.filter((item) => item.status === 'success')
     const successIds = new Set(succeeded.map((item) => item.itemId))
     const [itemMap, endpoint, task] = await Promise.all([
       getItemSnapshots(succeeded.map((item) => item.itemId)),
       getEagleVisionEndpoint(),
-      organizeRepository.getTask(),
+      this.repository.getTask(),
     ])
     return {
       resultsVersion: results.version,
@@ -136,7 +141,7 @@ export class ResultService {
 
   /** 缺失结果校准是显式命令；调用方在命令锁内校验任务身份。 */
   async reconcileResults(): Promise<OrganizeActionResult> {
-    const items = await organizeRepository.listItems('success')
+    const items = await this.repository.listItems('success')
     if (items.length === 0) return { ok: true }
     const itemMap = await getItemSnapshots(items.map((item) => item.itemId))
     if (!itemMap)
@@ -144,7 +149,7 @@ export class ResultService {
     const purged: OrganizeItemRecord[] = []
     for (const item of items) {
       if (itemMap.has(item.itemId)) continue
-      const record = await organizeRepository.getItem(item.itemId)
+      const record = await this.repository.getItem(item.itemId)
       if (record?.status === 'success') purged.push(record)
     }
     await this.saveDecisions(purged, 'confirmed')
@@ -152,12 +157,12 @@ export class ResultService {
   }
 
   async getResult(itemId: string): Promise<OrganizeResultDetail | null> {
-    const record = await organizeRepository.getItem(itemId)
+    const record = await this.repository.getItem(itemId)
     if (!record) return null
     const [entry, endpoint, task] = await Promise.all([
       getItemDetail(itemId),
       getEagleVisionEndpoint(),
-      organizeRepository.getTask(),
+      this.repository.getTask(),
     ])
     const needsRename =
       record.needsRename !== false &&
@@ -197,7 +202,7 @@ export class ResultService {
   async confirmBatch(
     items: OrganizeConfirmItem[],
   ): Promise<OrganizeConfirmBatchResult> {
-    const task = await organizeRepository.getTask()
+    const task = await this.repository.getTask()
     if (!task) {
       return {
         items: items.map(({ itemId }) => ({
@@ -215,6 +220,7 @@ export class ResultService {
         plans.set(
           item.itemId,
           await prepareConfirmation(
+            this.repository,
             item,
             task.standards,
             endpoint.modelId,
@@ -258,14 +264,14 @@ export class ResultService {
   }
 
   async clearItemClassification(itemId: string): Promise<OrganizeActionResult> {
-    const task = await organizeRepository.getTask()
+    const task = await this.repository.getTask()
     if (task?.classificationMode === 'recursive-rename')
       return {
         ok: false,
         status: 409,
         error: '递归仅重命名任务不允许清除目录归属',
       }
-    const record = await organizeRepository.getItem(itemId)
+    const record = await this.repository.getItem(itemId)
     if (!record) return { ok: false, status: 404, error: '结果不存在' }
     if (record.status !== 'success' && record.status !== 'failed')
       return { ok: false, status: 409, error: '该结果当前不需要确认' }
@@ -293,7 +299,7 @@ export class ResultService {
 
   /** 任务身份由门面校验后，串行执行删除与跳过；写库失败不能跳过结果。 */
   async trashItem(itemId: string): Promise<OrganizeTrashResult> {
-    const record = await organizeRepository.getItem(itemId)
+    const record = await this.repository.getItem(itemId)
     if (!record) return { ok: false, status: 404, error: '结果不存在' }
     if (record.status !== 'success' && record.status !== 'failed')
       return { ok: false, status: 409, error: '该结果当前不需要处理' }
@@ -303,7 +309,7 @@ export class ResultService {
   }
 
   async skipItem(itemId: string): Promise<OrganizeActionResult> {
-    const record = await organizeRepository.getItem(itemId)
+    const record = await this.repository.getItem(itemId)
     if (!record) return { ok: false, status: 404, error: '结果不存在' }
     if (record.status !== 'success' && record.status !== 'failed')
       return { ok: false, status: 409, error: '该结果当前不需要处理' }
@@ -312,7 +318,7 @@ export class ResultService {
   }
 
   async retryItem(itemId: string): Promise<OrganizeActionResult> {
-    const record = await organizeRepository.getItem(itemId)
+    const record = await this.repository.getItem(itemId)
     if (!record) return { ok: false, status: 404, error: '结果不存在' }
     if (record.status !== 'success' && record.status !== 'failed')
       return {
@@ -320,8 +326,8 @@ export class ResultService {
         status: 409,
         error: '仅待确认或失败的结果可以重新执行',
       }
-    await organizeRepository.mutateTask(async (task) => {
-      await organizeRepository.saveItem({
+    await this.repository.mutateTask(async (task) => {
+      await this.repository.saveItem({
         ...record,
         status: 'pending',
         updatedAt: Date.now(),
@@ -332,10 +338,8 @@ export class ResultService {
         resume: true,
       })
     })
-    publishOrganizeChange()
-    organizeExecutor.kick()
+    publishOrganizeChange(this.repository)
+    this.executor.kick()
     return { ok: true }
   }
 }
-
-export const resultService = new ResultService()

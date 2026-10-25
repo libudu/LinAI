@@ -34,7 +34,7 @@ export interface OrganizeFolderStandard {
   description: string
 }
 
-/** 按钮徽标与进度用的轻量状态（GET /api/eagle/organize/status） */
+/** 按钮徽标与进度用的轻量状态（GET /api/eagle/organize/:mediaType/status） */
 export interface OrganizeStatus {
   mediaType: EagleMediaType
   /** 修改请求必须携带的任务身份，创建时间仅用于展示与历史排序。 */
@@ -67,7 +67,7 @@ export interface OrganizeConfirmBatchResult {
   items: OrganizeConfirmItemResult[]
 }
 
-/** 任务详情视图（不含队列明细，GET /api/eagle/organize/task） */
+/** 任务详情视图（不含队列明细，GET /api/eagle/organize/:mediaType/task） */
 export interface OrganizeTaskView {
   mediaType: EagleMediaType
   taskId: string
@@ -95,7 +95,7 @@ export const ORGANIZE_CONCURRENCY_DEFAULT = 20
 export const ORGANIZE_CONCURRENCY_MIN = 1
 export const ORGANIZE_CONCURRENCY_MAX = 20
 
-/** 步骤 1 准备数据（GET /api/eagle/organize/prepare） */
+/** 步骤 1 准备数据（GET /api/eagle/organize/:mediaType/prepare） */
 export interface OrganizePrepareResp {
   mediaType: EagleMediaType
   /** 准备数据所属的任务；新建时也用于防止覆盖过期快照。 */
@@ -129,7 +129,7 @@ export interface OrganizePrepareParams {
   sortOrder: EagleSortOrder
 }
 
-/** 失败条目详情（GET /api/eagle/organize/failed-items） */
+/** 失败条目详情（GET /api/eagle/organize/:mediaType/failed-items） */
 export interface OrganizeFailedItem {
   itemId: string
   itemName: string | null
@@ -137,7 +137,7 @@ export interface OrganizeFailedItem {
   updatedAt: number
 }
 
-/** 单图结果记录（data/eagle/organize/items/<itemId>.json 的 value） */
+/** 单图结果记录（data/eagle/organize/<image|video>/items/<itemId>.json 的 value） */
 export interface OrganizeItemRecord {
   itemId: string
   status: OrganizeItemStatus
@@ -335,7 +335,7 @@ export interface OrganizeItemSummary {
   lowQuality?: boolean
 }
 
-/** 待确认结果列表项（GET /api/eagle/organize/results） */
+/** 待确认结果列表项（GET /api/eagle/organize/:mediaType/results） */
 export interface OrganizeResultListItem {
   itemId: string
   status: OrganizeItemStatus
@@ -357,7 +357,7 @@ export interface OrganizeResultListItem {
   size?: number
 }
 
-/** 单图结果详情（GET /api/eagle/organize/results/:itemId），附条目当前名称便于对比建议标题 */
+/** 单图结果详情（GET /api/eagle/organize/:mediaType/results/:itemId），附条目当前名称便于对比建议标题 */
 export interface OrganizeResultDetail extends OrganizeItemRecord {
   /** 原文件修改时间，供确认页媒体预览展示。 */
   mtime?: number
@@ -392,7 +392,7 @@ export interface OrganizeQueueItem {
   error?: string
 }
 
-/** 队列预览（GET /api/eagle/organize/queue?limit=20） */
+/** 队列预览（GET /api/eagle/organize/:mediaType/queue?limit=20） */
 export interface OrganizeQueueResp {
   /** 按队列顺序截取的前 limit 行 */
   items: OrganizeQueueItem[]

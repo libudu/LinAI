@@ -50,12 +50,13 @@ src/server/module/eagle/
 └── organize/                 # AI 图片/视频整理
     ├── constants.ts          # 并发、压缩与失败处理常量
     ├── model.ts              # 任务模型与旧数据归一化
-    ├── storage.ts            # 私有任务/结果存储与缓存
+    ├── storage.ts            # 按媒体类型隔离的私有任务/结果存储与缓存
+    ├── migration.ts          # 旧单任务与结果的原子目录迁移
     ├── transitions.ts        # 阶段、计数转换与校准
     ├── executor.ts           # 队列执行、自动改名、暂停恢复与通知
     ├── vision.ts             # 图片压缩、模型调用与响应校验
     └── service/              # 串行化用户命令
-        ├── index.ts          # OrganizeService 单例门面
+        ├── index.ts          # OrganizeService 按媒体类型实例化的门面
         ├── types.ts          # 服务参数与返回类型
         ├── helpers.ts        # 视图转换与变更发布
         ├── task.ts           # 任务生命周期
@@ -107,7 +108,7 @@ src/client/pages/module/Eagle/
 
 - 前端路由：`src/client/routes.tsx` 的 `/eagle`；后端：`src/server/index.ts` 的 `/api/eagle`。
 - 设置、存储、中继分别在 `src/server/common/{settings,storage,relay}/resources.ts` 汇总模块注册。
-- 变更资源：`eagle.library` 通知库变更，`eagle.organize` 通知整理任务与结果变更。
+- 变更资源：`eagle.library` 通知库变更，`eagle.organize.image` / `eagle.organize.video` 分别通知两类整理任务与结果变更。
 
 ## 数据与索引
 
@@ -130,7 +131,7 @@ src/client/pages/module/Eagle/
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | 库路径、视觉接入点                 | SettingsRegistry：`eagle` / `eagle-vision`                                                                                            |
 | 目录展开、手动分类历史             | 通用集合 `eagle.folder-tree` / `eagle.manual-folders`，固定 `preferences` 条目；`data/eagle/folder-tree.json` / `manual-folders.json` |
-| 整理任务、结果                     | 私有 DocumentStore / EntityStore：`data/eagle/organize/task.json`、`items/<itemId>.json`                                              |
+| 整理任务、结果                     | 私有 DocumentStore / EntityStore：`data/eagle/organize/{image,video}/task.json`、`items/<itemId>.json`                                |
 | 可重建缓存                         | `data/eagle/index-shards/`、`thumb/`                                                                                                  |
 | 视频长期预览联系表                 | Eagle 库内 `images/<id>.info/linai/video-contact-sheet.{webp,json}`                                                                   |
 | 排序、展示选项、媒体类型、选中目录 | localStorage，经 `preferences.ts` 管理                                                                                                |
@@ -147,29 +148,29 @@ src/client/pages/module/Eagle/
 
 完整参数以 `schemas.ts` 和路由代码为准，前端通过 Hono RPC 推导类型。下表 `{a,b}` 表示同一前缀下的多个接口：
 
-| 方法       | 路径                                                                                                                       | 用途                                                                   |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| GET        | `/overview`、`/folders`、`/items`                                                                                          | 目录、计数、keyword 文件名搜索与 offset/limit 分页；未指定目录为全部   |
-| PUT        | `/folders/:id`、`/items/:id`                                                                                               | 目录名称/描述、条目标题/归属                                           |
-| DELETE     | `/items/:id`、`/items/:id/purge`                                                                                           | 移入回收站、彻底删除                                                   |
-| POST       | `/items/:id/restore`、`/trash/purge`、`/unclassified/trash`                                                                | 还原、清空回收站、未分类批量移入回收站                                 |
-| POST       | `/refresh`、`/items/:id/add-to-gallery`                                                                                    | 刷新索引、导入输入图库                                                 |
-| GET / POST | `/items/:id/detail`、`/items/:id/media-edits`                                                                              | 当前媒体详情、按内容版本校验的媒体编辑覆盖                             |
-| POST / GET | `/items/:id/media-edits/jobs`、`/items/:id/media-edits/jobs/:jobId`、`/items/:id/media-edits/jobs/:jobId/cancel`           | 启动编辑保存任务、查询进度与结果、取消未提交的任务                     |
-| GET        | `/items/:id/{thumbnail,file,preview,video-contact-sheet}`                                                                  | 缩略图、原文件、只读大图、视频联系表（缺失或失效时生成并保存）         |
-| GET        | `/conversion/candidates`                                                                                                   | 全库分页候选；`snapshot=true` 返回完整候选 ID 与摘要                   |
-| POST       | `/conversion/items/:id`                                                                                                    | 单张转换或源图删除重试                                                 |
-| GET        | `/organize/prepare`、`/organize/status`、`/organize/task`、`/organize/queue`、`/organize/failed-items`                     | 准备、状态、任务、队列与失败详情                                       |
-| POST       | `/organize/task`、`/organize/task/{append,pause,resume,sync-standards,retry-failed,skip-failed,classify-successful,clear}` | 创建、追加、执行控制、标准同步、失败处理、仅保留成功项、清空           |
-| GET        | `/organize/results`、`/organize/results/:itemId`、`/organize/results/changes`                                              | 分页、详情与增量结果                                                   |
-| POST       | `/organize/results/reconcile`、`/organize/results/confirm-batch`                                                           | 缺失条目校准、批量确认                                                 |
-| POST       | `/organize/results/:itemId/{confirm,trash,skip,retry,clear-classification}`                                                | 单项确认、移入回收站并跳过、跳过、重做、清除归属并按推荐标题改名后跳过 |
+| 方法       | 路径                                                                                                                                                          | 用途                                                                   |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| GET        | `/overview`、`/folders`、`/items`                                                                                                                             | 目录、计数、keyword 文件名搜索与 offset/limit 分页；未指定目录为全部   |
+| PUT        | `/folders/:id`、`/items/:id`                                                                                                                                  | 目录名称/描述、条目标题/归属                                           |
+| DELETE     | `/items/:id`、`/items/:id/purge`                                                                                                                              | 移入回收站、彻底删除                                                   |
+| POST       | `/items/:id/restore`、`/trash/purge`、`/unclassified/trash`                                                                                                   | 还原、清空回收站、未分类批量移入回收站                                 |
+| POST       | `/refresh`、`/items/:id/add-to-gallery`                                                                                                                       | 刷新索引、导入输入图库                                                 |
+| GET / POST | `/items/:id/detail`、`/items/:id/media-edits`                                                                                                                 | 当前媒体详情、按内容版本校验的媒体编辑覆盖                             |
+| POST / GET | `/items/:id/media-edits/jobs`、`/items/:id/media-edits/jobs/:jobId`、`/items/:id/media-edits/jobs/:jobId/cancel`                                              | 启动编辑保存任务、查询进度与结果、取消未提交的任务                     |
+| GET        | `/items/:id/{thumbnail,file,preview,video-contact-sheet}`                                                                                                     | 缩略图、原文件、只读大图、视频联系表（缺失或失效时生成并保存）         |
+| GET        | `/conversion/candidates`                                                                                                                                      | 全库分页候选；`snapshot=true` 返回完整候选 ID 与摘要                   |
+| POST       | `/conversion/items/:id`                                                                                                                                       | 单张转换或源图删除重试                                                 |
+| GET        | `/organize/:mediaType/prepare`、`/organize/:mediaType/status`、`/organize/:mediaType/task`、`/organize/:mediaType/queue`、`/organize/:mediaType/failed-items` | 准备、状态、任务、队列与失败详情                                       |
+| POST       | `/organize/:mediaType/task`、`/organize/:mediaType/task/{append,pause,resume,sync-standards,retry-failed,skip-failed,classify-successful,clear}`              | 创建、追加、执行控制、标准同步、失败处理、仅保留成功项、清空           |
+| GET        | `/organize/:mediaType/results`、`/organize/:mediaType/results/:itemId`、`/organize/:mediaType/results/changes`                                                | 分页、详情与增量结果                                                   |
+| POST       | `/organize/:mediaType/results/reconcile`、`/organize/:mediaType/results/confirm-batch`                                                                        | 缺失条目校准、批量确认                                                 |
+| POST       | `/organize/:mediaType/results/:itemId/{confirm,trash,skip,retry,clear-classification}`                                                                        | 单项确认、移入回收站并跳过、跳过、重做、清除归属并按推荐标题改名后跳过 |
 
 - 响应为 `{ success: true, data }` 或 `{ success: false, error: { code, message } }`；校验失败 400，任务身份冲突 409 / `TASK_CHANGED`，存储错误保留原错误码。GET 不修改任务或计数，校准通过 POST 显式执行。
 - 条目 ID 满足 `^[A-Za-z0-9]+$`，文件路径从可信索引获取。媒体接口支持 ETag，原文件支持 Range；`contentVersion` 由库路径、原文件名、`lastModified` 派生，用于 URL 的 `v`、ETag 和回退缩略图缓存。无版本或旧版本 URL 必须重新验证。
 - `/overview`、`/folders`、`/items` 按 `mediaType=image|video` 统一过滤；`/trash/purge`、`/unclassified/trash` 同样限制批量范围，未传参数保留全库语义。
 - `/overview` 的 `trashSize` 与 `/trash/purge` 的 `size` 为当前范围的原文件累计字节数（基于索引元数据，不含缩略图等附属文件），清空确认和成功提示同时展示数量与大小，统计不受搜索或分页影响。
-- 新建携带 `expectedTaskId`（无任务为 null），其他任务修改携带 `taskId`，命令锁内先校验身份。准备、新建和追加的 `mediaType` 默认 image；旧字段 `imageCount` 表示当前类型的可处理总数。
+- 整理接口使用 `/organize/:mediaType/*`（`image` / `video`），路径决定任务范围；新建携带 `expectedTaskId`（该类型无任务为 null），其他任务修改携带 `taskId`，命令锁内先校验身份。准备、新建和追加的媒体类型由路径绑定；旧字段 `imageCount` 表示当前类型的可处理总数。
 
 ## 浏览与前端同步
 
@@ -197,7 +198,11 @@ src/client/pages/module/Eagle/
 
 ## 整理流程
 
-图片与视频共用单个任务，任务保存 `mediaType`（旧任务默认 image），禁止混合追加；切换标签可继续已有任务，完成或清空后才能添加另一类型。GIF、HEIC/HEIF 不参与图片分类。
+图片与视频各保留一个独立任务，可同时运行；切换媒体标签进入对应任务。两类任务复用整理流程，但任务/结果目录、缓存、命令锁、执行器、失败计数、中断控制、状态订阅与乐观确认分别隔离。暂停、清空、确认或创建新任务只影响当前类型；同一类型仍禁止同时创建多个未完成任务。各任务沿用自己的并发与派发间隔，不增加共享限流；库写操作继续共用库级写锁，视频抽帧继续共用本地解码锁。GIF、HEIC/HEIF 不参与图片分类。
+
+首次启动按旧任务的 `mediaType`（缺失为 image）迁移旧 `task.json` 和整个 `items/`，保留任务 ID、队列和全部结果。先复制到暂存目录，再原子改名为对应类型目录，最后写 `migration.json` 完成标记；标记落盘前两类任务均不可读写。每次复制使用全新暂存目录，不复用中断残留，避免旧版本更换任务后混入另一轮结果；已提交且任务 ID、媒体类型、源 revision / 更新时间一致时可补写完成标记，目标冲突时保留数据并报错。任务文档和完成标记读取失败时保留原文件并拒绝迁移，不能在重启后误判为缺失。旧文件留作迁移备份，完成标记阻止清空新任务后重复导入；迁移后的运行任务沿用启动恢复规则暂停，等待手动恢复；任一类型启动恢复失败时拒绝该类型的后续操作，避免覆盖未恢复进度。
+
+前端按媒体类型绑定 API、状态和确认批次，切换类型时重建弹窗，卸载后的批次仍提交至原类型任务。确认分堆置顶、目标置顶与分类顺序按任务 ID 保存，兼容旧版偏好，避免两类任务互相覆盖。
 
 ### 分类模式与步骤
 
@@ -208,7 +213,7 @@ src/client/pages/module/Eagle/
 | `recursive-rename`           | 当前目录及全部子孙中需要改名的资源，无需目录描述                           | 自动仅改名，保留归属与低质判断，不进入待确认               |
 
 - **01 待添加**：新建选择模式、数量、并发与压缩参数；分类无有效标准时禁止创建，仅重命名允许空标准但必须有有效来源，禁止扩大到全库。未完成任务可跨普通目录追加，沿用任务模式、标准和参数，按 Eagle ID 排除队列与本轮结果（含已确认/跳过项），串行更新时再次去重。子目录任务的目标范围始终绑定创建目录，标准差异检测与同步也使用该范围；仅非运行、未结束任务可同步标准，仅重命名不检测标准差异。仅重命名默认处理全部候选，`previewItems` 只预览前 50 条未入队项，不限制实际数量；目录、排序、模式或转换变化后刷新准备数据。
-- **02 处理中**：支持暂停派发、恢复、失败重试/跳过、清空；执行器限制并发与间隔，连续失败或落盘异常时暂停并通知。暂停可仅保留成功项进入确认。清空中止请求和后续处理，不撤销已写库修改。
+- **02 处理中**：支持暂停派发、恢复、失败重试/跳过、清空；执行器限制并发与间隔，连续失败或落盘异常时暂停并通知。停止标记在暂停落盘前即生效，队列收尾不得自行解除，过期轮次不推进完成阶段或发送完成通知。暂停可仅保留成功项进入确认。清空中止请求和后续处理，不撤销已写库修改。
 - **03 待确认**：仅展示分析成功项；普通模式选择推荐/手动目标和标题，快速模式按首选推荐确认，疑似低质与未分类默认置顶。两种视图均可手动置顶一个待确认分堆，通过与手动选择文件夹共用的可搜索树状弹窗选择首选推荐类别、疑似低质或未分类，按钮与选择弹窗实时显示剩余数量，置顶范围（含全部子类）处理完后自动取消置顶，选中恢复排序后的首项并将横向列表滚动到最左边；类别自身或任意子类有待确认项时均可选，父类数量包含全部子类；搜索隐藏的选择不能提交。确认选择后切换为分类排序并选中置顶范围首项，父类自身条目在前，子类按目录树顺序（含多层子类）排列，优先于默认特殊类别，范围外分堆保持原顺序，取消置顶后选中恢复排序后的首项并将横向列表滚动到最左边，同一任务内通过 sessionStorage 保留选择，与右侧确认目标的置顶独立。移至未分类（A）清空全部目录归属、不采用推荐分类，同时使用推荐标题改名（不受标题勾选影响，仍遵循无需改名规则），写库成功后跳过结果。支持不处理（S）、确认（D）、移入回收站、重做。递归仅重命名隐藏本步骤和确认入口。执行完且待确认、失败项均处理后进入 `done`。
 - 子目录确认默认候选包含绑定目录的全部层级子目录（可无描述/历史，不含自身），置顶优先，其余按推荐顺序、手动使用次数、目录树顺序排序并按路径去重；首次使用也记录历史，不混入全库其他历史。手动选择仍可使用全库目录或置顶范围外目录；目录名称搜索保留匹配父路径，被过滤隐藏的选择不能提交。追加来源不改变默认候选范围。
 - 确认页通过增量接口合并/移除结果并本地排序，进入页面或任务身份变化时显式校准缺失项；reset 替换列表，仅接受响应后推进游标。任务切换、卸载及乐观操作后的过期响应不得覆盖当前状态。

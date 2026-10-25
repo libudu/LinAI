@@ -1,12 +1,7 @@
 import { message } from 'antd'
 import { useCallback, useEffect, useRef } from 'react'
-import { confirmOrganizeResultsBatch } from '../../api'
-import {
-  cancelOptimisticItems,
-  isCurrentOrganizeTask,
-  markOptimisticItemsSubmitting,
-  settleOptimisticItems,
-} from '../../store'
+import { useOrganizeApi } from '../../api'
+import { useOrganizeActions } from '../../store'
 import type { PendingConfirmItem } from '../types'
 import { ConfirmSubmissionQueue } from '../utils/submissionQueue'
 
@@ -16,6 +11,13 @@ interface UseConfirmSubmissionOptions {
 
 /** 只负责提交、逐项反馈和校准；列表恢复由列表 Hook 完成。 */
 export function useConfirmSubmission(options: UseConfirmSubmissionOptions) {
+  const {
+    cancelOptimisticItems,
+    isCurrentOrganizeTask,
+    markOptimisticItemsSubmitting,
+    settleOptimisticItems,
+  } = useOrganizeActions()
+  const { confirmOrganizeResultsBatch } = useOrganizeApi()
   const optionsRef = useRef(options)
   optionsRef.current = options
   const mountedRef = useRef(true)

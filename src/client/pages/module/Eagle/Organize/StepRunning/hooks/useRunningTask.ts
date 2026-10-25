@@ -5,21 +5,23 @@ import type {
 import { Modal, message } from 'antd'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { RefreshQueue } from '../../../refreshQueue'
-import {
-  clearOrganizeTask,
-  fetchFailedOrganizeItems,
-  fetchOrganizeQueue,
-  pauseOrganizeTask,
-  resumeOrganizeTask,
-  retryOrganizeResult,
-  skipOrganizeResult,
-} from '../../api'
-import { refreshOrganizeStatus, useOrganizeStatus } from '../../store'
+import { useOrganizeApi } from '../../api'
+import { useOrganizeActions, useOrganizeStatus } from '../../store'
 
 const QUEUE_PREVIEW_LIMIT = 20
 
 /** 执行步骤的数据、刷新和用户命令；界面组件只负责组装。 */
 export function useRunningTask() {
+  const { refreshOrganizeStatus } = useOrganizeActions()
+  const {
+    clearOrganizeTask,
+    fetchFailedOrganizeItems,
+    fetchOrganizeQueue,
+    pauseOrganizeTask,
+    resumeOrganizeTask,
+    retryOrganizeResult,
+    skipOrganizeResult,
+  } = useOrganizeApi()
   const { status, revision } = useOrganizeStatus()
   const [queue, setQueue] = useState<OrganizeQueueResp | null>(null)
   const [failedItems, setFailedItems] = useState<OrganizeFailedItem[]>([])

@@ -67,7 +67,7 @@ export function Toolbar() {
   } = useEagleStore()
   const { isMobile } = usePlatform()
   const visionApiKey = useEagleVisionConfig((s) => s.visionApiKey)
-  const { status: organizeStatus } = useOrganizeStatus()
+  const { status: organizeStatus } = useOrganizeStatus(mediaType)
   const [refreshing, setRefreshing] = useState(false)
   const [purgingTrash, setPurgingTrash] = useState(false)
   const [trashingUnclassified, setTrashingUnclassified] = useState(false)

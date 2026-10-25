@@ -12,9 +12,9 @@ import {
   getItemSnapshots,
 } from '../../library'
 import { getEagleVisionEndpoint } from '../../settings'
-import { organizeExecutor } from '../executor'
+import type { OrganizeExecutor } from '../executor'
 import type { OrganizeTaskRecord } from '../model'
-import { organizeRepository } from '../storage'
+import type { OrganizeRepository } from '../storage'
 import { transitionTask } from '../transitions'
 import { publishOrganizeChange, resolveFolderName, toTaskView } from './helpers'
 import type {
@@ -97,15 +97,20 @@ const getSourcePreview = async (
 }
 
 export class TaskService {
+  constructor(
+    private readonly repository: OrganizeRepository,
+    private readonly executor: OrganizeExecutor,
+  ) {}
+
   /** 服务重启后，正在执行的任务标记为已暂停（请求中断，in-flight 结果未落盘） */
   async recoverInterruptedTask(): Promise<void> {
     try {
-      const task = await organizeRepository.getTask()
+      const task = await this.repository.getTask()
       if (!task) return
-      await organizeRepository.mutateTask(async (latest) => {
+      await this.repository.mutateTask(async (latest) => {
         let reconciled = transitionTask(latest, {
           type: 'reconcile',
-          items: await organizeRepository.getProgressItems(),
+          items: await this.repository.getProgressItems(),
         })!
         // 旧版待确认结果及写库后尚未落盘状态的结果，恢复后交给执行器直接改名。
         if (
@@ -121,15 +126,20 @@ export class TaskService {
           ? transitionTask(reconciled, { type: 'pause', reason: 'restart' })
           : reconciled
       })
-      publishOrganizeChange()
+      publishOrganizeChange(this.repository)
     } catch (error) {
-      console.error('[Eagle] 启动恢复图片整理任务失败', error)
+      console.error(
+        `[Eagle] 启动恢复 ${this.repository.mediaType} 整理任务失败`,
+        error,
+      )
+      // 恢复失败不能开放该类型的命令，否则可能覆盖尚未校准的任务与结果。
+      throw error
     }
   }
 
   /** 徽标与弹窗用轻量状态；无任务返回 null */
   async getStatus(): Promise<OrganizeStatus | null> {
-    const task = await organizeRepository.getTask()
+    const task = await this.repository.getTask()
     if (!task) return null
     return {
       taskId: task.taskId,
@@ -146,14 +156,14 @@ export class TaskService {
   }
 
   async getTask(): Promise<OrganizeTaskView | null> {
-    const task = await organizeRepository.getTask()
+    const task = await this.repository.getTask()
     if (!task) return null
     return toTaskView(task)
   }
 
   /** 步骤 1 准备数据：按当前选中范围统计，分类标准沿用未完成任务的快照 */
   async prepare(params: OrganizePrepareParams): Promise<OrganizePrepareResp> {
-    const task = await organizeRepository.getTask()
+    const task = await this.repository.getTask()
     const sourceFolderName = await resolveFolderName(params.folderId)
     if (task && task.phase !== 'done') {
       const [allItems, latestStandards, history] = await Promise.all([
@@ -162,7 +172,7 @@ export class TaskService {
           task.classificationMode,
         ),
         getClassificationStandards(task.classificationMode, task.folderId),
-        organizeRepository.getItemStatuses(),
+        this.repository.getItemStatuses(),
       ])
       const imageCount = allItems.total
       const availableItemIds = getAvailableItemIds(allItems.itemIds, [
@@ -221,7 +231,7 @@ export class TaskService {
   async createTask(
     params: OrganizeCreateTaskParams,
   ): Promise<CreateTaskResult> {
-    const existing = await organizeRepository.getTask()
+    const existing = await this.repository.getTask()
     if (existing && existing.phase !== 'done') {
       return {
         ok: false,
@@ -270,10 +280,10 @@ export class TaskService {
       failedCount: 0,
     }
     // 旧任务已结束（或无任务）：清空旧结果后落盘新任务
-    await organizeRepository.clearItems()
-    await organizeRepository.saveTask(record)
-    publishOrganizeChange()
-    organizeExecutor.kick()
+    await this.repository.clearItems()
+    await this.repository.saveTask(record)
+    publishOrganizeChange(this.repository)
+    this.executor.kick()
     return {
       ok: true,
       task: toTaskView(record),
@@ -284,7 +294,7 @@ export class TaskService {
   async appendItems(
     params: OrganizeAppendParams,
   ): Promise<OrganizeActionResult> {
-    const task = await organizeRepository.getTask()
+    const task = await this.repository.getTask()
     if (!task || task.phase === 'done') {
       return {
         ok: false,
@@ -301,11 +311,11 @@ export class TaskService {
     }
     const [{ itemIds: allAvailable }, history] = await Promise.all([
       getSourceItems(params, task.classificationMode),
-      organizeRepository.getItemStatuses(),
+      this.repository.getItemStatuses(),
     ])
     const historyIds = [...history.keys()]
     let noAvailableItems = false
-    const updated = await organizeRepository.mutateTask((latest) => {
+    const updated = await this.repository.mutateTask((latest) => {
       // 读取范围期间任务可能完成或被替换，不把旧请求追加到新任务。
       if (latest.phase === 'done' || latest.taskId !== task.taskId) return null
       const toAppend = getAvailableItemIds(allAvailable, [
@@ -323,29 +333,29 @@ export class TaskService {
         ? { ok: false, status: 400, error: '当前范围内没有更多可追加的资源' }
         : { ok: false, status: 409, error: '任务状态已变更，请刷新后重试' }
     }
-    publishOrganizeChange()
-    if (updated.phase === 'running') organizeExecutor.kick()
+    publishOrganizeChange(this.repository)
+    if (updated.phase === 'running') this.executor.kick()
     return { ok: true }
   }
 
   /** 用户暂停：停止派发新请求；返回 false 表示当前不可暂停 */
   async pauseTask(): Promise<boolean> {
-    organizeExecutor.stop()
-    const updated = await organizeRepository.mutateTask((task) =>
+    this.executor.stop()
+    const updated = await this.repository.mutateTask((task) =>
       transitionTask(task, { type: 'pause', reason: 'user' }),
     )
     if (!updated) return false
-    publishOrganizeChange()
+    publishOrganizeChange(this.repository)
     return true
   }
 
   async resumeTask(): Promise<boolean> {
-    const updated = await organizeRepository.mutateTask((task) =>
+    const updated = await this.repository.mutateTask((task) =>
       transitionTask(task, { type: 'resume' }),
     )
     if (!updated) return false
-    publishOrganizeChange()
-    organizeExecutor.kick()
+    publishOrganizeChange(this.repository)
+    this.executor.kick()
     return true
   }
 
@@ -355,7 +365,7 @@ export class TaskService {
    * 将当前外部最新的文件夹标准快照原子写回 task.standards 并发布变更。
    */
   async syncStandards(): Promise<OrganizeActionResult> {
-    const task = await organizeRepository.getTask()
+    const task = await this.repository.getTask()
     if (!task || task.phase === 'running' || task.phase === 'done') {
       return {
         ok: false,
@@ -381,7 +391,7 @@ export class TaskService {
             : '当前没有包含描述的文件夹，无法同步',
       }
     }
-    const updated = await organizeRepository.mutateTask((current) => {
+    const updated = await this.repository.mutateTask((current) => {
       if (!current || current.phase === 'running' || current.phase === 'done')
         return null
       return {
@@ -396,7 +406,7 @@ export class TaskService {
         error: '任务状态已变更，请刷新后重试',
       }
     }
-    publishOrganizeChange()
+    publishOrganizeChange(this.repository)
     return { ok: true }
   }
 
@@ -405,11 +415,9 @@ export class TaskService {
    * 先等执行器收尾再删数据，保证不会有过期结果在删除后落盘
    */
   async clearTask(): Promise<void> {
-    await organizeExecutor.abort()
-    await organizeRepository.deleteTask()
-    await organizeRepository.clearItems()
-    publishOrganizeChange()
+    await this.executor.abort()
+    await this.repository.deleteTask()
+    await this.repository.clearItems()
+    publishOrganizeChange(this.repository)
   }
 }
-
-export const taskService = new TaskService()

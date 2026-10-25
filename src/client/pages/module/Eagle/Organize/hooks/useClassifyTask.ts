@@ -9,13 +9,8 @@ import { message } from 'antd'
 import { useEffect, useState } from 'react'
 import { findFolder } from '../../folders'
 import { useEagleStore } from '../../store'
-import {
-  appendOrganizeTask,
-  createOrganizeTask,
-  fetchOrganizePrepare,
-  syncOrganizeStandards,
-} from '../api'
-import { refreshOrganizeStatus, useOrganizeStatus } from '../store'
+import { useOrganizeApi } from '../api'
+import { useOrganizeActions, useOrganizeStatus } from '../store'
 
 const ORGANIZE_OPTIONS_STORAGE_KEY = 'eagle_organize_options'
 const ORGANIZE_COUNT_DEFAULT = 100
@@ -76,6 +71,13 @@ export function useClassifyTask(
   onSuccess?: () => void,
   conversionRevision = 0,
 ) {
+  const { refreshOrganizeStatus } = useOrganizeActions()
+  const {
+    appendOrganizeTask,
+    createOrganizeTask,
+    fetchOrganizePrepare,
+    syncOrganizeStandards,
+  } = useOrganizeApi()
   const currentFolderId = useEagleStore((state) => state.currentFolderId)
   const mediaType = useEagleStore((state) => state.mediaType)
   const sortBy = useEagleStore((state) => state.sortBy)

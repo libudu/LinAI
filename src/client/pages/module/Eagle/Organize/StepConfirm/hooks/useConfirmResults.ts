@@ -4,12 +4,8 @@ import type { EagleFolder } from '@/shared/eagle/types'
 import { message } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { RefreshQueue } from '../../../refreshQueue'
-import { fetchOrganizeResultChanges, reconcileOrganizeResults } from '../../api'
-import {
-  getOptimisticItemIds,
-  refreshOrganizeStatus,
-  useOrganizeStatus,
-} from '../../store'
+import { useOrganizeApi } from '../../api'
+import { useOrganizeActions, useOrganizeStatus } from '../../store'
 import type { OrganizeSortType, PendingConfirmItem } from '../types'
 import {
   getOrganizeItemCategory,
@@ -38,6 +34,9 @@ export function useConfirmResults({
   folders,
   renameOnly = false,
 }: UseConfirmResultsOptions) {
+  const { getOptimisticItemIds, refreshOrganizeStatus } = useOrganizeActions()
+  const { fetchOrganizeResultChanges, reconcileOrganizeResults } =
+    useOrganizeApi()
   const [results, setResults] = useState<OrganizeResultListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -100,9 +99,9 @@ export function useConfirmResults({
       const order = getOrUpdateCategoryOrder(
         available,
         folders,
-        getSavedCategoryOrder(taskCreatedAt),
+        getSavedCategoryOrder(taskId, taskCreatedAt),
       )
-      saveCategoryOrder(taskCreatedAt, order)
+      saveCategoryOrder(taskId, order)
       const sorted = sortOrganizeResults(
         available,
         sortType,
@@ -117,7 +116,7 @@ export function useConfirmResults({
           : (sorted[0]?.itemId ?? null),
       )
     },
-    [folders, pinnedCategory, replaceResults, sortType, taskCreatedAt],
+    [folders, pinnedCategory, replaceResults, sortType, taskCreatedAt, taskId],
   )
   const projectRef = useRef(projectResults)
   projectRef.current = projectResults
@@ -247,7 +246,7 @@ export function useConfirmResults({
         resultsRef.current,
         category ? 'category' : sortType,
         folders,
-        getSavedCategoryOrder(taskCreatedAt),
+        getSavedCategoryOrder(taskId, taskCreatedAt),
         category,
       )
       setCategoryPin({ taskId, category })
@@ -323,9 +322,9 @@ export function useConfirmResults({
       const order = getOrUpdateCategoryOrder(
         restored,
         folders,
-        getSavedCategoryOrder(taskCreatedAt),
+        getSavedCategoryOrder(taskId, taskCreatedAt),
       )
-      saveCategoryOrder(taskCreatedAt, order)
+      saveCategoryOrder(taskId, order)
       const sorted = sortOrganizeResults(
         restored,
         sortType,

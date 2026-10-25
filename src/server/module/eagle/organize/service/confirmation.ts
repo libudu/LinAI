@@ -12,7 +12,7 @@ import {
   getItemSnapshots,
   type UpdateItemPatch,
 } from '../../library'
-import { organizeRepository } from '../storage'
+import type { OrganizeRepository } from '../storage'
 import type { OrganizeConfirmItem } from './types'
 
 export type ConfirmationPlan =
@@ -36,6 +36,7 @@ export const getOrganizeRenamePatch = (
 
 /** 单张和批量共用校验、目标解析、缺失条目自愈与幂等判断。 */
 export const prepareConfirmation = async (
+  repository: OrganizeRepository,
   item: OrganizeConfirmItem,
   standards: OrganizeFolderStandard[],
   modelId: string,
@@ -45,7 +46,7 @@ export const prepareConfirmation = async (
     kind: 'resolved',
     result: { itemId: item.itemId, ok: false, status, error },
   })
-  const record = await organizeRepository.getItem(item.itemId)
+  const record = await repository.getItem(item.itemId)
   if (!record) return fail(404, '结果不存在')
   if (record.status === 'confirmed') {
     return {

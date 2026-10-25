@@ -32,8 +32,11 @@ export const toCorrupt = (file: string, error: unknown): StorageError => {
   )
 }
 
-/** 读取 JSON；文件缺失返回 undefined；损坏抛 StorageError(CORRUPT)，其他 IO 错误抛 READ_FAILED */
-export const readJsonFile = async <T>(file: string): Promise<T | undefined> => {
+/** 读取 JSON；缺失返回 undefined，损坏默认隔离；迁移可保留源文件，防止下次误判为缺失。 */
+export const readJsonFile = async <T>(
+  file: string,
+  options?: { preserveCorrupt?: boolean },
+): Promise<T | undefined> => {
   let content: string
   try {
     content = await fsp.readFile(file, 'utf-8')
@@ -47,6 +50,12 @@ export const readJsonFile = async <T>(file: string): Promise<T | undefined> => {
   try {
     return JSON.parse(content) as T
   } catch (error) {
+    if (options?.preserveCorrupt)
+      throw new StorageError(
+        'CORRUPT',
+        `JSON 文件损坏，已保留原文件: ${path.basename(file)}`,
+        { file, cause: String(error) },
+      )
     throw toCorrupt(file, error)
   }
 }

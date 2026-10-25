@@ -1,5 +1,5 @@
 import { Badge, Button, Tabs } from 'antd'
-import { retryFailedOrganizeItems, skipFailedOrganizeItems } from '../api'
+import { useOrganizeApi } from '../api'
 import { BottomBar } from './BottomBar'
 import { CompletedCards } from './CompletedCards'
 import { FailedList } from './FailedList'
@@ -17,6 +17,7 @@ export function StepRunning({
   onSwitchToClassify?: () => void
   renameOnly?: boolean
 }) {
+  const { retryFailedOrganizeItems, skipFailedOrganizeItems } = useOrganizeApi()
   const {
     phase,
     status,
