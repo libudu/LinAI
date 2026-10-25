@@ -263,7 +263,10 @@ export function VideoPreview({
             }}
           >
             {mode === 'video' && (
-              <div className="relative flex h-14 shrink-0 items-center justify-center gap-3 rounded-full bg-black/40 px-4 py-2 text-white">
+              <div
+                className="relative flex h-14 shrink-0 items-center justify-center gap-3 rounded-full bg-black/40 px-4 py-2 text-white"
+                onClick={(event) => event.stopPropagation()}
+              >
                 <button
                   type="button"
                   title="向左旋转 90°"
@@ -311,7 +314,10 @@ export function VideoPreview({
                 )}
               </div>
             )}
-            <div className="flex h-14 shrink-0 items-center rounded-full bg-black/40 px-2 py-2">
+            <div
+              className="flex h-14 shrink-0 items-center rounded-full bg-black/40 px-2 py-2"
+              onClick={(event) => event.stopPropagation()}
+            >
               <ConfigProvider
                 theme={{
                   components: {
@@ -343,7 +349,10 @@ export function VideoPreview({
                 />
               </ConfigProvider>
             </div>
-            <div className="max-h-[20dvh] min-h-14 min-w-0 overflow-y-auto rounded-lg bg-black/40 px-3 py-2 text-center text-sm text-white">
+            <div
+              className="max-h-[20dvh] min-h-14 min-w-0 overflow-y-auto rounded-lg bg-black/40 px-3 py-2 text-center text-sm text-white"
+              onClick={(event) => event.stopPropagation()}
+            >
               <div className="wrap-anywhere whitespace-pre-wrap">
                 {item.name}.{item.ext}
               </div>
