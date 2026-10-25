@@ -84,7 +84,7 @@ export const editedMediaExtension = (ext: string, video: boolean) => {
   return 'png'
 }
 
-/** 当前仅支持旋转，相邻旋转合并为一次处理，避免重复有损编码。 */
+/** 相邻旋转合并，裁剪保留操作顺序，所有编辑只编码一次。 */
 const compileMediaEdits = (operations: readonly EagleMediaEditOperation[]) => {
   const compiled: EagleMediaEditOperation[] = []
   for (const operation of operations) {
@@ -101,6 +101,9 @@ const compileMediaEdits = (operations: readonly EagleMediaEditOperation[]) => {
           compiled.push({ type: 'rotate', degrees })
         break
       }
+      case 'crop':
+        compiled.push({ ...operation })
+        break
       default:
         // 新操作必须先实现处理器，不能静默跳过或假装保存成功。
         throw new Error('不支持的媒体编辑操作')
@@ -140,6 +143,10 @@ export const createEditedMedia = async (
             : operation.degrees === 270
               ? ['transpose=cclock']
               : ['hflip', 'vflip']
+        case 'crop':
+          return [
+            `crop=w='max(2,round(iw*${operation.x + operation.width})-round(iw*${operation.x}))':h='max(2,round(ih*${operation.y + operation.height})-round(ih*${operation.y}))':x='round(iw*${operation.x})':y='round(ih*${operation.y})':exact=1`,
+          ]
         default:
           throw new Error('视频不支持此媒体编辑操作')
       }
@@ -200,7 +207,7 @@ export const createEditedMedia = async (
     )
     signal?.throwIfAborted()
     onProgress?.({ percent: 92, phase: 'verifying', canCancel: true })
-    await preserveMediaTimestamps(source, output, signal)
+    await preserveMediaTimestamps(source, output, signal, { video: true })
     const info = await readVideoMetadata(output, signal)
     width = info.width
     height = info.height

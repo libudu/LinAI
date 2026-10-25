@@ -25,6 +25,7 @@ import {
 } from '../schemas'
 import { getEagleSettings } from '../settings'
 import { ensureIndex, indexCache, libraryChanges } from './index-state'
+import { commitMediaEditCopy } from './media-edit-copy'
 import { removeMtimes, updateMtimes } from './mtime-state'
 import { withLibraryMutation } from './mutation'
 import { toEagleItem } from './query'
@@ -162,7 +163,7 @@ const copyBackup = async (
   }
 }
 
-/** 保存媒体编辑：锁外生成、锁内复核并替换，原始媒体进入 Eagle 回收站。 */
+/** 锁外生成、锁内复核；覆盖时备份原文件，另存时只提交新条目。 */
 export const saveItemMediaEdits = async (
   id: string,
   request: EagleMediaEditSaveRequest,
@@ -173,7 +174,7 @@ export const saveItemMediaEdits = async (
   const parsed = eagleMediaEditSaveSchema.safeParse(request)
   if (!ITEM_ID_PATTERN.test(id) || !parsed.success)
     throw new EagleError('INVALID_REQUEST', 400, '媒体编辑保存参数无效')
-  const { contentVersion, operations } = parsed.data
+  const { contentVersion, operations, saveAsCopy } = parsed.data
   if (savingItems.has(id)) conflict('此条目正在保存编辑，请等待处理完成')
   savingItems.add(id)
   let cleanup: (() => Promise<void>) | undefined
@@ -188,6 +189,8 @@ export const saveItemMediaEdits = async (
         toEagleItem(entry, index.libraryPath).contentVersion !== contentVersion
       )
         conflict('条目已变化或移入回收站，请重新打开预览')
+      if (saveAsCopy && !isVideoExt(entry.ext))
+        throw new EagleError('INVALID_REQUEST', 400, '另存编辑副本仅支持视频')
       const paths = await checkedPaths(index, entry)
       const sourceStat = await regularStat(paths.source)
       await regularStat(paths.meta)
@@ -288,7 +291,8 @@ export const saveItemMediaEdits = async (
     await syncFile(thumbOutput)
     const thumbOutputStat = await regularStat(thumbOutput)
     signal?.throwIfAborted()
-    onProgress?.({ percent: 95, phase: 'backup', canCancel: true })
+    if (!saveAsCopy)
+      onProgress?.({ percent: 95, phase: 'backup', canCancel: true })
     return await withLibraryMutation(null, async (current, changes) => {
       signal?.throwIfAborted()
       await assertLibrary(index)
@@ -312,12 +316,29 @@ export const saveItemMediaEdits = async (
         } else await assertAbsent(paths.thumbnail)
       }
       await assertUnchanged()
-      if (paths.source !== paths.target) await assertAbsent(paths.target)
+      if (!saveAsCopy && paths.source !== paths.target)
+        await assertAbsent(paths.target)
       if (
         !sameFile(outputStat, await regularStat(output)) ||
         !sameFile(thumbOutputStat, await regularStat(thumbOutput))
       )
         conflict('编辑临时文件已变化，未覆盖')
+      if (saveAsCopy)
+        return commitMediaEditCopy({
+          index: current,
+          changes,
+          entry,
+          meta,
+          output,
+          thumbnail: result.thumbnail,
+          width: result.width,
+          height: result.height,
+          assertUnchanged: async () => {
+            await assertLibrary(index)
+            await assertUnchanged()
+          },
+          ...options,
+        })
       const trashId = randomUUID().replaceAll('-', '').toUpperCase()
       const trashDir = path.join(
         imagesDir(current.libraryPath),

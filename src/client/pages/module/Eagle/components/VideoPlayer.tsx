@@ -11,6 +11,7 @@ type VideoPlayerProps = Omit<
   'controls' | 'onClick' | 'ref'
 > & {
   onPlaybackRateChange?: (rate: number) => void
+  interactionDisabled?: boolean
 }
 
 export function formatVideoDuration(time: number) {
@@ -27,6 +28,7 @@ export function formatVideoDuration(time: number) {
 /** 控件独立于视频元素，画面旋转不会影响播放操作。 */
 export function VideoPlayer({
   onPlaybackRateChange,
+  interactionDisabled = false,
   ...props
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -97,18 +99,18 @@ export function VideoPlayer({
 
   return (
     <div
-      {...handlers}
+      {...(interactionDisabled ? {} : handlers)}
       className="relative h-full w-full touch-none select-none"
       role="group"
       aria-label="视频播放器"
       aria-description="单击显示或隐藏控件，双击播放或暂停，长按临时使用 2 倍速，左右拖动后松开跳转进度"
-      tabIndex={0}
+      tabIndex={interactionDisabled ? -1 : 0}
       onClick={(event) => {
         // 指针点击由手势统一处理，兼容辅助技术发出的无指针点击。
-        if (event.detail === 0) toggleControls()
+        if (!interactionDisabled && event.detail === 0) toggleControls()
       }}
       onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return
+        if (interactionDisabled || event.target !== event.currentTarget) return
         if (event.key === ' ' || event.key === 'Enter') {
           event.preventDefault()
           showControls()
@@ -190,7 +192,7 @@ export function VideoPlayer({
           </div>
         </div>
       )}
-      {controlsVisible && (
+      {controlsVisible && !interactionDisabled && (
         <div
           data-video-controls
           className="absolute inset-x-0 bottom-0 z-10 flex flex-wrap items-center gap-3 bg-black/75 px-3 py-2 text-white"

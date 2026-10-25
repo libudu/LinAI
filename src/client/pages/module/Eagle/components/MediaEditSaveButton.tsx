@@ -26,6 +26,8 @@ export function MediaEditSaveButton({
   contentVersion,
   operations,
   video = false,
+  saveAsCopy = false,
+  inlineProgress = false,
   onSaved,
   onBusyChange,
 }: {
@@ -33,6 +35,8 @@ export function MediaEditSaveButton({
   contentVersion?: string
   operations: SaveEagleItemMediaEditsParams['operations']
   video?: boolean
+  saveAsCopy?: boolean
+  inlineProgress?: boolean
   onSaved: (item: EagleItem) => void
   onBusyChange?: (busy: boolean) => void
 }) {
@@ -84,7 +88,7 @@ export function MediaEditSaveButton({
     }
     return null
   }
-  if (!operations.length && !saving) return null
+  if (!operations.length && !saving && !saveAsCopy) return null
   return (
     <div className="flex min-w-0 flex-col gap-2">
       {(!video || !saving) && (
@@ -92,7 +96,11 @@ export function MediaEditSaveButton({
           icon={<SaveOutlined />}
           loading={saving}
           disabled={!contentVersion || !operations.length}
-          title="保存当前媒体编辑并覆盖，原文件移入 Eagle 回收站"
+          title={
+            saveAsCopy
+              ? '保存为 Eagle 库内的同名新视频，原文件保持不变'
+              : '保存当前媒体编辑并覆盖，原文件移入 Eagle 回收站'
+          }
           onClick={async (event) => {
             event.stopPropagation()
             if (savingRef.current || !contentVersion || !operations.length)
@@ -108,13 +116,19 @@ export function MediaEditSaveButton({
               const request: SaveEagleItemMediaEditsParams = {
                 contentVersion,
                 operations: operations.map((operation) => ({ ...operation })),
+                ...(saveAsCopy ? { saveAsCopy: true } : {}),
               }
               const result = video
                 ? await saveVideoEdits(request)
                 : await saveEagleItemMediaEdits(id, request)
               if (!result) return
               if (result.warning) message.warning(result.warning, 8)
-              else message.success('已覆盖原文件，原始文件已移入 Eagle 回收站')
+              else
+                message.success(
+                  saveAsCopy
+                    ? '已另存为同名新视频，原文件保持不变'
+                    : '已覆盖原文件，原始文件已移入 Eagle 回收站',
+                )
               if (mounted.current) onSaved(result.item)
             } catch (error) {
               message.error(
@@ -131,12 +145,16 @@ export function MediaEditSaveButton({
             }
           }}
         >
-          {saving ? '正在保存…' : '覆盖原文件'}
+          {saving ? '正在保存…' : saveAsCopy ? '确认并另存' : '覆盖原文件'}
         </Button>
       )}
       {video && saving && (
         <div
-          className="min-w-52 rounded-lg bg-black/60 px-3 py-2 text-white"
+          className={
+            inlineProgress
+              ? 'min-w-52 text-white'
+              : 'min-w-52 rounded-lg bg-black/60 px-3 py-2 text-white'
+          }
           role="status"
           aria-live="polite"
         >

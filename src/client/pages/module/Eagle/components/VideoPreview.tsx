@@ -3,10 +3,13 @@ import {
   CloseOutlined,
   RotateLeftOutlined,
   RotateRightOutlined,
+  ScissorOutlined,
 } from '@ant-design/icons'
 import { Button, ConfigProvider, Modal, Segmented, Spin } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import ReactCrop from 'react-image-crop'
+import 'react-image-crop/dist/ReactCrop.css'
 import { eagleFileUrl, eagleVideoContactSheetUrl } from '../api'
 import {
   loadVideoPlaybackRate,
@@ -18,6 +21,8 @@ import {
 import { formatFileSize } from './formatFileSize'
 import { MediaEditSaveButton } from './MediaEditSaveButton'
 import { getRotationEditOperations, normalizeRotation } from './rotation'
+import { useVideoCrop } from './useVideoCrop'
+import { fullVideoCrop } from './videoCrop'
 import { formatVideoDuration, VideoPlayer } from './VideoPlayer'
 
 interface VideoPreviewProps {
@@ -128,6 +133,14 @@ export function VideoPreview({
   }
   const [rotation, setRotation] = useState(0)
   const [saving, setSaving] = useState(false)
+  const crop = useVideoCrop(initializedVideoRef, videoKey, rotation, open)
+  const busy = saving || crop.active
+  useEffect(() => {
+    onBusyChange?.(busy)
+  }, [busy, onBusyChange])
+  const busyCallbackRef = useRef(onBusyChange)
+  busyCallbackRef.current = onBusyChange
+  useEffect(() => () => busyCallbackRef.current?.(false), [])
   const [container, setContainer] = useState<HTMLDivElement | null>(null)
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
   useEffect(() => {
@@ -147,13 +160,44 @@ export function VideoPreview({
   const sideways = rotation === 90 || rotation === 270
   const width = resolution?.width || containerSize.width
   const height = resolution?.height || containerSize.height
+  const displayWidth = sideways ? height : width
+  const displayHeight = sideways ? width : height
+  // 对比例坐标钳制并截断，避免浮点误差使右/下边界越过 1。
+  const cropX = Math.floor(Math.max(0, crop.crop.x) * 10_000) / 1_000_000
+  const cropY = Math.floor(Math.max(0, crop.crop.y) * 10_000) / 1_000_000
+  const cropWidth =
+    Math.floor(Math.min(crop.crop.width / 100, 1 - cropX) * 1_000_000) /
+    1_000_000
+  const cropHeight =
+    Math.floor(Math.min(crop.crop.height / 100, 1 - cropY) * 1_000_000) /
+    1_000_000
+  const hasCrop = cropX > 0 || cropY > 0 || cropWidth < 1 || cropHeight < 1
+  const cropOperations =
+    !crop.detecting &&
+    hasCrop &&
+    cropWidth * displayWidth >= 2 &&
+    cropHeight * displayHeight >= 2
+      ? [
+          ...getRotationEditOperations(rotation),
+          {
+            type: 'crop' as const,
+            x: cropX,
+            y: cropY,
+            width: cropWidth,
+            height: cropHeight,
+          },
+        ]
+      : []
   const scale =
     Math.min(
       containerSize.width / (sideways ? height : width),
       containerSize.height / (sideways ? width : height),
     ) || 1
   const close = () => {
-    if (!saving) onClose()
+    if (!saving) {
+      crop.cancel()
+      onClose()
+    }
   }
   return (
     <Modal
@@ -216,6 +260,7 @@ export function VideoPreview({
                   src={eagleFileUrl(item.id, item.contentVersion)}
                   autoPlay
                   playsInline
+                  interactionDisabled={crop.active || saving}
                   onLoadedMetadata={(event) => {
                     const video = event.currentTarget
                     video.defaultPlaybackRate = playbackRate
@@ -226,6 +271,10 @@ export function VideoPreview({
                   onDurationChange={(event) =>
                     readVideoMetadata(event.currentTarget)
                   }
+                  onLoadedData={(event) => {
+                    initializedVideoRef.current = event.currentTarget
+                    readVideoMetadata(event.currentTarget)
+                  }}
                   onPlaybackRateChange={(rate) => {
                     setPlaybackRate(rate)
                     persistVideoPlaybackRate(rate)
@@ -237,6 +286,43 @@ export function VideoPreview({
                     transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
                   }}
                 />
+                {crop.active && (
+                  <div
+                    className="absolute top-1/2 left-1/2 z-20 -translate-x-1/2 -translate-y-1/2"
+                    style={{
+                      width: displayWidth * scale,
+                      height: displayHeight * scale,
+                    }}
+                  >
+                    <ReactCrop
+                      crop={crop.crop}
+                      keepSelection
+                      ruleOfThirds
+                      disabled={crop.detecting || saving}
+                      minWidth={Math.max(2, 2 * scale)}
+                      minHeight={Math.max(2, 2 * scale)}
+                      onChange={(_, percentCrop) => crop.setCrop(percentCrop)}
+                      ariaLabels={{
+                        cropArea: '视频裁剪区域',
+                        nwDragHandle: '左上裁剪控制点',
+                        nDragHandle: '上方裁剪控制点',
+                        neDragHandle: '右上裁剪控制点',
+                        eDragHandle: '右侧裁剪控制点',
+                        seDragHandle: '右下裁剪控制点',
+                        sDragHandle: '下方裁剪控制点',
+                        swDragHandle: '左下裁剪控制点',
+                        wDragHandle: '左侧裁剪控制点',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: displayWidth * scale,
+                          height: displayHeight * scale,
+                        }}
+                      />
+                    </ReactCrop>
+                  </div>
+                )}
               </div>
             ) : (
               <>
@@ -272,7 +358,7 @@ export function VideoPreview({
                   title="向左旋转 90°"
                   aria-label="向左旋转 90°"
                   className="cursor-pointer p-2 text-xl disabled:cursor-wait disabled:opacity-50"
-                  disabled={saving}
+                  disabled={saving || crop.active}
                   onClick={() =>
                     setRotation((value) => normalizeRotation(value - 90))
                   }
@@ -284,14 +370,31 @@ export function VideoPreview({
                   title="向右旋转 90°"
                   aria-label="向右旋转 90°"
                   className="cursor-pointer p-2 text-xl disabled:cursor-wait disabled:opacity-50"
-                  disabled={saving}
+                  disabled={saving || crop.active}
                   onClick={() =>
                     setRotation((value) => normalizeRotation(value + 90))
                   }
                 >
                   <RotateRightOutlined />
                 </button>
-                {allowOverwrite && (
+                <button
+                  type="button"
+                  title="裁剪视频并另存"
+                  aria-label="裁剪视频并另存"
+                  aria-pressed={crop.active}
+                  className="cursor-pointer p-2 text-xl disabled:cursor-wait disabled:opacity-50"
+                  disabled={
+                    saving ||
+                    crop.active ||
+                    crop.detecting ||
+                    !metadata ||
+                    !allowOverwrite
+                  }
+                  onClick={() => void crop.begin()}
+                >
+                  <ScissorOutlined />
+                </button>
+                {allowOverwrite && !crop.active && (
                   <div className="absolute top-1/2 right-full mr-3 -translate-y-1/2">
                     <MediaEditSaveButton
                       key={item.id}
@@ -301,7 +404,6 @@ export function VideoPreview({
                       video
                       onBusyChange={(busy) => {
                         setSaving(busy)
-                        onBusyChange?.(busy)
                         if (busy) initializedVideoRef.current?.pause()
                       }}
                       onSaved={(next) => {
@@ -313,6 +415,52 @@ export function VideoPreview({
                   </div>
                 )}
               </div>
+            )}
+            {crop.active && (
+              <ConfigProvider
+                theme={{
+                  components: {
+                    Button: {
+                      colorBgContainerDisabled: '#e5e7eb',
+                      colorTextDisabled: '#6b7280',
+                      borderColorDisabled: '#d1d5db',
+                    },
+                  },
+                }}
+              >
+                <div
+                  className="flex flex-col items-center gap-2 rounded-lg bg-black/60 px-4 py-2 text-sm text-white"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {!saving && <span role="status">{crop.hint}</span>}
+                  <div
+                    className={saving ? 'w-full' : 'flex items-center gap-2'}
+                  >
+                    {!saving && (
+                      <>
+                        <Button onClick={crop.cancel}>取消裁剪</Button>
+                        <Button
+                          disabled={crop.detecting}
+                          onClick={() => crop.setCrop(fullVideoCrop())}
+                        >
+                          还原
+                        </Button>
+                      </>
+                    )}
+                    <MediaEditSaveButton
+                      key={`crop:${item.id}`}
+                      id={item.id}
+                      contentVersion={item.contentVersion}
+                      operations={cropOperations}
+                      video
+                      saveAsCopy
+                      inlineProgress
+                      onBusyChange={setSaving}
+                      onSaved={() => crop.cancel()}
+                    />
+                  </div>
+                </div>
+              </ConfigProvider>
             )}
             <div
               className="flex h-14 shrink-0 items-center rounded-full bg-black/40 px-2 py-2"
@@ -333,7 +481,7 @@ export function VideoPreview({
                 }}
               >
                 <Segmented<EagleVideoPreviewMode>
-                  disabled={saving}
+                  disabled={saving || crop.active}
                   size="large"
                   shape="round"
                   aria-label="视频预览方式"

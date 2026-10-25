@@ -17,12 +17,33 @@ export const eagleMediaEditOperationSchema = z.discriminatedUnion('type', [
     type: z.literal('rotate'),
     degrees: z.union([z.literal(90), z.literal(180), z.literal(270)]),
   }),
+  z
+    .strictObject({
+      type: z.literal('crop'),
+      // 相对于应用前序操作后画面的比例，避免预览尺寸影响输出。
+      x: z.number().min(0).max(1),
+      y: z.number().min(0).max(1),
+      width: z.number().positive().max(1),
+      height: z.number().positive().max(1),
+    })
+    .refine(
+      (crop) => crop.x + crop.width <= 1 && crop.y + crop.height <= 1,
+      '裁剪区域超出画面',
+    ),
 ])
 
-export const eagleMediaEditSaveSchema = z.strictObject({
-  contentVersion: z.string().min(1),
-  operations: z.array(eagleMediaEditOperationSchema).min(1).max(32),
-})
+export const eagleMediaEditSaveSchema = z
+  .strictObject({
+    contentVersion: z.string().min(1),
+    operations: z.array(eagleMediaEditOperationSchema).min(1).max(32),
+    saveAsCopy: z.boolean().optional(),
+  })
+  .refine(
+    (request) =>
+      request.saveAsCopy ||
+      !request.operations.some((operation) => operation.type === 'crop'),
+    '视频裁剪必须另存为新条目',
+  )
 
 export type EagleMediaEditOperation = z.infer<
   typeof eagleMediaEditOperationSchema

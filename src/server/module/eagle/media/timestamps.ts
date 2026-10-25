@@ -11,6 +11,7 @@ const readTimestampTags = async (tool: ExifTool, file: string) => {
       '-a',
       '-s',
       '-n',
+      '-HandlerType',
       '-time:all',
       '--System:all',
       '--File:all',
@@ -20,7 +21,13 @@ const readTimestampTags = async (tool: ExifTool, file: string) => {
   })
   if (raw.errors?.length)
     throw new Error(`读取媒体时间戳失败：${raw.errors.join('；')}`)
-  return Object.fromEntries(
+  const tracks = Object.entries(raw)
+    .flatMap(([key, handler]) => {
+      const match = key.match(/^(Track\d+):HandlerType$/)
+      return match ? [{ group: match[1], handler: String(handler) }] : []
+    })
+    .sort((a, b) => Number(a.group.slice(5)) - Number(b.group.slice(5)))
+  const timestamps = Object.fromEntries(
     Object.entries(raw).filter(([key]) => {
       const separator = key.lastIndexOf(':')
       if (separator < 0 || /^(System|File|Composite|ExifTool):/.test(key))
@@ -39,13 +46,50 @@ const readTimestampTags = async (tool: ExifTool, file: string) => {
       )
     }),
   )
+  return { timestamps, tracks }
 }
 
-/** 保留原始组名和原始值，不推断时区，不复制尺寸、方向或时长。 */
+type TimestampMetadata = Awaited<ReturnType<typeof readTimestampTags>>
+
+/** 与 FFmpeg 的首个视频流 + 全部音轨映射保持一致，不复制已丢弃辅助轨道的日期。 */
+const videoTimestampCopies = (
+  original: TimestampMetadata,
+  output: TimestampMetadata,
+) => {
+  const trackMap = new Map<string, string>()
+  for (const handler of ['vide', 'soun']) {
+    const sourceTracks = original.tracks.filter(
+      (track) => track.handler === handler,
+    )
+    const retained =
+      handler === 'vide' ? sourceTracks.slice(0, 1) : sourceTracks
+    const targets = output.tracks.filter((track) => track.handler === handler)
+    if (retained.length && retained.length !== targets.length)
+      throw new Error('输出视频的音视频轨道与输入不匹配，无法保留时间戳')
+    retained.forEach((track, index) =>
+      trackMap.set(track.group, targets[index].group),
+    )
+  }
+  return Object.keys(original.timestamps).flatMap((sourceKey) => {
+    // Track1Keys 等轨道级子组也随其所属轨道重映射。
+    const group = sourceKey.match(/^(Track\d+)(?=\D)/)?.[1]
+    if (!group) return [{ sourceKey, targetKey: sourceKey }]
+    const target = trackMap.get(group)
+    if (target)
+      return [{ sourceKey, targetKey: target + sourceKey.slice(group.length) }]
+    if (!original.tracks.some((track) => track.group === group))
+      throw new Error(`无法识别 ${group} 的媒体类型，未保存输出`)
+    // Hint、字幕、数据轨道和额外视频流未输出，不要求重建其日期标签。
+    return []
+  })
+}
+
+/** 保留原始值；视频按实际输出轨道重映射组名，不推断时区或复制尺寸、时长。 */
 export const preserveMediaTimestamps = async (
   source: string,
   output: string,
   signal?: AbortSignal,
+  { video = false }: { video?: boolean } = {},
 ) => {
   signal?.throwIfAborted()
   // ExifTool 的 stay_open 协议按行传参，不能接受路径中的控制字符。
@@ -66,8 +110,14 @@ export const preserveMediaTimestamps = async (
   try {
     const original = await readTimestampTags(tool, source)
     signal?.throwIfAborted()
-    const keys = Object.keys(original)
-    if (!keys.length) return
+    const copies = video
+      ? videoTimestampCopies(original, await readTimestampTags(tool, output))
+      : Object.keys(original.timestamps).map((key) => ({
+          sourceKey: key,
+          targetKey: key,
+        }))
+    signal?.throwIfAborted()
+    if (!copies.length) return
     await tool.write(
       output,
       {},
@@ -77,16 +127,24 @@ export const preserveMediaTimestamps = async (
           '-overwrite_original',
           '-TagsFromFile',
           source,
-          ...keys.map((key) => `-${key}`),
+          ...copies.map(({ sourceKey, targetKey }) =>
+            sourceKey === targetKey
+              ? `-${sourceKey}`
+              : `-${targetKey}<${sourceKey}`,
+          ),
         ],
       },
     )
     signal?.throwIfAborted()
     const saved = await readTimestampTags(tool, output)
     signal?.throwIfAborted()
-    const missing = keys.filter(
-      (key) => JSON.stringify(saved[key]) !== JSON.stringify(original[key]),
-    )
+    const missing = copies
+      .filter(
+        ({ sourceKey, targetKey }) =>
+          JSON.stringify(saved.timestamps[targetKey]) !==
+          JSON.stringify(original.timestamps[sourceKey]),
+      )
+      .map(({ targetKey }) => targetKey)
     if (missing.length)
       throw new Error(
         `输出格式无法完整保留媒体时间戳（${missing.join('、')}），未覆盖原文件`,
