@@ -9,6 +9,7 @@ import { changeBus } from '../../../common/storage/change-bus'
 import { updateItem } from '../library'
 import { getEagleVisionEndpoint } from '../settings'
 import { ERROR_PAUSE_THRESHOLD, REQUEST_INTERVAL_MS } from './constants'
+import { needsOrganizeExecution } from './execution'
 import { bindOrganizeFolderIds } from './folders'
 import { prepareConfirmation } from './service/confirmation'
 import type { OrganizeRepository } from './storage'
@@ -140,14 +141,9 @@ export class OrganizeExecutor {
     // 派发严格按序，已完成的结果实体必然构成前缀（in-flight 未落盘的项会被重新执行）
     const statuses = await this.repository.getItemStatuses()
     const done = new Set(
-      itemIds.filter((id) => {
-        const status = statuses.get(id)
-        return (
-          status !== undefined &&
-          status !== 'pending' &&
-          !(classificationMode === 'recursive-rename' && status === 'success')
-        )
-      }),
+      itemIds.filter(
+        (id) => !needsOrganizeExecution(statuses.get(id), classificationMode),
+      ),
     )
     let cursor = 0
     while (cursor < itemIds.length && done.has(itemIds[cursor])) cursor++
@@ -198,15 +194,12 @@ export class OrganizeExecutor {
     if (!latest || latest.phase !== 'running') return
     const latestStatuses = await this.repository.getItemStatuses()
     if (
-      latest.itemIds.some((id) => {
-        const status = latestStatuses.get(id)
-        return (
-          status === undefined ||
-          status === 'pending' ||
-          (latest.classificationMode === 'recursive-rename' &&
-            status === 'success')
-        )
-      })
+      latest.itemIds.some((id) =>
+        needsOrganizeExecution(
+          latestStatuses.get(id),
+          latest.classificationMode,
+        ),
+      )
     ) {
       return this.runQueue(epoch, signal)
     }

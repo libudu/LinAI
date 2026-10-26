@@ -91,6 +91,25 @@ export function useConfirmResults({
   }>({})
   const snapshotTaskRef = useRef<string | undefined>(undefined)
 
+  const sortResults = useCallback(
+    (items: OrganizeResultListItem[]) => {
+      const order = getOrUpdateCategoryOrder(
+        items,
+        folders,
+        getSavedCategoryOrder(taskId, taskCreatedAt, categoryContext),
+      )
+      saveCategoryOrder(taskId, order, categoryContext)
+      return sortOrganizeResults(
+        items,
+        sortType,
+        folders,
+        order,
+        pinnedCategory,
+      )
+    },
+    [categoryContext, folders, pinnedCategory, sortType, taskCreatedAt, taskId],
+  )
+
   // 排序和目录变化只重算本地视图；保留原有分类顺序锁与乐观隐藏规则。
   const projectResults = useCallback(
     (hiddenAtStart = new Set<string>()) => {
@@ -109,19 +128,7 @@ export function useConfirmResults({
           ),
         }))
         .sort((a, b) => b.updatedAt - a.updatedAt)
-      const order = getOrUpdateCategoryOrder(
-        available,
-        folders,
-        getSavedCategoryOrder(taskId, taskCreatedAt, categoryContext),
-      )
-      saveCategoryOrder(taskId, order, categoryContext)
-      const sorted = sortOrganizeResults(
-        available,
-        sortType,
-        folders,
-        order,
-        pinnedCategory,
-      )
+      const sorted = sortResults(available)
       replaceResults(sorted)
       setSelectedId((current) =>
         current && sorted.some((item) => item.itemId === current)
@@ -129,15 +136,7 @@ export function useConfirmResults({
           : (sorted[0]?.itemId ?? null),
       )
     },
-    [
-      categoryContext,
-      folders,
-      pinnedCategory,
-      replaceResults,
-      sortType,
-      taskCreatedAt,
-      taskId,
-    ],
+    [folders, replaceResults, sortResults],
   )
   const projectRef = useRef(projectResults)
   projectRef.current = projectResults
@@ -341,31 +340,11 @@ export function useConfirmResults({
           continue
         restored.push(item.originalItem)
       }
-      const order = getOrUpdateCategoryOrder(
-        restored,
-        folders,
-        getSavedCategoryOrder(taskId, taskCreatedAt, categoryContext),
-      )
-      saveCategoryOrder(taskId, order, categoryContext)
-      const sorted = sortOrganizeResults(
-        restored,
-        sortType,
-        folders,
-        order,
-        pinnedCategory,
-      )
+      const sorted = sortResults(restored)
       replaceResults(sorted)
       setSelectedId((current) => current ?? sorted[0]?.itemId ?? null)
     },
-    [
-      categoryContext,
-      folders,
-      pinnedCategory,
-      replaceResults,
-      sortType,
-      taskCreatedAt,
-      taskId,
-    ],
+    [replaceResults, sortResults, taskId],
   )
 
   const selectedItem = useMemo(

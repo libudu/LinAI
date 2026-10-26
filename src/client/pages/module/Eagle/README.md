@@ -53,6 +53,7 @@ src/server/module/eagle/
     ├── storage.ts            # 按媒体类型隔离的私有任务/结果存储与缓存
     ├── migration.ts          # 旧单任务与结果的原子目录迁移
     ├── transitions.ts        # 阶段、计数转换与校准
+    ├── execution.ts          # 执行器与队列预览共用的待执行判定
     ├── executor.ts           # 队列执行、自动改名、暂停恢复与通知
     ├── vision.ts             # 图片压缩、模型调用与响应校验
     └── service/              # 串行化用户命令

@@ -5,6 +5,7 @@ import type {
   OrganizeQueueResp,
 } from '@/shared/eagle/organize'
 import { getItemSnapshots } from '../../library'
+import { needsOrganizeExecution } from '../execution'
 import type { OrganizeExecutor } from '../executor'
 import type { OrganizeRepository } from '../storage'
 import { transitionTask, type ItemStatusChange } from '../transitions'
@@ -36,12 +37,7 @@ export class QueueService {
         state = 'processing'
       } else {
         const status = statusById.get(itemId)
-        if (
-          !status ||
-          status === 'pending' ||
-          (task.classificationMode === 'recursive-rename' &&
-            status === 'success')
-        ) {
+        if (needsOrganizeExecution(status, task.classificationMode)) {
           state = 'pending'
         } else if (status === 'failed') {
           state = 'failed'

@@ -81,19 +81,14 @@ export class ResultService {
     publishOrganizeChange(this.repository)
   }
 
-  async listResults(
-    status?: OrganizeItemStatus,
-    options?: { offset?: number; limit?: number },
-  ): Promise<OrganizeResultListItem[]> {
-    const list = await this.repository.listItems(status, options)
-    // 分页后再查询素材投影，limit 较小时不再生成全结果的 ID/摘要 Map。
+  private async projectListItems(items: readonly OrganizeResultListItem[]) {
     const [itemMap, endpoint, task, paths] = await Promise.all([
-      getItemSnapshots(list.map((item) => item.itemId)),
+      getItemSnapshots(items.map((item) => item.itemId)),
       getEagleVisionEndpoint(),
       this.repository.getTask(),
       getOrganizeFolderPaths(),
     ])
-    return list.map((item) => {
+    return items.map((item) => {
       const entry = itemMap?.get(item.itemId)
       return {
         ...toResultData(item, task, paths),
@@ -107,6 +102,15 @@ export class ResultService {
         size: entry?.size,
       }
     })
+  }
+
+  async listResults(
+    status?: OrganizeItemStatus,
+    options?: { offset?: number; limit?: number },
+  ): Promise<OrganizeResultListItem[]> {
+    const list = await this.repository.listItems(status, options)
+    // 分页后再查询素材投影，limit 较小时不再生成全结果的 ID/摘要 Map。
+    return this.projectListItems(list)
   }
 
   /** 确认页首次读取完整成功列表，后续只读取最近变化的结果/素材 ID。 */
@@ -127,31 +131,13 @@ export class ResultService {
       : await this.repository.getItemSummaries(changedIds)
     const succeeded = summaries.filter((item) => item.status === 'success')
     const successIds = new Set(succeeded.map((item) => item.itemId))
-    const [itemMap, endpoint, task, paths] = await Promise.all([
-      getItemSnapshots(succeeded.map((item) => item.itemId)),
-      getEagleVisionEndpoint(),
-      this.repository.getTask(),
-      getOrganizeFolderPaths(),
-    ])
+    const items = await this.projectListItems(succeeded)
     return {
       resultsVersion: results.version,
       libraryVersion: library.version,
       reset,
       removedIds: reset ? [] : changedIds.filter((id) => !successIds.has(id)),
-      items: succeeded.map((item) => {
-        const entry = itemMap?.get(item.itemId)
-        return {
-          ...toResultData(item, task, paths),
-          needsRename:
-            item.needsRename !== false &&
-            needsOrganizeRename(entry?.name ?? '', endpoint.modelId),
-          mtime: entry?.mtime ?? 0,
-          lastModified: entry?.lastModified ?? 0,
-          width: entry?.width,
-          height: entry?.height,
-          size: entry?.size,
-        }
-      }),
+      items,
     }
   }
 
