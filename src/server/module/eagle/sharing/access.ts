@@ -9,10 +9,17 @@ import { isEagleSharingProtocol } from './protocol'
 // 系统登录与共享协议分离；浏览器在系统鉴权后单独建立 Eagle 管理会话。
 // 服务端共享客户端仅持有只读共享凭据，不取得系统登录和管理 Cookie。
 const ownerToken = randomBytes(32).toString('hex')
-const COOKIE = 'linai_eagle_owner'
+
+// Cookie 不按端口隔离；开发版与便携版并行运行时必须使用不同名称。
+// 开发代理会改写目标地址，因此同一后端的代理入口与直连入口使用同一个名称。
+function ownerCookie(c: Context) {
+  const url = new URL(c.req.url)
+  const port = url.port || (url.protocol === 'https:' ? '443' : '80')
+  return `linai_eagle_owner_${port}`
+}
 
 function isOwner(c: Context) {
-  const token = getCookie(c, COOKIE)
+  const token = getCookie(c, ownerCookie(c))
   return Boolean(
     token &&
     /^[a-f0-9]{64}$/.test(token) &&
@@ -27,7 +34,7 @@ export async function issueOwnerSession(c: Context) {
       message: '请先完成系统登录鉴权',
     })
   }
-  setCookie(c, COOKIE, ownerToken, {
+  setCookie(c, ownerCookie(c), ownerToken, {
     httpOnly: true,
     sameSite: 'Strict',
     path: '/',
