@@ -105,7 +105,8 @@ export function SharingUsersSetting() {
         locale={{ emptyText: '尚未添加共享用户' }}
         footer={() => (
           <p className="text-sm text-slate-500">
-            对方输入邀请码后，仍需你在前端同意本次共享；删除用户将终止该用户的连接。
+            对方输入邀请码后，仍需你在前端同意本次共享；仅能查看在「展示选项 →
+            共享文件夹可见性」中开放的文件夹。删除用户将终止该用户的连接。
           </p>
         )}
         columns={[

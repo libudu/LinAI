@@ -33,6 +33,7 @@ import {
   getThumbnail,
 } from '../../module/eagle/media'
 
+import type { EagleLibraryAccess } from '../../module/eagle/library/shared-access'
 import { getVideoContactSheet } from '../../module/eagle/media/video'
 import {
   eagleItemsQuerySchema,
@@ -59,10 +60,21 @@ const notModified = (
   etag: string,
 ) => c.req.header('if-none-match') === `"${etag}"`
 
-const libraryApi = new Hono()
+const libraryApi = new Hono<{
+  Bindings: { eagleSharingAccess?: EagleLibraryAccess }
+}>()
+  .use('/items/:id/*', async (c, next) => {
+    const access = c.env?.eagleSharingAccess
+    if (access && !(await getItemDetail(c.req.param('id')!, access)))
+      return errorResponse(c, 404, '条目不存在或未共享')
+    await next()
+  })
   .get('/items/:id/detail', async (c) => {
     c.header('Cache-Control', 'no-store')
-    const data = await getItemDetail(c.req.param('id'))
+    const data = await getItemDetail(
+      c.req.param('id'),
+      c.env?.eagleSharingAccess,
+    )
     if (!data) return errorResponse(c, 404, '条目不存在')
     return c.json({ success: true as const, data })
   })
@@ -136,19 +148,28 @@ const libraryApi = new Hono()
   )
   // 目录树与全部/未分类/回收站计数，一次读取返回。
   .get('/overview', validate('query', eagleMediaQuerySchema), async (c) => {
-    const overview = await getLibraryOverview(c.req.valid('query').mediaType)
+    const overview = await getLibraryOverview(
+      c.req.valid('query').mediaType,
+      c.env?.eagleSharingAccess,
+    )
     return c.json({ success: true as const, data: overview })
   })
 
   // 文件夹树（含每文件夹图片数）
   .get('/folders', validate('query', eagleMediaQuerySchema), async (c) => {
-    const folders = await getFolderTree(c.req.valid('query').mediaType)
+    const folders = await getFolderTree(
+      c.req.valid('query').mediaType,
+      c.env?.eagleSharingAccess,
+    )
     return c.json({ success: true as const, data: folders })
   })
 
   // 资源列表：当前文件夹关键词过滤 + 服务端排序与分页
   .get('/items', validate('query', eagleItemsQuerySchema), async (c) => {
-    const result = await getItems(c.req.valid('query'))
+    const result = await getItems(
+      c.req.valid('query'),
+      c.env?.eagleSharingAccess,
+    )
     return c.json({ success: true as const, data: result })
   })
 

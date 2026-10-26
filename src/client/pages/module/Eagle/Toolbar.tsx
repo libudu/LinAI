@@ -33,6 +33,7 @@ import { useOrganizeStatus } from './Organize/store'
 import { openEagleSettingModal } from './SettingModal'
 import { useEagleConfig } from './settings/useEagleConfig'
 import { useEagleVisionConfig } from './settings/useEagleVisionConfig'
+import { FolderSharingOptions } from './sharing/FolderSharingOptions'
 import { SharingIndicator } from './sharing/SharingIndicator'
 import type { EagleImageSize } from './store'
 import { requestEagleLibraryRefresh, useEagleStore } from './store'
@@ -303,6 +304,7 @@ export function Toolbar() {
                   { value: 'large', label: '大' },
                 ]}
               />
+              <FolderSharingOptions />
               <div className="mt-3 flex flex-col gap-1">
                 <Checkbox
                   checked={showFolderTree}

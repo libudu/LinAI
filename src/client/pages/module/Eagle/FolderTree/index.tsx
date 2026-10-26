@@ -1,3 +1,4 @@
+import { resolveSharedFolderIds } from '@/shared/eagle/sharing'
 import {
   EAGLE_TRASH_FOLDER_ID,
   EAGLE_UNCLASSIFIED_FOLDER_ID,
@@ -10,8 +11,10 @@ import {
   FolderOutlined,
 } from '@ant-design/icons'
 import type { TreeDataNode, TreeProps } from 'antd'
-import { message, Segmented, Tree } from 'antd'
+import { message, Segmented, Switch, Tree } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEagleConfig } from '../settings/useEagleConfig'
+import { useFolderSharing } from '../sharing/folderSharing'
 import { requestEagleLibraryRefresh, useEagleStore } from '../store'
 import { EditFolderModal } from './EditFolderModal'
 import { FolderContextMenu } from './FolderContextMenu'
@@ -26,9 +29,11 @@ const renderTitle = (
   showDescription?: boolean,
 ) => (
   <span className="flex min-w-0 flex-col items-start">
-    <span className="inline-flex items-baseline gap-1">
-      {name}
-      <span className="text-sm text-slate-400">({count})</span>
+    <span className="inline-flex max-w-full items-baseline gap-1">
+      <span className="truncate" title={name}>
+        {name}
+      </span>
+      <span className="shrink-0 text-sm text-slate-400">({count})</span>
     </span>
     {showDescription && description ? (
       <span
@@ -41,33 +46,84 @@ const renderTitle = (
   </span>
 )
 
+interface SharingControls {
+  visible: boolean
+  shared: ReadonlySet<string>
+  everyone: ReadonlySet<string>
+  perUser: boolean
+  disabled: boolean
+  saving: boolean
+  onChange: (folderId: string, shared: boolean) => Promise<void>
+}
+
 const toTreeData = (
   folders: EagleFolder[],
   onEdit: (folder: EagleFolder) => void,
   showDescription: boolean,
   showEmptyFolders: boolean,
+  sharing: SharingControls,
 ): TreeDataNode[] =>
   folders
     .filter((folder) => showEmptyFolders || folder.totalCount > 0)
     .map((folder) => ({
       key: folder.id,
       title: (
-        <FolderContextMenu folder={folder} onEdit={onEdit}>
-          {renderTitle(
-            folder.name,
-            folder.children.length > 0 && folder.count > 0
-              ? `${folder.count}/${folder.totalCount}`
-              : folder.totalCount,
-            folder.description,
-            showDescription,
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="min-w-0 flex-1">
+            <FolderContextMenu folder={folder} onEdit={onEdit}>
+              {renderTitle(
+                folder.name,
+                folder.children.length > 0 && folder.count > 0
+                  ? `${folder.count}/${folder.totalCount}`
+                  : folder.totalCount,
+                folder.description,
+                showDescription,
+              )}
+            </FolderContextMenu>
+          </span>
+          {sharing.visible && (
+            <span
+              className="shrink-0"
+              onClick={(event) => event.stopPropagation()}
+              onDoubleClick={(event) => event.stopPropagation()}
+              onContextMenu={(event) => event.stopPropagation()}
+              title={
+                sharing.perUser && sharing.everyone.has(folder.id)
+                  ? '已对所有人开放，不能单独关闭'
+                  : '同步设置此文件夹及全部子文件夹的共享权限，子文件夹可单独调整'
+              }
+            >
+              <Switch
+                size="small"
+                aria-label={`${folder.name}的共享权限`}
+                checked={sharing.shared.has(folder.id)}
+                disabled={
+                  sharing.disabled ||
+                  sharing.saving ||
+                  (sharing.perUser && sharing.everyone.has(folder.id))
+                }
+                onChange={(checked) => {
+                  void sharing
+                    .onChange(folder.id, checked)
+                    .catch((error) =>
+                      message.error(
+                        error instanceof Error
+                          ? error.message
+                          : '保存共享权限失败',
+                      ),
+                    )
+                }}
+              />
+            </span>
           )}
-        </FolderContextMenu>
+        </span>
       ),
       children: toTreeData(
         folder.children,
         onEdit,
         showDescription,
         showEmptyFolders,
+        sharing,
       ),
     }))
 
@@ -105,6 +161,45 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
     showFolderDescription,
     showEmptyFolders,
   } = useEagleStore()
+  const { libraryMode, libraryPath } = useEagleConfig()
+  const sharing = useFolderSharing()
+  const sharingControls = useMemo<SharingControls>(() => {
+    const library = sharing.value.libraries.find(
+      (entry) => entry.libraryPath === libraryPath,
+    )
+    const selectionVersion = library?.selectionVersion ?? 1
+    const everyone = resolveSharedFolderIds(
+      folders,
+      library?.everyone ?? [],
+      selectionVersion,
+    )
+    return {
+      visible: libraryMode === 'local' && sharing.view !== 'hidden',
+      everyone,
+      shared:
+        sharing.view === 'user'
+          ? resolveSharedFolderIds(
+              folders,
+              [
+                ...(library?.everyone ?? []),
+                ...(library?.users[sharing.selectedCode] ?? []),
+              ],
+              selectionVersion,
+            )
+          : everyone,
+      perUser: sharing.view === 'user',
+      disabled:
+        !sharing.loaded ||
+        sharing.loading ||
+        foldersLoading ||
+        (sharing.view === 'user' &&
+          !sharing.users.some(
+            (user) => user.invitationCode === sharing.selectedCode,
+          )),
+      saving: sharing.saving,
+      onChange: sharing.setFolderShared,
+    }
+  }, [folders, foldersLoading, libraryMode, libraryPath, sharing])
   const { expandedKeys, expandedStateLoaded, handleExpand, revealAncestors } =
     useFolderExpansion(folders)
   const [editingFolder, setEditingFolder] = useState<EagleFolder | null>(null)
@@ -133,8 +228,9 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
         setEditingFolder,
         showFolderDescription,
         showEmptyFolders,
+        sharingControls,
       ),
-    [folders, showFolderDescription, showEmptyFolders],
+    [folders, showFolderDescription, showEmptyFolders, sharingControls],
   )
   const treeProps: TreeProps = {
     selectedKeys: [currentFolderId],

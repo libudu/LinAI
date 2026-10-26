@@ -44,7 +44,9 @@ export async function guardEagleAccess(c: Context, next: Next) {
     ? decodeURIComponent(path.slice('/api/settings/'.length))
     : ''
   const management =
-    path.startsWith('/api/eagle/sharing/') || settingId === 'eagle-sharing'
+    path.startsWith('/api/eagle/sharing/') ||
+    settingId === 'eagle-sharing' ||
+    settingId === 'eagle-folder-sharing'
   if (management || (await getEagleSharingSettings()).users.length > 0) {
     if (!isOwner(c))
       throw new HTTPException(403, {

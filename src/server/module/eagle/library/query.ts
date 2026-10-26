@@ -42,6 +42,11 @@ import {
   VIDEO_EXTS,
 } from './runtime'
 import {
+  projectSharedIndex,
+  sharedAccessKey,
+  type EagleLibraryAccess,
+} from './shared-access'
+import {
   type EagleIndexState,
   type EagleItemDetail,
   type EagleItemIndex,
@@ -80,12 +85,29 @@ export const toEagleItem = (
 let cachedVersion = ''
 const overviewCache = new Map<string, EagleLibraryOverview>()
 const itemViews = new Map<string, EagleItemIndex[]>()
+const sharedIndexes = new Map<string, EagleIndexState>()
 
 const ensureQueryVersion = () => {
   if (cachedVersion === libraryChanges.version) return
   cachedVersion = libraryChanges.version
   overviewCache.clear()
   itemViews.clear()
+  sharedIndexes.clear()
+}
+
+const readIndex = async (access?: EagleLibraryAccess) => {
+  const index = await ensureIndex()
+  ensureQueryVersion()
+  if (!index || !access) return index
+  const key = sharedAccessKey(access)
+  let scoped = sharedIndexes.get(key)
+  if (!scoped) {
+    scoped = projectSharedIndex(index, access)
+    sharedIndexes.set(key, scoped)
+    if (sharedIndexes.size > 8)
+      sharedIndexes.delete(sharedIndexes.keys().next().value!)
+  }
+  return scoped
 }
 
 const sortedItems = (
@@ -101,6 +123,7 @@ const sortedItems = (
   >,
   classifiable = false,
   recursiveFolderIds?: Set<string>,
+  accessKey = '',
 ): EagleItemIndex[] => {
   ensureQueryVersion()
   const { folderId, sortBy, sortOrder } = params
@@ -108,6 +131,7 @@ const sortedItems = (
     .split(/\s+/)
     .filter(Boolean)
   const key = JSON.stringify([
+    accessKey,
     folderId ?? '',
     sortBy,
     sortOrder,
@@ -191,15 +215,18 @@ export const getLibraryChanges = async (since?: string) => {
 /** 获取构建完成的完整文件夹树（含数量统计） */
 export const getFolderTree = async (
   mediaType?: EagleMediaType,
-): Promise<EagleFolder[]> => (await getLibraryOverview(mediaType)).folders
+  access?: EagleLibraryAccess,
+): Promise<EagleFolder[]> =>
+  (await getLibraryOverview(mediaType, access)).folders
 
 /** 一次遍历计算真实目录计数与虚拟目录总数，不构造或排序条目列表。 */
 export const getLibraryOverview = async (
   mediaType?: EagleMediaType,
+  access?: EagleLibraryAccess,
 ): Promise<EagleLibraryOverview> => {
-  const index = await ensureIndex()
+  const index = await readIndex(access)
   ensureQueryVersion()
-  const cacheKey = mediaType ?? ''
+  const cacheKey = JSON.stringify([mediaType ?? '', sharedAccessKey(access)])
   const cached = overviewCache.get(cacheKey)
   if (cached) return cached
   const overview: EagleLibraryOverview = {
@@ -225,6 +252,8 @@ export const getLibraryOverview = async (
   }
   overview.folders = buildFolderTree(index.folders, counts)
   overviewCache.set(cacheKey, overview)
+  if (overviewCache.size > 16)
+    overviewCache.delete(overviewCache.keys().next().value!)
   return overview
 }
 
@@ -239,11 +268,18 @@ export const getLibraryOverview = async (
  */
 export const getItems = async (
   params: GetItemsParams,
+  access?: EagleLibraryAccess,
 ): Promise<{ total: number; items: EagleItem[] }> => {
-  const index = await ensureIndex()
+  const index = await readIndex(access)
   if (!index) return { total: 0, items: [] }
   const { offset, limit } = params
-  const list = sortedItems(index, params)
+  const list = sortedItems(
+    index,
+    params,
+    false,
+    undefined,
+    sharedAccessKey(access),
+  )
   return {
     total: list.length,
     items: list
@@ -322,9 +358,10 @@ export const getFolderPaths = async (
 /** 公共查询仅投影业务详情，调用方不依赖内部索引结构。 */
 export const getItemDetail = async (
   id: string,
+  access?: EagleLibraryAccess,
 ): Promise<EagleItemDetail | null> => {
   if (!ITEM_ID_PATTERN.test(id)) return null
-  const index = await ensureIndex()
+  const index = await readIndex(access)
   const item = index?.items.get(id)
   if (!index || !item) return null
   return {

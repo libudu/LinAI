@@ -4,7 +4,11 @@ import { z } from 'zod'
 import { changeBus } from '../../../common/storage/change-bus'
 import { getSystemSettings } from '../../system/settings'
 import { refreshIndex } from '../library'
-import { getEagleSettings, getEagleSharingSettings } from '../settings'
+import {
+  getEagleFolderSharingSettings,
+  getEagleSettings,
+  getEagleSharingSettings,
+} from '../settings'
 import { validateLibraryDirectory } from './paths'
 
 const LEASE_MS = 12000
@@ -26,6 +30,7 @@ type Incoming = Transfer & {
   owner?: string
   libraryPath: string
   controller: AbortController
+  readController: AbortController
 }
 type Outgoing = {
   id: string
@@ -37,6 +42,7 @@ type Outgoing = {
   error: string
   controller: AbortController
   checking: boolean
+  permissionsRevision?: number
 }
 
 const pages = new Map<string, symbol>()
@@ -144,6 +150,7 @@ async function remoteJson(
         .regex(/^[a-f0-9]{64}$/)
         .optional(),
       state: stateSchema.optional(),
+      permissionsRevision: z.number().int().nonnegative().optional(),
     })
     .safeParse(json.data ?? {})
   if (!parsed.success) fail('目标 LinAI 返回了不兼容的共享协议数据')
@@ -187,6 +194,7 @@ export async function requestSharing(
     lastSeen: now,
     libraryPath: settings.libraryPath,
     controller: new AbortController(),
+    readController: new AbortController(),
     bytes: 0,
     samples: [],
   }
@@ -233,7 +241,8 @@ async function validIncoming(token: string) {
 export async function heartbeatIncoming(token: string) {
   const session = await validIncoming(token)
   session.lastSeen = Date.now()
-  return { state: session.state }
+  const permissions = await getEagleFolderSharingSettings()
+  return { state: session.state, permissionsRevision: permissions.revision }
 }
 
 export function closeIncoming(token: string) {
@@ -370,6 +379,7 @@ export function sharingSnapshot(pageId: string) {
           error: session.error,
           url: session.url,
           localPath: session.localPath,
+          permissionsRevision: session.permissionsRevision,
         }
       : null,
   }
@@ -430,6 +440,7 @@ const timer = setInterval(() => {
         if (session.controller.signal.aborted) return
         if (!result.state) fail('目标 LinAI 返回了无效的共享连接状态')
         session.state = result.state
+        session.permissionsRevision = result.permissionsRevision
         if (result.state === 'closed')
           session.error = '对方拒绝了请求或共享连接已终止'
       })
@@ -444,6 +455,14 @@ const timer = setInterval(() => {
   }
 }, 2000)
 timer.unref()
+
+// 修改文件夹权限时立即中止旧范围的在途传输；会话保留，新请求使用新权限。
+changeBus.subscribe('settings.eagle-folder-sharing', () => {
+  for (const session of incoming.values()) {
+    session.readController.abort()
+    session.readController = new AbortController()
+  }
+})
 
 // 删除用户或切换库后立即撤销在途读取，不能等下一次媒体请求才发现。
 for (const resource of [

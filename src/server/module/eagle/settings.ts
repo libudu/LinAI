@@ -89,6 +89,35 @@ settingsRegistry.register<EagleSharingSettings>('eagle-sharing', {
 export const getEagleSharingSettings = async () =>
   (await settingsRegistry.get<EagleSharingSettings>('eagle-sharing')).value
 
+const sharedFolderIdsSchema = z.array(z.string().min(1)).max(100000)
+export const eagleFolderSharingSettingsSchema = z.object({
+  libraries: z.array(
+    z.object({
+      libraryPath: z.string().min(1),
+      // 缺失为旧版父目录继承；首次编辑时展开旧授权并升级为父子联动。
+      selectionVersion: z.literal(2).optional(),
+      everyone: sharedFolderIdsSchema,
+      users: z.record(
+        z.string().regex(/^[A-Za-z0-9]{8}$/),
+        sharedFolderIdsSchema,
+      ),
+    }),
+  ),
+})
+
+export type EagleFolderSharingSettings = z.infer<
+  typeof eagleFolderSharingSettingsSchema
+>
+
+settingsRegistry.register<EagleFolderSharingSettings>('eagle-folder-sharing', {
+  file: dataPath('eagle', 'folder-sharing.json'),
+  defaults: { libraries: [] },
+  schema: eagleFolderSharingSettingsSchema,
+})
+
+export const getEagleFolderSharingSettings = async () =>
+  settingsRegistry.get<EagleFolderSharingSettings>('eagle-folder-sharing')
+
 export type EagleVisionSettings = z.infer<typeof visionSettingsSchema>
 
 // Eagle 视觉接入点设置：与图片生成的 vision 配置互相独立，落盘 data/eagle/vision.json

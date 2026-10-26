@@ -2,6 +2,9 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { streamSSE } from 'hono/streaming'
 import { z } from 'zod'
+import { getItemDetail } from '../../module/eagle/library'
+import type { EagleLibraryAccess } from '../../module/eagle/library/shared-access'
+import { getEagleFolderSharingSettings } from '../../module/eagle/settings'
 import { issueOwnerSession } from '../../module/eagle/sharing/access'
 import {
   listDirectories,
@@ -159,6 +162,21 @@ const sharingApi = new Hono()
     if (!isSharedRead(path))
       throw new HTTPException(403, { message: '此接口不允许共享访问' })
     const session = await authorizeRead(bearer(c.req.header('authorization')))
+    const readSignal = session.readController.signal
+    const permissions = await getEagleFolderSharingSettings()
+    const library = permissions.value.libraries.find(
+      (entry) => entry.libraryPath === session.libraryPath,
+    )
+    const access: EagleLibraryAccess = {
+      libraryPath: session.libraryPath,
+      selectionVersion: library?.selectionVersion ?? 1,
+      grantedFolderIds: [
+        ...new Set([
+          ...(library?.everyone ?? []),
+          ...(library?.users[session.invitationCode] ?? []),
+        ]),
+      ].sort(),
+    }
     const url = new URL(c.req.url)
     url.pathname = path
     const headers = new Headers()
@@ -167,13 +185,20 @@ const sharingApi = new Hono()
     const signal = AbortSignal.any([
       c.req.raw.signal,
       session.controller.signal,
+      readSignal,
     ])
     const response = await libraryApi.fetch(
       new Request(url, { headers, signal }),
+      { eagleSharingAccess: access },
     )
     // 索引读取期间可能已经撤销授权或切库，再检查一次。
     try {
       await authorizeRead(bearer(c.req.header('authorization')))
+      if (signal.aborted)
+        throw new HTTPException(409, { message: '共享权限已改变，请重新加载' })
+      const itemId = /^\/items\/([A-Za-z0-9]+)\//.exec(path)?.[1]
+      if (itemId && !(await getItemDetail(itemId, access)))
+        throw new HTTPException(404, { message: '条目不存在或未共享' })
     } catch (error) {
       await response.body?.cancel()
       throw error

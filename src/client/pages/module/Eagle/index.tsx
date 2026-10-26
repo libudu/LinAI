@@ -7,6 +7,7 @@ import { ResourceGrid } from './ResourceGrid'
 import { openEagleSettingModal } from './SettingModal'
 import { useEagleConfig } from './settings/useEagleConfig'
 import { useEagleVisionConfig } from './settings/useEagleVisionConfig'
+import { useFolderSharing } from './sharing/folderSharing'
 import { useEagleSharing } from './sharing/store'
 import { requestEagleLibraryRefresh, useEagleStore } from './store'
 import { Toolbar } from './Toolbar'
@@ -16,6 +17,7 @@ export function Eagle() {
   const { libraryPath, libraryMode, remoteUrl, fetchEagleConfig } =
     useEagleConfig()
   const { outgoing, connected } = useEagleSharing()
+  const loadFolderSharing = useFolderSharing((state) => state.load)
   const remoteConnected = connected && outgoing?.state === 'approved'
   const fetchVisionConfig = useEagleVisionConfig((s) => s.fetchConfig)
   const init = useEagleStore((s) => s.init)
@@ -40,7 +42,19 @@ export function Eagle() {
   useEffect(() => {
     if (libraryMode === 'remote' && remoteConnected)
       void init().catch(console.error)
-  }, [libraryMode, remoteConnected, init])
+  }, [libraryMode, remoteConnected, outgoing?.permissionsRevision, init])
+
+  useEffect(() => {
+    if (libraryMode !== 'local') return
+    void loadFolderSharing()
+    const unsubscribe = [
+      'settings.eagle-folder-sharing',
+      'settings.eagle-sharing',
+    ].map((resource) =>
+      subscribeStorageEvent(resource, () => void loadFolderSharing()),
+    )
+    return () => unsubscribe.forEach((close) => close())
+  }, [libraryMode, loadFolderSharing])
 
   // 整理确认等写库操作发布 eagle.library 变更，订阅后刷新文件夹树与当前页（共享单条 SSE 连接）
   useEffect(() => {
