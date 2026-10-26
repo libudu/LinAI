@@ -13,6 +13,9 @@ const PUBLIC_PATHS = new Set([
 export async function requireLogin(c: Context, next: Next) {
   if (
     PUBLIC_PATHS.has(c.req.path) ||
+    // 登录页及共用的前端静态资源不含业务数据，API 仍统一校验登录。
+    ((c.req.method === 'GET' || c.req.method === 'HEAD') &&
+      c.req.path.startsWith('/assets/')) ||
     isEagleSharingProtocol(c.req.method, c.req.path)
   )
     return next()

@@ -19,7 +19,6 @@ import openaiApi from './api/openai'
 import ttsApi from './api/tts'
 import ttsInworldApi from './api/tts/inworld'
 import yunwuTokenApi from './api/yunwu-token'
-import { LOGIN_PAGE } from './common/auth/login-page'
 import { requireLogin } from './common/auth/middleware'
 import { StorageError } from './common/storage/errors'
 import { EagleError } from './module/eagle/errors'
@@ -90,10 +89,14 @@ app.onError((err, c) => {
 })
 
 app.use('*', requireLogin)
-app.get('/auth/login', (c) => {
-  c.header('Cache-Control', 'no-store')
-  return c.html(LOGIN_PAGE)
-})
+app.get(
+  '/auth/login',
+  async (c, next) => {
+    c.header('Cache-Control', 'no-store')
+    await next()
+  },
+  serveStatic({ path: path.resolve(__dirname, '../client/login.html') }),
+)
 app.use('/api/eagle/*', guardEagleAccess)
 app.use('/api/settings/*', guardEagleAccess)
 

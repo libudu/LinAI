@@ -20,6 +20,12 @@ export default defineConfig(async ({ command }) => {
     build: {
       outDir: 'dist/client',
       emptyOutDir: true,
+      rolldownOptions: {
+        input: {
+          main: fileURLToPath(new URL('./index.html', import.meta.url)),
+          login: fileURLToPath(new URL('./login.html', import.meta.url)),
+        },
+      },
     },
     publicDir: 'src/client/public',
     server: {

@@ -1,8 +1,9 @@
 import type { IncomingMessage } from 'node:http'
+import { posix } from 'node:path'
 import type { Plugin, ProxyOptions } from 'vite'
 import { AUTH_PROXY_HEADER, signProxyContext } from './network'
 
-/** Vite 自己提供页面和源码资源，也必须在送出内容前检查后端登录状态。 */
+/** Vite 提供登录页及前端依赖，其余页面在送出内容前检查后端登录状态。 */
 export function createDevAuth(
   secret: string,
   target: string,
@@ -19,11 +20,42 @@ export function createDevAuth(
       configureServer(server) {
         server.middlewares.use(async (request, response, next) => {
           const url = new URL(request.url || '/', 'http://localhost')
+          let pathname: string
+          try {
+            pathname = posix.normalize(
+              decodeURIComponent(url.pathname).replace(/\\/g, '/'),
+            )
+          } catch {
+            response.writeHead(400)
+            response.end('请求路径无效')
+            return
+          }
+          // 登录页独立使用 React / antd，仅公开前端源码及其 Vite 依赖。
+          if (pathname === '/auth/login') {
+            request.url = `/login.html${url.search}`
+            response.setHeader('Cache-Control', 'no-store')
+            next()
+            return
+          }
+          const frontendAsset =
+            pathname === '/login.html' ||
+            pathname === '/@react-refresh' ||
+            [
+              '/src/client/',
+              '/src/shared/',
+              '/node_modules/',
+              '/@vite/',
+              '/@id/',
+            ].some((prefix) => pathname.startsWith(prefix)) ||
+            /^\/@fs\/.*\/node_modules\//.test(pathname)
           if (
             url.pathname.startsWith('/api') ||
             url.pathname.startsWith('/v1') ||
-            url.pathname === '/auth/login'
+            ((request.method === 'GET' || request.method === 'HEAD') &&
+              frontendAsset)
           ) {
+            if (pathname === '/login.html')
+              response.setHeader('Cache-Control', 'no-store')
             next()
             return
           }

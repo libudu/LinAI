@@ -1,10 +1,23 @@
 import type { AppType } from '@/server'
-import { hc } from 'hono/client'
+import { hc, type InferResponseType } from 'hono/client'
 import { create } from 'zustand'
 import { rpcData } from './http'
 
 const authRpc = hc<AppType>('/').api.auth
 const fetchStatus = () => rpcData(authRpc.status.$get())
+
+export async function loginWithCode(code: string) {
+  const response = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  })
+  const result: InferResponseType<typeof authRpc.login.$post> =
+    await response.json()
+  if (!response.ok && result.success) throw new Error('登录失败')
+  return result
+}
+
 type LoginStatus = Awaited<ReturnType<typeof fetchStatus>>
 
 export const useLoginAccess = create<{

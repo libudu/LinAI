@@ -53,12 +53,10 @@ export function LoginCodeSetting() {
         <Form.Item
           name="loginCode"
           label="登录验证码"
-          extra="请输入六位数字。非 localhost 访问需要验证，登录 Cookie 保留 30 天；连续输错三次锁定五分钟。修改验证码后，已有登录会话失效。"
           rules={[
             {
-              required: true,
-              pattern: /^\d{6}$/,
-              message: '请输入六位数字验证码',
+              pattern: /^(\d{6})?$/,
+              message: '请输入六位数字验证码，或留空移除',
             },
           ]}
         >
