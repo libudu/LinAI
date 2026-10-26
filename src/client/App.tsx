@@ -5,16 +5,26 @@ import { useGptImageStore } from './pages/common/GenImage/settings/store'
 import { useVisionStore } from './pages/common/GenImage/settings/visionStore'
 import { openNotificationModal } from './pages/common/Notification'
 import { Sidebar } from './pages/common/Sidebar'
+import { EagleSharingConnection } from './pages/module/Eagle/sharing/EagleSharingConnection'
+import { ensureEagleOwnerSession } from './pages/module/Eagle/sharing/access'
 import { appRoutes } from './routes'
 import { useGlobalStore } from './store/global'
 import { AppThemeProvider } from './theme'
 import { isAdmin } from './utils/admin'
 
 function App() {
+  const [sessionReady, setSessionReady] = useState(false)
   // 桌面端侧栏收起状态，收起后主内容留出更窄的间距
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   useEffect(() => {
+    void ensureEagleOwnerSession()
+      .catch(console.error)
+      .finally(() => setSessionReady(true))
+  }, [])
+
+  useEffect(() => {
+    if (!sessionReady) return
     useGlobalStore.getState().fetchConfig()
     void useGptImageStore.getState().fetchConfig().catch(console.error)
     void useVisionStore.getState().fetchConfig().catch(console.error)
@@ -26,10 +36,13 @@ function App() {
       openNotificationModal()
       localStorage.setItem('app_version', currentVersion)
     }
-  }, [])
+  }, [sessionReady])
+
+  if (!sessionReady) return null
 
   return (
     <AppThemeProvider>
+      <EagleSharingConnection />
       <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
         <Sidebar
           collapsed={sidebarCollapsed}

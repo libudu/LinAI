@@ -1,6 +1,7 @@
 import { settingsClient } from '@/client/service/settings'
 import type { EagleSettings } from '@/server/module/eagle/settings'
 import { create } from 'zustand'
+import { ensureEagleOwnerSession } from '../sharing/access'
 
 const client = settingsClient<EagleSettings>('eagle')
 
@@ -8,22 +9,46 @@ const client = settingsClient<EagleSettings>('eagle')
 interface EagleConfigState extends EagleSettings {
   revision: number
   fetchEagleConfig: () => Promise<void>
-  setEagleConfig: (libraryPath: string | null) => Promise<void>
+  setEagleConfig: (config: Partial<EagleSettings>) => Promise<void>
 }
 
 export const useEagleConfig = create<EagleConfigState>()((set, get) => ({
   libraryPath: null,
+  libraryMode: 'local',
+  remoteUrl: '',
+  remoteLibraryPath: '',
+  invitationCode: '',
   revision: 0,
   fetchEagleConfig: async () => {
     try {
+      await ensureEagleOwnerSession().catch(() => undefined)
       const res = await client.get()
       set({ ...res.value, revision: res.revision })
     } catch (error) {
       console.error('Failed to fetch eagle config', error)
+      throw error
     }
   },
-  setEagleConfig: async (libraryPath) => {
-    const res = await client.put({ libraryPath }, get().revision)
+  setEagleConfig: async (config) => {
+    await ensureEagleOwnerSession().catch(() => undefined)
+    const {
+      libraryPath,
+      libraryMode,
+      remoteUrl,
+      remoteLibraryPath,
+      invitationCode,
+    } = get()
+    const res = await client.put(
+      {
+        libraryPath,
+        libraryMode,
+        remoteUrl,
+        remoteLibraryPath,
+        invitationCode,
+        ...config,
+      },
+      get().revision,
+    )
     set({ ...res.value, revision: res.revision })
   },
 }))

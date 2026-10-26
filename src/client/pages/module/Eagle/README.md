@@ -12,6 +12,7 @@ src/shared/eagle/
 
 src/server/module/eagle/
 ├── settings.ts               # 资源库与视觉接入点设置
+├── sharing/                  # 共享审批、页面在线会话、只读传输与本地目录校验
 ├── storage.ts                # 目录展开、手动分类历史的通用存储注册
 ├── schemas.ts                # 请求参数 schema 与服务参数类型
 ├── errors.ts                 # 结构化业务错误
@@ -68,6 +69,7 @@ src/server/module/eagle/
 src/server/api/eagle/
 ├── index.ts                  # /api/eagle 路由聚合
 ├── library.ts                # 资源库与媒体 HTTP 接口
+├── sharing.ts                # Eagle 数据共享协议与本地共享管理接口
 ├── organize.ts               # 整理任务与结果 HTTP 接口
 └── validation.ts             # 参数校验与统一响应封装
 
@@ -76,6 +78,7 @@ src/client/pages/module/Eagle/
 ├── api.ts / rpc.ts           # Hono RPC 与文件 URL 封装
 ├── store.ts                  # 资源列表、分页与展示状态
 ├── settings/                 # 资源库与视觉接入点配置 store
+├── sharing/                  # 应用级在线连接、共享请求弹窗与传输状态
 ├── SettingModal/             # 设置表单与弹窗
 ├── preferences.ts            # localStorage 展示偏好
 ├── preferenceTypes.ts        # 前端拥有的偏好模型
@@ -174,6 +177,21 @@ src/client/pages/module/Eagle/
 - 整理接口使用 `/organize/:mediaType/*`（`image` / `video`），路径决定任务范围；新建携带 `expectedTaskId`（该类型无任务为 null），其他任务修改携带 `taskId`，命令锁内先校验身份。准备、新建和追加的媒体类型由路径绑定；旧字段 `imageCount` 表示当前类型的可处理总数。
 
 ## 浏览与前端同步
+
+### Eagle 数据共享
+
+- 设置的「资源库」页支持本地 / 远程切换；`eagle` 设置保留本地库路径，另存远程 LinAI 地址、本地接收目录和邀请码。「共享用户」页通过独立的 `eagle-sharing` 设置保存名字及八位随机字母数字邀请码，增删立即保存，带 revision 冲突检测。
+- 远程保存前，服务端校验本地绝对路径必须是空目录，或包含有效 `metadata.json`（目录树）与 `images/` 的 `.library` 资源库；不创建、初始化或改写所选目录。当前只从远端加载目录、分页列表、缩略图和原文件预览，不导入本地文件，下载任务留待后续实现。
+- 请求经双方服务端传输，由共享方已登记的用户邀请码识别名字。共享方必须打开 LinAI 前端，在「Eagle 数据共享」弹窗中明确同意；同意前不允许读取资源。拒绝、配置/连接错误、两分钟等待超时均在请求方设置页显示，只有获得同意后才保存远程配置。
+- `App` 根挂载共享 SSE 在线连接，每次完整加载页面创建新身份，不落盘；审批绑定同意的页面，请求绑定发起的页面。正常关闭/刷新、SSE 断开立即撤销本页会话并取消在途传输，网络异常通过两秒一次的服务端心跳和十二秒租约收尾。页面重连与服务重启不恢复授权，需重新请求；浏览器后台切页不等同于关闭前端。
+- 共享方切换库、删除对应用户时撤销授权。共享专用 `/api/eagle/sharing/library/*` 只允许 GET 概览、目录、条目、详情、缩略图、只读大图和原文件（支持 Range）；采用仅内存保存的随机 Bearer 会话凭据，凭据不交给前端。禁止透传任意路径、写操作、图库导入和会生成库内文件的视频联系图；远程模式的本地 Eagle 入口同步拦截修改请求，前端隐藏修改、删除、下载和整理入口。
+- 共享管理凭据与只读会话分离：`local-session` 仅向本机地址访问的浏览器签发进程级 HttpOnly / SameSite Cookie，拒绝外部转发请求。共享管理和共享用户设置始终需要该凭据；配置共享用户后，原 Eagle 接口和通用设置接口也必须携带管理凭据，阻止远端绕过共享入口调用既有读写接口或读取密钥/邀请码。共享管理需在运行 LinAI 的电脑上通过本地地址进行，重启后重新签发凭据。
+- 远程媒体经请求方服务端流式中转，保持浏览器同源且不向共享方转发本地 Cookie / 请求头；返回 `no-store`，撤销授权时中止在途流。已加载到浏览器的内容无法追溯收回。
+- 「展示选项」左侧，请求方显示「使用远程资源库」，共享方显示「远程共享中」。共享详情按用户显示本次累计传输字节、最近五秒平均传输速度及空任务列表；当前没有下载到本地的任务。
+
+共享接口分为本地管理（`events`、`status`、`decision`、`connect`、`disconnect`、`page/close`、`directories`、`validate-directory`）和双方协议（`request`、`session/heartbeat`、`session/close`、`library/*`）。邀请码只用于发起审批，会话凭据才允许读取；任何请求都不能通过共享协议修改资源库。设置仍统一走 SettingsRegistry，目录选择/校验和连接属于业务接口，不另设 `/config`。
+
+### 资源浏览
 
 - 默认图片（含 GIF），图片/视频按扩展名集合过滤。媒体类型保存于 `eagle_media_type`，两类目录分别存于 `eagle_selected_folder_image` / `eagle_selected_folder_video`；旧 `eagle_selected_folder` 迁移为图片目录记录，新记录写入后删除旧键。切换类型恢复各自目录，失效时回到「全部」，保留搜索排序并重查第一页和目录计数；资源每页 100 条。
 - 文件名搜索覆盖当前目录全部资源，忽略首尾空白和大小写，空白分隔的关键词须全部匹配；服务端先过滤再排序分页。搜索不持久化，切目录、排序、翻页、刷新时保留，改词回到第一页；资源数量显示匹配数，目录树保留完整计数。

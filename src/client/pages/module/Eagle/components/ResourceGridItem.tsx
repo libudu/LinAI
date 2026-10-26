@@ -13,6 +13,7 @@ import { formatFileSize } from './formatFileSize'
 
 interface ResourceGridItemProps {
   item: EagleItem
+  readOnly?: boolean
   isTrash: boolean
   showFileName: boolean
   showFileSize: boolean
@@ -27,6 +28,7 @@ interface ResourceGridItemProps {
 // 单个资源卡片：支持鼠标右键 / 移动端长按弹出操作菜单
 export function ResourceGridItem({
   item,
+  readOnly = false,
   isTrash,
   showFileName,
   showFileSize,
@@ -85,6 +87,7 @@ export function ResourceGridItem({
 
   return (
     <Dropdown
+      disabled={readOnly}
       trigger={['contextMenu']}
       menu={{
         items: menuItems,

@@ -10,6 +10,7 @@ import { ResourceGridItem } from './components/ResourceGridItem'
 import { getRotationEditOperations } from './components/rotation'
 import { VideoPreview } from './components/VideoPreview'
 import { useResourceActions } from './hooks/useResourceActions'
+import { useEagleConfig } from './settings/useEagleConfig'
 import {
   PAGE_SIZE,
   requestEagleLibraryRefresh,
@@ -26,6 +27,7 @@ const GRID_COLS: Record<EagleImageSize, string> = {
 
 // 右侧资源网格：固定大小格子 + object-cover 缩略图，底部分页翻页
 export function ResourceGrid() {
+  const remote = useEagleConfig((state) => state.libraryMode === 'remote')
   const {
     items,
     total,
@@ -97,6 +99,7 @@ export function ResourceGrid() {
               <ResourceGridItem
                 key={item.id}
                 item={item}
+                readOnly={remote}
                 isTrash={isTrash}
                 showFileName={showFileName}
                 showFileSize={showFileSize}
@@ -164,7 +167,7 @@ export function ResourceGrid() {
                     originalNode,
                     undefined,
                     (originalNode.props as { children?: ReactNode }).children,
-                    item && !isTrash && (
+                    item && !isTrash && !remote && (
                       <button
                         key="trash"
                         type="button"
@@ -192,7 +195,7 @@ export function ResourceGrid() {
                     ),
                   )}
                 </div>
-                {item && !isTrash && (
+                {item && !isTrash && !remote && (
                   <MediaEditSaveButton
                     key={item.id}
                     id={item.id}
@@ -217,7 +220,8 @@ export function ResourceGrid() {
       <VideoPreview
         item={videoItem}
         onClose={() => setVideoItem(null)}
-        allowOverwrite={!isTrash}
+        allowOverwrite={!isTrash && !remote}
+        allowContactSheet={!remote}
       />
     </div>
   )

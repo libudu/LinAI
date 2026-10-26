@@ -20,6 +20,7 @@ import ttsInworldApi from './api/tts/inworld'
 import yunwuTokenApi from './api/yunwu-token'
 import { StorageError } from './common/storage/errors'
 import { EagleError } from './module/eagle/errors'
+import { guardEagleAccess } from './module/eagle/sharing/access'
 
 dotenv.config()
 
@@ -84,6 +85,9 @@ app.onError((err, c) => {
     500,
   )
 })
+
+app.use('/api/eagle/*', guardEagleAccess)
+app.use('/api/settings/*', guardEagleAccess)
 
 const routes = app
   // module

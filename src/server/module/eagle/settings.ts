@@ -14,12 +14,20 @@ import { visionSettingsSchema } from '../vision/settings'
 export const eagleSettingsSchema = z.object({
   /** Eagle 资源库（.library 目录）的绝对路径 */
   libraryPath: z.string().nullable(),
+  libraryMode: z.enum(['local', 'remote']).default('local'),
+  remoteUrl: z.string().default(''),
+  remoteLibraryPath: z.string().default(''),
+  invitationCode: z.string().default(''),
 })
 
 export type EagleSettings = z.infer<typeof eagleSettingsSchema>
 
 const DEFAULT_EAGLE_SETTINGS: EagleSettings = {
   libraryPath: null,
+  libraryMode: 'local',
+  remoteUrl: '',
+  remoteLibraryPath: '',
+  invitationCode: '',
 }
 
 // 旧版扁平 config.json（无信封）→ value
@@ -38,6 +46,35 @@ settingsRegistry.register<EagleSettings>('eagle', {
 /** 服务端内部读取（合并默认值） */
 export const getEagleSettings = async (): Promise<EagleSettings> =>
   (await settingsRegistry.get<EagleSettings>('eagle')).value
+
+export const eagleSharingSettingsSchema = z.object({
+  users: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(80),
+        invitationCode: z
+          .string()
+          .regex(/^[A-Za-z0-9]{8}$/, '邀请码必须是八位字母或数字'),
+      }),
+    )
+    .max(100)
+    .refine(
+      (users) =>
+        new Set(users.map((user) => user.invitationCode)).size === users.length,
+      '邀请码不能重复',
+    ),
+})
+
+export type EagleSharingSettings = z.infer<typeof eagleSharingSettingsSchema>
+
+settingsRegistry.register<EagleSharingSettings>('eagle-sharing', {
+  file: dataPath('eagle', 'sharing.json'),
+  defaults: { users: [] },
+  schema: eagleSharingSettingsSchema,
+})
+
+export const getEagleSharingSettings = async () =>
+  (await settingsRegistry.get<EagleSharingSettings>('eagle-sharing')).value
 
 export type EagleVisionSettings = z.infer<typeof visionSettingsSchema>
 

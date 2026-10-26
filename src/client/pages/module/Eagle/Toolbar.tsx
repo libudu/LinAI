@@ -31,7 +31,9 @@ import { FolderTree } from './FolderTree'
 import { OrganizeModal } from './Organize'
 import { useOrganizeStatus } from './Organize/store'
 import { openEagleSettingModal } from './SettingModal'
+import { useEagleConfig } from './settings/useEagleConfig'
 import { useEagleVisionConfig } from './settings/useEagleVisionConfig'
+import { SharingIndicator } from './sharing/SharingIndicator'
 import type { EagleImageSize } from './store'
 import { requestEagleLibraryRefresh, useEagleStore } from './store'
 
@@ -66,6 +68,7 @@ export function Toolbar() {
     setShowFolderDescription,
   } = useEagleStore()
   const { isMobile } = usePlatform()
+  const remote = useEagleConfig((state) => state.libraryMode === 'remote')
   const visionApiKey = useEagleVisionConfig((s) => s.visionApiKey)
   const { status: organizeStatus } = useOrganizeStatus(mediaType)
   const [refreshing, setRefreshing] = useState(false)
@@ -259,6 +262,7 @@ export function Toolbar() {
       </Space>
 
       <Space wrap className="ml-auto">
+        <SharingIndicator />
         <Dropdown
           trigger={isMobile ? ['click'] : ['hover']}
           menu={{ items: [] }}
@@ -341,7 +345,7 @@ export function Toolbar() {
         >
           刷新
         </Button>
-        {currentFolderId === EAGLE_TRASH_FOLDER_ID && (
+        {!remote && currentFolderId === EAGLE_TRASH_FOLDER_ID && (
           <Button
             danger
             icon={<DeleteOutlined />}
@@ -352,7 +356,7 @@ export function Toolbar() {
             全部彻底删除
           </Button>
         )}
-        {currentFolderId === EAGLE_UNCLASSIFIED_FOLDER_ID && (
+        {!remote && currentFolderId === EAGLE_UNCLASSIFIED_FOLDER_ID && (
           <Button
             danger
             icon={<DeleteOutlined />}
@@ -363,7 +367,7 @@ export function Toolbar() {
             全部移动到回收站
           </Button>
         )}
-        {showOrganizeButton && (
+        {!remote && showOrganizeButton && (
           <Badge count={badgeCount} size="small" dot={badgeDot}>
             <Button
               type="primary"
@@ -387,10 +391,12 @@ export function Toolbar() {
         <FolderTree onSelected={() => setFolderDrawerOpen(false)} />
       </Drawer>
 
-      <OrganizeModal
-        open={organizeOpen}
-        onClose={() => setOrganizeOpen(false)}
-      />
+      {!remote && (
+        <OrganizeModal
+          open={organizeOpen}
+          onClose={() => setOrganizeOpen(false)}
+        />
+      )}
     </div>
   )
 }

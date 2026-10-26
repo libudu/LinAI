@@ -32,6 +32,7 @@ interface VideoPreviewProps {
     | null
   onClose: () => void
   allowOverwrite?: boolean
+  allowContactSheet?: boolean
   /** 切换条目时可独立保持弹窗打开，item 为空时展示加载或失败状态。 */
   open?: boolean
   loading?: boolean
@@ -93,6 +94,7 @@ export function VideoPreview({
   item: inputItem,
   onClose,
   allowOverwrite = true,
+  allowContactSheet = true,
   open = inputItem !== null,
   loading = false,
   toolbarExtra,
@@ -106,7 +108,8 @@ export function VideoPreview({
     item: NonNullable<VideoPreviewProps['item']>
   } | null>(null)
   const item = saved?.inputKey === inputKey ? saved.item : inputItem
-  const [mode, setMode] = useState(loadVideoPreviewMode)
+  const [preferredMode, setMode] = useState(loadVideoPreviewMode)
+  const mode = allowContactSheet ? preferredMode : 'video'
   const [playbackRate, setPlaybackRate] = useState(loadVideoPlaybackRate)
   const initializedVideoRef = useRef<HTMLVideoElement | null>(null)
   const [videoMetadata, setVideoMetadata] = useState<{
@@ -481,6 +484,7 @@ export function VideoPreview({
                 }}
               >
                 <Segmented<EagleVideoPreviewMode>
+                  hidden={!allowContactSheet}
                   disabled={saving || crop.active}
                   size="large"
                   shape="round"

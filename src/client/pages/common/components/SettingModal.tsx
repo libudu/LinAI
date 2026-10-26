@@ -42,6 +42,7 @@ export function openCommonSettingModal(options: {
   }
 
   function ModalComponent() {
+    const [saving, setSaving] = useState(false)
     const [activeTab, setActiveTab] = useState(
       options.initialTab || options.tabs[0]?.key,
     )
@@ -49,6 +50,8 @@ export function openCommonSettingModal(options: {
       options.tabs.find((tab) => tab.key === activeTab) ?? options.tabs[0]
 
     const handleSave = async () => {
+      if (saving) return
+      setSaving(true)
       try {
         const result = await activeItem?.onSave?.()
         if (result !== undefined && result !== null) {
@@ -57,6 +60,8 @@ export function openCommonSettingModal(options: {
         destroy()
       } catch (error) {
         // 表单验证失败或其他错误，保持弹窗打开
+      } finally {
+        setSaving(false)
       }
     }
 
@@ -68,6 +73,7 @@ export function openCommonSettingModal(options: {
         open={true}
         onCancel={destroy}
         onOk={handleSave}
+        confirmLoading={saving}
         okText={options.okText ?? '保存'}
         cancelText="取消"
         footer={activeItem?.hideFooter ? null : undefined}
@@ -109,7 +115,9 @@ export function openCommonSettingModal(options: {
               }
               tabPlacement="start"
               activeKey={activeTab}
-              onChange={setActiveTab}
+              onChange={(key) => {
+                if (!saving) setActiveTab(key)
+              }}
               items={options.tabs}
               styles={{
                 item: {

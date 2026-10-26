@@ -2,6 +2,7 @@ import type { OrganizeStatus } from '@/shared/eagle/organize'
 import type { EagleMediaType } from '@/shared/eagle/types'
 import { useEffect } from 'react'
 import { create } from 'zustand'
+import { useEagleConfig } from '../settings/useEagleConfig'
 import { useOrganizeMedia } from './media'
 import {
   changeOptimisticItems,
@@ -138,13 +139,14 @@ const sessions = {
 
 /** 每类媒体独立缓存、乐观操作、订阅和刷新版本。 */
 export function useOrganizeStatus(mediaType?: EagleMediaType) {
+  const remote = useEagleConfig((state) => state.libraryMode === 'remote')
   const context = useOrganizeMedia()
   const session = sessions[mediaType ?? context.mediaType]
   const status = session.useStore((state) => state.status)
   const serverStatus = session.useStore((state) => state.serverStatus)
   const loaded = session.useStore((state) => state.loaded)
   const revision = session.useStore((state) => state.revision)
-  useEffect(() => session.subscribe(), [session])
+  useEffect(() => (remote ? undefined : session.subscribe()), [session, remote])
   return { status, serverStatus, loaded, revision }
 }
 

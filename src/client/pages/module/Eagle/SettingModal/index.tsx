@@ -1,66 +1,31 @@
-import { Form, Input, message } from 'antd'
-import { createRef, forwardRef, useEffect, useImperativeHandle } from 'react'
+import { message } from 'antd'
+import { createRef } from 'react'
 import {
   openCommonSettingModal,
   type CommonSettingTab,
 } from '../../../common/components/SettingModal'
 import { useEagleConfig } from '../settings/useEagleConfig'
-import { useEagleStore } from '../store'
+import { LibrarySetting, type EagleSettingRef } from './LibrarySetting'
+import { SharingUsersSetting } from './SharingUsersSetting'
 import {
   VisionEndpointSetting,
   type VisionEndpointSettingRef,
 } from './VisionEndpointSetting'
 
-interface EagleSettingRef {
-  save: () => Promise<void>
-}
-
-const EagleSetting = forwardRef<EagleSettingRef>((_props, ref) => {
-  const [form] = Form.useForm()
-  const { libraryPath, setEagleConfig } = useEagleConfig()
-  const reload = useEagleStore((s) => s.reload)
-
-  useEffect(() => {
-    form.setFieldsValue({ libraryPath: libraryPath || '' })
-  }, [libraryPath, form])
-
-  useImperativeHandle(ref, () => ({
-    save: async () => {
-      const values = await form.validateFields()
-      try {
-        await setEagleConfig(values.libraryPath?.trim() || null)
-      } catch (error) {
-        message.error(error instanceof Error ? error.message : '设置保存失败')
-        throw error
-      }
-      message.success('配置保存成功')
-      // 库路径变化后重建索引并刷新页面数据
-      await reload()
-    },
-  }))
-
-  return (
-    <div className="px-4 py-2">
-      <Form form={form} layout="vertical">
-        <Form.Item
-          name="libraryPath"
-          label="Eagle 资源库路径"
-          extra="填 .library 目录的绝对路径，如 D:\Linpicio\收藏\eagle 仓库\测试.library（编辑、整理确认和回收站操作会写入资源库）"
-          rules={[{ required: true, message: '请输入资源库路径' }]}
-        >
-          <Input placeholder="D:\...\xxx.library" />
-        </Form.Item>
-      </Form>
-    </div>
-  )
-})
-
-// 打开 Eagle 图片管理设置弹窗（资源库 / 视觉接入点，两者配置互相独立）
-export function openEagleSettingModal(options?: {
+// 打开 Eagle 图片管理设置弹窗，三个标签页独立保存。
+export async function openEagleSettingModal(options?: {
   initialTab?: string
   initialOnly?: boolean
   onSuccess?: (apiKey: string) => void
 }) {
+  try {
+    await useEagleConfig.getState().fetchEagleConfig()
+  } catch (error) {
+    message.error(
+      error instanceof Error ? error.message : '读取 Eagle 设置失败',
+    )
+    return
+  }
   const eagleRef = createRef<EagleSettingRef>()
   const visionEndpointRef = createRef<VisionEndpointSettingRef>()
 
@@ -68,8 +33,14 @@ export function openEagleSettingModal(options?: {
     {
       key: 'eagle',
       label: '资源库',
-      children: <EagleSetting ref={eagleRef} />,
+      children: <LibrarySetting ref={eagleRef} />,
       onSave: () => eagleRef.current!.save(),
+    },
+    {
+      key: 'sharing-users',
+      label: '共享用户',
+      children: <SharingUsersSetting />,
+      hideFooter: true,
     },
     {
       key: 'vision-endpoint',

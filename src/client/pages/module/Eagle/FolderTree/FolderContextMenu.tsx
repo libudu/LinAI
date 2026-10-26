@@ -2,6 +2,7 @@ import { useLongPressContextMenu } from '@/client/hooks/useLongPressContextMenu'
 import type { EagleFolder } from '@/shared/eagle/types'
 import { Dropdown } from 'antd'
 import type { ReactNode } from 'react'
+import { useEagleConfig } from '../settings/useEagleConfig'
 
 // 右键/长按菜单：挂在节点标题上，trigger 为 contextMenu 时 antd 会在鼠标位置弹出，
 // 支持移动端长按触发，并在点击菜单外区域或滚动时自动关闭，无需外部维护开关状态；
@@ -16,9 +17,11 @@ export function FolderContextMenu({
   children: ReactNode
 }) {
   const longPressHandlers = useLongPressContextMenu()
+  const remote = useEagleConfig((state) => state.libraryMode === 'remote')
 
   return (
     <Dropdown
+      disabled={remote}
       trigger={['contextMenu']}
       menu={{
         items: [{ key: 'edit', label: '编辑' }],
