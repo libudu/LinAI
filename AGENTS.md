@@ -12,7 +12,7 @@
 
 ## 常用命令
 
-- `pnpm dev`：同时启动前端（vite，端口 5174，`/api` 与 `/v1` 代理到 3000）和后端（tsx watch，默认端口 3000，`NODE_ENV=development` 时为 3001）
+- `pnpm dev`：同时启动前端（vite，端口 5174，`/api`、`/v1` 与 `/auth` 代理到 3001）和后端（tsx watch，默认端口 3001，`NODE_ENV=production` 时为 3000）
 - `npx tsc --noEmit`：类型检查（改代码后唯一需要运行的检查命令）
 - `pnpm prettier`：格式化 `src/**/*.{js,jsx,ts,tsx,css,scss,md}`
 - 构建发布（AI 代理不要运行）：`pnpm build:private` / `pnpm build:public`（`*SkipTag` 变体跳过 git tag）

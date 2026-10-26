@@ -8,7 +8,7 @@ import { getAuthSecret } from './src/server/common/auth/secret'
 export default defineConfig(async ({ command }) => {
   const auth =
     command === 'serve'
-      ? createDevAuth(await getAuthSecret(), 'http://127.0.0.1:3000')
+      ? createDevAuth(await getAuthSecret(), 'http://127.0.0.1:3001')
       : null
   return {
     plugins: [auth?.plugin, tailwindcss(), react()],

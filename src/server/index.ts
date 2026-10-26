@@ -122,9 +122,9 @@ const routes = app
   .route('/api/v1', openaiApi)
 export type AppType = typeof routes
 
-export const BACKEND_PORT = process.env.NODE_ENV !== 'development' ? 3000 : 3001
+export const BACKEND_PORT = process.env.NODE_ENV === 'production' ? 3000 : 3001
 
-if (process.env.NODE_ENV !== 'development') {
+if (process.env.NODE_ENV === 'production') {
   // Production serving of static files
   const clientPath = path.resolve(__dirname, '../client')
   app.use('/*', serveStatic({ root: clientPath }))
