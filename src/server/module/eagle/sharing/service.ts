@@ -33,7 +33,7 @@ type Incoming = Transfer & {
   controller: AbortController
   readController: AbortController
 }
-type Outgoing = {
+type Outgoing = Transfer & {
   id: string
   token: string
   url: string
@@ -294,7 +294,7 @@ export async function authorizeRead(token: string) {
   return session
 }
 
-export function recordTransfer(session: Incoming, bytes: number) {
+export function recordTransfer(session: Transfer, bytes: number) {
   session.bytes += bytes
   const time = Math.floor(Date.now() / 1000) * 1000
   const last = session.samples.at(-1)
@@ -303,6 +303,16 @@ export function recordTransfer(session: Incoming, bytes: number) {
   session.samples = session.samples.filter(
     (sample) => Date.now() - sample.time < 5000,
   )
+}
+
+function transferSnapshot(session: Transfer) {
+  return {
+    bytes: session.bytes,
+    bytesPerSecond:
+      session.samples
+        .filter((sample) => Date.now() - sample.time < 5000)
+        .reduce((total, sample) => total + sample.bytes, 0) / 5,
+  }
 }
 
 export async function connectRemote(
@@ -322,6 +332,8 @@ export async function connectRemote(
     invitationCode: config.invitationCode,
     state: 'pending',
     error: '',
+    bytes: 0,
+    samples: [],
     controller: new AbortController(),
     checking: false,
   }
@@ -365,11 +377,7 @@ export function sharingSnapshot(pageId: string) {
         name: entry.name,
         invitationCode: entry.invitationCode,
         state: entry.state,
-        bytes: entry.bytes,
-        bytesPerSecond:
-          entry.samples
-            .filter((sample) => Date.now() - sample.time < 5000)
-            .reduce((total, sample) => total + sample.bytes, 0) / 5,
+        ...transferSnapshot(entry),
         tasks: [] as string[],
       })),
     outgoing: session
@@ -378,6 +386,7 @@ export function sharingSnapshot(pageId: string) {
           state: session.state,
           error: session.error,
           url: session.url,
+          ...transferSnapshot(session),
           permissionsRevision: session.permissionsRevision,
         }
       : null,

@@ -1,6 +1,6 @@
 import { HTTPException } from 'hono/http-exception'
 import { isSharedRead } from './protocol'
-import { getRemoteConnection } from './service'
+import { getRemoteConnection, recordTransfer } from './service'
 
 /** 连接撤销时终止在途传输；禁用媒体缓存，后续读取始终重新校验会话。 */
 export function bindSharedResponse(
@@ -86,7 +86,9 @@ export async function proxySharedRead(
   ])
   try {
     const response = await fetch(url, { headers, signal, redirect: 'error' })
-    return bindSharedResponse(response, signal)
+    return bindSharedResponse(response, signal, (bytes) =>
+      recordTransfer(session, bytes),
+    )
   } catch (error) {
     throw new HTTPException(409, {
       message:

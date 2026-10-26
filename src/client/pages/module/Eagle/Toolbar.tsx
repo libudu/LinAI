@@ -23,7 +23,7 @@ import {
   Space,
   message,
 } from 'antd'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { purgeEagleTrash, trashAllUnclassifiedEagleItems } from './api'
 import { formatFileSize } from './components/formatFileSize'
 import { findFolder } from './folders'
@@ -35,6 +35,7 @@ import { useEagleConfig } from './settings/useEagleConfig'
 import { useEagleVisionConfig } from './settings/useEagleVisionConfig'
 import { FolderSharingOptions } from './sharing/FolderSharingOptions'
 import { SharingIndicator } from './sharing/SharingIndicator'
+import { useEagleSharing } from './sharing/store'
 import type { EagleImageSize } from './store'
 import { requestEagleLibraryRefresh, useEagleStore } from './store'
 
@@ -72,6 +73,10 @@ export function Toolbar() {
   } = useEagleStore()
   const { isMobile } = usePlatform()
   const remote = useEagleConfig((state) => state.libraryMode === 'remote')
+  const sharing = useEagleSharing((state) =>
+    state.incoming.some((entry) => entry.state === 'approved'),
+  )
+  const canOrganize = !remote && !sharing
   const visionApiKey = useEagleVisionConfig((s) => s.visionApiKey)
   const { status: organizeStatus } = useOrganizeStatus(mediaType)
   const [refreshing, setRefreshing] = useState(false)
@@ -79,6 +84,10 @@ export function Toolbar() {
   const [trashingUnclassified, setTrashingUnclassified] = useState(false)
   const [folderDrawerOpen, setFolderDrawerOpen] = useState(false)
   const [organizeOpen, setOrganizeOpen] = useState(false)
+
+  useEffect(() => {
+    if (!canOrganize && organizeOpen) setOrganizeOpen(false)
+  }, [canOrganize, organizeOpen])
 
   const canAddOrganizeImages =
     Boolean(currentFolderId) && Boolean(findFolder(folders, currentFolderId))
@@ -158,6 +167,7 @@ export function Toolbar() {
 
   // 图片整理依赖视觉接入点：未配置时先引导配置，保存成功后继续打开
   const handleOpenOrganize = () => {
+    if (!canOrganize) return
     if (visionApiKey || (!canAddOrganizeImages && hasActiveOrganizeTask)) {
       setOrganizeOpen(true)
       return
@@ -384,7 +394,7 @@ export function Toolbar() {
             全部移动到回收站
           </Button>
         )}
-        {!remote && showOrganizeButton && (
+        {canOrganize && showOrganizeButton && (
           <Badge count={badgeCount} size="small" dot={badgeDot}>
             <Button
               type="primary"
@@ -408,7 +418,7 @@ export function Toolbar() {
         <FolderTree onSelected={() => setFolderDrawerOpen(false)} />
       </Drawer>
 
-      {!remote && (
+      {canOrganize && (
         <OrganizeModal
           open={organizeOpen}
           onClose={() => setOrganizeOpen(false)}
