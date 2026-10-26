@@ -1,5 +1,4 @@
 import { settingsClient } from '@/client/service/settings'
-import { useGlobalStore } from '@/client/store/global'
 import type { EagleSharingSettings } from '@/server/module/eagle/settings'
 import {
   Alert,
@@ -29,7 +28,6 @@ const randomCode = (excluded: ReadonlySet<string>) => {
 type SharingUser = EagleSharingSettings['users'][number]
 
 export function SharingUsersSetting() {
-  const localNetworkUrl = useGlobalStore((state) => state.localNetworkUrl)
   const [form] = Form.useForm<Pick<SharingUser, 'name' | 'invitationCode'>>()
   const [users, setUsers] = useState<EagleSharingSettings['users']>([])
   const [revision, setRevision] = useState(0)
@@ -140,9 +138,7 @@ export function SharingUsersSetting() {
             width: 140,
             render: (code: string) => (
               <Typography.Text
-                copyable={{
-                  text: `访问地址：${localNetworkUrl ?? window.location.origin}\n邀请码：${code}`,
-                }}
+                copyable={{ text: code }}
                 className="whitespace-nowrap"
               >
                 {code}
