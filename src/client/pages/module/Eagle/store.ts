@@ -24,13 +24,19 @@ import {
   persistViewOptions,
   type EagleImageSize,
 } from './preferences'
+import { useEagleConfig } from './settings/useEagleConfig'
 export type { EagleImageSize } from './preferences'
 
 export const PAGE_SIZE = 100
-const hasFolder = (folders: EagleFolder[], folderId: string): boolean =>
-  folderId === EAGLE_UNCLASSIFIED_FOLDER_ID ||
-  folderId === EAGLE_TRASH_FOLDER_ID ||
-  findFolder(folders, folderId) !== null
+const hasFolder = (folders: EagleFolder[], folderId: string): boolean => {
+  if (
+    folderId === EAGLE_UNCLASSIFIED_FOLDER_ID ||
+    folderId === EAGLE_TRASH_FOLDER_ID
+  ) {
+    return useEagleConfig.getState().libraryMode === 'local'
+  }
+  return findFolder(folders, folderId) !== null
+}
 
 // Eagle 图片管理页面状态：文件夹树 + 当前文件夹的资源列表（分批加载）
 interface EagleState {

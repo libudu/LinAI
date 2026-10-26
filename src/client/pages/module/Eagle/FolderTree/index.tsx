@@ -208,20 +208,27 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const initialSelectionRevealedRef = useRef(false)
   const fixedTreeData = useMemo<TreeDataNode[]>(
-    () => [
-      { key: '', title: renderTitle('全部', allTotal), children: undefined },
-      {
-        key: EAGLE_UNCLASSIFIED_FOLDER_ID,
-        title: renderTitle('未分类', unclassifiedTotal),
-        children: undefined,
-      },
-      {
-        key: EAGLE_TRASH_FOLDER_ID,
-        title: renderTitle('回收站', trashTotal),
-        children: undefined,
-      },
-    ],
-    [allTotal, unclassifiedTotal, trashTotal],
+    () => {
+      const nodes: TreeDataNode[] = [
+        { key: '', title: renderTitle('全部', allTotal), children: undefined },
+      ]
+      if (libraryMode === 'local') {
+        nodes.push(
+          {
+            key: EAGLE_UNCLASSIFIED_FOLDER_ID,
+            title: renderTitle('未分类', unclassifiedTotal),
+            children: undefined,
+          },
+          {
+            key: EAGLE_TRASH_FOLDER_ID,
+            title: renderTitle('回收站', trashTotal),
+            children: undefined,
+          },
+        )
+      }
+      return nodes
+    },
+    [libraryMode, allTotal, unclassifiedTotal, trashTotal],
   )
   const treeData = useMemo<TreeDataNode[]>(
     () =>
