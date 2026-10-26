@@ -15,21 +15,28 @@ import { useEffect, useRef, useState } from 'react'
 import { ensureEagleOwnerSession } from '../sharing/access'
 
 const client = settingsClient<EagleSharingSettings>('eagle-sharing')
-const randomCode = () => {
+const randomCode = (excluded: ReadonlySet<string>) => {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  return [...crypto.getRandomValues(new Uint8Array(8))]
-    .map((byte) => alphabet[byte % alphabet.length])
-    .join('')
+  let code: string
+  do {
+    code = [...crypto.getRandomValues(new Uint8Array(8))]
+      .map((byte) => alphabet[byte % alphabet.length])
+      .join('')
+  } while (excluded.has(code))
+  return code
 }
+
+type SharingUser = EagleSharingSettings['users'][number]
 
 export function SharingUsersSetting() {
   const localNetworkUrl = useGlobalStore((state) => state.localNetworkUrl)
-  const [form] = Form.useForm()
+  const [form] = Form.useForm<Pick<SharingUser, 'name' | 'invitationCode'>>()
   const [users, setUsers] = useState<EagleSharingSettings['users']>([])
   const [revision, setRevision] = useState(0)
   const [loaded, setLoaded] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [adding, setAdding] = useState(false)
+  const [editorOpen, setEditorOpen] = useState(false)
+  const [editingUser, setEditingUser] = useState<SharingUser | null>(null)
   const [error, setError] = useState('')
   const saving = useRef(false)
   const load = async () => {
@@ -40,6 +47,7 @@ export function SharingUsersSetting() {
       setRevision(result.revision)
       setLoaded(true)
       setError('')
+      setEditorOpen(false)
     } catch (error) {
       setError(error instanceof Error ? error.message : '加载共享用户失败')
     }
@@ -68,6 +76,16 @@ export function SharingUsersSetting() {
       setBusy(false)
     }
   }
+  const generateCode = () =>
+    randomCode(
+      new Set([
+        ...users.flatMap((user) => [
+          user.invitationCode,
+          user.folderSharingCode ?? user.invitationCode,
+        ]),
+        form.getFieldValue('invitationCode'),
+      ]),
+    )
   return (
     <div className="space-y-4 px-4 py-2">
       {error && (
@@ -88,9 +106,10 @@ export function SharingUsersSetting() {
           disabled={!loaded || busy}
           onClick={() => {
             form.resetFields()
-            form.setFieldsValue({ invitationCode: randomCode() })
+            form.setFieldsValue({ invitationCode: generateCode() })
+            setEditingUser(null)
             setError('')
-            setAdding(true)
+            setEditorOpen(true)
           }}
         >
           新增共享用户
@@ -106,7 +125,7 @@ export function SharingUsersSetting() {
         footer={() => (
           <p className="text-sm text-slate-500">
             对方输入邀请码后，仍需你在前端同意本次共享；仅能查看在「展示选项 →
-            共享文件夹可见性」中开放的文件夹。删除用户将终止该用户的连接。
+            共享文件夹可见性」中开放的文件夹。删除用户或保存新邀请码将终止该用户的连接。
           </p>
         )}
         columns={[
@@ -133,37 +152,53 @@ export function SharingUsersSetting() {
           {
             title: '操作',
             key: 'actions',
-            width: 64,
+            width: 112,
             render: (_, user) => (
-              <Button
-                danger
-                type="text"
-                size="small"
-                disabled={busy}
-                onClick={() =>
-                  void save(
-                    users.filter(
-                      (entry) => entry.invitationCode !== user.invitationCode,
-                    ),
-                  )
-                }
-              >
-                删除
-              </Button>
+              <Space size={0}>
+                <Button
+                  type="text"
+                  size="small"
+                  disabled={busy}
+                  onClick={() => {
+                    form.resetFields()
+                    form.setFieldsValue(user)
+                    setEditingUser(user)
+                    setError('')
+                    setEditorOpen(true)
+                  }}
+                >
+                  编辑
+                </Button>
+                <Button
+                  danger
+                  type="text"
+                  size="small"
+                  disabled={busy}
+                  onClick={() =>
+                    void save(
+                      users.filter(
+                        (entry) => entry.invitationCode !== user.invitationCode,
+                      ),
+                    )
+                  }
+                >
+                  删除
+                </Button>
+              </Space>
             ),
           },
         ]}
       />
       <Modal
-        title="新增共享用户"
-        open={adding}
+        title={editingUser ? '编辑共享用户' : '新增共享用户'}
+        open={editorOpen}
         forceRender
         centered
         onCancel={() => {
-          if (!saving.current) setAdding(false)
+          if (!saving.current) setEditorOpen(false)
         }}
         onOk={() => form.submit()}
-        okText="新增"
+        okText={editingUser ? '保存' : '新增'}
         cancelText="取消"
         confirmLoading={busy}
         cancelButtonProps={{ disabled: busy }}
@@ -178,16 +213,32 @@ export function SharingUsersSetting() {
           form={form}
           layout="vertical"
           disabled={!loaded || busy}
-          onFinish={async (values: EagleSharingSettings['users'][number]) => {
+          onFinish={async (values: SharingUser) => {
             if (
               users.some(
-                (user) => user.invitationCode === values.invitationCode,
+                (user) =>
+                  user.invitationCode !== editingUser?.invitationCode &&
+                  (user.invitationCode === values.invitationCode ||
+                    user.folderSharingCode === values.invitationCode),
               )
             ) {
               setError('邀请码已存在，请重新生成')
               return
             }
-            if (await save([...users, values])) setAdding(false)
+            const next = editingUser
+              ? users.map((user) =>
+                  user.invitationCode === editingUser.invitationCode
+                    ? {
+                        ...user,
+                        ...values,
+                        // 权限继续使用首次邀请码作为稳定键，换码不丢失共享范围。
+                        folderSharingCode:
+                          user.folderSharingCode ?? user.invitationCode,
+                      }
+                    : user,
+                )
+              : [...users, values]
+            if (await save(next)) setEditorOpen(false)
           }}
         >
           <Form.Item
@@ -204,7 +255,15 @@ export function SharingUsersSetting() {
           >
             <Input maxLength={80} placeholder="共享用户的名称" />
           </Form.Item>
-          <Form.Item label="邀请码" required>
+          <Form.Item
+            label="邀请码"
+            required
+            extra={
+              editingUser
+                ? '保存新邀请码后，旧邀请码和旧连接立即失效，原有共享文件夹权限保留。'
+                : undefined
+            }
+          >
             <Space.Compact className="w-full">
               <Form.Item
                 name="invitationCode"
@@ -221,7 +280,7 @@ export function SharingUsersSetting() {
               </Form.Item>
               <Button
                 onClick={() =>
-                  form.setFieldValue('invitationCode', randomCode())
+                  form.setFieldValue('invitationCode', generateCode())
                 }
               >
                 重新生成

@@ -16,7 +16,6 @@ export const eagleSettingsSchema = z.object({
   libraryPath: z.string().nullable(),
   libraryMode: z.enum(['local', 'remote']).default('local'),
   remoteUrl: z.string().default(''),
-  remoteLibraryPath: z.string().default(''),
   invitationCode: z.string().default(''),
 })
 
@@ -26,7 +25,6 @@ const DEFAULT_EAGLE_SETTINGS: EagleSettings = {
   libraryPath: null,
   libraryMode: 'local',
   remoteUrl: '',
-  remoteLibraryPath: '',
   invitationCode: '',
 }
 
@@ -55,6 +53,11 @@ export const eagleSharingSettingsSchema = z.object({
         invitationCode: z
           .string()
           .regex(/^[A-Za-z0-9]{8}$/, '邀请码必须是八位字母或数字'),
+        // 首次编辑时固定旧邀请码，换码后仍沿用已保存的文件夹权限键。
+        folderSharingCode: z
+          .string()
+          .regex(/^[A-Za-z0-9]{8}$/)
+          .optional(),
       }),
     )
     .max(100)
@@ -62,7 +65,21 @@ export const eagleSharingSettingsSchema = z.object({
       (users) =>
         new Set(users.map((user) => user.invitationCode)).size === users.length,
       '邀请码不能重复',
-    ),
+    )
+    .refine((users) => {
+      const owners = new Map<string, number>()
+      return users.every((user, index) =>
+        [
+          user.invitationCode,
+          user.folderSharingCode ?? user.invitationCode,
+        ].every((code) => {
+          const owner = owners.get(code)
+          if (owner !== undefined && owner !== index) return false
+          owners.set(code, index)
+          return true
+        }),
+      )
+    }, '邀请码不能与其他用户的文件夹权限标识重复'),
 })
 
 export type EagleSharingSettings = z.infer<typeof eagleSharingSettingsSchema>

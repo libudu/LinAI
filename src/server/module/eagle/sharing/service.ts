@@ -22,6 +22,7 @@ type Incoming = Transfer & {
   token: string
   name: string
   invitationCode: string
+  folderSharingCode: string
   state: State
   createdAt: number
   lastSeen: number
@@ -36,7 +37,6 @@ type Outgoing = {
   id: string
   token: string
   url: string
-  localPath: string
   invitationCode: string
   state: State
   error: string
@@ -189,6 +189,7 @@ export async function requestSharing(
     id: randomUUID(),
     token: randomBytes(32).toString('hex'),
     ...user,
+    folderSharingCode: user.folderSharingCode ?? user.invitationCode,
     state: 'pending',
     createdAt: now,
     lastSeen: now,
@@ -220,21 +221,26 @@ async function validIncoming(token: string) {
     getEagleSharingSettings(),
     getSystemSettings(),
   ])
+  const user = sharing.users.find(
+    (user) =>
+      user.invitationCode === session.invitationCode &&
+      (user.folderSharingCode ?? user.invitationCode) ===
+        session.folderSharingCode,
+  )
   if (
     !pages.size ||
     !/^\d{6}$/.test(system.loginCode) ||
     (session.owner && !pages.has(session.owner)) ||
     settings.libraryMode !== 'local' ||
     settings.libraryPath !== session.libraryPath ||
-    !sharing.users.some(
-      (user) => user.invitationCode === session.invitationCode,
-    )
+    !user
   ) {
     terminate(session, '共享方已离线、切换资源库或取消了此用户的授权')
     fail('共享方已离线、切换资源库或取消了此用户的授权')
   }
   // 读取设置期间也可能关闭页面。
   if (session.controller.signal.aborted) fail('共享连接已终止')
+  session.name = user.name
   return session
 }
 
@@ -303,20 +309,16 @@ export async function connectRemote(
   pageId: string,
   config: {
     url: string
-    localPath: string
     invitationCode: string
   },
 ) {
   requirePage(pageId)
-  const directory = await validateLibraryDirectory(config.localPath)
   const url = normalizeRemoteUrl(config.url)
-  requirePage(pageId)
   disconnectRemote(pageId)
   const session: Outgoing = {
     id: randomUUID(),
     token: '',
     url,
-    localPath: directory.path,
     invitationCode: config.invitationCode,
     state: 'pending',
     error: '',
@@ -341,7 +343,7 @@ export async function connectRemote(
       fail('共享连接已取消')
     }
     session.token = result.token
-    return { id: session.id, localPath: directory.path }
+    return { id: session.id }
   } catch (error) {
     session.state = 'error'
     session.error =
@@ -376,7 +378,6 @@ export function sharingSnapshot(pageId: string) {
           state: session.state,
           error: session.error,
           url: session.url,
-          localPath: session.localPath,
           permissionsRevision: session.permissionsRevision,
         }
       : null,
@@ -395,7 +396,6 @@ export async function getRemoteConnection(pageId: string) {
   const settings = await getEagleSettings()
   if (
     normalizeRemoteUrl(settings.remoteUrl) !== session.url ||
-    settings.remoteLibraryPath !== session.localPath ||
     settings.invitationCode !== session.invitationCode
   )
     fail('远程资源库配置已改变，请重新连接')

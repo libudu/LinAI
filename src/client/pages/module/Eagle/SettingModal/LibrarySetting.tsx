@@ -68,7 +68,6 @@ export const LibrarySetting = forwardRef<EagleSettingRef>((_props, ref) => {
           current.connecting = true
           const connection = await connectRemoteLibrary({
             url: values.remoteUrl.trim(),
-            localPath: values.remoteLibraryPath.trim(),
             invitationCode: values.invitationCode.trim(),
           })
           if (current.cancelled) throw new Error('已取消共享请求')
@@ -93,7 +92,6 @@ export const LibrarySetting = forwardRef<EagleSettingRef>((_props, ref) => {
               /\/+$/,
               '',
             ),
-            remoteLibraryPath: connection.localPath,
             invitationCode: values.invitationCode.trim(),
           })
         } else {
@@ -176,20 +174,6 @@ export const LibrarySetting = forwardRef<EagleSettingRef>((_props, ref) => {
               ]}
             >
               <Input placeholder="http://192.168.1.10:3000" />
-            </Form.Item>
-            <Form.Item
-              name="remoteLibraryPath"
-              label="本地文件夹 / 资源库路径"
-              extra="请选择空文件夹或已有 Eagle 资源库，作为后续下载的本地位置；当前仅浏览远程数据。"
-              rules={[
-                {
-                  required: true,
-                  whitespace: true,
-                  message: '请选择本地文件夹或资源库',
-                },
-              ]}
-            >
-              <DirectoryPicker disabled={saving} />
             </Form.Item>
             <Form.Item
               name="invitationCode"

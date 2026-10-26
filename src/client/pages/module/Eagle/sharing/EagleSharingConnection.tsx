@@ -43,17 +43,18 @@ export function EagleSharingConnection() {
           }
         }
         for (const entry of status.incoming) {
-          if (
-            entry.state !== 'pending' ||
-            dialogs.has(entry.id) ||
-            dismissed.has(entry.id)
-          )
+          const content = `用户【${entry.name}（${entry.invitationCode}）】请求共享 Eagle 资源库，是否同意？`
+          const dialog = dialogs.get(entry.id)
+          if (dialog) {
+            dialog.update({ content })
             continue
+          }
+          if (entry.state !== 'pending' || dismissed.has(entry.id)) continue
           dialogs.set(
             entry.id,
             Modal.confirm({
               title: 'Eagle 数据共享',
-              content: `用户【${entry.name}（${entry.invitationCode}）】请求共享 Eagle 资源库，是否同意？`,
+              content,
               okText: '同意',
               cancelText: '拒绝',
               centered: true,

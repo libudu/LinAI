@@ -73,16 +73,21 @@ export const useFolderSharing = create<FolderSharingState>()((set, get) => ({
           client.get(),
           usersClient.get(),
         ])
+        const selectedUser = get().users.find(
+          (user) => user.invitationCode === get().selectedCode,
+        )
+        const selectedKey =
+          selectedUser?.folderSharingCode ?? selectedUser?.invitationCode
         set({
           ...(permissions.revision >= get().revision
             ? { value: permissions.value, revision: permissions.revision }
             : {}),
           users: sharing.value.users,
-          selectedCode: sharing.value.users.some(
-            (user) => user.invitationCode === get().selectedCode,
-          )
-            ? get().selectedCode
-            : '',
+          selectedCode:
+            sharing.value.users.find(
+              (user) =>
+                (user.folderSharingCode ?? user.invitationCode) === selectedKey,
+            )?.invitationCode ?? '',
           loaded: true,
         })
       } catch (error) {
@@ -109,11 +114,11 @@ export const useFolderSharing = create<FolderSharingState>()((set, get) => ({
     )
       return
     if (state.view === 'hidden') return
-    if (
-      state.view === 'user' &&
-      !state.users.some((user) => user.invitationCode === state.selectedCode)
+    const selectedUser = state.users.find(
+      (user) => user.invitationCode === state.selectedCode,
     )
-      return
+    if (state.view === 'user' && !selectedUser) return
+    const permissionKey = selectedUser?.folderSharingCode ?? state.selectedCode
     const { folders, foldersLoading } = useEagleStore.getState()
     const folder = findFolder(folders, folderId)
     if (foldersLoading || !folder) return
@@ -139,7 +144,7 @@ export const useFolderSharing = create<FolderSharingState>()((set, get) => ({
     const ids = new Set(
       state.view === 'everyone'
         ? library.everyone
-        : (library.users[state.selectedCode] ?? []),
+        : (library.users[permissionKey] ?? []),
     )
     for (const id of collectFolderKeys([folder])) {
       if (shared) ids.add(id)
@@ -147,7 +152,7 @@ export const useFolderSharing = create<FolderSharingState>()((set, get) => ({
     }
     const resolved = [...resolveSharedFolderIds(folders, [...ids])]
     if (state.view === 'everyone') library.everyone = resolved
-    else library.users[state.selectedCode] = resolved
+    else library.users[permissionKey] = resolved
     set({ saving: true, error: '' })
     try {
       await ensureEagleOwnerSession()

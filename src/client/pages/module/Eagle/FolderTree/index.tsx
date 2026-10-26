@@ -168,6 +168,11 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
       (entry) => entry.libraryPath === libraryPath,
     )
     const selectionVersion = library?.selectionVersion ?? 1
+    const selectedUser = sharing.users.find(
+      (user) => user.invitationCode === sharing.selectedCode,
+    )
+    const permissionKey =
+      selectedUser?.folderSharingCode ?? sharing.selectedCode
     const everyone = resolveSharedFolderIds(
       folders,
       library?.everyone ?? [],
@@ -182,7 +187,7 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
               folders,
               [
                 ...(library?.everyone ?? []),
-                ...(library?.users[sharing.selectedCode] ?? []),
+                ...(library?.users[permissionKey] ?? []),
               ],
               selectionVersion,
             )
@@ -192,10 +197,7 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
         !sharing.loaded ||
         sharing.loading ||
         foldersLoading ||
-        (sharing.view === 'user' &&
-          !sharing.users.some(
-            (user) => user.invitationCode === sharing.selectedCode,
-          )),
+        (sharing.view === 'user' && !selectedUser),
       saving: sharing.saving,
       onChange: sharing.setFolderShared,
     }

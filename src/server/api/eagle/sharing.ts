@@ -87,7 +87,6 @@ const sharingApi = new Hono()
       'json',
       pageSchema.extend({
         url: z.string().url(),
-        localPath: z.string().min(1),
         invitationCode: z.string().regex(/^[A-Za-z0-9]{8}$/),
       }),
     ),
@@ -173,7 +172,7 @@ const sharingApi = new Hono()
       grantedFolderIds: [
         ...new Set([
           ...(library?.everyone ?? []),
-          ...(library?.users[session.invitationCode] ?? []),
+          ...(library?.users[session.folderSharingCode] ?? []),
         ]),
       ].sort(),
     }

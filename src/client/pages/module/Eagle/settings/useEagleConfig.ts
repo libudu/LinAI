@@ -16,7 +16,6 @@ export const useEagleConfig = create<EagleConfigState>()((set, get) => ({
   libraryPath: null,
   libraryMode: 'local',
   remoteUrl: '',
-  remoteLibraryPath: '',
   invitationCode: '',
   revision: 0,
   fetchEagleConfig: async () => {
@@ -31,19 +30,12 @@ export const useEagleConfig = create<EagleConfigState>()((set, get) => ({
   },
   setEagleConfig: async (config) => {
     await ensureEagleOwnerSession().catch(() => undefined)
-    const {
-      libraryPath,
-      libraryMode,
-      remoteUrl,
-      remoteLibraryPath,
-      invitationCode,
-    } = get()
+    const { libraryPath, libraryMode, remoteUrl, invitationCode } = get()
     const res = await client.put(
       {
         libraryPath,
         libraryMode,
         remoteUrl,
-        remoteLibraryPath,
         invitationCode,
         ...config,
       },
