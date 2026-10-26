@@ -12,6 +12,7 @@ import {
   EAGLE_ITEM_NAME_MAX_LENGTH,
   type EagleMediaType,
 } from '@/shared/eagle/types'
+import { extractChatCompletionText } from '@/shared/vision/response'
 import fs from 'fs-extra'
 import sharp from 'sharp'
 import { z } from 'zod'
@@ -87,28 +88,6 @@ const loadImageDataUrl = async (
   const buffer = await fs.readFile(filePath)
   const mime = MIME_BY_EXT[ext.toLowerCase()] ?? 'application/octet-stream'
   return `data:${mime};base64,${buffer.toString('base64')}`
-}
-
-/** 提取 chat/completions 返回的正文文本（content 为字符串或分段数组） */
-const extractContentText = (data: unknown): string => {
-  const content = (
-    data as {
-      choices?: Array<{ message?: { content?: unknown } }>
-    } | null
-  )?.choices?.[0]?.message?.content
-  if (typeof content === 'string') return content.trim()
-  if (!Array.isArray(content)) return ''
-  return content
-    .filter(
-      (item): item is { type: 'text'; text: string } =>
-        typeof item === 'object' &&
-        item !== null &&
-        (item as { type?: unknown }).type === 'text' &&
-        typeof (item as { text?: unknown }).text === 'string',
-    )
-    .map((item) => item.text.trim())
-    .filter(Boolean)
-    .join('\n')
 }
 
 /** 模型可能无视要求包一层 ```json 代码块，剥掉后再按严格 JSON 解析 */
@@ -213,7 +192,7 @@ export const judgeItem = async (
   } catch {
     throw new Error('视觉服务返回内容不是 JSON')
   }
-  const content = extractContentText(payload)
+  const content = extractChatCompletionText(payload)
   if (!content) throw new Error('视觉服务返回内容为空')
 
   let parsed: unknown

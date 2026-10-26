@@ -18,6 +18,25 @@ export class QueueService {
     private readonly executor: OrganizeExecutor,
   ) {}
 
+  /** 在 mutateTask 内逐项复核并串行保存，写盘失败仍由仓库标记待校准。 */
+  private async updateFailedItems(
+    items: readonly { itemId: string }[],
+    status: 'pending' | 'skipped',
+  ): Promise<ItemStatusChange[]> {
+    const changes: ItemStatusChange[] = []
+    for (const { itemId } of items) {
+      const record = await this.repository.getItem(itemId)
+      if (!record || record.status !== 'failed') continue
+      await this.repository.saveItem({
+        ...record,
+        status,
+        updatedAt: Date.now(),
+      })
+      changes.push({ from: record.status, to: status })
+    }
+    return changes
+  }
+
   /**
    * 执行中步骤的队列预览：按队列顺序返回执行中（执行器 in-flight）/ 待处理 /
    * 失败（附失败原因）的条目摘要；完成无误的项不返回（由结果确认步骤处理）。
@@ -92,31 +111,18 @@ export class QueueService {
     }
     const items = await this.repository.listItems('failed')
     const taskItemSet = new Set(task.itemIds)
-    const failedIds = items
-      .filter(
-        (item) => item.status === 'failed' && taskItemSet.has(item.itemId),
-      )
-      .map((item) => item.itemId)
+    const failedItems = items.filter(
+      (item) => item.status === 'failed' && taskItemSet.has(item.itemId),
+    )
 
-    if (failedIds.length === 0) {
+    if (failedItems.length === 0) {
       return { ok: true }
     }
 
     await this.repository.mutateTask(async (latest) => {
-      const changes: ItemStatusChange[] = []
-      for (const itemId of failedIds) {
-        const record = await this.repository.getItem(itemId)
-        if (!record || record.status !== 'failed') continue
-        await this.repository.saveItem({
-          ...record,
-          status: 'pending',
-          updatedAt: Date.now(),
-        })
-        changes.push({ from: record.status, to: 'pending' })
-      }
       return transitionTask(latest, {
         type: 'items-changed',
-        changes,
+        changes: await this.updateFailedItems(failedItems, 'pending'),
         resume: true,
       })
     })
@@ -131,21 +137,9 @@ export class QueueService {
     const failedItems = await this.repository.listItems('failed')
     if (failedItems.length === 0) return { ok: true }
     await this.repository.mutateTask(async (latest) => {
-      const changes: ItemStatusChange[] = []
-      for (const item of failedItems) {
-        const record = await this.repository.getItem(item.itemId)
-        if (record && record.status === 'failed') {
-          await this.repository.saveItem({
-            ...record,
-            status: 'skipped',
-            updatedAt: Date.now(),
-          })
-          changes.push({ from: record.status, to: 'skipped' })
-        }
-      }
       return transitionTask(latest, {
         type: 'items-changed',
-        changes,
+        changes: await this.updateFailedItems(failedItems, 'skipped'),
       })
     })
     publishOrganizeChange(this.repository)
@@ -176,16 +170,10 @@ export class QueueService {
 
     const updated = await this.repository.mutateTask(async (latest) => {
       if (latest.phase !== 'paused') return null
-      for (const item of items) {
-        if (item.status !== 'failed') continue
-        const record = await this.repository.getItem(item.itemId)
-        if (!record || record.status !== 'failed') continue
-        await this.repository.saveItem({
-          ...record,
-          status: 'skipped',
-          updatedAt: Date.now(),
-        })
-      }
+      await this.updateFailedItems(
+        items.filter((item) => item.status === 'failed'),
+        'skipped',
+      )
       return transitionTask(latest, {
         type: 'keep-successful',
         itemIds: successIds,

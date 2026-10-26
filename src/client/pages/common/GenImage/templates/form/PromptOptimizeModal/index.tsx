@@ -1,4 +1,5 @@
 import {
+  extractVisionText,
   normalizeVisionImageUrl,
   visionChatCompletion,
 } from '@/client/service/vision'
@@ -101,24 +102,6 @@ function PreviewImages({
   )
 }
 
-function extractOptimizedPrompt(data: any) {
-  const content = data?.choices?.[0]?.message?.content
-
-  if (typeof content === 'string') {
-    return content.trim()
-  }
-
-  if (Array.isArray(content)) {
-    return content
-      .filter((item) => item?.type === 'text' && typeof item.text === 'string')
-      .map((item) => item.text.trim())
-      .filter(Boolean)
-      .join('\n')
-  }
-
-  return ''
-}
-
 function extractErrorMessage(error: unknown) {
   if (typeof error === 'string') {
     return error.trim()
@@ -217,7 +200,7 @@ export function PromptOptimizeModal({
         ],
       })
 
-      const nextPrompt = extractOptimizedPrompt(data)
+      const nextPrompt = extractVisionText(data)
       if (!nextPrompt) {
         messageApi.error('未获取到优化后的提示词')
         return

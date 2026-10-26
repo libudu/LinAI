@@ -99,7 +99,7 @@ src/client/pages/module/Eagle/
     │   ├── index.tsx / types.ts # 视图装配与类型
     │   ├── components/       # 图片、分类面板与操作栏
     │   ├── hooks/            # 结果同步、选择、提交与快捷键
-    │   └── utils/            # 列表、排序、偏好与提交队列
+    │   └── utils/            # 目标选项模型、列表、排序、偏好与提交队列
     ├── statusModel.ts        # 乐观操作与展示计数派生
     ├── statusRefresh.ts      # 状态订阅、节流与版本保护
     └── store.ts              # 整理状态与操作门面
@@ -222,7 +222,7 @@ src/client/pages/module/Eagle/
 
 ### 模型标题与任务恢复
 
-- 分类响应为标准内 0～3 个不重复 `folderPaths`（空数组合法），需改名时另含 `title`；全局要求 `lowQuality`，子目录丢弃该字段。分析仅存结果，确认才替换 `folders[]`。仅重命名使用 `{ title, lowQuality }`，忽略分类建议，复用 `confirmation.ts` 的仅改名计划，不传 `folderIds`，服务端拒绝清除分类命令。
+- 分类响应为标准内 0～3 个不重复 `folderPaths`（空数组合法），需改名时另含 `title`；全局要求 `lowQuality`，子目录丢弃该字段。视觉响应正文经 `shared/vision/response.ts` 解析，与前端视觉功能共用；分类 JSON 和业务校验仍由整理模块负责。分析仅存结果，确认才替换 `folders[]`。仅重命名使用 `{ title, lowQuality }`，忽略分类建议，复用 `confirmation.ts` 的仅改名计划，不传 `folderIds`，服务端拒绝清除分类命令。
 - 当前名称按 `_` 分段，末段模型名与当前接入点首个英文词匹配时跳过改名（忽略大小写、版本及同系列变体，兼容旧缩略标识）。例如 `_gemini3.7` 匹配 `gemini-3.8-flash-high`，`_gpt5.6` 不匹配 Gemini。新后缀去除 provider 路径，取首个英文词与版本数字，将版本 `-` 转为 `.`，如 `claude-3-7-sonnet` → `claude3.7`。
 - 候选筛选、执行/重试和确认共用该规则。无需改名时提示词省略标题要求、忽略意外标题，保存 `needsRename: false`；确认不提交改名且后端重新检查当前名称、模型和结果，旧结果同样处理。仅分类成功不依赖标题，跳过后仍计入成功数；仅重命名项入队后若已匹配模型，直接完成而不再调用模型或改名。
 - 单项执行绑定接入点快照，提示词、实际模型与后缀保持一致，配置变更不影响在途请求。标题 120 字符上限需预留后缀空间；提示词预览支持分类并改名/仅分类两版。
@@ -264,7 +264,7 @@ src/client/pages/module/Eagle/
 - **文档范围**：模块设计、数据流、接口契约、安全边界及有参考价值的维护约定变更时同步更新本文档；合并重复说明，不追加变更流水账。不要把过细或不重要的样式内容（如间距、颜色、控件宽度、排列细节或 Tailwind 类名）写入文档，避免膨胀，保持简洁易读；影响功能、可访问性或媒体处理正确性的约束应保留。
 - **写库边界**：经 `library/index.ts` 门面和 `withLibraryMutation` 写锁，其他模块不得直接写库或访问可变索引。批量按 ID 返回逐项结果，仅确认成功项，成功项收尾不受后续失败影响；改名失败尝试回滚，物理删除失败保留索引。库写入与结果保存不是事务，写盘失败不得当作条目不存在。
 - **任务与确认**：`mutateTask` 串行读改写，`transitions.ts` 统一阶段/计数，缓存仅在落盘成功后发布；部分失败由后续命令、执行收尾或启动恢复校准。单张/批量共用 `confirmation.ts`，显式 `folderId` 优先于快照路径且必须存在，重复确认不写库/扣计数，区分索引不可用与条目缺失。
-- **前端职责**：`useClassifyTask` 管准备，`useConfirmResults` 管结果，`useConfirmSelection` 管选择，`useConfirmSubmission` 管提交，`useManualFolders` 管历史；UI 负责展示，命令放 hooks/store。`submissionQueue.ts` 按任务身份串行单项/批量提交，失败只恢复对应项；`statusModel.ts` 派生乐观计数，服务端决定阶段，提交后校准。普通/快速确认共用 `StepConfirm/utils/list.ts` / `sort.ts`，删除并跳过使用单个 trash 命令。
+- **前端职责**：`useClassifyTask` 管准备，`useConfirmResults` 管结果，`useConfirmSelection` 管选择，`useConfirmSubmission` 管提交，`useManualFolders` 管历史；确认目标选项与选中目标统一由 `StepConfirm/utils/folderOptions.ts` 派生，UI 负责展示，命令放 hooks/store。`submissionQueue.ts` 按任务身份串行单项/批量提交，失败只恢复对应项；`statusModel.ts` 派生乐观计数，服务端决定阶段，提交后校准。普通/快速确认共用 `StepConfirm/utils/list.ts` / `sort.ts`，删除并跳过使用单个 trash 命令。
 - **字段与排序**：列表字段修改 `shared/eagle/types.ts` 的 `EagleItem` 和 `library/query.ts` 的 `toEagleItem`，需缓存时同步索引类型、`scan.ts` 与旧缓存默认值；排序修改 `EagleSortBy`、query 和 Toolbar，兼容旧偏好。
 - **接口与配置**：API 在 library/organize 路由链式注册、zod 校验，前端对应 api 文件封装；请求响应由 Hono RPC、设置由服务端 schema 推导，仅实际共用的契约/纯函数放 shared，旧兼容留存储边界。设置放 `settings/`，表单保存失败向上传递；展示偏好用 localStorage，便携业务偏好走通用存储。
 - **媒体与发布**：目录纯逻辑放 `library/folders.ts`，媒体放 `media/`，缩略图缓存统一 `media/cache.ts`；原文件接口不要使用整读 Buffer 的 `common/static/serveImage`。`heic-decode` / `libheif-js` / `ffmpeg-static` / `exiftool-vendored` 保持 tsup external 和完整生产包，WASM 内嵌无需联网；安装配置允许 ffmpeg-static 二进制脚本，便携包携带解码器与 ExifTool 平台二进制。发布前手动验证 Eagle 刷新和便携兼容性。

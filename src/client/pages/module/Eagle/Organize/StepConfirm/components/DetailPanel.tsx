@@ -1,10 +1,6 @@
 import { usePlatform } from '@/client/hooks/usePlatform'
-import {
-  buildFolderMap,
-  type SelectedFolderInfo,
-} from '@/client/pages/module/Eagle/folders'
+import type { SelectedFolderInfo } from '@/client/pages/module/Eagle/folders'
 import type { EagleManualFolderItem } from '@/client/pages/module/Eagle/preferenceTypes'
-import { useEagleStore } from '@/client/pages/module/Eagle/store'
 import type { OrganizeResultDetail } from '@/shared/eagle/organize'
 import {
   DeleteOutlined,
@@ -13,9 +9,10 @@ import {
   PushpinOutlined,
 } from '@ant-design/icons'
 import { Button, Checkbox, Radio, Spin } from 'antd'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { FolderSelectModal } from '../../../components/FolderSelectModal'
 import type { PinnedFolderOption } from '../types'
+import type { ConfirmFolderOption } from '../utils/folderOptions'
 
 export type { PinnedFolderOption } from '../types'
 
@@ -27,12 +24,10 @@ interface DetailPanelProps {
   onToggleTitle: (checked: boolean) => void
   activeOptionKey: string | null
   onSelectOptionKey: (key: string) => void
-  folderPaths: string[]
-  folderIds: string[]
-  displayedManualFolders: EagleManualFolderItem[]
+  folderOptions: ConfirmFolderOption[]
+  initialFolderId?: string
   onRemoveManualFolder: (folder: EagleManualFolderItem) => void
   onManualFolderSelect: (folder: SelectedFolderInfo) => void
-  pinnedOption: PinnedFolderOption | null
   onTogglePin: (option: PinnedFolderOption) => void
 }
 
@@ -44,115 +39,14 @@ export function DetailPanel({
   onToggleTitle,
   activeOptionKey,
   onSelectOptionKey,
-  folderPaths,
-  folderIds,
-  displayedManualFolders,
+  folderOptions,
+  initialFolderId,
   onRemoveManualFolder,
   onManualFolderSelect,
-  pinnedOption,
   onTogglePin,
 }: DetailPanelProps) {
   const { isMobile } = usePlatform()
-  const folders = useEagleStore((s) => s.folders)
   const [folderSelectOpen, setFolderSelectOpen] = useState(false)
-
-  // 组装所有渲染选项：若存在 pinnedOption，强制将其置顶为首项，其余项自然排后并去重
-  const renderedOptions = useMemo(() => {
-    const items: Array<{
-      key: string
-      type: 'ai' | 'manual'
-      folderPath: string
-      folderId?: string
-      count?: number
-      isPinned: boolean
-      canDelete: boolean
-      manualItem?: EagleManualFolderItem
-    }> = []
-
-    if (pinnedOption) {
-      const manualItem = displayedManualFolders.find((m) =>
-        pinnedOption.folderId !== undefined
-          ? m.folderId === pinnedOption.folderId
-          : m.folderPath === pinnedOption.folderPath,
-      )
-      items.push({
-        key: pinnedOption.key,
-        type: pinnedOption.type,
-        folderPath: pinnedOption.folderPath,
-        folderId: pinnedOption.folderId,
-        count: manualItem?.count ?? pinnedOption.count,
-        isPinned: true,
-        canDelete: pinnedOption.type === 'manual',
-        manualItem:
-          manualItem ??
-          (pinnedOption.folderId
-            ? {
-                folderId: pinnedOption.folderId,
-                folderPath: pinnedOption.folderPath,
-                count: pinnedOption.count ?? 0,
-              }
-            : undefined),
-      })
-    }
-
-    // AI 推荐项（排除与置顶项重复的）
-    for (const [index, fp] of folderPaths.entries()) {
-      const folderId = folderIds[index]
-      if (
-        pinnedOption &&
-        (pinnedOption.folderId !== undefined
-          ? pinnedOption.folderId === folderId
-          : pinnedOption.folderPath === fp)
-      ) {
-        continue
-      }
-      items.push({
-        key: `ai:${folderId ?? fp}`,
-        type: 'ai',
-        folderPath: fp,
-        folderId,
-        isPinned: false,
-        canDelete: false,
-      })
-    }
-
-    // 手动选择记录项（排除与置顶项重复的）
-    for (const manual of displayedManualFolders) {
-      if (
-        pinnedOption &&
-        (pinnedOption.folderId !== undefined
-          ? pinnedOption.folderId === manual.folderId
-          : pinnedOption.folderPath === manual.folderPath)
-      ) {
-        continue
-      }
-      items.push({
-        key: `manual:${manual.folderId}`,
-        type: 'manual',
-        folderPath: manual.folderPath,
-        folderId: manual.folderId,
-        count: manual.count,
-        isPinned: false,
-        canDelete: true,
-        manualItem: manual,
-      })
-    }
-
-    return items
-  }, [pinnedOption, folderPaths, folderIds, displayedManualFolders])
-
-  const initialFolderId = useMemo(() => {
-    const selectedOption = renderedOptions.find(
-      (option) => option.key === activeOptionKey,
-    )
-    if (!selectedOption) return undefined
-    return (
-      selectedOption.folderId ??
-      [...buildFolderMap(folders).values()].find(
-        (folder) => folder.path === selectedOption.folderPath,
-      )?.id
-    )
-  }, [activeOptionKey, renderedOptions, folders])
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700">
@@ -206,13 +100,13 @@ export function DetailPanel({
                 <div className="mb-1 text-xs text-slate-400">
                   选择目标文件夹
                 </div>
-                {renderedOptions.length > 0 ? (
+                {folderOptions.length > 0 ? (
                   <Radio.Group
                     value={activeOptionKey}
                     onChange={(event) => onSelectOptionKey(event.target.value)}
                     className="flex w-full flex-col gap-1"
                   >
-                    {renderedOptions.map((option) => {
+                    {folderOptions.map((option) => {
                       const isChecked = activeOptionKey === option.key
                       return (
                         <div
@@ -237,7 +131,7 @@ export function DetailPanel({
                             </Radio>
                           </div>
                           <div className="flex shrink-0 items-center gap-0.5">
-                            {option.canDelete && option.manualItem && (
+                            {option.type === 'manual' && option.manualItem && (
                               <Button
                                 type="text"
                                 size="small"

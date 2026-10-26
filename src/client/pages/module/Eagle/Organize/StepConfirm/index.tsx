@@ -128,14 +128,12 @@ export function StepConfirm({
   )
 
   const {
-    folderPaths,
-    folderIds,
-    displayedManualFolders,
+    folderOptions,
+    initialFolderId,
     activeOptionKey,
     selectedManualFolder,
     selectedFolderPath,
     selectedFolderId,
-    pinnedOption,
     handleTogglePin,
     onManualFolderSelect,
     onRemoveManualFolder,
@@ -353,12 +351,10 @@ export function StepConfirm({
               onToggleTitle={handleToggleTitle}
               activeOptionKey={activeOptionKey}
               onSelectOptionKey={selectOption}
-              folderPaths={folderPaths}
-              folderIds={folderIds}
-              displayedManualFolders={displayedManualFolders}
+              folderOptions={folderOptions}
+              initialFolderId={initialFolderId}
               onRemoveManualFolder={onRemoveManualFolder}
               onManualFolderSelect={onManualFolderSelect}
-              pinnedOption={pinnedOption}
               onTogglePin={handleTogglePin}
             />
           </div>

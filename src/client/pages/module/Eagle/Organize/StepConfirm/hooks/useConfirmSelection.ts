@@ -7,6 +7,7 @@ import { useEagleStore } from '@/client/pages/module/Eagle/store'
 import type { OrganizeFolderStandard } from '@/shared/eagle/organize'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { PinnedFolderOption } from '../types'
+import { buildConfirmFolderOptions } from '../utils/folderOptions'
 import { getSavedPinnedOption, savePinnedOption } from '../utils/storage'
 import { useManualFolders } from './useManualFolders'
 
@@ -50,14 +51,6 @@ export function useConfirmSelection({
     manualFolderScope,
     folderMap,
   ])
-  const folderPaths = useMemo(
-    () => recommendations.map((folder) => folder.folderPath),
-    [recommendations],
-  )
-  const folderIds = useMemo(
-    () => recommendations.map((folder) => folder.folderId),
-    [recommendations],
-  )
   const [titleDisabledIds, setTitleDisabledIds] = useState<Set<string>>(
     () => new Set(),
   )
@@ -119,7 +112,9 @@ export function useConfirmSelection({
 
   const defaultOptionKey =
     pinnedOption?.key ??
-    (folderPaths[0] ? `ai:${folderIds[0] ?? folderPaths[0]}` : null)
+    (recommendations[0]?.folderPath
+      ? `ai:${recommendations[0].folderId ?? recommendations[0].folderPath}`
+      : null)
   const activeOptionKey = selectedId
     ? (selectedOptionKeys[selectedId] ?? defaultOptionKey)
     : null
@@ -152,40 +147,34 @@ export function useConfirmSelection({
     activeOptionKey,
     pinnedOption,
   ])
-  const displayedManualFolders = useMemo(() => {
-    const recommended = new Set(folderIds)
-    return availableManualFolders.filter(
-      (folder) => !recommended.has(folder.folderId),
-    )
-  }, [folderIds, availableManualFolders])
-  const selectedManualFolder = useMemo(() => {
-    if (!activeOptionKey?.startsWith('manual:')) return null
-    const folderId = activeOptionKey.slice('manual:'.length)
-    const found = availableManualFolders.find(
-      (folder) => folder.folderId === folderId,
-    )
-    if (found) return found
-    if (pinnedOption?.folderId === folderId) {
-      return {
-        folderId,
-        folderPath: pinnedOption.folderPath,
-        count: pinnedOption.count ?? 0,
-      }
-    }
-    return null
-  }, [activeOptionKey, availableManualFolders, pinnedOption])
-  const selectedRecommendation = activeOptionKey?.startsWith('ai:')
-    ? recommendations.find(
-        (folder) =>
-          `ai:${folder.folderId ?? folder.folderPath}` === activeOptionKey,
-      )
-    : null
-  const selectedFolder =
-    pinnedOption?.key === activeOptionKey
-      ? pinnedOption
-      : (selectedRecommendation ?? selectedManualFolder)
+  const {
+    options: folderOptions,
+    selectedFolder,
+    selectedManualFolder,
+  } = useMemo(
+    () =>
+      buildConfirmFolderOptions(
+        recommendations,
+        availableManualFolders,
+        pinnedOption,
+        activeOptionKey,
+      ),
+    [recommendations, availableManualFolders, pinnedOption, activeOptionKey],
+  )
   const selectedFolderPath = selectedFolder?.folderPath ?? null
   const selectedFolderId = selectedFolder?.folderId
+  const initialFolderId = useMemo(() => {
+    const option = folderOptions.find(
+      (folder) => folder.key === activeOptionKey,
+    )
+    if (!option) return undefined
+    return (
+      option.folderId ??
+      [...folderMap.values()].find(
+        (folder) => folder.path === option.folderPath,
+      )?.id
+    )
+  }, [folderOptions, activeOptionKey, folderMap])
 
   const selectOption = useCallback(
     (key: string | null) => {
@@ -200,8 +189,11 @@ export function useConfirmSelection({
     [selectedId],
   )
   const selectRecommended = useCallback(() => {
-    selectOption(folderPaths[0] ? `ai:${folderIds[0] ?? folderPaths[0]}` : null)
-  }, [folderPaths, folderIds, selectOption])
+    const first = recommendations[0]
+    selectOption(
+      first?.folderPath ? `ai:${first.folderId ?? first.folderPath}` : null,
+    )
+  }, [recommendations, selectOption])
 
   const handleTogglePin = useCallback(
     (option: PinnedFolderOption) => {
@@ -218,12 +210,12 @@ export function useConfirmSelection({
     (folder: SelectedFolderInfo) => {
       handleManualFolderSelect(folder)
       selectOption(
-        folderIds.includes(folder.id)
+        recommendations.some((option) => option.folderId === folder.id)
           ? `ai:${folder.id}`
           : `manual:${folder.id}`,
       )
     },
-    [handleManualFolderSelect, selectOption, folderIds],
+    [handleManualFolderSelect, selectOption, recommendations],
   )
 
   const onRemoveManualFolder = useCallback(
@@ -265,14 +257,12 @@ export function useConfirmSelection({
   )
 
   return {
-    folderPaths,
-    folderIds,
-    displayedManualFolders,
+    folderOptions,
+    initialFolderId,
     activeOptionKey,
     selectedManualFolder,
     selectedFolderPath,
     selectedFolderId,
-    pinnedOption,
     handleTogglePin,
     onManualFolderSelect,
     onRemoveManualFolder,

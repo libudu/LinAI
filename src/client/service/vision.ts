@@ -1,5 +1,7 @@
 import { relayRequest } from './relay'
 
+export { extractChatCompletionText as extractVisionText } from '@/shared/vision/response'
+
 export type VisionContentPart =
   | { type: 'text'; text: string }
   | { type: 'image_url'; image_url: { url: string } }
@@ -62,22 +64,4 @@ export const normalizeVisionImageUrl = async (rawUrl: string) => {
     throw new Error(`本地图片读取失败（${response.status}）`)
   }
   return await blobToDataUrl(await response.blob())
-}
-
-export const extractVisionText = (data: VisionChatCompletion): string => {
-  const content = data.choices?.[0]?.message?.content
-  if (typeof content === 'string') return content.trim()
-  if (!Array.isArray(content)) return ''
-
-  return content
-    .filter(
-      (item): item is { type: 'text'; text: string } =>
-        typeof item === 'object' &&
-        item !== null &&
-        (item as { type?: unknown }).type === 'text' &&
-        typeof (item as { text?: unknown }).text === 'string',
-    )
-    .map((item) => item.text.trim())
-    .filter(Boolean)
-    .join('\n')
 }
