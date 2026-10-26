@@ -12,6 +12,7 @@ interface EaglePreferences {
   showFolderTree: boolean
   showEmptyFolders: boolean
   showFolderDescription: boolean
+  showSubfolderResources: boolean
 }
 
 const SORT_STORAGE_KEY = 'eagle_sort'
@@ -63,7 +64,7 @@ export const persistVideoPreviewMode = (mode: EagleVideoPreviewMode) => {
   }
 }
 
-// 纯前端展示选项持久化，默认显示文件夹树和空文件夹，其余均不勾选
+// 纯前端展示选项持久化，默认显示文件夹树、空文件夹和子文件夹资源
 export const loadViewOptions = (): Pick<
   EaglePreferences,
   | 'showFileName'
@@ -71,6 +72,7 @@ export const loadViewOptions = (): Pick<
   | 'showFolderTree'
   | 'showEmptyFolders'
   | 'showFolderDescription'
+  | 'showSubfolderResources'
 > => {
   try {
     const raw = localStorage.getItem(DISPLAY_STORAGE_KEY)
@@ -82,6 +84,7 @@ export const loadViewOptions = (): Pick<
         showFolderTree: parsed.showFolderTree !== false,
         showEmptyFolders: parsed.showEmptyFolders !== false,
         showFolderDescription: parsed.showFolderDescription === true,
+        showSubfolderResources: parsed.showSubfolderResources !== false,
       }
     }
   } catch {
@@ -93,6 +96,7 @@ export const loadViewOptions = (): Pick<
     showFolderTree: true,
     showEmptyFolders: true,
     showFolderDescription: false,
+    showSubfolderResources: true,
   }
 }
 
@@ -155,6 +159,7 @@ export const persistViewOptions = (state: {
   showFolderTree: boolean
   showEmptyFolders: boolean
   showFolderDescription: boolean
+  showSubfolderResources: boolean
 }) => {
   localStorage.setItem(
     DISPLAY_STORAGE_KEY,
@@ -164,6 +169,7 @@ export const persistViewOptions = (state: {
       showFolderTree: state.showFolderTree,
       showEmptyFolders: state.showEmptyFolders,
       showFolderDescription: state.showFolderDescription,
+      showSubfolderResources: state.showSubfolderResources,
     }),
   )
 }

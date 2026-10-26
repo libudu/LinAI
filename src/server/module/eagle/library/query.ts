@@ -92,7 +92,12 @@ const sortedItems = (
   index: EagleIndexState,
   params: Pick<
     GetItemsParams,
-    'folderId' | 'sortBy' | 'sortOrder' | 'keyword' | 'mediaType'
+    | 'folderId'
+    | 'sortBy'
+    | 'sortOrder'
+    | 'keyword'
+    | 'mediaType'
+    | 'includeSubfolders'
   >,
   classifiable = false,
   recursiveFolderIds?: Set<string>,
@@ -108,6 +113,7 @@ const sortedItems = (
     sortOrder,
     keywords,
     params.mediaType ?? '',
+    params.includeSubfolders === true,
     classifiable,
     recursiveFolderIds ? [...recursiveFolderIds] : null,
   ])
@@ -117,7 +123,22 @@ const sortedItems = (
     itemViews.set(key, cached)
     return cached
   }
+  // 浏览时父目录先于子目录，同级沿用 Eagle 原顺序；整理队列维持原有排序。
+  const root =
+    !classifiable && params.includeSubfolders && folderId
+      ? findRawFolder(index.folders, folderId)
+      : null
+  const folderOrder = root
+    ? new Map(
+        collectFolderPaths([root], 'preorder').map(({ folder }, order) => [
+          folder.id,
+          order,
+        ]),
+      )
+    : null
+  if (folderOrder) recursiveFolderIds = new Set(folderOrder.keys())
   const list: EagleItemIndex[] = []
+  const itemFolderOrder = new Map<string, number>()
   for (const item of index.items.values()) {
     if (!matchesMediaType(item.ext, params.mediaType)) continue
     if (folderId === EAGLE_TRASH_FOLDER_ID) {
@@ -140,10 +161,22 @@ const sortedItems = (
       const name = item.name.toLowerCase()
       if (!keywords.every((keyword) => name.includes(keyword))) continue
     }
+    if (folderOrder) {
+      // 多归属条目只展示一次，归入当前范围内树顺序最靠前的目录。
+      let order = Infinity
+      for (const id of item.folders)
+        order = Math.min(order, folderOrder.get(id) ?? Infinity)
+      itemFolderOrder.set(item.id, order)
+    }
     list.push(item)
   }
   const direction = sortOrder === 'asc' ? 1 : -1
-  list.sort((a, b) => (a[sortBy] - b[sortBy]) * direction)
+  list.sort(
+    (a, b) =>
+      (folderOrder
+        ? itemFolderOrder.get(a.id)! - itemFolderOrder.get(b.id)!
+        : 0) || (a[sortBy] - b[sortBy]) * direction,
+  )
   itemViews.set(key, list)
   if (itemViews.size > 8) itemViews.delete(itemViews.keys().next().value!)
   return list
@@ -200,7 +233,7 @@ export const getLibraryOverview = async (
  * 支持：
  * - 全部条目（排除回收站）；
  * - 虚拟文件夹：回收站 (__trash__)、未分类 (__unclassified__)；
- * - 指定真实文件夹过滤；
+ * - 指定真实文件夹过滤，可包含全部子孙并按目录树顺序分组；
  * - 文件名关键词匹配（空白分隔的关键词需全部包含，不区分大小写）；
  * - 内存排序与偏移分页切片。
  */

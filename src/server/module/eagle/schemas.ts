@@ -60,6 +60,10 @@ export const eagleScopeSchema = z.object({
 export const eagleItemsQuerySchema = eagleScopeSchema.extend({
   mediaType: eagleMediaQuerySchema.shape.mediaType,
   keyword: z.string().trim().optional(),
+  includeSubfolders: z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
+    .optional(),
   offset: z.coerce.number().int().nonnegative().default(0),
   limit: z.coerce.number().int().min(1).max(500).default(100),
 })

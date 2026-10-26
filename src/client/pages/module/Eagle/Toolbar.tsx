@@ -66,6 +66,8 @@ export function Toolbar() {
     setShowEmptyFolders,
     showFolderDescription,
     setShowFolderDescription,
+    showSubfolderResources,
+    setShowSubfolderResources,
   } = useEagleStore()
   const { isMobile } = usePlatform()
   const remote = useEagleConfig((state) => state.libraryMode === 'remote')
@@ -109,7 +111,7 @@ export function Toolbar() {
     if (folder) {
       return {
         name: folder.name,
-        count: folder.totalCount,
+        count: total,
         description: folder.description,
       }
     }
@@ -118,7 +120,7 @@ export function Toolbar() {
       count: allTotal,
       description: '',
     }
-  }, [currentFolderId, folders, allTotal, unclassifiedTotal, trashTotal])
+  }, [currentFolderId, folders, allTotal, unclassifiedTotal, trashTotal, total])
 
   // 徽标：队列未完成时显示剩余任务数；有待确认时显示小红点
   const organizePhase = organizeStatus?.phase
@@ -331,6 +333,19 @@ export function Toolbar() {
                   onChange={(e) => setShowFileSize(e.target.checked)}
                 >
                   展示文件大小
+                </Checkbox>
+                <Checkbox
+                  checked={showSubfolderResources}
+                  onChange={(e) => {
+                    void setShowSubfolderResources(e.target.checked).catch(
+                      (error) => {
+                        console.error('切换 Eagle 子文件夹资源展示失败', error)
+                        message.error('加载资源失败，请重试')
+                      },
+                    )
+                  }}
+                >
+                  展示子文件夹资源
                 </Checkbox>
               </div>
             </div>

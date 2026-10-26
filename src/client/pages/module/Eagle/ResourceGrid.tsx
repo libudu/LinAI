@@ -2,13 +2,14 @@ import { usePlatform } from '@/client/hooks/usePlatform'
 import { EAGLE_TRASH_FOLDER_ID, type EagleItem } from '@/shared/eagle/types'
 import { DeleteOutlined, LoadingOutlined } from '@ant-design/icons'
 import { Image, Pagination, Spin } from 'antd'
-import { cloneElement, useRef, useState, type ReactNode } from 'react'
+import { cloneElement, useMemo, useRef, useState, type ReactNode } from 'react'
 import { eagleFileUrl } from './api'
 import { FolderSelectModal } from './components/FolderSelectModal'
 import { MediaEditSaveButton } from './components/MediaEditSaveButton'
 import { ResourceGridItem } from './components/ResourceGridItem'
 import { getRotationEditOperations } from './components/rotation'
 import { VideoPreview } from './components/VideoPreview'
+import { buildFolderMap, collectFolderKeys, findFolder } from './folders'
 import { useResourceActions } from './hooks/useResourceActions'
 import { useEagleConfig } from './settings/useEagleConfig'
 import {
@@ -37,6 +38,8 @@ export function ResourceGrid() {
     imageSize,
     currentFolderId,
     keyword,
+    folders,
+    showSubfolderResources,
   } = useEagleStore()
   const showFileName = useEagleStore((s) => s.showFileName)
   const showFileSize = useEagleStore((s) => s.showFileSize)
@@ -63,6 +66,45 @@ export function ResourceGrid() {
   // 预览组只收图片，视频使用独立播放器预览。
   const imageItems = items.filter((item) => !item.isVideo)
   const displayedImages = previewOpen ? previewItems : imageItems
+
+  const resourceGroups = useMemo(() => {
+    const root = showSubfolderResources
+      ? findFolder(folders, currentFolderId)
+      : null
+    if (!root) return [{ id: '', path: '', items }]
+
+    const folderMap = buildFolderMap(folders)
+    const folderOrder = new Map(
+      collectFolderKeys([root]).map((id, order) => [id, order]),
+    )
+    const groups = new Map<
+      string,
+      { id: string; path: string; items: EagleItem[] }
+    >()
+    for (const item of items) {
+      // 与服务端一致，多归属资源放在当前范围中最靠前的目录下。
+      let folderId = ''
+      let firstOrder = Infinity
+      for (const id of item.folders) {
+        const order = folderOrder.get(id) ?? Infinity
+        if (order < firstOrder) {
+          folderId = id
+          firstOrder = order
+        }
+      }
+      let group = groups.get(folderId)
+      if (!group) {
+        group = {
+          id: folderId,
+          path: folderMap.get(folderId)?.path ?? '',
+          items: [],
+        }
+        groups.set(folderId, group)
+      }
+      group.items.push(item)
+    }
+    return [...groups.values()]
+  }, [items, folders, currentFolderId, showSubfolderResources])
 
   const handleClick = (item: EagleItem) => {
     if (item.isVideo) {
@@ -94,22 +136,33 @@ export function ResourceGrid() {
         </div>
       ) : (
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4">
-          <div className={`grid gap-2 ${GRID_COLS[imageSize]}`}>
-            {items.map((item) => (
-              <ResourceGridItem
-                key={item.id}
-                item={item}
-                readOnly={remote}
-                isTrash={isTrash}
-                showFileName={showFileName}
-                showFileSize={showFileSize}
-                onClick={handleClick}
-                onMove={(targetItem) => setMovingItem(targetItem)}
-                onDelete={handleDeleteItem}
-                onDownload={handleDownloadItem}
-                onPurge={handlePurgeItem}
-                onAddToGallery={handleAddToGallery}
-              />
+          <div className="space-y-4">
+            {resourceGroups.map((group) => (
+              <div key={group.id}>
+                {group.path && (
+                  <h3 className="mb-2 border-b border-slate-200 pb-1 text-xs font-normal break-all text-slate-400 dark:border-slate-700">
+                    {group.path}
+                  </h3>
+                )}
+                <div className={`grid gap-2 ${GRID_COLS[imageSize]}`}>
+                  {group.items.map((item) => (
+                    <ResourceGridItem
+                      key={item.id}
+                      item={item}
+                      readOnly={remote}
+                      isTrash={isTrash}
+                      showFileName={showFileName}
+                      showFileSize={showFileSize}
+                      onClick={handleClick}
+                      onMove={(targetItem) => setMovingItem(targetItem)}
+                      onDelete={handleDeleteItem}
+                      onDownload={handleDownloadItem}
+                      onPurge={handlePurgeItem}
+                      onAddToGallery={handleAddToGallery}
+                    />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </div>

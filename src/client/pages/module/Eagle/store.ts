@@ -69,6 +69,8 @@ interface EagleState {
   showEmptyFolders: boolean
   /** 在文件夹树节点名称下方展示描述 */
   showFolderDescription: boolean
+  /** 包含当前普通目录的全部子孙资源，并按目录分组 */
+  showSubfolderResources: boolean
 
   init: () => Promise<void>
   selectFolder: (folderId: string) => Promise<void>
@@ -82,6 +84,7 @@ interface EagleState {
   setShowFolderTree: (show: boolean) => void
   setShowEmptyFolders: (show: boolean) => void
   setShowFolderDescription: (show: boolean) => void
+  setShowSubfolderResources: (show: boolean) => Promise<void>
   /** 触发后端增量刷新后重拉数据 */
   reload: () => Promise<void>
   /** 仅重拉文件夹树（编辑文件夹后调用） */
@@ -98,7 +101,14 @@ export const useEagleStore = create<EagleState>()((set, get) => {
   const loadPage = async (page: number, options?: { silent?: boolean }) => {
     const sequence = ++pageSequence
     requestedPage = page
-    const { currentFolderId, keyword, sortBy, sortOrder, mediaType } = get()
+    const {
+      currentFolderId,
+      keyword,
+      sortBy,
+      sortOrder,
+      mediaType,
+      showSubfolderResources,
+    } = get()
     if (!options?.silent) {
       set({ listLoading: true })
     }
@@ -107,6 +117,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
         folderId: currentFolderId || undefined,
         keyword: keyword || undefined,
         mediaType,
+        includeSubfolders: showSubfolderResources ? 'true' : 'false',
         sortBy,
         sortOrder,
         offset: (page - 1) * PAGE_SIZE,
@@ -259,6 +270,13 @@ export const useEagleStore = create<EagleState>()((set, get) => {
         persistViewOptions({ ...state, showFolderDescription: show })
         return { showFolderDescription: show }
       })
+    },
+
+    setShowSubfolderResources: async (show) => {
+      if (show === get().showSubfolderResources) return
+      persistViewOptions({ ...get(), showSubfolderResources: show })
+      set({ showSubfolderResources: show, items: [], total: 0, page: 1 })
+      await loadPage(1)
     },
 
     reload: async () => {
