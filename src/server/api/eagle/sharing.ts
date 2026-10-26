@@ -7,6 +7,7 @@ import {
   listDirectories,
   validateLibraryDirectory,
 } from '../../module/eagle/sharing/paths'
+import { isSharedRead } from '../../module/eagle/sharing/protocol'
 import {
   authorizeRead,
   closeIncoming,
@@ -20,10 +21,7 @@ import {
   requestSharing,
   sharingSnapshot,
 } from '../../module/eagle/sharing/service'
-import {
-  bindSharedResponse,
-  isSharedRead,
-} from '../../module/eagle/sharing/transport'
+import { bindSharedResponse } from '../../module/eagle/sharing/transport'
 import libraryApi from './library'
 import { validate } from './validation'
 

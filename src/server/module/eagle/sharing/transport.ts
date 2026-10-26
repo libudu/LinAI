@@ -1,10 +1,6 @@
 import { HTTPException } from 'hono/http-exception'
+import { isSharedRead } from './protocol'
 import { getRemoteConnection } from './service'
-
-/** 共享协议只有这几个读取入口；禁止把任意 URL 或写接口转发给共享方。 */
-export const isSharedRead = (path: string) =>
-  /^\/(overview|folders|items)$/.test(path) ||
-  /^\/items\/[A-Za-z0-9]+\/(detail|thumbnail|preview|file)$/.test(path)
 
 /** 连接撤销时终止在途传输；禁用媒体缓存，后续读取始终重新校验会话。 */
 export function bindSharedResponse(
@@ -15,6 +11,7 @@ export function bindSharedResponse(
   const headers = new Headers(response.headers)
   headers.set('Cache-Control', 'no-store')
   headers.delete('set-cookie')
+  headers.delete('x-linai-auth')
   if (!response.body)
     return new Response(null, { status: response.status, headers })
   const reader = response.body.getReader()
@@ -75,7 +72,9 @@ export async function proxySharedRead(
   for (const [key, value] of source.searchParams) {
     if (key !== 'pageId') url.searchParams.append(key, value)
   }
-  const headers = new Headers({ Authorization: `Bearer ${session.token}` })
+  const headers = new Headers({
+    Authorization: `Bearer ${session.token}`,
+  })
   const range = request.headers.get('range')
   if (range) headers.set('Range', range)
   const controller = new AbortController()

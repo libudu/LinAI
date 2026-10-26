@@ -1,5 +1,6 @@
+import { useLoginAccess } from '@/client/service/auth'
 import type { EagleSettings } from '@/server/module/eagle/settings'
-import { Alert, Button, Form, Input, Segmented, message } from 'antd'
+import { Alert, Button, Form, Input, Segmented, Tooltip, message } from 'antd'
 import {
   forwardRef,
   useEffect,
@@ -24,6 +25,9 @@ export interface EagleSettingRef {
 
 export const LibrarySetting = forwardRef<EagleSettingRef>((_props, ref) => {
   const [form] = Form.useForm<EagleSettings>()
+  const canUseRemote = useLoginAccess((state) =>
+    Boolean(state.status?.configured && state.status.authenticated),
+  )
   const config = useEagleConfig()
   const mode = Form.useWatch('libraryMode', form) || config.libraryMode
   const [error, setError] = useState('')
@@ -63,6 +67,10 @@ export const LibrarySetting = forwardRef<EagleSettingRef>((_props, ref) => {
       setSaving(true)
       try {
         if (values.libraryMode === 'remote') {
+          if (!canUseRemote)
+            throw new Error(
+              '请先在系统设置中配置六位登录验证码，再使用远程资源库',
+            )
           if (!useEagleSharing.getState().connected)
             throw new Error('当前前端未连接服务，请刷新页面后重试')
           current.connecting = true
@@ -131,9 +139,24 @@ export const LibrarySetting = forwardRef<EagleSettingRef>((_props, ref) => {
         <Form.Item name="libraryMode" initialValue="local">
           <Segmented
             block
+            className="[&_.ant-segmented-item-disabled]:pointer-events-auto"
             options={[
               { value: 'local', label: '本地资源库路径' },
-              { value: 'remote', label: '远程资源库路径' },
+              {
+                value: 'remote',
+                disabled: !canUseRemote,
+                label: (
+                  <Tooltip
+                    title={
+                      canUseRemote
+                        ? undefined
+                        : '请先在系统设置中配置六位登录验证码，再使用远程资源库'
+                    }
+                  >
+                    <span className="inline-block">远程资源库路径</span>
+                  </Tooltip>
+                ),
+              },
             ]}
           />
         </Form.Item>

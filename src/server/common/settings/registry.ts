@@ -24,6 +24,8 @@ export interface SettingsDef<T> {
   loadLegacy?: () => Partial<T> | Promise<Partial<T>>
   /** 可选的读取规范化：模块迁移旧字段并补齐默认值，不改变磁盘修订号。 */
   normalize?: (raw: unknown) => T
+  /** schema 校验后、写入前执行的模块业务约束。 */
+  validateBeforeSave?: (value: T) => void | Promise<void>
 }
 
 // 设置 ID 形如 gpt-image：小写字母数字与中划线
@@ -144,6 +146,7 @@ class SettingsRegistry {
         ? def.normalize(incoming)
         : mergeDefaults(def.defaults, incoming),
     )
+    await def.validateBeforeSave?.(value)
     const doc = await store.replace(value, expectedRevision)
     return { revision: doc.revision, value: doc.value }
   }

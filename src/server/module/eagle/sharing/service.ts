@@ -2,6 +2,7 @@ import { HTTPException } from 'hono/http-exception'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { changeBus } from '../../../common/storage/change-bus'
+import { getSystemSettings } from '../../system/settings'
 import { refreshIndex } from '../library'
 import { getEagleSettings, getEagleSharingSettings } from '../settings'
 import { validateLibraryDirectory } from './paths'
@@ -159,6 +160,8 @@ export async function requestSharing(
   attempts.push(now)
   if (requesterInstance === instanceId) fail('不能连接到自己的 LinAI')
   if (!pages.size) fail('对方尚未打开 LinAI 前端页面')
+  if (!/^\d{6}$/.test((await getSystemSettings()).loginCode))
+    fail('共享方尚未配置系统登录验证码，无法共享 Eagle 资源库')
   const settings = await getEagleSettings()
   if (settings.libraryMode !== 'local' || !settings.libraryPath)
     fail('对方没有可共享的本地 Eagle 资源库')
@@ -204,12 +207,14 @@ async function validIncoming(token: string) {
     terminate(session, '共享连接已超时，请重新请求授权')
     fail('共享连接已超时，请重新请求授权')
   }
-  const [settings, sharing] = await Promise.all([
+  const [settings, sharing, system] = await Promise.all([
     getEagleSettings(),
     getEagleSharingSettings(),
+    getSystemSettings(),
   ])
   if (
     !pages.size ||
+    !/^\d{6}$/.test(system.loginCode) ||
     (session.owner && !pages.has(session.owner)) ||
     settings.libraryMode !== 'local' ||
     settings.libraryPath !== session.libraryPath ||
@@ -287,9 +292,15 @@ export function recordTransfer(session: Incoming, bytes: number) {
 
 export async function connectRemote(
   pageId: string,
-  config: { url: string; localPath: string; invitationCode: string },
+  config: {
+    url: string
+    localPath: string
+    invitationCode: string
+  },
 ) {
   requirePage(pageId)
+  if (!/^\d{6}$/.test((await getSystemSettings()).loginCode))
+    fail('请先在系统设置中配置六位登录验证码，再使用远程资源库')
   const directory = await validateLibraryDirectory(config.localPath)
   const url = normalizeRemoteUrl(config.url)
   requirePage(pageId)
@@ -435,7 +446,11 @@ const timer = setInterval(() => {
 timer.unref()
 
 // 删除用户或切换库后立即撤销在途读取，不能等下一次媒体请求才发现。
-for (const resource of ['settings.eagle', 'settings.eagle-sharing']) {
+for (const resource of [
+  'settings.eagle',
+  'settings.eagle-sharing',
+  'settings.system',
+]) {
   changeBus.subscribe(resource, () => {
     for (const session of incoming.values()) {
       if (session.state === 'closed') continue

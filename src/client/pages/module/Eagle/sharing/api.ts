@@ -1,4 +1,5 @@
 import { rpcData } from '@/client/service/http'
+import type { InferRequestType } from 'hono/client'
 import { eaglePageId, eagleRpc } from '../rpc'
 
 const rpc = eagleRpc.sharing
@@ -7,11 +8,9 @@ export const fetchSharingStatus = () =>
 export type SharingStatus = Awaited<ReturnType<typeof fetchSharingStatus>>
 export const decideSharing = (id: string, approve: boolean) =>
   rpcData(rpc.decision.$post({ json: { pageId: eaglePageId, id, approve } }))
-export const connectRemoteLibrary = (config: {
-  url: string
-  localPath: string
-  invitationCode: string
-}) => rpcData(rpc.connect.$post({ json: { pageId: eaglePageId, ...config } }))
+export const connectRemoteLibrary = (
+  config: Omit<InferRequestType<typeof rpc.connect.$post>['json'], 'pageId'>,
+) => rpcData(rpc.connect.$post({ json: { pageId: eaglePageId, ...config } }))
 export const disconnectRemoteLibrary = () =>
   rpcData(rpc.disconnect.$post({ json: { pageId: eaglePageId } }))
 export const fetchDirectories = (path?: string) =>

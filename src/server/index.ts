@@ -5,6 +5,7 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import * as path from 'path'
 import { ZodError } from 'zod'
+import authApi from './api/common/auth'
 import configApi from './api/common/config'
 import logApi from './api/common/log'
 import relayApi from './api/common/relay'
@@ -18,6 +19,8 @@ import openaiApi from './api/openai'
 import ttsApi from './api/tts'
 import ttsInworldApi from './api/tts/inworld'
 import yunwuTokenApi from './api/yunwu-token'
+import { LOGIN_PAGE } from './common/auth/login-page'
+import { requireLogin } from './common/auth/middleware'
 import { StorageError } from './common/storage/errors'
 import { EagleError } from './module/eagle/errors'
 import { guardEagleAccess } from './module/eagle/sharing/access'
@@ -86,10 +89,16 @@ app.onError((err, c) => {
   )
 })
 
+app.use('*', requireLogin)
+app.get('/auth/login', (c) => {
+  c.header('Cache-Control', 'no-store')
+  return c.html(LOGIN_PAGE)
+})
 app.use('/api/eagle/*', guardEagleAccess)
 app.use('/api/settings/*', guardEagleAccess)
 
 const routes = app
+  .route('/api/auth', authApi)
   // module
   .route('/api/tts', ttsApi)
   .route('/api/tts-inworld', ttsInworldApi)

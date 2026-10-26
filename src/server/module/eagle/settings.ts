@@ -8,7 +8,9 @@ import {
   settingsRegistry,
 } from '../../common/settings/registry'
 import { dataPath } from '../../common/storage/data-path'
+import { getSystemSettings } from '../system/settings'
 import { visionSettingsSchema } from '../vision/settings'
+import { EagleError } from './errors'
 
 // Eagle 图片管理模块设置：注册式存储，落盘 data/eagle/config.json
 export const eagleSettingsSchema = z.object({
@@ -41,6 +43,17 @@ settingsRegistry.register<EagleSettings>('eagle', {
   defaults: DEFAULT_EAGLE_SETTINGS,
   schema: eagleSettingsSchema,
   migrateLegacy,
+  validateBeforeSave: async (value) => {
+    if (
+      value.libraryMode === 'remote' &&
+      !/^\d{6}$/.test((await getSystemSettings()).loginCode)
+    )
+      throw new EagleError(
+        'SYSTEM_AUTH_REQUIRED',
+        400,
+        '请先在系统设置中配置六位登录验证码，再使用远程资源库',
+      )
+  },
 })
 
 /** 服务端内部读取（合并默认值） */

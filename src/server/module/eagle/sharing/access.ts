@@ -1,16 +1,15 @@
-import { getConnInfo } from '@hono/node-server/conninfo'
 import type { Context, Next } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { HTTPException } from 'hono/http-exception'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
-import { networkInterfaces } from 'node:os'
+import { getLoginAccess } from '../../../common/auth/service'
 import { getEagleSharingSettings } from '../settings'
+import { isEagleSharingProtocol } from './protocol'
 
-// 共享凭据只授权共享协议。管理凭据仅发给本机浏览器，防止对方绕过只读入口
-// 调用原有的无鉴权 Eagle 写接口、读取邀请码或自行同意请求。
+// 系统登录与共享协议分离；浏览器在系统鉴权后单独建立 Eagle 管理会话。
+// 服务端共享客户端仅持有只读共享凭据，不取得系统登录和管理 Cookie。
 const ownerToken = randomBytes(32).toString('hex')
 const COOKIE = 'linai_eagle_owner'
-const normalizeIp = (ip: string) => ip.replace(/^::ffff:/, '')
 
 function isOwner(c: Context) {
   const token = getCookie(c, COOKIE)
@@ -21,26 +20,11 @@ function isOwner(c: Context) {
   )
 }
 
-export function issueOwnerSession(c: Context) {
-  const peer = getConnInfo(c).remote.address
-  const addresses = new Set([
-    '127.0.0.1',
-    '::1',
-    ...Object.values(networkInterfaces()).flatMap((entries) =>
-      (entries ?? []).map((entry) => normalizeIp(entry.address)),
-    ),
-  ])
-  const hostname = new URL(c.req.url).hostname.replace(/^\[|\]$/g, '')
-  if (
-    !peer ||
-    !addresses.has(normalizeIp(peer)) ||
-    !(hostname === 'localhost' || addresses.has(normalizeIp(hostname))) ||
-    c.req.header('x-forwarded-for') ||
-    c.req.header('forwarded') ||
-    c.req.header('sec-fetch-site') === 'cross-site'
-  ) {
+export async function issueOwnerSession(c: Context) {
+  const access = await getLoginAccess(c)
+  if (!access.authenticated) {
     throw new HTTPException(403, {
-      message: 'Eagle 共享管理需在运行此 LinAI 的电脑上打开本地地址操作',
+      message: '请先完成系统登录鉴权',
     })
   }
   setCookie(c, COOKIE, ownerToken, {
@@ -55,11 +39,7 @@ export function issueOwnerSession(c: Context) {
 export async function guardEagleAccess(c: Context, next: Next) {
   const path = c.req.path
   if (path === '/api/eagle/sharing/local-session') return next()
-  const protocol =
-    path === '/api/eagle/sharing/request' ||
-    /^\/api\/eagle\/sharing\/session\/(heartbeat|close)$/.test(path) ||
-    path.startsWith('/api/eagle/sharing/library/')
-  if (protocol) return next()
+  if (isEagleSharingProtocol(c.req.method, path)) return next()
   const settingId = path.startsWith('/api/settings/')
     ? decodeURIComponent(path.slice('/api/settings/'.length))
     : ''

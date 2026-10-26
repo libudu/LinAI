@@ -5,6 +5,7 @@ import {
   useAppTheme,
   type ThemeMode,
 } from '../../../theme'
+import { LoginCodeSetting } from './LoginCodeSetting'
 import { openCommonSettingModal } from './SettingModal'
 
 // 预设主题色
@@ -17,13 +18,14 @@ const ACCENT_PRESETS = [
   { name: '天青', color: '#4AA8C0' },
 ]
 
-// 界面设置面板：明暗模式 + 自定义主题色，改动即时生效
+// 系统设置面板：登录验证码独立保存，明暗模式与主题色即时生效。
 function InterfaceSettingPanel() {
   const { mode, toggleTheme, accentColor, setAccentColor, resetAccentColor } =
     useAppTheme()
 
   return (
     <div className="space-y-5">
+      <LoginCodeSetting />
       <div>
         <div className="mb-2 text-sm font-medium">明暗模式</div>
         <Segmented<ThemeMode>
@@ -84,7 +86,7 @@ function InterfaceSettingPanel() {
   )
 }
 
-/** 全局设置弹窗：目前仅"界面设置"一个页签 */
+/** 全局系统设置弹窗。 */
 export function openInterfaceSettingModal() {
   openCommonSettingModal({
     title: '设置',
