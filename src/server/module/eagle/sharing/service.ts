@@ -308,8 +308,6 @@ export async function connectRemote(
   },
 ) {
   requirePage(pageId)
-  if (!/^\d{6}$/.test((await getSystemSettings()).loginCode))
-    fail('请先在系统设置中配置六位登录验证码，再使用远程资源库')
   const directory = await validateLibraryDirectory(config.localPath)
   const url = normalizeRemoteUrl(config.url)
   requirePage(pageId)
