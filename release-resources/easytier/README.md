@@ -1,29 +1,18 @@
 # EasyTier 对应源码发布输入
 
-`EasyTier-2.7.0-linai.6487a5e-source.zip` 为原始 source.zip 的无损移动，SHA-256：
-`876278a8905e6b3c152aac2754e54e53084476e276733f2be434a8cd492599e7`（90300165 字节）。
+当前修正版使用 `EasyTier-2.7.0-linai-gateway1.6487a5e-source.zip`，
+校验值和大小见 `dist-template/runtime/easytier/manifest.json` 的 `correspondingSource`。
+
+固定上游提交及依赖保持一致，更新了编译说明及脚本，增加启动 TCP 端口转发所需的
+`socks5` feature，并修正原生 host 的 `proxy_enabled` 能力判定，让 `smoltcp` 构建启动
+已有的入站 TCP 代理；不启用 KCP、QUIC、原始 ICMP 或 SOCKS 监听。
+旧版归档已从当前版本移除，对应源码仍可从 Git 历史获取。
 
 此目录不复制进 dist。发布脚本读取 runtime 清单中的对应源码信息并校验，
-源码归档仅保留在项目目录，不复制到仓库根目录，不写入主包，也不作为 Release 附件上传。不得重新压缩或删减内容。
-核心版本、固定提交和构建参数见 ../../dist-template/runtime/easytier/manifest.json
-及 SOURCES.md。更新这些说明时必须同步对应 files 哈希。
+源码归档仅保留在项目目录，不复制到仓库根目录，不写入主包，也不作为 Release 附件上传。
+核心版本、固定提交和构建参数见 `../../dist-template/runtime/easytier/manifest.json`
+及 `SOURCES.md`。更新运行资源说明时必须同步对应 `files` 哈希。
 
 private/public 复用同一份项目源码。请将本目录归档纳入版本控制，确保干净检出可构建。
 Release 只上传主包，发布说明链接到同一 tag 下的本目录源码文件。分发时需维护接收者
 可免费访问的源码及获取指引；仅在发布者本地保留不等于接收者可以获取。
-
-## 拆分的体积影响
-
-以下基于此源码归档，未运行 LinAI 构建或发布脚本，也未生成完整主包。
-
-- 项目内源码归档：90,300,165 字节（86.12 MiB）；不再对它套一层 ZIP。
-- 主 dist 移除同样的 90,300,165 字节；新增说明和清单有少量抵消。
-- 使用发布脚本相同的 JSZip / DEFLATE level 9，仅在内存中压缩该文件实测：
-  压缩数据 89,336,641 字节；加上旧路径 `runtime/easytier/source.zip`
-  的 ZIP 文件头/目录项 130 字节，主 ZIP 预计减少约 89,336,771 字节
-  （85.20 MiB），尚需扣除更新说明及代码的压缩增量。
-- 只下载主包预计节省约 85.20 MiB；主包和项目内源码都下载，相比原来内嵌源码的
-  单一主包，总下载量反而增加约 963,394 字节（0.92 MiB），另加少量说明差异。
-  这是去掉外层压缩的差额，不能把 86.12 MiB 与 85.20 MiB 相加作为节省量。
-- 没有包含本次远程互联实现的完整构建基线，因此无法给出最终主包的精确大小。
-  两个核心 EXE 未改动，其体积不属于本次拆分节省。

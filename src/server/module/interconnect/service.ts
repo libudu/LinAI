@@ -16,7 +16,7 @@ import {
   sharingSnapshot,
 } from '../eagle/sharing/service'
 import { findRoomGrant, issueRoomGrant, revokeRoomGrant } from './access'
-import { command, HOST_IP, startCore, type Core } from './core'
+import { command, HOST_IP, invitationPeers, startCore, type Core } from './core'
 import { openSharingEntry } from './entry'
 import { fetchRoomResource } from './https'
 import {
@@ -118,9 +118,9 @@ async function stop() {
 
 function watchRoom(current: Room) {
   room = current
-  current.core.process.once('exit', () => {
+  current.core.process.once('close', () => {
     if (room !== current) return
-    current.error = 'EasyTier 核心已退出，请关闭房间后重新连接'
+    current.error = current.core.output.message() || 'EasyTier 核心已退出'
     current.controller.abort()
     current.activeMembers.clear()
     current.participants = []
@@ -239,7 +239,12 @@ export async function roomStatus() {
             : connected
               ? ('connected' as const)
               : ('waiting' as const),
-          error: current.error || networkError,
+          error:
+            current.error ||
+            (!connected || current.memberError
+              ? current.core.output.message()
+              : '') ||
+            networkError,
           memberError: current.memberError,
           memberName: current.identity?.name,
           participants:
@@ -483,7 +488,7 @@ export const inviteMember = (id: string) =>
       roomId: current.id,
       name: current.name,
       ip,
-      peers: current.peers,
+      peers: await invitationPeers(current.core, current.peers),
       certificate: current.entry!.certificate,
       credential: credential.credential_secret,
       eagleSecret: issueRoomGrant(id),
@@ -570,12 +575,12 @@ const timer = setInterval(() => {
         }
       }
     })
-    .catch(() => {
+    .catch((error: unknown) => {
       if (room === current) {
         routes = new Map()
         current.participants = []
         networkError =
-          '尚未取得连接状态；请确认节点可达且支持 Secure Mode 临时凭据'
+          error instanceof Error ? error.message : 'EasyTier RPC unavailable'
       }
     })
     .finally(() => {

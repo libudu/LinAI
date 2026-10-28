@@ -1,10 +1,12 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
-import { createServer } from 'node:net'
+import { createConnection, createServer } from 'node:net'
+import { networkInterfaces } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { dataPath } from '../../common/storage/data-path'
+import { CoreOutput } from './output'
 
 const execute = promisify(execFile)
 const runtime = path.resolve(process.cwd(), 'runtime/easytier')
@@ -76,6 +78,7 @@ export type Core = {
   configFile: string
   rpcPort: number
   forwardPort: number | null
+  output: CoreOutput
   stop: () => Promise<void>
 }
 
@@ -98,10 +101,67 @@ export async function command<T>(core: Core, args: string[]): Promise<T> {
       },
     )
     return JSON.parse(result.stdout) as T
-  } catch {
-    // CLI 输出可能包含配置或凭据，不传入日志与错误响应。
-    throw new Error('无法读取 EasyTier 状态，请检查核心进程及节点连接')
+  } catch (error) {
+    // 只取 CLI 的错误输出，不返回可能包含配置或凭据的 JSON stdout。
+    const stderr =
+      error &&
+      typeof error === 'object' &&
+      'stderr' in error &&
+      typeof error.stderr === 'string'
+        ? core.output.sanitize(error.stderr.trim())
+        : ''
+    throw new Error(
+      stderr || core.output.message() || 'EasyTier RPC unavailable',
+    )
   }
+}
+
+function forwardReady(port: number) {
+  return new Promise<void>((resolve, reject) => {
+    const socket = createConnection({ host: '127.0.0.1', port })
+    socket.setTimeout(500)
+    socket.once('connect', () => {
+      socket.destroy()
+      resolve()
+    })
+    socket.once('error', reject)
+    socket.once('timeout', () =>
+      socket.destroy(new Error('EasyTier port forward timeout')),
+    )
+  })
+}
+
+/** 将房主的实际监听地址带入邀请，同机/局域网连接不依赖公共节点。 */
+export async function invitationPeers(core: Core, peers: string[]) {
+  const info = await command<{ listeners: string[] }>(core, ['node'])
+  const addresses = [
+    ...new Set(
+      Object.values(networkInterfaces()).flatMap((entries) =>
+        (entries ?? [])
+          .filter((entry) => entry.family === 'IPv4' && !entry.internal)
+          .map((entry) => entry.address),
+      ),
+    ),
+  ]
+    .filter((address) =>
+      /^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(address),
+    )
+    .sort(
+      (a, b) =>
+        Number(b.startsWith('192.168.')) - Number(a.startsWith('192.168.')),
+    )
+    .slice(0, 2)
+  const direct = ['udp:', 'tcp:'].flatMap((protocol) => {
+    const listener = info.listeners.find((value) =>
+      value.startsWith(`${protocol}//`),
+    )
+    if (!listener) return []
+    const port = new URL(listener).port
+    return port
+      ? addresses.map((address) => `${protocol}//${address}:${port}`)
+      : []
+  })
+  return [...new Set([...direct, ...peers])].slice(0, 10)
 }
 
 export async function startCore(options: {
@@ -149,6 +209,7 @@ ${options.credential ? `local_private_key = ${q(options.credential)}` : ''}
 [flags]
 no_tun = true
 use_smoltcp = true
+bind_device = false
 enable_ipv6 = false
 enable_exit_node = false
 proxy_forward_by_system = false
@@ -165,22 +226,37 @@ dst_addr = "${HOST_IP}:${SHARING_PORT}"
 proto = "tcp"`
     : ''
 }
-${chain(1, options.secret ? rule('eagle-read-only', `destination_ips = ["${HOST_IP}/32"]\nports = ["${SHARING_PORT}"]`) : '')}
+${chain(
+  1,
+  options.secret
+    ? rule(
+        'eagle-read-only',
+        `destination_ips = ["${HOST_IP}/32"]\nports = ["${SHARING_PORT}"]\nstateful = true`,
+      )
+    : '',
+)}
 ${chain(
   2,
   options.secret
     ? rule(
         'eagle-response',
         `source_ips = ["${HOST_IP}/32"]\nsource_ports = ["${SHARING_PORT}"]`,
-      )
+      ) +
+        // 固定版本核心先检查出站 ACL，再按已建立的 NAT 映射还原响应。
+        // 仅放行内部栈的固定 TCP 代理端口；网络上仍为 HOST_IP:SHARING_PORT。
+        rule(
+          'eagle-smoltcp-response',
+          'source_ips = ["192.88.99.254/32"]\nsource_ports = ["8899"]\ndestination_ips = ["10.127.62.0/24"]',
+        )
     : rule(
         'eagle-request',
-        `destination_ips = ["${HOST_IP}/32"]\nports = ["${SHARING_PORT}"]`,
+        `destination_ips = ["${HOST_IP}/32"]\nports = ["${SHARING_PORT}"]\nstateful = true`,
       ),
 )}
 ${chain(3)}
 `
   await fs.writeFile(configFile, config, { mode: 0o600 })
+  const output = new CoreOutput([options.secret, options.credential])
   const child = spawn(
     path.join(directory, 'easytier-core.exe'),
     [
@@ -191,15 +267,17 @@ ${chain(3)}
       '--rpc-portal-whitelist',
       '127.0.0.1/32',
       '--console-log-level',
-      'error',
+      'warn',
     ],
     {
       cwd: directory,
       windowsHide: true,
-      stdio: 'ignore',
+      stdio: ['ignore', 'pipe', 'pipe'],
       env: childEnvironment(),
     },
   )
+  output.attach(child.stdout)
+  output.attach(child.stderr)
   let spawnFailed = false
   child.once('error', () => {
     spawnFailed = true
@@ -210,6 +288,7 @@ ${chain(3)}
     configFile,
     rpcPort,
     forwardPort,
+    output,
     stop: async () => {
       child.kill()
       if (child.exitCode === null && child.pid && !spawnFailed) {
@@ -257,17 +336,26 @@ ${chain(3)}
       }
     })
     watcher.unref()
-    for (let attempt = 0; attempt < 30; attempt++) {
+    let startupError: unknown
+    const deadline = Date.now() + 10000
+    while (Date.now() < deadline) {
       if (spawnFailed || watcherError || child.exitCode !== null)
-        throw new Error('EasyTier 核心启动失败，请检查发布资源或本机安全软件')
+        throw new Error(output.message() || 'EasyTier 核心启动失败')
       try {
         await command(core, ['node'])
+        if (forwardPort) await forwardReady(forwardPort)
         return core
-      } catch {
+      } catch (error) {
+        startupError = error
         await new Promise((resolve) => setTimeout(resolve, 300))
       }
     }
-    throw new Error('EasyTier 核心启动超时')
+    throw new Error(
+      output.message() ||
+        (startupError instanceof Error
+          ? startupError.message
+          : 'EasyTier 核心启动超时'),
+    )
   } catch (error) {
     await core.stop()
     throw error

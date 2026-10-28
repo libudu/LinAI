@@ -13,7 +13,7 @@ This does not restrict users' modification or reverse engineering rights under L
 - Fixed commit: `6487a5e4638ef9129909c062722142928645adaf`
 - Version: `2.7.0` development snapshot, independently compiled for LinAI.
 - This is NOT the v2.6.4 or v2.7.0 official Windows release binary.
-- Source archive: `EasyTier-2.7.0-linai.6487a5e-source.zip`, stored in the LinAI
+- Source archive: `EasyTier-2.7.0-linai-gateway1.6487a5e-source.zip`, stored in the LinAI
   repository under `release-resources/easytier/`. It is not included in the LinAI ZIP
   or required to run LinAI. It contains the modified upstream source,
   Cargo.lock, local build instructions and any necessary patches. Unused upstream
@@ -30,18 +30,25 @@ Windows x64 (`x86_64-pc-windows-gnu`), Rust 1.95.0, MinGW-w64 GCC from
 w64devkit 2.10.1, protoc 36.2. No system installation is needed to use the resulting programs.
 The `build-portable.ps1` file accepts local source, portable Rust, GCC and protoc
 directories. It also supplies Rust's own `libgcc_eh.a`, absent from w64devkit.
-Release LTO is disabled and codegen-units is 8. The only source patch changes
-`easytier-core/Cargo.toml` crate-type from `["rlib", "cdylib"]` to `["rlib"]`;
-the unused shared library is not built. The patched manifest is in the source archive.
+Release LTO is disabled and codegen-units is 8. Source patches change
+`easytier-core/Cargo.toml` crate-type from `["rlib", "cdylib"]` to `["rlib"]`
+and include the `smoltcp` feature in the native host's `proxy_enabled` capability
+in `easytier/src/instance/config.rs`. This activates the existing inbound packet
+proxy for no-tun TCP forwarding without enabling KCP, QUIC or raw ICMP. No wire
+protocol or authentication changes are made. Patched sources and PATCHES.md are
+included in the source archive; the unused shared library is not built.
 
 ```
-cargo +1.95.0 build --release --locked --no-default-features --features cli,smoltcp,tcp-hole-punch,aes-gcm,endpoint-discovery --package easytier --bin easytier-core --bin easytier-cli --target x86_64-pc-windows-gnu
+cargo +1.95.0-x86_64-pc-windows-gnu build --release --locked --no-default-features --features cli,smoltcp,socks5,tcp-hole-punch,aes-gcm,endpoint-discovery --package easytier --bin easytier-core --bin easytier-cli --target x86_64-pc-windows-gnu
 ```
 
 Default features are disabled. The build keeps the native CLI, management RPC,
 TCP/UDP peer transports, authenticated AES-GCM, endpoint discovery, Secure Mode
 credentials and user-space TCP forwarding.
-It excludes TUN, fake TCP / packet capture, system DNS, UPnP, SOCKS, WireGuard,
+The upstream `socks5` feature activates the gateway lifecycle needed by TCP port
+forwarding; `smoltcp` alone compiles the stack without starting that gateway.
+LinAI configures only its fixed TCP forward and never enables a SOCKS listener.
+It excludes TUN, fake TCP / packet capture, system DNS, UPnP, WireGuard,
 KCP, QUIC and WebSocket feature sets. LinAI generates restrictive no-tun settings
 and ACLs; it does not install services/drivers or change firewall or system routing.
 The upstream optional Windows broadcast implementation is never enabled by LinAI.
@@ -78,7 +85,7 @@ The corresponding source is kept in the LinAI project, not emitted by the build
 or uploaded as a Release attachment. Open https://github.com/libudu/LinAI and
 select the tag matching your LinAI release, then open:
 
-`release-resources/easytier/EasyTier-2.7.0-linai.6487a5e-source.zip`
+`release-resources/easytier/EasyTier-2.7.0-linai-gateway1.6487a5e-source.zip`
 
 Use the file's download action to obtain the archive. The LinAI Release notes
 also link to this file at the matching tag. Verify it against `manifest.json` ->

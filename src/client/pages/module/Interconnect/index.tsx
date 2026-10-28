@@ -273,13 +273,19 @@ export function Interconnect() {
                 <ConnectionTag mode={room.connection} />
               )}
             </div>
-            {room.error && <Alert type="warning" showIcon title={room.error} />}
-            {room.memberError && (
+            {room.error && (
               <Alert
                 type="warning"
                 showIcon
-                title={`成员信息同步失败，将自动重试：${room.memberError}`}
+                title={
+                  <span className="break-all whitespace-pre-wrap">
+                    {room.error}
+                  </span>
+                }
               />
+            )}
+            {room.memberError && (
+              <Alert type="warning" showIcon title={room.memberError} />
             )}
           </div>
           {room.participants.length > 0 && (
