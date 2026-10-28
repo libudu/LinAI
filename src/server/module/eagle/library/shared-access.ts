@@ -8,14 +8,17 @@ export interface EagleLibraryAccess {
   selectionVersion: 1 | 2
 }
 
-/** 隐藏未授权祖先，仅开放的子目录提升到最近可见层级。 */
+/** 保留共享目录的祖先作为导航，只暴露其 ID、名称和筛选后的子目录。 */
 const filterFolders = (
   folders: EagleRawFolder[],
-  visible: ReadonlySet<string>,
+  shared: ReadonlySet<string>,
 ): EagleRawFolder[] =>
   folders.flatMap((folder) => {
-    const children = filterFolders(folder.children ?? [], visible)
-    return visible.has(folder.id) ? [{ ...folder, children }] : children
+    const children = filterFolders(folder.children ?? [], shared)
+    if (shared.has(folder.id)) return [{ ...folder, children }]
+    return children.length > 0
+      ? [{ id: folder.id, name: folder.name, children }]
+      : []
   })
 
 export const sharedAccessKey = (access?: EagleLibraryAccess) =>
@@ -32,7 +35,7 @@ export const projectSharedIndex = (
   index: EagleIndexState,
   access: EagleLibraryAccess,
 ): EagleIndexState => {
-  const visible = resolveSharedFolderIds(
+  const shared = resolveSharedFolderIds(
     index.libraryPath === access.libraryPath ? index.folders : [],
     access.grantedFolderIds,
     access.selectionVersion,
@@ -40,12 +43,13 @@ export const projectSharedIndex = (
   const items = new Map<string, EagleItemIndex>()
   for (const [id, item] of index.items) {
     if (item.isDeleted) continue
-    const folders = item.folders.filter((folderId) => visible.has(folderId))
+    // 导航祖先不属于共享授权，不能据此开放其直属文件或保留未授权归属。
+    const folders = item.folders.filter((folderId) => shared.has(folderId))
     if (folders.length > 0) items.set(id, { ...item, folders })
   }
   return {
     libraryPath: index.libraryPath,
-    folders: filterFolders(index.folders, visible),
+    folders: filterFolders(index.folders, shared),
     items,
   }
 }
