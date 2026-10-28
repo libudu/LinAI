@@ -47,9 +47,6 @@ jobs:
           }
           $manifest = Get-Content -Raw dist-template/runtime/easytier/manifest.json | ConvertFrom-Json
           $source = $manifest.correspondingSource.fileName
-          if (-not $source -or -not (Test-Path -LiteralPath $source -PathType Leaf)) {
-            Write-Error "未找到 EasyTier 对应源码附件: $source"
-            exit 1
-          }
-          Add-Content -LiteralPath release-notes.md -Value "`nEasyTier 对应源码：$source（与主包在本发布页免费提供，请维护附件可用性）。主包内 runtime/easytier/SOURCES.md 包含固定提交、修改和构建说明。"
-          gh release create "$version" --title "LinAI $version" --notes-file release-notes.md "$zip" "$source"
+          $sourceUrl = "https://github.com/${{ github.repository }}/blob/$version/release-resources/easytier/$source"
+          Add-Content -LiteralPath release-notes.md -Value "`nEasyTier 对应源码保存在项目目录：[查看并下载源码]($sourceUrl)。主包内 runtime/easytier/SOURCES.md 包含固定提交、修改和构建说明。"
+          gh release create "$version" --title "LinAI $version" --notes-file release-notes.md "$zip"

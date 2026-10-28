@@ -470,7 +470,7 @@ export function Interconnect() {
       </Modal>
       <Typography.Text type="secondary" className="text-xs">
         EasyTier 以独立进程运行，采用
-        LGPL-3.0；包内含版本、哈希、许可和构建说明，对应源码请从同一发布页的独立附件下载。
+        LGPL-3.0；包内含版本、哈希、许可和构建说明，对应源码保存在项目的 release-resources/easytier 目录，获取方式见包内 SOURCES.md。
       </Typography.Text>
     </div>
   )

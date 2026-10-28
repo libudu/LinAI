@@ -13,8 +13,8 @@ This does not restrict users' modification or reverse engineering rights under L
 - Fixed commit: `6487a5e4638ef9129909c062722142928645adaf`
 - Version: `2.7.0` development snapshot, independently compiled for LinAI.
 - This is NOT the v2.6.4 or v2.7.0 official Windows release binary.
-- Source archive: `EasyTier-2.7.0-linai.6487a5e-source.zip`, a separate download on the SAME
-  release page as the LinAI program archive. It is not included in the LinAI ZIP
+- Source archive: `EasyTier-2.7.0-linai.6487a5e-source.zip`, stored in the LinAI
+  repository under `release-resources/easytier/`. It is not included in the LinAI ZIP
   or required to run LinAI. It contains the modified upstream source,
   Cargo.lock, local build instructions and any necessary patches. Unused upstream
   precompiled DLL/SYS/LIB artifacts are excluded; no Npcap binary is redistributed.
@@ -32,7 +32,7 @@ The `build-portable.ps1` file accepts local source, portable Rust, GCC and proto
 directories. It also supplies Rust's own `libgcc_eh.a`, absent from w64devkit.
 Release LTO is disabled and codegen-units is 8. The only source patch changes
 `easytier-core/Cargo.toml` crate-type from `["rlib", "cdylib"]` to `["rlib"]`;
-the unused shared library is not built. The patched manifest is in the source attachment.
+the unused shared library is not built. The patched manifest is in the source archive.
 
 ```
 cargo +1.95.0 build --release --locked --no-default-features --features cli,smoltcp,tcp-hole-punch,aes-gcm,endpoint-discovery --package easytier --bin easytier-core --bin easytier-cli --target x86_64-pc-windows-gnu
@@ -65,27 +65,29 @@ source checkouts and Rust runtime license notices for redistribution and rebuild
 
 `manifest.json` records fixed source identity, build parameters and SHA-256 of all
 packaged runtime files in `files`. The application checks only those files before
-launching the core and CLI. `correspondingSource` records the separate attachment
+launching the core and CLI. `correspondingSource` records the repository source archive
 name, byte size and SHA-256, binding it to this exact core version and commit.
-The release script verifies both runtime files and the source attachment before
+The release script verifies both runtime files and the source archive before
 packaging. No core or source downloads occur at runtime.
 `watch-parent.ps1` is LinAI's small process cleanup helper, not part of EasyTier.
 No MCTier source or MCTier signaling implementation is included.
 
 ## Obtaining source and redistribution
 
-Open the release page from which you downloaded this LinAI program and download
-`EasyTier-2.7.0-linai.6487a5e-source.zip` from its attachments.
-The repository's release channel is https://github.com/libudu/LinAI/releases ;
-select the SAME LinAI release as your program, rather than assuming the latest
-release has matching source. If obtained from another distributor, use that
-distributor's same release/download page. Verify the attachment using
-`manifest.json` -> `correspondingSource` (SHA-256 and size).
+The corresponding source is kept in the LinAI project, not emitted by the build
+or uploaded as a Release attachment. Open https://github.com/libudu/LinAI and
+select the tag matching your LinAI release, then open:
 
-Publishers must upload this exact corresponding source attachment alongside the
-program on the same release page, provide equivalent download access at no
-further charge, and keep it available for as long as required when distributing
-the program (GPLv3 section 6(d), incorporated by LGPLv3). Publishing only the
-program ZIP or only an upstream link is insufficient. Both private and public
-LinAI packages use the same source attachment for this core. Preserve the source,
-dependency source, licenses and build instructions when redistributing.
+`release-resources/easytier/EasyTier-2.7.0-linai.6487a5e-source.zip`
+
+Use the file's download action to obtain the archive. The LinAI Release notes
+also link to this file at the matching tag. Verify it against `manifest.json` ->
+`correspondingSource` (SHA-256 and size). For a local checkout, the same path
+contains the archive directly. Both private and public builds use this source.
+
+When distributing the program, keep this exact source archive accessible at no
+further charge and provide clear directions alongside the program to its download
+location (GPLv3 section 6(d), incorporated by LGPLv3). Preserve the source,
+dependency source, licenses and build instructions. A local-only copy inaccessible
+to recipients does not provide source access; distributors using another repository
+or download site must provide an accessible source location for their recipients.

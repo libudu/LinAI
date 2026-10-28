@@ -191,7 +191,7 @@ src/client/pages/module/Eagle/
 - 系统登录、Eagle 管理与只读会话分离。原 HttpOnly / SameSite 的管理 Cookie 继续保护本机管理接口及人员/文件夹设置，按后端端口隔离。原设置中的远程地址及邀请码字段保留兼容，不再允许通过这些字段连接任意服务。
 - 媒体继续经请求方后端流式中转，支持 Range，只转发必要查询与请求头，返回 `no-store`。共享详情保留传输统计。存在已批准的来访共享时隐藏整理入口，请求方远程模式隐藏修改、删除及整理入口。
 
-`sharing.ts` 本地管理接口只负责 SSE/状态、审批、目录选择和校验；连接请求统一从互联模块发起。双方协议仅含 `request`、`session/heartbeat`、`session/close` 和白名单 `library/*`。共享端口不能访问本地管理、系统设置、其他模块或写库接口。EasyTier 对应源码作为同一发布页的独立免费附件提供，主包仅保留运行资源、许可和获取/构建说明；开发与发布运行时均不依赖源码归档。互联实现及发布约定见 `src/server/module/interconnect/README.md`。
+`sharing.ts` 本地管理接口只负责 SSE/状态、审批、目录选择和校验；连接请求统一从互联模块发起。双方协议仅含 `request`、`session/heartbeat`、`session/close` 和白名单 `library/*`。共享端口不能访问本地管理、系统设置、其他模块或写库接口。EasyTier 对应源码保留在项目的 `release-resources/easytier/`，构建不另行输出，发布不上传源码附件；主包仅保留运行资源、许可和获取/构建说明；开发与发布运行时均不依赖源码归档。互联实现及发布约定见 `src/server/module/interconnect/README.md`。
 
 ### 资源浏览
 

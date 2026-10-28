@@ -39,7 +39,7 @@ async function main() {
     if (hash !== actual) throw new Error(`EasyTier 发布资源校验失败：${name}`)
   }
 
-  // 对应源码单独发布；哈希将附件与清单中的固定核心版本绑定。
+  // 对应源码保留在项目中；只校验，不复制到构建输出或发布附件。
   const source = easytierManifest.correspondingSource
   if (
     !/^[a-f0-9]{40}$/.test(easytierManifest.commit) ||
@@ -48,14 +48,14 @@ async function main() {
     source?.fileName !== `EasyTier-${easytierManifest.version}-source.zip` ||
     !/^[a-f0-9]{64}$/.test(source.sha256)
   )
-    throw new Error('EasyTier 对应源码附件清单无效')
+    throw new Error('EasyTier 对应源码清单无效')
   const sourcePath = path.resolve('release-resources/easytier', source.fileName)
   const sourceContent = fs.readFileSync(sourcePath)
   if (
     sourceContent.length !== source.size ||
     createHash('sha256').update(sourceContent).digest('hex') !== source.sha256
   )
-    throw new Error('EasyTier 对应源码附件校验失败')
+    throw new Error('EasyTier 对应源码校验失败')
 
   // 0. 检查 git 状态与打 tag
   const skipTag = process.argv.includes('--skip-tag')
@@ -143,19 +143,54 @@ async function main() {
     const binaryName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
     const binaryPath = path.join(ffmpegDir, binaryName)
 
-    ffmpegFiles = [
+    // install.js 发现二进制已存在就直接退出，不会补齐曾经下载失败的附属文件。
+    // 仅补取同一 release 的说明/许可，不用 npm 包自身的 LICENSE 冒充二进制许可。
+    const ffmpegConfig = ffmpegPkg['ffmpeg-static']
+    const binaryRelease =
+      process.env[ffmpegConfig['binary-release-tag-env-var']] ||
+      ffmpegConfig['binary-release-tag']
+    const binariesUrl = (
+      process.env[ffmpegConfig['binaries-url-env-var']] ||
+      'https://github.com/eugeneware/ffmpeg-static/releases/download'
+    ).replace(/\/+$/, '')
+
+    for (const fileName of [
       binaryName,
       `${binaryName}.README`,
       `${binaryName}.LICENSE`,
-    ].map((fileName) => {
+    ]) {
       const sourcePath = path.join(ffmpegDir, fileName)
-      if (!fs.existsSync(sourcePath) || !fs.statSync(sourcePath).isFile()) {
-        throw new Error(
-          `本地 FFmpeg 文件不完整，请先用 pnpm 重新安装：${sourcePath}`,
-        )
+      const exists = fs.existsSync(sourcePath)
+      const stat = exists ? fs.statSync(sourcePath) : null
+      if (stat && !stat.isFile())
+        throw new Error(`本地 FFmpeg 资源不是文件：${sourcePath}`)
+      if (!stat || stat.size === 0) {
+        if (fileName !== binaryName) {
+          const extension = fileName.slice(binaryName.length)
+          const url = `${binariesUrl}/${binaryRelease}/${process.platform}-${process.arch}${extension}`
+          console.log(`📄 [Post-build] 补取 FFmpeg 配套文件：${fileName}`)
+          try {
+            const response = await fetch(url, {
+              signal: AbortSignal.timeout(30_000),
+            })
+            if (!response.ok) throw new Error(`HTTP ${response.status}`)
+            const content = Buffer.from(await response.arrayBuffer())
+            if (content.length === 0) throw new Error('下载内容为空')
+            fs.writeFileSync(sourcePath, content)
+          } catch (error) {
+            throw new Error(
+              `无法补齐 FFmpeg 配套文件 ${fileName}（${url}），请检查网络后重试。`,
+              { cause: error },
+            )
+          }
+        } else {
+          throw new Error(
+            `本地 FFmpeg 文件不完整，请先用 pnpm 重新安装：${sourcePath}`,
+          )
+        }
       }
-      return { sourcePath, fileName }
-    })
+      ffmpegFiles.push({ sourcePath, fileName })
+    }
 
     // 下载失败也可能留下非空但损坏的二进制，不能仅按文件是否存在判断。
     execFileSync(binaryPath, ['-version'], { timeout: 10_000, stdio: 'pipe' })
@@ -271,14 +306,9 @@ async function main() {
       },
     })
     fs.writeFileSync(zipName, content)
-    // private/public 使用同一份附件名和内容，不再次压缩源码 ZIP。
-    fs.writeFileSync(path.resolve(source.fileName), sourceContent)
     const sizeMB = (content.length / (1024 * 1024)).toFixed(2)
     console.log(
       `✅ [Post-build] Successfully created ${zipName} (大小: ${sizeMB} MB)`,
-    )
-    console.log(
-      `✅ [Post-build] 源码附件：${source.fileName}；必须与主包在同一发布页免费提供并维护可用性。`,
     )
   } catch (error) {
     console.error('❌ [Post-build] 打包压缩文件失败:', error)

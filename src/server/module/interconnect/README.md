@@ -24,9 +24,9 @@
 
 运行资源固定在 `dist-template/runtime/easytier/`，开发和发布启动仅校验清单 `files` 的 SHA-256。包内保留核心、CLI、许可、来源及修改/构建说明，不依赖运行时下载。
 
-对应源码输入位于 `release-resources/easytier/EasyTier-2.7.0-linai.6487a5e-source.zip`，包含修改后的固定提交源码、依赖 crate/git 源码及运行库许可；原始归档保持不变。运行时清单 `correspondingSource` 记录文件名、大小与 SHA-256，将外置源码与核心版本/提交关联；不参与启动文件校验。`post-build.ts` 在发布前验证两类文件，重建 `dist/runtime/easytier/` 清除旧源码归档，并在主 ZIP 同级复制独立源码附件；private/public 复用相同名称与字节内容，`dist` 与主 ZIP 都不含源码 ZIP。
+对应源码输入位于 `release-resources/easytier/EasyTier-2.7.0-linai.6487a5e-source.zip`，包含修改后的固定提交源码、依赖 crate/git 源码及运行库许可；原始归档保持不变。运行时清单 `correspondingSource` 记录文件名、大小与 SHA-256，将项目内源码与核心版本/提交关联；不参与启动文件校验。`post-build.ts` 在发布前验证两类文件，重建 `dist/runtime/easytier/` 清除旧源码归档，不再复制源码归档到仓库根目录，也不作为发布附件上传；private/public 复用项目内的同一份源码，`dist` 与主 ZIP 都不含源码 ZIP。
 
-仓库通过 https://github.com/libudu/LinAI/releases 发布；工作流同时上传主包和源码附件。手动发布或再分发也必须将二者放在同一发布页，按 GPLv3 6(d)（LGPLv3 引用）免费提供同等下载访问并维护可用性。包内 `SOURCES.md` 指引用户从其下载程序的同一发布页获取准确附件并按清单验哈希，不能仅提供上游源码链接。更新核心时必须同时更新对应源码、构建说明及清单，不可复用旧附件冒充新核心源码。
+仓库通过 https://github.com/libudu/LinAI/releases 发布；工作流仅上传主包，在发布说明中链接到同一 tag 下项目目录中的源码文件。包内 `SOURCES.md` 指引用户按 LinAI 版本 tag 查找项目内源码并按清单验哈希。按 GPLv3 6(d)（LGPLv3 引用），分发程序时仍需维持接收者可免费访问的对应源码位置及明确获取指引；仅保存在接收者无法访问的本地目录不足以提供源码。更新核心时必须同时更新对应源码、构建说明及清单，不可复用旧源码归档冒充新核心源码。
 
 禁止用官方 Windows ZIP 中的 Npcap `Packet.dll` 填充缺失依赖。官方 v2.6.4、v2.7.0 预发布和调研时 nightly 的 PE 导入表都存在该静态依赖；便携核心必须使用不含抓包/TUN 功能的独立裁剪成品。这里的核心版本以发布清单为准，不能按 main 文档推断旧版本能力。
 
