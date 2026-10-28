@@ -1,5 +1,4 @@
 import { HTTPException } from 'hono/http-exception'
-import { fetchRoomResource } from '../../interconnect/https'
 import { isSharedRead } from './protocol'
 import { getRemoteConnection, recordTransfer } from './service'
 
@@ -82,7 +81,7 @@ export async function proxySharedRead(path: string, request: Request) {
     controller.signal,
   ])
   try {
-    const response = await fetchRoomResource(url, session.certificate, {
+    const response = await session.transport.fetch(url, {
       headers,
       signal,
       redirect: 'error',

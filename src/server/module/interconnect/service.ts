@@ -18,7 +18,7 @@ import {
 import { findRoomGrant, issueRoomGrant, revokeRoomGrant } from './access'
 import { command, HOST_IP, invitationPeers, startCore, type Core } from './core'
 import { openSharingEntry } from './entry'
-import { fetchRoomResource } from './https'
+import { createRoomTransport, type RoomTransport } from './https'
 import {
   getMemberHistory,
   getMemberIdentity,
@@ -74,6 +74,7 @@ type Room = {
   entry?: Awaited<ReturnType<typeof openSharingEntry>>
   guests: Map<string, Member>
   invitation?: Invitation
+  transport?: RoomTransport
   identity?: MemberLogin
   activeMembers: Map<string, ActiveMember>
   participants: Participant[]
@@ -113,6 +114,7 @@ async function stop() {
   disconnectRemote()
   if (!current) return
   current.controller.abort()
+  current.transport?.close()
   current.entry?.server.closeAllConnections?.()
   current.entry?.server.close()
   await current.core.stop()
@@ -124,6 +126,7 @@ function watchRoom(current: Room) {
     if (room !== current) return
     current.error = current.core.output.message() || 'EasyTier 核心已退出'
     current.controller.abort()
+    current.transport?.close()
     current.activeMembers.clear()
     current.participants = []
     revokeRoomGrant()
@@ -206,6 +209,10 @@ export const joinRoom = (text: string, name: string) =>
       core,
       guests: new Map(),
       invitation,
+      transport: createRoomTransport(
+        `https://127.0.0.1:${core.forwardPort}`,
+        invitation.certificate,
+      ),
       identity: { ...identity, sessionId: randomUUID() },
       activeMembers: new Map(),
       participants: [],
@@ -355,12 +362,10 @@ const loginMember = (secret: string, identity: MemberLogin) =>
   })
 
 async function syncMember(current: Room) {
-  if (!current.invitation || !current.identity || !current.core.forwardPort)
-    return
+  if (!current.invitation || !current.identity || !current.transport) return
   try {
-    const response = await fetchRoomResource(
-      `https://127.0.0.1:${current.core.forwardPort}/api/interconnect/member/login`,
-      current.invitation.certificate,
+    const response = await current.transport.fetch(
+      '/api/interconnect/member/login',
       {
         method: 'POST',
         headers: {
@@ -532,6 +537,7 @@ export const selectRemoteLibrary = () =>
       current.role !== 'guest' ||
       current.error ||
       !current.invitation ||
+      !current.transport ||
       !current.core.forwardPort
     )
       fail('请先加入共享方的房间')
@@ -541,8 +547,7 @@ export const selectRemoteLibrary = () =>
     )
       fail('房间凭据已过期，请向房主索取新邀请')
     const result = await connectRemote({
-      url: `https://127.0.0.1:${current.core.forwardPort}`,
-      certificate: current.invitation.certificate,
+      transport: current.transport,
       invitationCode: current.invitation.eagleSecret,
     })
     const config = await settingsRegistry.get<EagleSettings>('eagle')

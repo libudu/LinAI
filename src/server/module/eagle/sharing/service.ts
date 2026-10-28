@@ -3,8 +3,8 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { changeBus } from '../../../common/storage/change-bus'
 import { findRoomGrant, hasRoomGrant } from '../../interconnect/access'
-import { fetchRoomResource } from '../../interconnect/https'
-import { refreshIndex } from '../library'
+import type { RoomTransport } from '../../interconnect/https'
+import { ensureLibraryReady } from '../library'
 import {
   getEagleFolderSharingSettings,
   getEagleSettings,
@@ -37,7 +37,7 @@ type Outgoing = Transfer & {
   id: string
   token: string
   url: string
-  certificate: string
+  transport: RoomTransport
   invitationCode: string
   state: State
   error: string
@@ -73,8 +73,7 @@ export function disconnectRemote() {
   session.controller.abort()
   if (session.token)
     void remoteJson(
-      session.url,
-      session.certificate,
+      session.transport,
       '/session/close',
       session.token,
       {},
@@ -103,31 +102,26 @@ export function normalizeRemoteUrl(input: string) {
 }
 
 async function remoteJson(
-  url: string,
-  certificate: string,
+  transport: RoomTransport,
   endpoint: string,
   token?: string,
   body?: object,
   signal?: AbortSignal,
   timeoutMs = 8000,
 ) {
-  const response = await fetchRoomResource(
-    `${url}/api/eagle/sharing${endpoint}`,
-    certificate,
-    {
-      method: 'POST',
-      redirect: 'error',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(body ?? {}),
-      signal: AbortSignal.any([
-        AbortSignal.timeout(timeoutMs),
-        ...(signal ? [signal] : []),
-      ]),
+  const response = await transport.fetch(`/api/eagle/sharing${endpoint}`, {
+    method: 'POST',
+    redirect: 'error',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-  )
+    body: JSON.stringify(body ?? {}),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(timeoutMs),
+      ...(signal ? [signal] : []),
+    ]),
+  })
   let json
   try {
     json = await response.json()
@@ -171,7 +165,7 @@ export async function requestSharing(
   if (!user) fail('邀请无效或权限组已删除')
   // 邀请已确定权限组，连接时直接准备只读资源库，无需房主再次审批。
   await validateLibraryDirectory(settings.libraryPath, false)
-  await refreshIndex()
+  await ensureLibraryReady()
   if (incoming.size >= 100) fail('共享连接数量已达上限，请稍后重试')
   const session: Incoming = {
     id: randomUUID(),
@@ -190,12 +184,13 @@ export async function requestSharing(
   incoming.set(session.token, session)
   try {
     // 加载资源库期间可能已经撤销邀请、删除权限组或切库。
-    await validIncoming(session.token)
+    // 在握手中提供权限版本，避免首次心跳补充版本时重复加载首屏。
+    const status = await heartbeatIncoming(session.token)
+    return { id: session.id, token: session.token, ...status }
   } catch (error) {
     terminate(session)
     throw error
   }
-  return { id: session.id, token: session.token, state: session.state }
 }
 
 async function validIncoming(token: string) {
@@ -272,17 +267,16 @@ function transferSnapshot(session: Transfer) {
 }
 
 export async function connectRemote(config: {
-  url: string
-  certificate: string
+  transport: RoomTransport
   invitationCode: string
 }) {
-  const url = normalizeRemoteUrl(config.url)
+  const url = normalizeRemoteUrl(config.transport.url)
   disconnectRemote()
   const session: Outgoing = {
     id: randomUUID(),
     token: '',
     url,
-    certificate: config.certificate,
+    transport: config.transport,
     invitationCode: config.invitationCode,
     state: 'connecting',
     error: '',
@@ -294,23 +288,26 @@ export async function connectRemote(config: {
   outgoing.set(CONNECTION, session)
   try {
     const result = await remoteJson(
-      url,
-      config.certificate,
+      config.transport,
       '/request',
       undefined,
       { invitationCode: config.invitationCode, instanceId },
       session.controller.signal,
       CONNECT_MS,
     )
-    if (!result.token || !result.id || result.state !== 'approved')
-      fail('目标 LinAI 返回了不兼容的共享连接响应，请确认双方已更新 LinAI')
+    if (
+      !result.token ||
+      !result.id ||
+      result.state !== 'approved' ||
+      result.permissionsRevision === undefined
+    )
+      fail('目标 LinAI 返回了无效的共享连接响应')
     if (
       outgoing.get(CONNECTION) !== session ||
       session.controller.signal.aborted
     ) {
       void remoteJson(
-        url,
-        config.certificate,
+        config.transport,
         '/session/close',
         result.token,
         {},
@@ -318,6 +315,7 @@ export async function connectRemote(config: {
       fail('共享连接已取消')
     }
     session.token = result.token
+    session.permissionsRevision = result.permissionsRevision
     session.state = 'approved'
     return { id: session.id }
   } catch (error) {
@@ -380,8 +378,7 @@ const timer = setInterval(() => {
       continue
     session.checking = true
     void remoteJson(
-      session.url,
-      session.certificate,
+      session.transport,
       '/session/heartbeat',
       session.token,
       {},
@@ -389,7 +386,8 @@ const timer = setInterval(() => {
     )
       .then((result) => {
         if (session.controller.signal.aborted) return
-        if (!result.state) fail('目标 LinAI 返回了无效的共享连接状态')
+        if (!result.state || result.permissionsRevision === undefined)
+          fail('目标 LinAI 返回了无效的共享连接状态')
         session.state = result.state
         session.permissionsRevision = result.permissionsRevision
         if (result.state === 'closed') session.error = '共享连接已终止'

@@ -29,7 +29,13 @@
     // 基线对齐还原行内布局下图标底边贴文字基线的视觉效果，center 会让图标略微下沉
     display: flex;
     align-items: baseline;
+    // 允许节点按剩余空间收缩，长名称在标题内省略，避免把共享开关挤出右侧
+    min-width: 0;
     font-size: 16px;
+
+    .ant-tree-iconEle {
+      flex-shrink: 0;
+    }
 
     // 标题占满节点剩余宽度，让右键菜单触发区覆盖整行 hover 变灰区域
     .ant-tree-title {

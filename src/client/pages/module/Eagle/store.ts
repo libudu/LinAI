@@ -25,6 +25,7 @@ import {
   type EagleImageSize,
 } from './preferences'
 import { useEagleConfig } from './settings/useEagleConfig'
+import { useEagleSharing } from './sharing/store'
 export type { EagleImageSize } from './preferences'
 
 export const PAGE_SIZE = 100
@@ -36,6 +37,17 @@ const hasFolder = (folders: EagleFolder[], folderId: string): boolean => {
     return useEagleConfig.getState().libraryMode === 'local'
   }
   return findFolder(folders, folderId) !== null
+}
+
+/** 按实际库与共享会话隔离请求，旧库的响应不能覆盖切库、重连后的数据。 */
+const libraryScope = () => {
+  const { libraryMode, libraryPath } = useEagleConfig.getState()
+  const { outgoing, connected } = useEagleSharing.getState()
+  return JSON.stringify(
+    libraryMode === 'local'
+      ? [libraryMode, libraryPath]
+      : [libraryMode, outgoing?.id, outgoing?.state, connected],
+  )
 }
 
 // Eagle 图片管理页面状态：文件夹树 + 当前文件夹的资源列表（分批加载）
@@ -104,8 +116,10 @@ export const useEagleStore = create<EagleState>()((set, get) => {
   let pageSequence = 0
   let foldersSequence = 0
   let requestedPage = 1
+  let initialization: { key: string; promise: Promise<void> } | null = null
   const loadPage = async (page: number, options?: { silent?: boolean }) => {
     const sequence = ++pageSequence
+    const scope = libraryScope()
     requestedPage = page
     const {
       currentFolderId,
@@ -129,7 +143,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
         offset: (page - 1) * PAGE_SIZE,
         limit: PAGE_SIZE,
       })
-      if (sequence !== pageSequence) return false
+      if (sequence !== pageSequence || scope !== libraryScope()) return false
       set({ items: resp.items, total: resp.total, page })
       // 搜索结果总数用于工具栏与分页，不覆盖文件夹树的完整计数。
       if (!keyword) {
@@ -141,7 +155,7 @@ export const useEagleStore = create<EagleState>()((set, get) => {
       }
       return true
     } finally {
-      if (sequence === pageSequence) {
+      if (sequence === pageSequence && scope === libraryScope()) {
         set({ listLoading: false })
       }
     }
@@ -149,15 +163,17 @@ export const useEagleStore = create<EagleState>()((set, get) => {
 
   const loadFolders = async () => {
     const sequence = ++foldersSequence
+    const scope = libraryScope()
     const { mediaType } = get()
     set({ foldersLoading: true })
     try {
       const overview = await fetchEagleOverview(mediaType)
-      if (sequence !== foldersSequence) return null
+      if (sequence !== foldersSequence || scope !== libraryScope()) return null
       set(overview)
       return overview.folders
     } finally {
-      if (sequence === foldersSequence) set({ foldersLoading: false })
+      if (sequence === foldersSequence && scope === libraryScope())
+        set({ foldersLoading: false })
     }
   }
 
@@ -179,15 +195,54 @@ export const useEagleStore = create<EagleState>()((set, get) => {
     ...loadSort(),
     ...loadViewOptions(),
 
-    init: async () => {
-      const folders = await loadFolders()
-      if (!folders) return
-      const currentFolderId = get().currentFolderId
-      if (currentFolderId && !hasFolder(folders, currentFolderId)) {
-        persistSelectedFolderId(get().mediaType, '')
-        set({ currentFolderId: '' })
+    init: () => {
+      const scope = libraryScope()
+      const { mediaType, currentFolderId } = get()
+      const key = JSON.stringify([
+        scope,
+        mediaType,
+        useEagleSharing.getState().outgoing?.permissionsRevision,
+      ])
+      // 重复挂载和同一轮配置同步复用正在进行的初始化。
+      if (initialization?.key === key) return initialization.promise
+      const initialize = async () => {
+        set({
+          folders: [],
+          items: [],
+          total: 0,
+          page: 1,
+          allTotal: 0,
+          unclassifiedTotal: 0,
+          trashTotal: 0,
+          trashSize: 0,
+        })
+        // 先并行加载首屏；仅记忆目录失效时，补拉「全部」而不阻塞正常路径。
+        const foldersRequest = loadFolders()
+        const pageRequest = loadPage(1)
+        const sequence = pageSequence
+        const [folders, pageApplied] = await Promise.all([
+          foldersRequest,
+          pageRequest,
+        ])
+        if (
+          !folders ||
+          !pageApplied ||
+          sequence !== pageSequence ||
+          scope !== libraryScope() ||
+          get().currentFolderId !== currentFolderId
+        )
+          return
+        if (currentFolderId && !hasFolder(folders, currentFolderId)) {
+          persistSelectedFolderId(mediaType, '')
+          set({ currentFolderId: '', items: [], total: 0 })
+          await loadPage(1)
+        }
       }
-      await loadPage(1)
+      const promise = initialize().finally(() => {
+        if (initialization?.promise === promise) initialization = null
+      })
+      initialization = { key, promise }
+      return promise
     },
 
     selectFolder: async (folderId) => {

@@ -42,7 +42,13 @@ export function Eagle() {
   useEffect(() => {
     if (libraryMode === 'remote' && remoteConnected)
       void init().catch(console.error)
-  }, [libraryMode, remoteConnected, outgoing?.permissionsRevision, init])
+  }, [
+    libraryMode,
+    remoteConnected,
+    outgoing?.id,
+    outgoing?.permissionsRevision,
+    init,
+  ])
 
   useEffect(() => {
     if (libraryMode !== 'local') return

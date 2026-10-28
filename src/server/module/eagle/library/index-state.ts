@@ -1,4 +1,5 @@
 /** 内部索引生命周期：协调缓存恢复、增量扫描与手动刷新。 */
+import { resourceLock } from '../../../common/storage/resource-lock'
 import { EagleChangeJournal } from '../change-journal'
 import { getEagleSettings } from '../settings'
 import { flushMtime, reloadMtime } from './mtime-state'
@@ -11,11 +12,13 @@ import type { EagleIndexState } from './types'
 export const libraryChanges = new EagleChangeJournal()
 
 let state: EagleIndexState | null = null
+let readyLibraryPath: string | null = null
 let loadingPromise: Promise<void> | null = null
 export const indexCache = new IndexShardCache(() => state)
 
 const syncIndex = async (libraryPath: string) => {
   const startedAt = indexNow()
+  readyLibraryPath = null
   const mtimeMap = await reloadMtime(libraryPath)
   console.log(
     `[Eagle] 修改指纹读取：${indexElapsed(startedAt)}，${mtimeMap ? Object.keys(mtimeMap).length : 0} 条${mtimeMap ? '' : '（缺失或损坏，使用本地校验）'}`,
@@ -24,6 +27,7 @@ const syncIndex = async (libraryPath: string) => {
     const scanned = await scanIndex(libraryPath, state, mtimeMap)
     state = scanned.index
     indexCache.markDirty(scanned.cacheChangedIds)
+    readyLibraryPath = libraryPath
   } finally {
     // 扫描会原地修改索引；失败后的部分变更也不能继续命中旧查询缓存。
     libraryChanges.reset()
@@ -33,6 +37,7 @@ const syncIndex = async (libraryPath: string) => {
 const initialLoad = async (libraryPath: string | null) => {
   if (!libraryPath) {
     state = null
+    readyLibraryPath = null
     libraryChanges.reset()
     return
   }
@@ -67,16 +72,22 @@ export const ensureIndex = async (): Promise<EagleIndexState | null> => {
   return state
 }
 
-/** 手动刷新重新读取磁盘 mtime，同时保留尚未落盘的本应用改动。 */
-export const refreshIndex = async (): Promise<void> => {
+const prepareIndex = async (forceRefresh: boolean): Promise<void> => {
   const startedAt = indexNow()
   await ensureIndex()
   const libraryPath = (await getEagleSettings()).libraryPath || null
+  if (
+    !forceRefresh &&
+    state?.libraryPath === libraryPath &&
+    readyLibraryPath === libraryPath
+  )
+    return
   if (!libraryPath) {
     const clear = async () => {
       await indexCache.flush()
       await flushMtime()
       state = null
+      readyLibraryPath = null
       libraryChanges.reset()
       loadingPromise = null
     }
@@ -101,5 +112,14 @@ export const refreshIndex = async (): Promise<void> => {
   if (state && state.libraryPath !== libraryPath)
     await withLibraryLock(state.libraryPath, refresh)
   else await refresh()
-  console.log(`[Eagle] 手动刷新完成：${indexElapsed(startedAt)}`)
+  if (forceRefresh)
+    console.log(`[Eagle] 手动刷新完成：${indexElapsed(startedAt)}`)
 }
+
+/** 连接共享库只等待首次校验或切库，复用已经就绪的内存索引。 */
+export const ensureLibraryReady = (): Promise<void> =>
+  resourceLock.run('eagle.index', () => prepareIndex(false))
+
+/** 手动刷新重新读取磁盘 mtime，同时保留尚未落盘的本应用改动。 */
+export const refreshIndex = (): Promise<void> =>
+  resourceLock.run('eagle.index', () => prepareIndex(true))

@@ -1,6 +1,6 @@
 /** Eagle 公共业务门面；可变索引、扫描工具与缓存脏标记仅在 library 内部使用。 */
 export { convertHeifItem, getConversionCandidates } from './conversion'
-export { refreshIndex } from './index-state'
+export { ensureLibraryReady, refreshIndex } from './index-state'
 export { saveItemMediaEdits } from './media-edit'
 export {
   cancelMediaEditSaveJob,
