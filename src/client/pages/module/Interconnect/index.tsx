@@ -180,6 +180,131 @@ export function Interconnect() {
       message.success('已切换为房主的远程资源库')
       navigate('/eagle')
     })
+  const permissionGroups = (
+    <>
+      <div className="mb-5 flex flex-wrap items-center justify-end gap-3">
+        {room?.role === 'host' && (
+          <h3 className="m-0 mr-auto flex items-center gap-2 font-medium text-slate-800">
+            <TeamOutlined className="app-accent-text" />
+            邀请
+          </h3>
+        )}
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          disabled={busy || !status}
+          onClick={() => setMember({ name: '' })}
+        >
+          添加权限组
+        </Button>
+      </div>
+      <Table<RoomStatus['members'][number]>
+        rowKey="id"
+        size="middle"
+        pagination={false}
+        dataSource={status?.members ?? []}
+        loading={!status && !error}
+        scroll={{ x: 650 }}
+        expandable={{
+          rowExpandable: (entry) => entry.history.length > 0,
+          expandedRowRender: (entry) => (
+            <Table
+              rowKey="id"
+              size="small"
+              pagination={false}
+              dataSource={entry.history}
+              scroll={{ x: 650 }}
+              columns={[
+                {
+                  title: '名称',
+                  dataIndex: 'name',
+                  ellipsis: true,
+                  width: 120,
+                },
+                {
+                  title: '用户标识',
+                  dataIndex: 'id',
+                  ellipsis: true,
+                  width: 240,
+                },
+                {
+                  title: '虚拟 IP',
+                  dataIndex: 'address',
+                  width: 130,
+                },
+                {
+                  title: '上次登录时间',
+                  dataIndex: 'lastLoginAt',
+                  width: 180,
+                  render: (value: number) => new Date(value).toLocaleString(),
+                },
+              ]}
+            />
+          ),
+        }}
+        columns={[
+          { title: '名称', dataIndex: 'name', ellipsis: true },
+          {
+            title: '操作',
+            width: 300,
+            render: (_, entry) => (
+              <Space wrap size={4}>
+                <Button
+                  type="link"
+                  size="small"
+                  disabled={busy || !room || room.state === 'error'}
+                  onClick={() =>
+                    act(async () => {
+                      setIssued(await inviteMember(entry.id))
+                    })
+                  }
+                >
+                  生成邀请
+                </Button>
+                <Button
+                  type="link"
+                  size="small"
+                  disabled={busy}
+                  onClick={() => setMember({ id: entry.id, name: entry.name })}
+                >
+                  改名
+                </Button>
+                {entry.invited && (
+                  <Button
+                    type="link"
+                    size="small"
+                    danger
+                    disabled={busy}
+                    onClick={() =>
+                      act(async () => {
+                        await revokeMember(entry.id)
+                        setIssued(null)
+                      })
+                    }
+                  >
+                    撤销
+                  </Button>
+                )}
+                <Popconfirm
+                  title="删除此权限组并撤销连接？已有文件夹授权记录会保留。"
+                  onConfirm={() =>
+                    act(async () => {
+                      await deleteMember(entry.id)
+                      setIssued(null)
+                    })
+                  }
+                >
+                  <Button type="link" size="small" danger disabled={busy}>
+                    删除
+                  </Button>
+                </Popconfirm>
+              </Space>
+            ),
+          },
+        ]}
+      />
+    </>
+  )
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       {error && (
@@ -221,15 +346,6 @@ export function Interconnect() {
                 )}
               </div>
               <Space wrap>
-                {room.role === 'host' && (
-                  <Button
-                    icon={<TeamOutlined />}
-                    disabled={busy || !status}
-                    onClick={() => setGroupsOpen(true)}
-                  >
-                    邀请
-                  </Button>
-                )}
                 <Popconfirm
                   title={
                     room.role === 'host'
@@ -294,6 +410,38 @@ export function Interconnect() {
               <Alert type="warning" showIcon title={room.memberError} />
             )}
           </div>
+          {room.role === 'host' && (
+            <div className="border-t border-slate-100 p-5 sm:p-6">
+              {permissionGroups}
+              {issued && (
+                <div className="mt-5">
+                  <p className="mt-0 mb-4 leading-relaxed">
+                    此邀请仅交给使用此权限组的成员；重新生成会撤销该权限组的旧邀请和共享连接。
+                  </p>
+                  <Input.TextArea
+                    rows={5}
+                    aria-label="完整房间邀请"
+                    value={issued.invitation}
+                    readOnly
+                  />
+                  <div className="mt-5 flex justify-end">
+                    <Button
+                      type="primary"
+                      icon={<CopyOutlined />}
+                      onClick={async () => {
+                        if (!issued) return
+                        if (await copy(issued.invitation))
+                          message.success('邀请已复制')
+                        else message.error('复制失败，请手动选择邀请文本复制')
+                      }}
+                    >
+                      复制完整邀请
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           {room.participants.length > 0 && (
             <div className="border-t border-slate-100 p-5 sm:p-6">
               <h3 className="m-0 mb-4 flex items-center gap-2 font-medium text-slate-800">
@@ -414,6 +562,7 @@ export function Interconnect() {
                   if (entryMode === 'create') {
                     if (!name.trim()) return
                     await createRoom(name.trim(), memberName.trim())
+                    setGroupsOpen(false)
                   } else {
                     if (!invitation.trim()) return
                     await joinRoom(invitation, memberName.trim())
@@ -520,7 +669,7 @@ export function Interconnect() {
           {error && <Alert type="error" showIcon title={error} />}
         </Modal>
       )}
-      {room?.role !== 'guest' && (
+      {!room && (
         <Modal
           title="编辑权限组"
           open={groupsOpen}
@@ -534,192 +683,59 @@ export function Interconnect() {
           {error && (
             <Alert className="mb-3" type="error" showIcon title={error} />
           )}
-          <div className="mb-5 flex justify-end">
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              disabled={busy || !status}
-              onClick={() => setMember({ name: '' })}
-            >
-              添加权限组
-            </Button>
-          </div>
-          <Table<RoomStatus['members'][number]>
-            rowKey="id"
-            size="middle"
-            pagination={false}
-            dataSource={status?.members ?? []}
-            loading={!status && !error}
-            scroll={{ x: 800 }}
-            expandable={{
-              rowExpandable: (entry) => entry.history.length > 0,
-              expandedRowRender: (entry) => (
-                <Table
-                  rowKey="id"
-                  size="small"
-                  pagination={false}
-                  dataSource={entry.history}
-                  scroll={{ x: 650 }}
-                  columns={[
-                    {
-                      title: '名称',
-                      dataIndex: 'name',
-                      ellipsis: true,
-                      width: 120,
-                    },
-                    {
-                      title: '用户标识',
-                      dataIndex: 'id',
-                      ellipsis: true,
-                      width: 240,
-                    },
-                    {
-                      title: '虚拟 IP',
-                      dataIndex: 'address',
-                      width: 130,
-                    },
-                    {
-                      title: '上次登录时间',
-                      dataIndex: 'lastLoginAt',
-                      width: 180,
-                      render: (value: number) =>
-                        new Date(value).toLocaleString(),
-                    },
-                  ]}
-                />
-              ),
-            }}
-            columns={[
-              { title: '名称', dataIndex: 'name', ellipsis: true },
-              {
-                title: '状态',
-                render: (_, entry) =>
-                  entry.online ? (
-                    <Tag className="!m-0" bordered={false} color="green">
-                      在线
-                      {entry.sharing === 'approved' ? ' · Eagle 共享中' : ''}
-                    </Tag>
-                  ) : entry.invited ? (
-                    '已邀请'
-                  ) : (
-                    '未邀请'
-                  ),
-              },
-              {
-                title: '连接方式',
-                render: (_, entry) =>
-                  entry.online ? (
-                    <ConnectionTag mode={entry.connection} />
-                  ) : (
-                    '—'
-                  ),
-              },
-              {
-                title: '操作',
-                width: 300,
-                render: (_, entry) => (
-                  <Space wrap size={4}>
-                    <Button
-                      type="link"
-                      size="small"
-                      disabled={busy || !room || room.state === 'error'}
-                      onClick={() =>
-                        act(async () => {
-                          setIssued(await inviteMember(entry.id))
-                        })
-                      }
-                    >
-                      生成邀请
-                    </Button>
-                    <Button
-                      type="link"
-                      size="small"
-                      disabled={busy}
-                      onClick={() =>
-                        setMember({ id: entry.id, name: entry.name })
-                      }
-                    >
-                      改名
-                    </Button>
-                    {entry.invited && (
-                      <Button
-                        type="link"
-                        size="small"
-                        danger
-                        disabled={busy}
-                        onClick={() =>
-                          act(async () => {
-                            await revokeMember(entry.id)
-                            setIssued(null)
-                          })
-                        }
-                      >
-                        撤销
-                      </Button>
-                    )}
-                    <Popconfirm
-                      title="删除此权限组并撤销连接？已有文件夹授权记录会保留。"
-                      onConfirm={() => act(() => deleteMember(entry.id))}
-                    >
-                      <Button type="link" size="small" danger disabled={busy}>
-                        删除
-                      </Button>
-                    </Popconfirm>
-                  </Space>
-                ),
-              },
-            ]}
-          />
+          {permissionGroups}
         </Modal>
       )}
-      <details className="group rounded-xl border border-slate-200 bg-white">
-        <summary className="flex cursor-pointer list-none items-center justify-between rounded-xl px-5 py-4 font-medium text-slate-600 transition-colors hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)] [&::-webkit-details-marker]:hidden">
-          <span className="flex items-center gap-2">
-            <SettingOutlined className="text-slate-400" />
-            高级设置
-          </span>
-          <DownOutlined className="text-xs text-slate-400 transition-transform group-open:rotate-180" />
-        </summary>
-        <div className="space-y-4 border-t border-slate-100 p-5 sm:p-6">
-          <div className="space-y-2">
-            <label className="block" htmlFor="interconnect-peers">
-              连接服务器
-            </label>
-            <Input.TextArea
-              id="interconnect-peers"
-              rows={3}
-              value={peers}
-              onChange={(event) => setPeers(event.target.value)}
-              disabled={busy || revision === null}
-            />
+      {!room && (
+        <details className="group rounded-xl border border-slate-200 bg-white">
+          <summary className="flex cursor-pointer list-none items-center justify-between rounded-xl px-5 py-4 font-medium text-slate-600 transition-colors hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)] [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center gap-2">
+              <SettingOutlined className="text-slate-400" />
+              高级设置
+            </span>
+            <DownOutlined className="text-xs text-slate-400 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="space-y-4 border-t border-slate-100 p-5 sm:p-6">
+            <div className="space-y-2">
+              <label className="block" htmlFor="interconnect-peers">
+                连接服务器
+              </label>
+              <Input.TextArea
+                id="interconnect-peers"
+                rows={3}
+                value={peers}
+                onChange={(event) => setPeers(event.target.value)}
+                disabled={busy || revision === null}
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button
+                icon={<SaveOutlined />}
+                disabled={busy || revision === null}
+                onClick={() =>
+                  act(async () => {
+                    if (revision === null) return
+                    const snapshot = await settings.put(
+                      {
+                        peers: peers
+                          .split(/\r?\n/)
+                          .map((peer) => peer.trim())
+                          .filter(Boolean),
+                      },
+                      revision,
+                    )
+                    setPeers(snapshot.value.peers.join('\n'))
+                    setRevision(snapshot.revision)
+                    message.success('节点配置已保存')
+                  })
+                }
+              >
+                保存节点配置
+              </Button>
+            </div>
           </div>
-          <div className="flex justify-end">
-            <Button
-              icon={<SaveOutlined />}
-              disabled={busy || revision === null}
-              onClick={() =>
-                act(async () => {
-                  if (revision === null) return
-                  const snapshot = await settings.put(
-                    {
-                      peers: peers
-                        .split(/\r?\n/)
-                        .map((peer) => peer.trim())
-                        .filter(Boolean),
-                    },
-                    revision,
-                  )
-                  setPeers(snapshot.value.peers.join('\n'))
-                  setRevision(snapshot.revision)
-                  message.success('节点配置已保存')
-                })
-              }
-            >
-              保存节点配置
-            </Button>
-          </div>
-        </div>
-      </details>
+        </details>
+      )}
       <Modal
         open={member !== null}
         title={member?.id ? '修改权限组名称' : '添加权限组'}
@@ -752,36 +768,6 @@ export function Interconnect() {
             )
           }
         />
-      </Modal>
-      <Modal
-        open={issued !== null}
-        title="房间邀请"
-        footer={null}
-        styles={{ body: { paddingTop: 20 } }}
-        onCancel={() => setIssued(null)}
-      >
-        <p className="mt-0 mb-4 leading-relaxed">
-          此邀请仅交给使用此权限组的成员；重新生成会撤销该权限组的旧邀请和共享连接。
-        </p>
-        <Input.TextArea
-          rows={5}
-          aria-label="完整房间邀请"
-          value={issued?.invitation ?? ''}
-          readOnly
-        />
-        <div className="mt-5 flex justify-end">
-          <Button
-            type="primary"
-            icon={<CopyOutlined />}
-            onClick={async () => {
-              if (!issued) return
-              if (await copy(issued.invitation)) message.success('邀请已复制')
-              else message.error('复制失败，请手动选择邀请文本复制')
-            }}
-          >
-            复制完整邀请
-          </Button>
-        </div>
       </Modal>
     </div>
   )
