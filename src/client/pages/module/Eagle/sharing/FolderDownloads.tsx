@@ -1,11 +1,22 @@
 import type { EagleFolder } from '@/shared/eagle/types'
 import {
   CheckCircleFilled,
+  ClockCircleOutlined,
   DownloadOutlined,
   SyncOutlined,
 } from '@ant-design/icons'
-import { Alert, Button, Descriptions, Form, Modal, Spin, message } from 'antd'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  Alert,
+  Button,
+  Descriptions,
+  Form,
+  Modal,
+  Spin,
+  Switch,
+  message,
+} from 'antd'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useShallow } from 'zustand/shallow'
 import { DirectoryPicker } from '../SettingModal/DirectoryPicker'
 import { formatFileSize } from '../components/formatFileSize'
 import { RefreshQueue } from '../refreshQueue'
@@ -32,9 +43,25 @@ export function useFolderDownloads(folders: EagleFolder[]) {
   const progress = useEagleSharing((state) =>
     state.downloads.map((task) => `${task.id}:${task.state}`).join('|'),
   )
+  const pendingFolderIds = useEagleSharing(
+    useShallow((state) =>
+      state.downloads
+        .filter(
+          (task) =>
+            task.connectionId === state.outgoing?.id &&
+            (task.state === 'queued' || task.state === 'running'),
+        )
+        .map((task) => task.folderId),
+    ),
+  )
+  const pendingFolders = useMemo(
+    () => new Set(pendingFolderIds),
+    [pendingFolderIds],
+  )
   const [statuses, setStatuses] = useState<Statuses>({})
   const [selected, setSelected] = useState<EagleFolder | null>(null)
   const [plan, setPlan] = useState<Plan | null>(null)
+  const [syncExisting, setSyncExisting] = useState(true)
   const [directory, setDirectory] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -54,6 +81,10 @@ export function useFolderDownloads(folders: EagleFolder[]) {
     setBusy(false)
   }, [connectionId, remote])
   useEffect(() => {
+    // 只有连接、权限或本地库改变时清空；普通刷新保留已确认的状态。
+    setStatuses({})
+  }, [remote, connected, connectionId, permissionsRevision, libraryPath])
+  useEffect(() => {
     let active = true
     refreshStatuses.current = async () => {
       if (!active || !remote || !connected) return
@@ -62,10 +93,9 @@ export function useFolderDownloads(folders: EagleFolder[]) {
         if (active && result.connectionId === connectionId)
           setStatuses(result.folders)
       } catch {
-        if (active) setStatuses({})
+        // 暂时读取失败时保留当前状态，避免已完成图标退回下载图标。
       }
     }
-    setStatuses({})
     if (!remote || !connected) {
       return () => {
         active = false
@@ -108,24 +138,29 @@ export function useFolderDownloads(folders: EagleFolder[]) {
   }, [])
   const select = useCallback(
     (folder: EagleFolder) => {
+      if (!connected || pendingFolders.has(folder.id)) return
       setSelected(folder)
       setDirectory(useEagleConfig.getState().defaultLibraryPath)
       setError('')
       setPlan(null)
+      setSyncExisting(true)
       if (useEagleConfig.getState().libraryPath) void loadPlan(folder)
     },
-    [loadPlan],
+    [connected, pendingFolders, loadPlan],
   )
   const renderButton = useCallback(
     (folder: EagleFolder) => {
       if (!remote) return null
       const status = statuses[folder.id]
+      const pending = pendingFolders.has(folder.id)
       const done = Boolean(status && status.download === 0 && status.sync === 0)
-      const title = done
-        ? '同步完成'
-        : status?.download === 0
-          ? '同步文件夹'
-          : '下载文件夹'
+      const title = pending
+        ? '已加入下载队列'
+        : done
+          ? '同步完成'
+          : status?.download === 0
+            ? '同步文件夹'
+            : '下载文件夹'
       return (
         <span
           className="shrink-0"
@@ -138,9 +173,11 @@ export function useFolderDownloads(folders: EagleFolder[]) {
             size="small"
             title={title}
             aria-label={`${folder.name}：${title}`}
-            disabled={done || !connected}
+            disabled={pending || done || !connected}
             icon={
-              done ? (
+              pending ? (
+                <ClockCircleOutlined />
+              ) : done ? (
                 <CheckCircleFilled style={{ color: '#52c41a' }} />
               ) : status?.download === 0 ? (
                 <SyncOutlined />
@@ -153,7 +190,7 @@ export function useFolderDownloads(folders: EagleFolder[]) {
         </span>
       )
     },
-    [remote, statuses, connected, select],
+    [remote, statuses, pendingFolders, connected, select],
   )
   const close = () => {
     request.current++
@@ -163,9 +200,13 @@ export function useFolderDownloads(folders: EagleFolder[]) {
     setBusy(false)
   }
   const configure = Boolean(selected && !libraryPath)
+  const hasWork = Boolean(
+    plan && (plan.download > 0 || (syncExisting && plan.sync > 0)),
+  )
   const modal = (
     <Modal
       open={Boolean(selected)}
+      width={460}
       title={configure ? '配置本地资源库' : '资源下载'}
       onCancel={close}
       confirmLoading={busy}
@@ -174,12 +215,18 @@ export function useFolderDownloads(folders: EagleFolder[]) {
       okButtonProps={{
         disabled:
           !connected ||
-          (configure
-            ? !directory.trim()
-            : !plan || plan.download + plan.sync === 0),
+          Boolean(selected && pendingFolders.has(selected.id)) ||
+          (configure ? !directory.trim() : !hasWork),
       }}
       onOk={async () => {
-        if (!selected) return
+        if (
+          !selected ||
+          busy ||
+          !connected ||
+          pendingFolders.has(selected.id) ||
+          (!configure && !hasWork)
+        )
+          return
         const version = ++request.current
         setBusy(true)
         setError('')
@@ -188,7 +235,16 @@ export function useFolderDownloads(folders: EagleFolder[]) {
             await setEagleConfig({ libraryPath: directory.trim() })
             if (request.current === version) await loadPlan(selected)
           } else if (plan) {
-            await startFolderDownload(plan.id)
+            const task = await startFolderDownload(plan.id, syncExisting)
+            // 立即显示等待状态，不必等下一次 SSE；已有的更新快照优先。
+            useEagleSharing.setState((state) => {
+              if (
+                state.outgoing?.id !== task.connectionId ||
+                state.downloads.some((entry) => entry.id === task.id)
+              )
+                return state
+              return { downloads: [...state.downloads, task] }
+            })
             if (request.current === version) {
               close()
               setRefresh((value) => value + 1)
@@ -227,19 +283,37 @@ export function useFolderDownloads(folders: EagleFolder[]) {
           <Descriptions
             column={1}
             items={[
-              { key: 'folder', label: '目标目录', children: plan.folder },
-              ...(plan.download > 0
-                ? [
-                    {
-                      key: 'download',
-                      label: '需要下载',
-                      children: plan.download,
-                    },
-                  ]
-                : []),
-              ...(plan.sync > 0
-                ? [{ key: 'sync', label: '需要同步', children: plan.sync }]
-                : []),
+              {
+                key: 'folder',
+                label: '目标目录',
+                children: <span className="break-all">{plan.folder}</span>,
+              },
+              {
+                key: 'download',
+                label: '下载数量',
+                children: plan.download,
+              },
+              {
+                key: 'sync',
+                label: '同步数量',
+                children: (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        size="small"
+                        checked={syncExisting}
+                        onChange={setSyncExisting}
+                        disabled={busy}
+                        aria-label="同步本地已有资源"
+                      />
+                      <span>{plan.sync}</span>
+                    </div>
+                    <div className="text-xs text-red-500">
+                      同步将把本地已有的远程资源库中的文件挪到该目录下以保持一致
+                    </div>
+                  </div>
+                ),
+              },
               {
                 key: 'bytes',
                 label: '预计大小',

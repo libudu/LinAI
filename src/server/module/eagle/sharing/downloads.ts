@@ -17,7 +17,7 @@ import {
   type DownloadManifest,
 } from '../library'
 import { getEagleSettings } from '../settings'
-import { downloadTasks as tasks } from './download-state'
+import { downloadSnapshot, downloadTasks as tasks } from './download-state'
 import { getRemoteConnection, recordTransfer } from './service'
 
 type Session = Awaited<ReturnType<typeof getRemoteConnection>>
@@ -35,6 +35,22 @@ const plans = new Map<
     permissionsRevision: number | undefined
   }
 >()
+
+function assertNoActiveFolderDownload(session: Session, folderId: string) {
+  if (
+    tasks.some(
+      (task) =>
+        task.connectionId === session.id &&
+        task.folderId === folderId &&
+        (task.state === 'queued' || task.state === 'running'),
+    )
+  )
+    throw new EagleError(
+      'DUPLICATE_DOWNLOAD_TASK',
+      409,
+      '此文件夹已在下载队列中，请等待当前任务结束',
+    )
+}
 
 async function remoteResponse(
   session: Session,
@@ -231,6 +247,7 @@ export async function getFolderDownloadStatuses() {
 
 export async function prepareFolderDownload(folderId: string) {
   const session = await getRemoteConnection()
+  assertNoActiveFolderDownload(session, folderId)
   const libraryPath = (await getEagleSettings()).libraryPath
   const permissionsRevision = session.permissionsRevision
   if (!libraryPath)
@@ -241,7 +258,6 @@ export async function prepareFolderDownload(folderId: string) {
     )
   const manifest = await remoteManifest(session, folderId)
   const local = await localManifest(manifest, libraryPath)
-  const selected = scope(manifest, folderId)
   const entries = [...compare(manifest, local).values()]
   const summary = entries.reduce<Summary>(
     (result, entry) => {
@@ -258,6 +274,7 @@ export async function prepareFolderDownload(folderId: string) {
     if (now - plan.createdAt > 5 * 60 * 1000) plans.delete(id)
   if (plans.size >= 100) throw new Error('待确认任务过多，请稍后重试')
   await assertDownloadContext(session, libraryPath, permissionsRevision)
+  assertNoActiveFolderDownload(session, folderId)
   const id = randomUUID()
   const paths = downloadFolderPaths(manifest.folders)
   const folder = (JSON.parse(paths.get(folderId)!) as string[]).join(' / ')
@@ -271,17 +288,26 @@ export async function prepareFolderDownload(folderId: string) {
     createdAt: now,
     permissionsRevision,
   })
-  return { id, folder: selected.folder.name, ...summary }
+  return { id, folder, ...summary }
 }
 
-export const startFolderDownload = (id: string) =>
+export const startFolderDownload = (id: string, syncExisting = true) =>
   resourceLock.run('eagle.download-start', async () => {
     const existing = tasks.find((task) => task.id === id)
-    if (existing) return { ...existing }
+    if (existing)
+      throw new EagleError(
+        'DUPLICATE_DOWNLOAD_TASK',
+        409,
+        '此下载任务已添加，请勿重复提交',
+      )
     const plan = plans.get(id)
     if (!plan || Date.now() - plan.createdAt > 5 * 60 * 1000)
       throw new Error('下载清单已过期，请重新打开文件夹')
-    if (plan.entries.length === 0) throw new Error('此文件夹已同步完成')
+    const entries = plan.entries.filter(
+      (entry) => entry.download || syncExisting,
+    )
+    if (entries.length === 0)
+      throw new EagleError('NO_DOWNLOAD_WORK', 400, '没有需要下载或同步的资源')
     const session = await getRemoteConnection()
     if (
       session !== plan.connection ||
@@ -289,6 +315,8 @@ export const startFolderDownload = (id: string) =>
       (await getEagleSettings()).libraryPath !== plan.libraryPath
     )
       throw new Error('连接、权限或本地资源库已改变，请重新检查')
+    // 在启动锁内按连接和目录查重，避免不同清单并发创建同一个下载任务。
+    assertNoActiveFolderDownload(session, plan.folderId)
     if (
       tasks.some(
         (task) => task.state === 'queued' || task.state === 'running',
@@ -302,7 +330,7 @@ export const startFolderDownload = (id: string) =>
       body: JSON.stringify({
         taskId: id,
         folderId: plan.folderId,
-        total: plan.entries.length,
+        total: entries.length,
       }),
     })
     const json = await response.json()
@@ -315,7 +343,7 @@ export const startFolderDownload = (id: string) =>
       folder: plan.folder,
       completed: 0,
       currentProgress: 0,
-      total: plan.entries.length,
+      total: entries.length,
       state: 'queued',
       error: '',
     }
@@ -381,7 +409,7 @@ export const startFolderDownload = (id: string) =>
             if (session.permissionsRevision !== plan.permissionsRevision)
               throw new Error('共享权限已改变，请重新检查文件夹')
           }
-          for (const entry of plan.entries) {
+          for (const entry of entries) {
             await assertContext()
             // 每项只读取该条目的详情，不重复拉取整个资源库清单。
             const current = currentItems.get(entry.item.id)
@@ -391,7 +419,8 @@ export const startFolderDownload = (id: string) =>
             )
               throw new Error('远程资源已改变，请重新检查文件夹')
             const difference = differences.get(entry.item.id)
-            if (!difference) {
+            // 排队期间资源可能已由其他任务下载；关闭同步时仍须保留其本地分类。
+            if (!difference || (!syncExisting && !difference.download)) {
               task.completed++
               continue
             }
@@ -472,5 +501,5 @@ export const startFolderDownload = (id: string) =>
         task.state = 'error'
         task.error = error instanceof Error ? error.message : '下载失败'
       })
-    return { ...task }
+    return downloadSnapshot().find((entry) => entry.id === task.id)!
   })

@@ -13,7 +13,7 @@ export const fetchFolderDownloadStatuses = () =>
   rpcData(rpc.downloads.folders.$get())
 export const prepareFolderDownload = (folderId: string) =>
   rpcData(rpc.downloads.prepare.$post({ json: { folderId } }))
-export const startFolderDownload = (id: string) =>
-  rpcData(rpc.downloads.start.$post({ json: { id } }))
+export const startFolderDownload = (id: string, syncExisting: boolean) =>
+  rpcData(rpc.downloads.start.$post({ json: { id, syncExisting } }))
 export const fetchDownloadLogs = (groupId: string, userId: string) =>
   rpcData(rpc.downloads.logs.$get({ query: { groupId, userId } }))
