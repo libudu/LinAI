@@ -3,6 +3,7 @@ import fs from 'fs-extra'
 import JSZip from 'jszip'
 import { createHash } from 'node:crypto'
 import path from 'path'
+import { pruneDist } from './prune-dist'
 
 async function main() {
   console.log('🚀 [Post-build] Starting...')
@@ -260,7 +261,10 @@ async function main() {
     '✅ [Post-build] Removed package.json, pnpm-lock.yaml and pnpm-workspace.yaml from dist/',
   )
 
-  // 10. 打包 dist 目录
+  // 10. 清理发布冗余；安装与二进制复制完成后再裁剪，避免安装脚本依赖缺失。
+  pruneDist(distDir)
+
+  // 11. 打包 dist 目录
   try {
     const pkg = fs.readJsonSync('package.json')
     const version = pkg.version

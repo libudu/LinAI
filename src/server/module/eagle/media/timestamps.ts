@@ -1,161 +1,171 @@
-import { ExifTool } from 'exiftool-vendored'
+import exifr from 'exifr'
 import { execFile } from 'node:child_process'
 import type { Stats } from 'node:fs'
 import fs from 'node:fs/promises'
+import sharp from 'sharp'
+import type { VideoCreationTimes } from './video-metadata'
 
-/** 只取实际日期、时区、子秒等时间标签，排除文件系统字段、派生值和媒体时长。 */
-const readTimestampTags = async (tool: ExifTool, file: string) => {
-  const raw = await tool.readRaw(file, {
-    readArgs: [
-      '-G1',
-      '-a',
-      '-s',
-      '-n',
-      '-HandlerType',
-      '-time:all',
-      '--System:all',
-      '--File:all',
-      '--Composite:all',
-    ],
-    ignoreMinorErrors: false,
-  })
-  if (raw.errors?.length)
-    throw new Error(`读取媒体时间戳失败：${raw.errors.join('；')}`)
-  const tracks = Object.entries(raw)
-    .flatMap(([key, handler]) => {
-      const match = key.match(/^(Track\d+):HandlerType$/)
-      return match ? [{ group: match[1], handler: String(handler) }] : []
-    })
-    .sort((a, b) => Number(a.group.slice(5)) - Number(b.group.slice(5)))
-  const timestamps = Object.fromEntries(
-    Object.entries(raw).filter(([key]) => {
-      const separator = key.lastIndexOf(':')
-      if (separator < 0 || /^(System|File|Composite|ExifTool):/.test(key))
-        return false
-      if (!/^[\w][\w:-]*$/.test(key))
-        throw new Error('媒体时间戳标签名称无效，未覆盖原文件')
-      const name = key.slice(separator + 1)
-      if (
-        /Duration|TimeScale|TimeCode|^(PreviewTime|SelectionTime|CurrentTime|StartTime|EndTime)$/i.test(
-          name,
-        )
-      )
-        return false
-      return /Date|Timestamp|Time$|^(TimeCreated|OffsetTime\w*|SubSecTime\w*|TimeZone\w*)$/i.test(
-        name,
-      )
-    }),
-  )
-  return { timestamps, tracks }
-}
+// 数字标签避免 exifr 与 libexif 的命名差异；只复制时间，不沿用旧方向、尺寸和缩略图。
+const imageTimeTags = [
+  ['ifd0', 0x0132, 'IFD0', 'DateTime'],
+  ['exif', 0x9003, 'IFD2', 'DateTimeOriginal'],
+  ['exif', 0x9004, 'IFD2', 'DateTimeDigitized'],
+  ['exif', 0x9010, 'IFD2', 'OffsetTime'],
+  ['exif', 0x9011, 'IFD2', 'OffsetTimeOriginal'],
+  ['exif', 0x9012, 'IFD2', 'OffsetTimeDigitized'],
+  // libexif 的 0x9290 名称是 SubsecTime，另外两个标签却使用 SubSecTime 前缀。
+  ['exif', 0x9290, 'IFD2', 'SubsecTime'],
+  ['exif', 0x9291, 'IFD2', 'SubSecTimeOriginal'],
+  ['exif', 0x9292, 'IFD2', 'SubSecTimeDigitized'],
+] as const
 
-type TimestampMetadata = Awaited<ReturnType<typeof readTimestampTags>>
+type ImageTimestamps = Record<string, Record<string, string>>
 
-/** 与 FFmpeg 的首个视频流 + 全部音轨映射保持一致，不复制已丢弃辅助轨道的日期。 */
-const videoTimestampCopies = (
-  original: TimestampMetadata,
-  output: TimestampMetadata,
-) => {
-  const trackMap = new Map<string, string>()
-  for (const handler of ['vide', 'soun']) {
-    const sourceTracks = original.tracks.filter(
-      (track) => track.handler === handler,
-    )
-    const retained =
-      handler === 'vide' ? sourceTracks.slice(0, 1) : sourceTracks
-    const targets = output.tracks.filter((track) => track.handler === handler)
-    if (retained.length && retained.length !== targets.length)
-      throw new Error('输出视频的音视频轨道与输入不匹配，无法保留时间戳')
-    retained.forEach((track, index) =>
-      trackMap.set(track.group, targets[index].group),
-    )
+/** exifr 7 不支持 WebP，且不能读取部分 AVIF/HEIF 布局；从原图提取 EXIF 后解析。 */
+export const readImageTimestamps = async (
+  input: Buffer,
+  extension: string,
+): Promise<ImageTimestamps> => {
+  const ext = extension.toLowerCase()
+  let data: Buffer
+  // TIFF 的 IFD 就在文件内，Sharp 不提供独立的 metadata.exif。
+  if (['tif', 'tiff'].includes(ext)) {
+    data = input
+  } else {
+    const metadata = await sharp(input, { failOn: 'warning' }).metadata()
+    if (!metadata.exif) return {}
+    data = metadata.exif
+    if (data.subarray(0, 6).equals(Buffer.from('Exif\0\0')))
+      data = data.subarray(6)
   }
-  return Object.keys(original.timestamps).flatMap((sourceKey) => {
-    // Track1Keys 等轨道级子组也随其所属轨道重映射。
-    const group = sourceKey.match(/^(Track\d+)(?=\D)/)?.[1]
-    if (!group) return [{ sourceKey, targetKey: sourceKey }]
-    const target = trackMap.get(group)
-    if (target)
-      return [{ sourceKey, targetKey: target + sourceKey.slice(group.length) }]
-    if (!original.tracks.some((track) => track.group === group))
-      throw new Error(`无法识别 ${group} 的媒体类型，未保存输出`)
-    // Hint、字幕、数据轨道和额外视频流未输出，不要求重建其日期标签。
-    return []
-  })
+  const options = {
+    translateKeys: false,
+    translateValues: false,
+    reviveValues: false,
+    sanitize: false,
+    mergeOutput: false,
+    silentErrors: false,
+    ifd0: { pick: [0x0132] },
+    exif: {
+      pick: imageTimeTags
+        .filter(([block]) => block === 'exif')
+        .map(([, id]) => id),
+    },
+    ifd1: false,
+    gps: false,
+    interop: false,
+    xmp: false,
+    iptc: false,
+    icc: false,
+    jfif: false,
+    ihdr: false,
+    makerNote: false,
+    userComment: false,
+  }
+  const parsed: Record<string, Record<number, unknown>> | undefined =
+    await exifr.parse(data, options)
+  const times: ImageTimestamps = {}
+  for (const [block, id, ifd, name] of imageTimeTags) {
+    const value = parsed?.[block]?.[id]
+    if (value === undefined) continue
+    if (typeof value !== 'string' || !value.length || /[\0\r\n]/.test(value))
+      throw new Error('图片时间字段无效：' + name + '，未覆盖原文件')
+    const entries = (times[ifd] ??= {})
+    entries[name] = value
+  }
+  return times
 }
 
-/** 保留原始值；视频按实际输出轨道重映射组名，不推断时区或复制尺寸、时长。 */
-export const preserveMediaTimestamps = async (
-  source: string,
-  output: string,
+/** 在唯一一次编码时写入；TIFF/GIF 编码器不能保存 EXIF，不能静默丢日期。 */
+export const withImageTimestamps = (
+  image: sharp.Sharp,
+  times: ImageTimestamps,
+  format: string,
+) => {
+  if (!Object.keys(times).length) return image
+  if (!['jpeg', 'png', 'webp', 'avif'].includes(format))
+    throw new Error(
+      '当前编码器无法保留 ' + format + ' 的 EXIF 时间，原文件已保留',
+    )
+  return image.withExif(times)
+}
+
+export const verifyImageTimestamps = async (
+  times: ImageTimestamps,
+  output: Buffer,
+  format: string,
   signal?: AbortSignal,
-  { video = false }: { video?: boolean } = {},
 ) => {
   signal?.throwIfAborted()
-  // ExifTool 的 stay_open 协议按行传参，不能接受路径中的控制字符。
-  if (/[\r\n\0]/.test(source + output))
-    throw new Error('媒体路径包含不支持的控制字符')
-  const tool = new ExifTool({
-    maxProcs: 1,
-    taskTimeoutMillis: 120_000,
-    useMWG: false,
-    ignoreMinorErrors: false,
-  })
-  let stopping: Promise<void> | undefined
-  const abort = () => {
-    stopping ??= tool.end(false)
-    void stopping.catch(() => undefined)
-  }
-  signal?.addEventListener('abort', abort, { once: true })
-  try {
-    const original = await readTimestampTags(tool, source)
-    signal?.throwIfAborted()
-    const copies = video
-      ? videoTimestampCopies(original, await readTimestampTags(tool, output))
-      : Object.keys(original.timestamps).map((key) => ({
-          sourceKey: key,
-          targetKey: key,
-        }))
-    signal?.throwIfAborted()
-    if (!copies.length) return
-    await tool.write(
-      output,
-      {},
-      {
-        ignoreMinorErrors: false,
-        writeArgs: [
-          '-overwrite_original',
-          '-TagsFromFile',
-          source,
-          ...copies.map(({ sourceKey, targetKey }) =>
-            sourceKey === targetKey
-              ? `-${sourceKey}`
-              : `-${targetKey}<${sourceKey}`,
-          ),
-        ],
-      },
+  const saved = await readImageTimestamps(output, format)
+  signal?.throwIfAborted()
+  // 同时检查不存在的字段，避免编码器凭空补当前日期。
+  if (JSON.stringify(times) !== JSON.stringify(saved))
+    throw new Error('输出图片的常见 EXIF 时间回读不一致，未覆盖原文件')
+}
+
+/** 只接受明确带时区的 ISO 日期，不能把原文件的本地时间猜成 UTC。 */
+const checkedVideoTime = (value: string | undefined) => {
+  if (value === undefined) return undefined
+  if (
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/i.test(
+      value,
+    ) ||
+    !Number.isFinite(Date.parse(value))
+  )
+    throw new Error('视频创建时间没有有效的明确时区，未覆盖原文件')
+  return value
+}
+
+export const videoTimestampArgs = (times: VideoCreationTimes) => {
+  const args = [
+    '-map_metadata',
+    '-1',
+    '-map_metadata:s',
+    '-1',
+    '-map_chapters',
+    '-1',
+  ]
+  const add = (scope: string, value: string | undefined) => {
+    args.push(
+      '-metadata' + scope,
+      'creation_time=' + (checkedVideoTime(value) ?? ''),
     )
-    signal?.throwIfAborted()
-    const saved = await readTimestampTags(tool, output)
-    signal?.throwIfAborted()
-    const missing = copies
-      .filter(
-        ({ sourceKey, targetKey }) =>
-          JSON.stringify(saved.timestamps[targetKey]) !==
-          JSON.stringify(original.timestamps[sourceKey]),
-      )
-      .map(({ targetKey }) => targetKey)
-    if (missing.length)
-      throw new Error(
-        `输出格式无法完整保留媒体时间戳（${missing.join('、')}），未覆盖原文件`,
-      )
-  } catch (error) {
-    signal?.throwIfAborted()
-    throw error
-  } finally {
-    signal?.removeEventListener('abort', abort)
-    await (stopping ?? tool.end(!signal?.aborted))
   }
+  add('', times.container)
+  add(':s:v:0', times.video)
+  times.audio.forEach((time, index) => add(':s:a:' + index, time))
+  // mdta 保留容器日期的偏移和小数原文；普通 mvhd/tkhd 只能保存 UTC 整秒。
+  return [...args, '-movflags', '+faststart+use_metadata_tags']
+}
+
+export const verifyVideoTimestamps = (
+  original: VideoCreationTimes,
+  saved: VideoCreationTimes,
+) => {
+  const matches = (source: string | undefined, target: string | undefined) => {
+    checkedVideoTime(source)
+    checkedVideoTime(target)
+    // 等价时刻允许 FFmpeg 规范化 UTC，但小数部分不能用 Date 的毫秒精度比较。
+    if (source === undefined || target === undefined) return source === target
+    const fraction = (value: string) =>
+      (value.match(/\.(\d+)/)?.[1] ?? '').replace(/0+$/, '')
+    return (
+      Date.parse(source) === Date.parse(target) &&
+      fraction(source) === fraction(target)
+    )
+  }
+  checkedVideoTime(original.container)
+  checkedVideoTime(saved.container)
+  if (
+    original.container !== saved.container ||
+    !matches(original.video, saved.video) ||
+    original.audio.length !== saved.audio.length ||
+    original.audio.some((time, index) => !matches(time, saved.audio[index]))
+  )
+    throw new Error(
+      'MP4 无法保留原视频的容器/音视频流创建时间（流级独立日期或子秒可能不受支持），未覆盖原文件',
+    )
 }
 
 /** Node utimes 不支持创建时间；Windows 用系统自带 .NET API，路径作为数据传入。 */
@@ -206,10 +216,11 @@ export const preserveFileTimestamps = async (
   await fs.utimes(file, original.atimeMs / 1000, original.mtimeMs / 1000)
   const saved = await fs.lstat(file)
   if (
+    Math.abs(saved.atimeMs - original.atimeMs) > 1 ||
     Math.abs(saved.mtimeMs - original.mtimeMs) > 1 ||
     (process.platform === 'win32' &&
       Math.abs(saved.birthtimeMs - original.birthtimeMs) > 1)
   ) {
-    throw new Error('文件系统无法保留原始创建或修改时间，未覆盖原文件')
+    throw new Error('文件系统无法保留原始创建、修改或访问时间，未覆盖原文件')
   }
 }

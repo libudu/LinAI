@@ -12,17 +12,14 @@ export default defineConfig({
     APP_VERSION: pkg.version,
   },
   metafile: true,
-  // 保留 WASM、媒体工具与 ExifTool 的包结构，由 dist 生产依赖安装携带。
-  noExternal: [
-    /^(?!(sharp|heic-decode|libheif-js|ffmpeg-static|exiftool-vendored)(\/|$)).*$/,
-  ],
+  // 保留 WASM 与媒体工具的包结构，由 dist 生产依赖安装携带。
+  noExternal: [/^(?!(sharp|heic-decode|libheif-js|ffmpeg-static)(\/|$)).*$/],
   external: [
     'sharp',
     'heic-decode',
     'libheif-js',
     'libheif-js/wasm-bundle',
     'ffmpeg-static',
-    'exiftool-vendored',
   ],
   esbuildPlugins: [
     {

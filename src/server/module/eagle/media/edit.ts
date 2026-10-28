@@ -5,7 +5,13 @@ import fs from 'node:fs/promises'
 import sharp from 'sharp'
 import type { EagleMediaEditOperation } from '../schemas'
 import { encodeStaticHeif } from './heic'
-import { preserveMediaTimestamps } from './timestamps'
+import {
+  readImageTimestamps,
+  verifyImageTimestamps,
+  verifyVideoTimestamps,
+  videoTimestampArgs,
+  withImageTimestamps,
+} from './timestamps'
 import { getVideoEncodingArgs } from './video-encoding'
 import { readVideoMetadata } from './video-metadata'
 
@@ -179,12 +185,9 @@ export const createEditedMedia = async (
           'pad=ceil(iw/2)*2:ceil(ih/2)*2',
         ].join(','),
         ...encodingArgs,
-        '-map_metadata',
-        '-1',
+        ...videoTimestampArgs(original.creationTimes),
         '-metadata:s:v:0',
         'rotate=0',
-        '-movflags',
-        '+faststart',
         '-f',
         'mp4',
         output,
@@ -207,8 +210,8 @@ export const createEditedMedia = async (
     )
     signal?.throwIfAborted()
     onProgress?.({ percent: 92, phase: 'verifying', canCancel: true })
-    await preserveMediaTimestamps(source, output, signal, { video: true })
     const info = await readVideoMetadata(output, signal)
+    verifyVideoTimestamps(original.creationTimes, info.creationTimes)
     width = info.width
     height = info.height
     const frame = await run(
@@ -238,6 +241,8 @@ export const createEditedMedia = async (
     thumbnail = await sharp(frame).png().toBuffer()
   } else {
     let input: Buffer = await fs.readFile(source)
+    const timestamps = await readImageTimestamps(input, ext)
+    signal?.throwIfAborted()
     if (['heic', 'heif'].includes(ext.toLowerCase()))
       input = (await encodeStaticHeif(input)).webp
     const metadata = await sharp(input, {
@@ -272,11 +277,16 @@ export const createEditedMedia = async (
           throw new Error('图片不支持此媒体编辑操作')
       }
     }
-    const result = await image
+    const result = await withImageTimestamps(image, timestamps, format)
       .toFormat(format as keyof sharp.FormatEnum, { quality: 95 })
       .toBuffer({ resolveWithObject: true })
     await fs.writeFile(output, result.data, { flag: 'wx' })
-    await preserveMediaTimestamps(source, output, signal)
+    await verifyImageTimestamps(
+      timestamps,
+      await fs.readFile(output),
+      format,
+      signal,
+    )
     // 从实际输出完整解码，避免只依赖编码器返回信息。
     const verified = await sharp(await fs.readFile(output), {
       failOn: 'warning',

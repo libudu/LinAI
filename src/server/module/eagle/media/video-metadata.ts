@@ -1,6 +1,16 @@
 import ffmpegPath from 'ffmpeg-static'
 import { execFile } from 'node:child_process'
 
+export interface VideoCreationTimes {
+  container?: string
+  video?: string
+  audio: (string | undefined)[]
+}
+
+// 只解析 FFmpeg 输入元数据区段的单行创建时间，其他日期/轨道子组不在保留契约内。
+const creationTime = (section: string) =>
+  section.match(/^\s+creation_time\s*:\s*([^\r\n]+)/im)?.[1].trim()
+
 const parseDuration = (value?: string) => {
   const match = value?.match(/^(\d+):(\d{2}):(\d{2}(?:\.\d+)?)$/)
   return match
@@ -105,6 +115,13 @@ export const readVideoMetadata = async (
       bitrate: parseStreamBitrate(section),
     }))
   return {
+    creationTimes: {
+      container: creationTime(input.split(/^\s+Duration:/m)[0]),
+      video: creationTime(stream.split(/^\s+Side data:/m)[0]),
+      audio: streams
+        .filter((section) => /^[^\r\n]*: Audio:/.test(section))
+        .map((section) => creationTime(section.split(/^\s+Side data:/m)[0])),
+    } satisfies VideoCreationTimes,
     width,
     height,
     duration,
