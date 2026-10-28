@@ -352,27 +352,25 @@ export function Interconnect() {
           <div className="space-y-5 p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="m-0 min-w-0 text-lg font-semibold break-words text-slate-800">
-                    {room.name}
-                  </h2>
-                  <Tag
-                    className="!m-0"
-                    bordered={false}
-                    style={{
-                      color: token.colorPrimaryText,
-                      background: token.colorPrimaryBg,
-                    }}
-                  >
-                    {room.role === 'host' ? '房主' : '成员'}
-                  </Tag>
-                </div>
+                <h2 className="m-0 min-w-0 text-lg font-semibold break-words text-slate-800">
+                  {room.name}
+                </h2>
                 {room.memberName && (
                   <div className="mt-2 flex items-center gap-2 text-slate-500">
                     <UserOutlined className="shrink-0" />
                     <span className="min-w-0 break-words">
                       {room.memberName}
                     </span>
+                    <Tag
+                      className="!m-0 shrink-0"
+                      bordered={false}
+                      style={{
+                        color: token.colorPrimaryText,
+                        background: token.colorPrimaryBg,
+                      }}
+                    >
+                      {room.role === 'host' ? '房主' : '成员'}
+                    </Tag>
                   </div>
                 )}
               </div>
@@ -401,31 +399,29 @@ export function Interconnect() {
                 </Popconfirm>
               </Space>
             </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-slate-50 px-3 py-2.5">
-              <Badge
-                status={
-                  room.state === 'connected'
-                    ? 'success'
-                    : room.state === 'error'
-                      ? 'error'
-                      : 'default'
-                }
-                text={
-                  room.state === 'connected'
-                    ? room.role === 'guest'
+            {(room.role === 'guest' || room.state === 'error') && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-slate-50 px-3 py-2.5">
+                <Badge
+                  status={
+                    room.state === 'connected'
+                      ? 'success'
+                      : room.state === 'error'
+                        ? 'error'
+                        : 'default'
+                  }
+                  text={
+                    room.state === 'connected'
                       ? '已连接房主'
-                      : '已有成员连接'
-                    : room.state === 'error'
-                      ? '核心已退出'
-                      : room.role === 'host'
-                        ? '等待连接'
+                      : room.state === 'error'
+                        ? '核心已退出'
                         : '连接中'
-                }
-              />
-              {room.role === 'guest' && (
-                <ConnectionTag mode={room.connection} />
-              )}
-            </div>
+                  }
+                />
+                {room.role === 'guest' && (
+                  <ConnectionTag mode={room.connection} />
+                )}
+              </div>
+            )}
             {room.error && (
               <Alert
                 type="warning"
