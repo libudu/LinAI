@@ -18,7 +18,7 @@ import {
   rememberDownloadFolders,
 } from './download-folders'
 import { collectFolderPaths, findRawFolder } from './folders'
-import { ensureIndex, libraryChanges } from './index-state'
+import { ensureIndex, ensureLibraryReady, libraryChanges } from './index-state'
 import { readWritableItemMeta, withLibraryMutation } from './mutation'
 import { toEagleItem } from './query'
 import { EAGLE_LIBRARY_RESOURCE, imagesDir, withLibraryLock } from './runtime'
@@ -46,6 +46,77 @@ export const downloadManifestSchema = z.object({
 })
 export type DownloadManifest = z.infer<typeof downloadManifestSchema>
 export type DownloadItem = DownloadManifest['items'][number]
+
+// 目录状态只需身份、归属和大小，避免传输完整元数据、计算内容哈希及读取目录来源映射。
+export const downloadStatusManifestSchema = z.object({
+  folders: z.array(downloadFolderSchema.pick({ id: true, parentId: true })),
+  items: z.array(
+    downloadManifestSchema.shape.items.element.pick({
+      id: true,
+      size: true,
+      folders: true,
+    }),
+  ),
+})
+
+export async function getDownloadStatusManifest(access?: EagleLibraryAccess) {
+  const index = await ensureIndex()
+  if (!index) throw new EagleError('LIBRARY_UNAVAILABLE', 409, '资源库不可用')
+  return withLibraryLock(index.libraryPath, async () => {
+    const view = access ? projectSharedIndex(index, access) : index
+    const folders: z.infer<typeof downloadStatusManifestSchema>['folders'] = []
+    const visit = (nodes: EagleRawFolder[], parentId: string | null) => {
+      for (const folder of nodes) {
+        folders.push({ id: folder.id, parentId })
+        visit(folder.children ?? [], folder.id)
+      }
+    }
+    visit(view.folders, null)
+    return {
+      folders,
+      items: [...view.items.values()].map(({ id, size, folders }) => ({
+        id,
+        size,
+        folders: [...folders],
+      })),
+    }
+  })
+}
+
+/** 只检查候选 ID 的原文件；回收站中仍存在的原文件同样视为已下载。 */
+export async function getDownloadedItemIds(
+  itemIds: readonly string[],
+  libraryPath: string,
+) {
+  await ensureLibraryReady()
+  const index = await ensureIndex()
+  if (!index || index.libraryPath !== libraryPath)
+    throw new EagleError('LIBRARY_CHANGED', 409, '本地资源库已改变，请重新检查')
+  return withLibraryLock(libraryPath, async () => {
+    if ((await getEagleSettings()).libraryPath !== libraryPath)
+      throw new EagleError(
+        'LIBRARY_CHANGED',
+        409,
+        '本地资源库已改变，请重新检查',
+      )
+    const existing = new Set<string>()
+    const candidates = [...new Set(itemIds)].flatMap((id) => {
+      const item = index.items.get(id)
+      return item ? [item] : []
+    })
+    await runPool(candidates, 32, async (item) => {
+      const directory = path.join(imagesDir(libraryPath), `${item.id}.info`)
+      try {
+        await assertPlainPath(directory, true)
+        await assertPlainPath(path.join(directory, item.fileName))
+        existing.add(item.id)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      }
+    })
+    return existing
+  })
+}
 
 export async function getDownloadManifest(
   access?: EagleLibraryAccess,

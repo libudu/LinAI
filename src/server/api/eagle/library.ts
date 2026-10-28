@@ -8,6 +8,7 @@ import {
   deleteItem,
   getConversionCandidates,
   getDownloadManifest,
+  getDownloadStatusManifest,
   getFolderTree,
   getItemDetail,
   getItems,
@@ -64,9 +65,15 @@ const notModified = (
 const libraryApi = new Hono<{
   Bindings: { eagleSharingAccess?: EagleLibraryAccess }
 }>()
+  .get('/manifest/summary', async (c) =>
+    c.json({
+      success: true as const,
+      data: await getDownloadStatusManifest(c.env?.eagleSharingAccess),
+    }),
+  )
   .get(
     '/manifest',
-    validate('query', z.object({ folderId: z.string().min(1).optional() })),
+    validate('query', z.object({ folderId: z.string().min(1) })),
     async (c) =>
       c.json({
         success: true as const,

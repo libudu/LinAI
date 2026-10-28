@@ -1,6 +1,6 @@
 /** 独立于系统登录的共享协议白名单；只读资源需经房间权限组验证的 Bearer 会话。 */
 export const isSharedRead = (path: string) =>
-  /^\/(overview|folders|items|manifest)$/.test(path) ||
+  /^\/(overview|folders|items|manifest(?:\/summary)?)$/.test(path) ||
   /^\/items\/[A-Za-z0-9]+\/(detail|thumbnail|preview|file)$/.test(path)
 
 const LIBRARY_PREFIX = '/api/eagle/sharing/library'

@@ -11,8 +11,8 @@ import {
   commitDownloadedItem,
   downloadFolderPaths,
   downloadManifestSchema,
-  ensureLibraryReady,
-  getDownloadManifest,
+  downloadStatusManifestSchema,
+  getDownloadedItemIds,
   type DownloadManifest,
 } from '../library'
 import { getEagleSettings } from '../settings'
@@ -84,52 +84,19 @@ async function remoteResponse(
   return response
 }
 
-async function remoteManifest(session: Session, folderId?: string) {
-  const query =
-    folderId === undefined ? '' : `?${new URLSearchParams({ folderId })}`
-  const response = await remoteResponse(session, `/library/manifest${query}`)
+async function remoteManifest(session: Session, folderId: string) {
+  const query = new URLSearchParams({ folderId })
+  const response = await remoteResponse(session, `/library/manifest?${query}`)
   const json = await response.json()
   if (!json?.success) throw new Error('读取远程资源清单失败')
   const manifest = downloadManifestSchema.parse(json.data)
   downloadFolderPaths(manifest.folders)
-  // 兼容尚未支持 folderId 的共享方，本地也只保留目标范围内的资源。
-  return folderId === undefined
-    ? manifest
-    : { ...manifest, items: scope(manifest, folderId).items }
-}
-
-function scope(manifest: DownloadManifest, folderId: string) {
-  const folder = manifest.folders.find((entry) => entry.id === folderId)
-  if (!folder)
+  if (!manifest.folders.some((entry) => entry.id === folderId))
     throw new EagleError('FOLDER_NOT_FOUND', 404, '文件夹不存在或已取消共享')
-  const children = new Map<string, string[]>()
-  for (const entry of manifest.folders)
-    if (entry.parentId) {
-      const siblings = children.get(entry.parentId) ?? []
-      siblings.push(entry.id)
-      children.set(entry.parentId, siblings)
-    }
-  const ids = new Set<string>()
-  const visit = (id: string) => {
-    if (ids.has(id)) return
-    ids.add(id)
-    children.get(id)?.forEach(visit)
-  }
-  visit(folderId)
-  return {
-    folder,
-    items: manifest.items.filter((item) =>
-      item.folders.some((id) => ids.has(id)),
-    ),
-  }
+  return manifest
 }
 
-function missingItems(
-  remote: DownloadManifest,
-  local: DownloadManifest | null,
-) {
-  // 本地清单已排除缺失原文件的条目，只按 ID 判断是否已下载，不比较分类。
-  const localIds = new Set(local?.items.map((item) => item.id))
+function missingItems(remote: DownloadManifest, localIds: ReadonlySet<string>) {
   return new Map(
     remote.items
       .filter((item) => !localIds.has(item.id))
@@ -137,16 +104,15 @@ function missingItems(
   )
 }
 
-async function localManifest(
-  remote: DownloadManifest,
+async function localItemIds(
+  remote: { items: readonly { id: string }[] },
   libraryPath: string | null,
 ) {
-  if (!libraryPath) return null
-  await ensureLibraryReady()
-  return getDownloadManifest(undefined, {
-    itemIds: remote.items.map((item) => item.id),
+  if (!libraryPath) return new Set<string>()
+  return getDownloadedItemIds(
+    remote.items.map((item) => item.id),
     libraryPath,
-  })
+  )
 }
 
 async function assertDownloadContext(
@@ -169,17 +135,22 @@ async function loadFolderDownloadStatuses(
   libraryPath: string | null,
   permissionsRevision: number | undefined,
 ) {
-  const remote = await remoteManifest(session)
-  const local = await localManifest(remote, libraryPath)
+  const response = await remoteResponse(session, '/library/manifest/summary')
+  const json = await response.json()
+  if (!json?.success) throw new Error('读取远程资源清单失败')
+  const remote = downloadStatusManifestSchema.parse(json.data)
+  const localIds = await localItemIds(remote, libraryPath)
   await assertDownloadContext(session, libraryPath, permissionsRevision)
-  const entries = missingItems(remote, local)
   const parents = new Map(
     remote.folders.map((folder) => [folder.id, folder.parentId]),
   )
   const result: Record<string, Summary> = Object.fromEntries(
     remote.folders.map((folder) => [folder.id, { download: 0, bytes: 0 }]),
   )
-  for (const item of entries.values()) {
+  const seen = new Set<string>()
+  for (const item of remote.items) {
+    if (localIds.has(item.id) || seen.has(item.id)) continue
+    seen.add(item.id)
     const affected = new Set<string>()
     for (let folderId of item.folders) {
       while (folderId && !affected.has(folderId)) {
@@ -239,7 +210,7 @@ export async function prepareFolderDownload(folderId: string) {
       '请先配置本地资源库目录',
     )
   const manifest = await remoteManifest(session, folderId)
-  const local = await localManifest(manifest, libraryPath)
+  const local = await localItemIds(manifest, libraryPath)
   const entries = [...missingItems(manifest, local).values()]
   const summary = entries.reduce<Summary>(
     (result, item) => {
@@ -358,7 +329,7 @@ export const startFolderDownload = (id: string) =>
           )
           const missing = missingItems(
             fresh,
-            await localManifest(fresh, plan.libraryPath),
+            await localItemIds(fresh, plan.libraryPath),
           )
           const folderPaths = downloadFolderPaths(plan.manifest.folders)
           const validateItem = async (

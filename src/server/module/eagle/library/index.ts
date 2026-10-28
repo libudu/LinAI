@@ -8,7 +8,10 @@ export {
 export {
   commitDownloadedItem,
   downloadManifestSchema,
+  downloadStatusManifestSchema,
   getDownloadManifest,
+  getDownloadStatusManifest,
+  getDownloadedItemIds,
   type DownloadManifest,
 } from './downloads'
 export { ensureLibraryReady, refreshIndex } from './index-state'
