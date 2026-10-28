@@ -4,7 +4,7 @@ import { useEagleConfig } from '../settings/useEagleConfig'
 import { useEagleStore } from '../store'
 import { useEagleSharing } from './store'
 
-/** 资源库入口只选择本地/已授权房主，连接与权限组管理统一在远程互联。 */
+/** 资源库入口只选择本地/已连接房主，连接与权限组管理统一在远程互联。 */
 export function LibrarySource() {
   const config = useEagleConfig()
   const outgoing = useEagleSharing((state) => state.outgoing)

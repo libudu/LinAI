@@ -36,18 +36,10 @@ export const LibrarySetting = forwardRef<EagleSettingRef>((_props, ref) => {
         if (values.libraryMode === 'remote') {
           if (status?.room?.role !== 'guest')
             throw new Error('请先在「远程互联」粘贴邀请加入房间')
-          if (
-            status.eagle?.state !== 'approved' &&
-            status.eagle?.state !== 'pending'
-          )
-            await selectRemoteLibrary()
+          if (status.eagle?.state !== 'approved') await selectRemoteLibrary()
           else await config.setEagleConfig({ libraryMode: 'remote' })
           await config.fetchEagleConfig()
-          message.success(
-            status.eagle?.state === 'approved'
-              ? '已选择远程资源库'
-              : '已请求共享，等待房主同意',
-          )
+          message.success('已选择远程资源库')
         } else {
           const directory = await validateDirectory(
             values.libraryPath?.trim() || '',
@@ -98,7 +90,7 @@ export const LibrarySetting = forwardRef<EagleSettingRef>((_props, ref) => {
                 ? `房间：${status.room.name}`
                 : '请先加入共享方的房间'
             }
-            description="在左侧「远程互联」中管理邀请和连接。保存时请求房主的 Eagle 只读授权；可见范围由房主的文件夹权限决定。"
+            description="在左侧「远程互联」中管理邀请和连接。保存时连接房主的 Eagle 远程资源库，连接断开后将不可用，可在此切换回本地资源库；可见范围由房主的文件夹权限决定。"
           />
         )}
       </Form>

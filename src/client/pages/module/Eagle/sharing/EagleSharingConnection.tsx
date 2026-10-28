@@ -1,21 +1,15 @@
-import { message, Modal } from 'antd'
 import { useEffect } from 'react'
 import { ensureEagleOwnerSession } from './access'
-import { decideSharing, type SharingStatus } from './api'
+import type { SharingStatus } from './api'
 import { useEagleSharing } from './store'
 
-/** 在应用根挂载，浏览任意模块时都能收到 Eagle 共享请求。 */
+/** 在应用根挂载，持续同步 Eagle 共享连接与传输状态。 */
 export function EagleSharingConnection() {
   useEffect(() => {
-    const dialogs = new Map<string, ReturnType<typeof Modal.confirm>>()
-    const dismissed = new Set<string>()
     let source: EventSource | null = null
     let stopped = false
     let authorized = false
     const clear = () => {
-      for (const dialog of dialogs.values()) dialog.destroy()
-      dialogs.clear()
-      dismissed.clear()
       useEagleSharing.setState({
         connected: false,
         incoming: [],
@@ -28,61 +22,6 @@ export function EagleSharingConnection() {
       source.addEventListener('status', (event) => {
         const status = JSON.parse((event as MessageEvent).data) as SharingStatus
         useEagleSharing.setState({ ...status, connected: true })
-        const pending = new Set(
-          status.incoming
-            .filter((entry) => entry.state === 'pending')
-            .map((entry) => entry.id),
-        )
-        for (const [id, dialog] of dialogs) {
-          if (!pending.has(id)) {
-            dialog.destroy()
-            dialogs.delete(id)
-          }
-        }
-        for (const entry of status.incoming) {
-          const requester = entry.memberName
-            ? `成员【${entry.memberName}】（权限组【${entry.name}】）`
-            : `权限组【${entry.name}】的成员`
-          const content = `${requester}请求只读浏览 Eagle 资源库。仅开放你在文件夹可见性中授权的范围，是否同意？`
-          const dialog = dialogs.get(entry.id)
-          if (dialog) {
-            dialog.update({ content })
-            continue
-          }
-          if (entry.state !== 'pending' || dismissed.has(entry.id)) continue
-          dialogs.set(
-            entry.id,
-            Modal.confirm({
-              title: 'Eagle 数据共享',
-              content,
-              okText: '同意',
-              cancelText: '拒绝',
-              centered: true,
-              maskClosable: false,
-              onOk: async () => {
-                try {
-                  await decideSharing(entry.id, true)
-                  dismissed.add(entry.id)
-                } catch (error) {
-                  message.error(
-                    error instanceof Error ? error.message : '处理请求失败',
-                  )
-                  throw error
-                }
-              },
-              onCancel: async () => {
-                dismissed.add(entry.id)
-                try {
-                  await decideSharing(entry.id, false)
-                } catch (error) {
-                  message.error(
-                    error instanceof Error ? error.message : '拒绝请求失败',
-                  )
-                }
-              },
-            }),
-          )
-        }
       })
       source.onerror = () => {
         clear()

@@ -77,9 +77,9 @@ export function Eagle() {
           title="远程资源库未连接"
           description={
             outgoing?.error ||
-            (outgoing?.state === 'pending'
-              ? '等待房主同意本次只读共享请求。'
-              : '请在「远程互联」加入房间并请求 Eagle 共享授权。')
+            (outgoing?.state === 'connecting'
+              ? '正在连接房主的远程资源库。'
+              : '请在「远程互联」加入房间并连接房主远程资源库。')
           }
         />
         <Button type="primary" onClick={() => openEagleSettingModal()}>

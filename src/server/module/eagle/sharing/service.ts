@@ -13,9 +13,9 @@ import {
 import { validateLibraryDirectory } from './paths'
 
 const LEASE_MS = 12000
-const REQUEST_MS = 120000
+const CONNECT_MS = 120000
 const instanceId = randomUUID()
-const stateSchema = z.enum(['pending', 'approved', 'closed', 'error'])
+const stateSchema = z.enum(['connecting', 'approved', 'closed', 'error'])
 type State = z.infer<typeof stateSchema>
 type Transfer = { bytes: number; samples: { time: number; bytes: number }[] }
 type Incoming = Transfer & {
@@ -26,7 +26,6 @@ type Incoming = Transfer & {
   roomSecret: string
   folderSharingCode: string
   state: State
-  createdAt: number
   lastSeen: number
   closedAt?: number
   error?: string
@@ -58,7 +57,7 @@ function fail(message: string): never {
 
 function terminate(
   session: Incoming,
-  error = '共享连接已终止，请重新请求授权',
+  error = '共享连接已终止，请重新连接远程资源库',
 ) {
   if (session.state === 'closed') return
   session.state = 'closed'
@@ -110,6 +109,7 @@ async function remoteJson(
   token?: string,
   body?: object,
   signal?: AbortSignal,
+  timeoutMs = 8000,
 ) {
   const response = await fetchRoomResource(
     `${url}/api/eagle/sharing${endpoint}`,
@@ -123,7 +123,7 @@ async function remoteJson(
       },
       body: JSON.stringify(body ?? {}),
       signal: AbortSignal.any([
-        AbortSignal.timeout(8000),
+        AbortSignal.timeout(timeoutMs),
         ...(signal ? [signal] : []),
       ]),
     },
@@ -169,23 +169,18 @@ export async function requestSharing(
     (user) => user.invitationCode === grant.code,
   )
   if (!user) fail('邀请无效或权限组已删除')
+  // 邀请已确定权限组，连接时直接准备只读资源库，无需房主再次审批。
+  await validateLibraryDirectory(settings.libraryPath, false)
+  await refreshIndex()
   if (incoming.size >= 100) fail('共享连接数量已达上限，请稍后重试')
-  if (
-    [...incoming.values()].some(
-      (session) =>
-        session.invitationCode === grant.code && session.state === 'pending',
-    )
-  )
-    fail('该权限组已有共享请求正在等待同意')
   const session: Incoming = {
     id: randomUUID(),
     token: randomBytes(32).toString('hex'),
     ...user,
     roomSecret: invitationCode,
     folderSharingCode: user.folderSharingCode ?? user.invitationCode,
-    state: 'pending',
-    createdAt: now,
-    lastSeen: now,
+    state: 'approved',
+    lastSeen: Date.now(),
     libraryPath: settings.libraryPath,
     controller: new AbortController(),
     readController: new AbortController(),
@@ -193,20 +188,24 @@ export async function requestSharing(
     samples: [],
   }
   incoming.set(session.token, session)
+  try {
+    // 加载资源库期间可能已经撤销邀请、删除权限组或切库。
+    await validIncoming(session.token)
+  } catch (error) {
+    terminate(session)
+    throw error
+  }
   return { id: session.id, token: session.token, state: session.state }
 }
 
 async function validIncoming(token: string) {
   const session = incoming.get(token)
-  if (!session) fail('共享连接已终止，请重新请求授权')
+  if (!session) fail('共享连接已终止，请重新连接远程资源库')
   if (session.state === 'closed' || session.controller.signal.aborted)
-    fail(session.error || '共享连接已终止，请重新请求授权')
-  if (
-    Date.now() - session.lastSeen > LEASE_MS ||
-    (session.state === 'pending' && Date.now() - session.createdAt > REQUEST_MS)
-  ) {
-    terminate(session, '共享连接已超时，请重新请求授权')
-    fail('共享连接已超时，请重新请求授权')
+    fail(session.error || '共享连接已终止，请重新连接远程资源库')
+  if (Date.now() - session.lastSeen > LEASE_MS) {
+    terminate(session, '共享连接已超时，请重新连接远程资源库')
+    fail('共享连接已超时，请重新连接远程资源库')
   }
   const [settings, sharing] = await Promise.all([
     getEagleSettings(),
@@ -245,34 +244,9 @@ export function closeIncoming(token: string) {
   if (session) terminate(session, '请求方已断开共享连接')
 }
 
-export async function decideSharing(id: string, approve: boolean) {
-  const session = [...incoming.values()].find((session) => session.id === id)
-  if (!session || session.state !== 'pending')
-    fail('该共享请求已被处理或已失效')
-  await validIncoming(session.token)
-  if (!approve) {
-    terminate(session, '对方拒绝了共享请求')
-    return
-  }
-  try {
-    await validateLibraryDirectory(session.libraryPath, false)
-    await refreshIndex()
-    await validIncoming(session.token)
-  } catch (error) {
-    terminate(
-      session,
-      error instanceof Error ? error.message : '共享方资源库加载失败',
-    )
-    throw error
-  }
-  if (session.state !== 'pending' || session.controller.signal.aborted)
-    fail('该共享请求已失效')
-  session.state = 'approved'
-}
-
 export async function authorizeRead(token: string) {
   const session = await validIncoming(token)
-  if (session.state !== 'approved') fail('共享请求尚未获得同意')
+  if (session.state !== 'approved') fail('共享连接尚未就绪')
   return session
 }
 
@@ -310,7 +284,7 @@ export async function connectRemote(config: {
     url,
     certificate: config.certificate,
     invitationCode: config.invitationCode,
-    state: 'pending',
+    state: 'connecting',
     error: '',
     bytes: 0,
     samples: [],
@@ -326,9 +300,10 @@ export async function connectRemote(config: {
       undefined,
       { invitationCode: config.invitationCode, instanceId },
       session.controller.signal,
+      CONNECT_MS,
     )
-    if (!result.token || !result.id || result.state !== 'pending')
-      fail('目标 LinAI 返回了不兼容的共享请求响应')
+    if (!result.token || !result.id || result.state !== 'approved')
+      fail('目标 LinAI 返回了不兼容的共享连接响应，请确认双方已更新 LinAI')
     if (
       outgoing.get(CONNECTION) !== session ||
       session.controller.signal.aborted
@@ -343,6 +318,7 @@ export async function connectRemote(config: {
       fail('共享连接已取消')
     }
     session.token = result.token
+    session.state = 'approved'
     return { id: session.id }
   } catch (error) {
     session.state = 'error'
@@ -356,9 +332,7 @@ export function sharingSnapshot() {
   const session = outgoing.get(CONNECTION)
   return {
     incoming: [...incoming.values()]
-      .filter(
-        (entry) => entry.state === 'pending' || entry.state === 'approved',
-      )
+      .filter((entry) => entry.state === 'approved')
       .map((entry) => ({
         id: entry.id,
         name: entry.name,
@@ -396,21 +370,13 @@ export async function getRemoteConnection() {
 const timer = setInterval(() => {
   const now = Date.now()
   for (const [token, session] of incoming) {
-    if (
-      session.state !== 'closed' &&
-      (now - session.lastSeen > LEASE_MS ||
-        (session.state === 'pending' && now - session.createdAt > REQUEST_MS))
-    )
-      terminate(session, '共享连接已超时，请重新请求授权')
+    if (session.state !== 'closed' && now - session.lastSeen > LEASE_MS)
+      terminate(session, '共享连接已超时，请重新连接远程资源库')
     if (session.closedAt && now - session.closedAt > 15000)
       incoming.delete(token)
   }
   for (const session of outgoing.values()) {
-    if (
-      !session.token ||
-      session.checking ||
-      !['pending', 'approved'].includes(session.state)
-    )
+    if (!session.token || session.checking || session.state !== 'approved')
       continue
     session.checking = true
     void remoteJson(
@@ -426,8 +392,7 @@ const timer = setInterval(() => {
         if (!result.state) fail('目标 LinAI 返回了无效的共享连接状态')
         session.state = result.state
         session.permissionsRevision = result.permissionsRevision
-        if (result.state === 'closed')
-          session.error = '对方拒绝了请求或共享连接已终止'
+        if (result.state === 'closed') session.error = '共享连接已终止'
       })
       .catch((error) => {
         session.state = 'error'

@@ -87,6 +87,7 @@ export function Interconnect() {
   const [status, setStatus] = useState<RoomStatus | null>(null)
   const [entryMode, setEntryMode] = useState<'create' | 'join'>('create')
   const [groupsOpen, setGroupsOpen] = useState(false)
+  const [connectLibraryOpen, setConnectLibraryOpen] = useState(false)
   const [name, setName] = useState('我的房间')
   const [savedMemberName, setMemberName] = useLocalStorageState<
     string | undefined
@@ -170,11 +171,12 @@ export function Interconnect() {
       setBusy(false)
     }
   }
-  const requestLibrary = () =>
+  const connectLibrary = () =>
     act(async () => {
       await selectRemoteLibrary()
       await useEagleConfig.getState().fetchEagleConfig()
-      message.success('已请求 Eagle 只读共享，等待房主同意')
+      setConnectLibraryOpen(false)
+      message.success('已切换为房主的远程资源库')
     })
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -312,7 +314,11 @@ export function Interconnect() {
                         </span>
                         <span className="shrink-0">
                           {entry.role === 'host' ? (
-                            <Tag className="!m-0" bordered={false} color="orange">
+                            <Tag
+                              className="!m-0"
+                              bordered={false}
+                              color="orange"
+                            >
                               房主
                             </Tag>
                           ) : (
@@ -341,24 +347,8 @@ export function Interconnect() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="m-0 flex items-center gap-2 font-medium text-slate-800">
                   <FolderOpenOutlined className="app-accent-text" />
-                  房主资源库
+                  房主开放内容
                 </h3>
-                <Badge
-                  status={
-                    status?.eagle?.state === 'approved'
-                      ? 'success'
-                      : status?.eagle?.state === 'pending'
-                        ? 'processing'
-                        : 'default'
-                  }
-                  text={
-                    status?.eagle?.state === 'approved'
-                      ? '已授权，只读浏览'
-                      : status?.eagle?.state === 'pending'
-                        ? '等待房主同意'
-                        : '尚未授权'
-                  }
-                />
               </div>
               {status?.eagle?.error && (
                 <Alert type="warning" title={status.eagle.error} />
@@ -370,11 +360,11 @@ export function Interconnect() {
                   disabled={
                     busy ||
                     !room.hostOnline ||
-                    status?.eagle?.state === 'pending'
+                    status?.eagle?.state === 'connecting'
                   }
-                  onClick={requestLibrary}
+                  onClick={() => setConnectLibraryOpen(true)}
                 >
-                  请求 Eagle 资源库
+                  连接房主远程资源库
                 </Button>
                 <Link
                   to="/eagle"
@@ -508,6 +498,29 @@ export function Interconnect() {
             </Form>
           </div>
         </section>
+      )}
+      {room?.role === 'guest' && (
+        <Modal
+          title="连接房主远程资源库"
+          open={connectLibraryOpen}
+          okText="确认连接"
+          cancelText="取消"
+          confirmLoading={busy}
+          okButtonProps={{ disabled: !room.hostOnline }}
+          closable={!busy}
+          maskClosable={!busy}
+          onOk={connectLibrary}
+          onCancel={() => {
+            if (!busy) setConnectLibraryOpen(false)
+          }}
+        >
+          <p>
+            将 Eagle
+            图片管理模块中的资源库切换为房主的远程资源库，连接断开后将不可用，可在
+            Eagle 图片管理模块中切换回本地资源库，是否确认？
+          </p>
+          {error && <Alert type="error" showIcon title={error} />}
+        </Modal>
       )}
       {room?.role !== 'guest' && (
         <Modal

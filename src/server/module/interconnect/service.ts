@@ -259,10 +259,9 @@ export async function roomStatus() {
               : ''),
           memberError: current.memberError,
           memberName: current.identity?.name,
-          participants: (
-            current.role === 'host'
-              ? activeParticipants(current)
-              : current.participants
+          participants: (current.role === 'host'
+            ? activeParticipants(current)
+            : current.participants
           ).map((participant) => ({
             ...participant,
             role:
@@ -300,7 +299,11 @@ export async function roomStatus() {
 function activeParticipants(current: Room): Participant[] {
   if (current.error) return []
   return [
-    { name: current.identity?.name ?? '房主', address: HOST_IP, connection: null },
+    {
+      name: current.identity?.name ?? '房主',
+      address: HOST_IP,
+      connection: null,
+    },
     ...[...current.activeMembers.values()]
       .filter(
         (member) =>
@@ -315,7 +318,7 @@ function activeParticipants(current: Room): Participant[] {
   ]
 }
 
-// 独立登记不依赖 Eagle 审批；持有邀请能力才可更新该权限组的历史。
+// 成员登记与资源库连接独立；持有邀请能力才可更新该权限组的历史。
 const loginMember = (secret: string, identity: MemberLogin) =>
   mutate(async () => {
     const current = room

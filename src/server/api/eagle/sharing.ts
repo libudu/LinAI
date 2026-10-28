@@ -14,7 +14,6 @@ import { isSharedRead } from '../../module/eagle/sharing/protocol'
 import {
   authorizeRead,
   closeIncoming,
-  decideSharing,
   heartbeatIncoming,
   recordTransfer,
   requestSharing,
@@ -52,15 +51,6 @@ const sharingApi = new Hono()
       success: true as const,
       data: sharingSnapshot(),
     }),
-  )
-  .post(
-    '/decision',
-    validate('json', z.object({ id: z.string().uuid(), approve: z.boolean() })),
-    async (c) => {
-      const { id, approve } = c.req.valid('json')
-      await decideSharing(id, approve)
-      return c.json({ success: true as const, data: null })
-    },
   )
   .get(
     '/directories',
