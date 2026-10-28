@@ -15,6 +15,7 @@ import {
   ThunderboltOutlined,
   UserOutlined,
 } from '@ant-design/icons'
+import { useLocalStorageState } from 'ahooks'
 import {
   Alert,
   Badge,
@@ -87,8 +88,16 @@ export function Interconnect() {
   const [entryMode, setEntryMode] = useState<'create' | 'join'>('create')
   const [groupsOpen, setGroupsOpen] = useState(false)
   const [name, setName] = useState('我的房间')
-  const [memberName, setMemberName] = useState('')
-  const memberNameInitialized = useRef(false)
+  const [savedMemberName, setMemberName] = useLocalStorageState<
+    string | undefined
+  >('interconnect_member_name', {
+    deserializer: (raw) => {
+      const value: unknown = JSON.parse(raw)
+      return typeof value === 'string' ? value : undefined
+    },
+  })
+  const memberName = savedMemberName ?? ''
+  const memberNameInitialized = useRef(savedMemberName !== undefined)
   const [invitation, setInvitation] = useState('')
   const [issued, setIssued] = useState<{
     invitation: string
@@ -145,7 +154,7 @@ export function Interconnect() {
       active = false
       window.clearInterval(timer)
     }
-  }, [])
+  }, [setMemberName])
   const act = async (work: () => Promise<unknown>) => {
     if (running.current) return
     running.current = true
@@ -169,18 +178,6 @@ export function Interconnect() {
     })
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="m-0 text-2xl font-bold text-slate-800">远程互联</h1>
-        {room?.role !== 'guest' && (
-          <Button
-            icon={<TeamOutlined />}
-            disabled={busy || !status}
-            onClick={() => setGroupsOpen(true)}
-          >
-            权限组
-          </Button>
-        )}
-      </header>
       {error && (
         <Alert
           type="error"
@@ -219,28 +216,39 @@ export function Interconnect() {
                   </div>
                 )}
               </div>
-              <Popconfirm
-                title={
-                  room.role === 'host'
-                    ? '关闭房间并撤销所有邀请和共享？'
-                    : '退出当前房间？'
-                }
-                onConfirm={() =>
-                  act(async () => {
-                    await leaveRoom()
-                    setIssued(null)
-                  })
-                }
-              >
-                <Button
-                  type="text"
-                  icon={<LogoutOutlined />}
-                  danger
-                  disabled={busy}
+              <Space wrap>
+                {room.role === 'host' && (
+                  <Button
+                    icon={<TeamOutlined />}
+                    disabled={busy || !status}
+                    onClick={() => setGroupsOpen(true)}
+                  >
+                    权限组
+                  </Button>
+                )}
+                <Popconfirm
+                  title={
+                    room.role === 'host'
+                      ? '关闭房间并撤销所有邀请和共享？'
+                      : '退出当前房间？'
+                  }
+                  onConfirm={() =>
+                    act(async () => {
+                      await leaveRoom()
+                      setIssued(null)
+                    })
+                  }
                 >
-                  {room.role === 'host' ? '关闭房间' : '退出房间'}
-                </Button>
-              </Popconfirm>
+                  <Button
+                    type="text"
+                    icon={<LogoutOutlined />}
+                    danger
+                    disabled={busy}
+                  >
+                    {room.role === 'host' ? '关闭房间' : '退出房间'}
+                  </Button>
+                </Popconfirm>
+              </Space>
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-slate-50 px-3 py-2.5">
               <Badge
@@ -443,9 +451,20 @@ export function Interconnect() {
                   />
                 </Form.Item>
               )}
-              <div className="pt-1">
+              <div className="flex gap-3 pt-1">
+                {entryMode === 'create' && (
+                  <Button
+                    className="shrink-0"
+                    size="large"
+                    icon={<TeamOutlined />}
+                    disabled={busy || !status}
+                    onClick={() => setGroupsOpen(true)}
+                  >
+                    权限组
+                  </Button>
+                )}
                 <Button
-                  block
+                  className="min-w-0 flex-1"
                   size="large"
                   htmlType="submit"
                   type="primary"
