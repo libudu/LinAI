@@ -1,17 +1,35 @@
 import { settingsClient } from '@/client/service/settings'
 import type { InterconnectSettings } from '@/server/module/interconnect/settings'
 import {
+  CopyOutlined,
+  DownOutlined,
+  FolderOpenOutlined,
+  HomeOutlined,
+  LoginOutlined,
+  LogoutOutlined,
+  PlusOutlined,
+  SaveOutlined,
+  SettingOutlined,
+  SwapOutlined,
+  TeamOutlined,
+  ThunderboltOutlined,
+  UserOutlined,
+} from '@ant-design/icons'
+import {
   Alert,
+  Badge,
   Button,
-  Card,
+  ConfigProvider,
   Form,
   Input,
   Modal,
   Popconfirm,
+  Segmented,
   Space,
   Table,
   Tag,
   message,
+  theme,
 } from 'antd'
 import copy from 'copy-to-clipboard'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -41,6 +59,15 @@ function ConnectionTag({
   if (mode === null) return null
   return (
     <Tag
+      className="!m-0"
+      bordered={false}
+      icon={
+        mode === 'direct' ? (
+          <ThunderboltOutlined />
+        ) : mode === 'relay' ? (
+          <SwapOutlined />
+        ) : undefined
+      }
       color={
         mode === 'direct' ? 'green' : mode === 'relay' ? 'orange' : undefined
       }
@@ -55,8 +82,9 @@ function ConnectionTag({
 }
 
 export function Interconnect() {
+  const { token } = theme.useToken()
   const [status, setStatus] = useState<RoomStatus | null>(null)
-  const [createOpen, setCreateOpen] = useState(false)
+  const [entryMode, setEntryMode] = useState<'create' | 'join'>('create')
   const [groupsOpen, setGroupsOpen] = useState(false)
   const [name, setName] = useState('我的房间')
   const [memberName, setMemberName] = useState('')
@@ -140,7 +168,19 @@ export function Interconnect() {
       message.success('已请求 Eagle 只读共享，等待房主同意')
     })
   return (
-    <div className="mx-auto max-w-4xl space-y-5 p-4 sm:p-6">
+    <div className="mx-auto max-w-3xl space-y-6">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="m-0 text-2xl font-bold text-slate-800">远程互联</h1>
+        {room?.role !== 'guest' && (
+          <Button
+            icon={<TeamOutlined />}
+            disabled={busy || !status}
+            onClick={() => setGroupsOpen(true)}
+          >
+            权限组
+          </Button>
+        )}
+      </header>
       {error && (
         <Alert
           type="error"
@@ -151,13 +191,34 @@ export function Interconnect() {
         />
       )}
       {room ? (
-        <Card
-          title={room.name}
-          extra={
-            <Space wrap>
-              {room.role === 'host' && (
-                <Button onClick={() => setGroupsOpen(true)}>编辑权限组</Button>
-              )}
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="space-y-5 p-5 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h2 className="m-0 min-w-0 text-lg font-semibold break-words text-slate-800">
+                    {room.name}
+                  </h2>
+                  <Tag
+                    className="!m-0"
+                    bordered={false}
+                    style={{
+                      color: token.colorPrimaryText,
+                      background: token.colorPrimaryBg,
+                    }}
+                  >
+                    {room.role === 'host' ? '房主' : '成员'}
+                  </Tag>
+                </div>
+                {room.memberName && (
+                  <div className="mt-2 flex items-center gap-2 text-slate-500">
+                    <UserOutlined className="shrink-0" />
+                    <span className="min-w-0 break-words">
+                      {room.memberName}
+                    </span>
+                  </div>
+                )}
+              </div>
               <Popconfirm
                 title={
                   room.role === 'host'
@@ -171,48 +232,54 @@ export function Interconnect() {
                   })
                 }
               >
-                <Button danger disabled={busy}>
+                <Button
+                  type="text"
+                  icon={<LogoutOutlined />}
+                  danger
+                  disabled={busy}
+                >
                   {room.role === 'host' ? '关闭房间' : '退出房间'}
                 </Button>
               </Popconfirm>
-            </Space>
-          }
-        >
-          <Space wrap>
-            <Tag>{room.role === 'host' ? '房主' : '成员'}</Tag>
-            {room.memberName && <Tag>名称：{room.memberName}</Tag>}
-            <Tag
-              color={
-                room.state === 'connected'
-                  ? 'green'
-                  : room.state === 'error'
-                    ? 'red'
-                    : 'blue'
-              }
-            >
-              {room.state === 'connected'
-                ? room.role === 'guest'
-                  ? '已连接房主'
-                  : '已有成员连接'
-                : room.state === 'error'
-                  ? '核心已退出'
-                  : '等待连接'}
-            </Tag>
-            {room.role === 'guest' && <ConnectionTag mode={room.connection} />}
-          </Space>
-          {room.error && (
-            <Alert className="mt-3" type="warning" title={room.error} />
-          )}
-          {room.memberError && (
-            <Alert
-              className="mt-3"
-              type="warning"
-              title={`成员信息同步失败，将自动重试：${room.memberError}`}
-            />
-          )}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-slate-50 px-3 py-2.5">
+              <Badge
+                status={
+                  room.state === 'connected'
+                    ? 'success'
+                    : room.state === 'error'
+                      ? 'error'
+                      : 'default'
+                }
+                text={
+                  room.state === 'connected'
+                    ? room.role === 'guest'
+                      ? '已连接房主'
+                      : '已有成员连接'
+                    : room.state === 'error'
+                      ? '核心已退出'
+                      : '等待连接'
+                }
+              />
+              {room.role === 'guest' && (
+                <ConnectionTag mode={room.connection} />
+              )}
+            </div>
+            {room.error && <Alert type="warning" showIcon title={room.error} />}
+            {room.memberError && (
+              <Alert
+                type="warning"
+                showIcon
+                title={`成员信息同步失败，将自动重试：${room.memberError}`}
+              />
+            )}
+          </div>
           {room.participants.length > 0 && (
-            <div className="mt-4">
-              <div className="mb-2 text-sm font-medium">房间成员</div>
+            <div className="border-t border-slate-100 p-5 sm:p-6">
+              <h3 className="m-0 mb-4 flex items-center gap-2 font-medium text-slate-800">
+                <TeamOutlined className="app-accent-text" />
+                房间成员
+              </h3>
               <Table
                 rowKey="address"
                 size="small"
@@ -220,27 +287,51 @@ export function Interconnect() {
                 dataSource={room.participants}
                 columns={[
                   { title: '名称', dataIndex: 'name', ellipsis: true },
-                  { title: '虚拟 IP', dataIndex: 'address' },
+                  {
+                    title: '虚拟 IP',
+                    dataIndex: 'address',
+                    width: 160,
+                    render: (address: string) => (
+                      <span className="font-mono text-slate-500">
+                        {address}
+                      </span>
+                    ),
+                  },
                 ]}
               />
             </div>
           )}
           {room.role === 'guest' && (
-            <div className="mt-4 space-y-3">
-              <p>
-                房主资源库：
-                {status?.eagle?.state === 'approved'
-                  ? '已授权，只读浏览'
-                  : status?.eagle?.state === 'pending'
-                    ? '等待房主同意'
-                    : '尚未授权'}
-              </p>
+            <div className="space-y-4 border-t border-slate-100 p-5 sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="m-0 flex items-center gap-2 font-medium text-slate-800">
+                  <FolderOpenOutlined className="app-accent-text" />
+                  房主资源库
+                </h3>
+                <Badge
+                  status={
+                    status?.eagle?.state === 'approved'
+                      ? 'success'
+                      : status?.eagle?.state === 'pending'
+                        ? 'processing'
+                        : 'default'
+                  }
+                  text={
+                    status?.eagle?.state === 'approved'
+                      ? '已授权，只读浏览'
+                      : status?.eagle?.state === 'pending'
+                        ? '等待房主同意'
+                        : '尚未授权'
+                  }
+                />
+              </div>
               {status?.eagle?.error && (
                 <Alert type="warning" title={status.eagle.error} />
               )}
-              <Space wrap>
+              <Space wrap size={12}>
                 <Button
                   type="primary"
+                  icon={<FolderOpenOutlined />}
                   disabled={
                     busy ||
                     !room.hostOnline ||
@@ -250,73 +341,127 @@ export function Interconnect() {
                 >
                   请求 Eagle 资源库
                 </Button>
-                <Link to="/eagle">打开 Eagle</Link>
+                <Link
+                  to="/eagle"
+                  className="app-accent-text rounded-md px-2 py-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)]"
+                >
+                  打开 Eagle
+                </Link>
               </Space>
             </div>
           )}
-        </Card>
+        </section>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Card title="创建房间">
-            <p className="mb-6">创建自己的房间，邀请其他成员加入。</p>
-            <div className="flex flex-col items-start gap-3">
-              <Button
-                type="primary"
-                disabled={busy || !status}
-                onClick={() => setCreateOpen(true)}
-              >
-                创建房间
-              </Button>
-              <Button
-                disabled={busy || !status}
-                onClick={() => setGroupsOpen(true)}
-              >
-                编辑权限组
-              </Button>
-            </div>
-          </Card>
-          <Card title="加入房间">
+        <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-7">
+          <div className="mx-auto max-w-lg">
+            <ConfigProvider
+              theme={{
+                components: {
+                  Segmented: {
+                    itemSelectedBg: token.colorPrimaryBg,
+                    itemSelectedColor: token.colorPrimaryText,
+                    trackPadding: 4,
+                  },
+                },
+              }}
+            >
+              <Segmented
+                block
+                size="large"
+                value={entryMode}
+                disabled={busy}
+                options={[
+                  {
+                    label: '创建房间',
+                    value: 'create',
+                    icon: <HomeOutlined />,
+                  },
+                  { label: '加入房间', value: 'join', icon: <LoginOutlined /> },
+                ]}
+                onChange={setEntryMode}
+              />
+            </ConfigProvider>
             <Form
+              style={{ marginTop: 24 }}
               layout="vertical"
+              requiredMark={false}
               onFinish={() =>
                 act(async () => {
-                  await joinRoom(invitation, memberName.trim())
-                  setInvitation('')
+                  if (!status || !memberName.trim()) return
+                  if (entryMode === 'create') {
+                    if (!name.trim()) return
+                    await createRoom(name.trim(), memberName.trim())
+                  } else {
+                    if (!invitation.trim()) return
+                    await joinRoom(invitation, memberName.trim())
+                    setInvitation('')
+                  }
                 })
               }
             >
-              <Form.Item label="你的名称" required>
+              {entryMode === 'create' && (
+                <Form.Item
+                  label="房间名称"
+                  required
+                  style={{ marginBottom: 20 }}
+                >
+                  <Input
+                    size="large"
+                    prefix={<HomeOutlined className="mr-1 text-slate-400" />}
+                    value={name}
+                    maxLength={80}
+                    aria-label="房间名称"
+                    disabled={busy}
+                    onChange={(event) => setName(event.target.value)}
+                  />
+                </Form.Item>
+              )}
+              <Form.Item label="你的名称" required style={{ marginBottom: 20 }}>
                 <Input
+                  size="large"
+                  prefix={<UserOutlined className="mr-1 text-slate-400" />}
                   value={memberName}
                   maxLength={80}
                   aria-label="你的名称"
+                  disabled={busy}
                   onChange={(event) => {
                     memberNameInitialized.current = true
                     setMemberName(event.target.value)
                   }}
                 />
               </Form.Item>
-              <Form.Item label="粘贴房主发来的完整邀请">
-                <Input.TextArea
-                  rows={3}
-                  value={invitation}
-                  maxLength={16020}
-                  onChange={(event) => setInvitation(event.target.value)}
-                />
-              </Form.Item>
-              <div className="flex justify-end">
+              {entryMode === 'join' && (
+                <Form.Item label="房间邀请" style={{ marginBottom: 20 }}>
+                  <Input.TextArea
+                    rows={4}
+                    value={invitation}
+                    maxLength={16020}
+                    aria-label="房间邀请"
+                    placeholder="粘贴房主发来的完整邀请"
+                    disabled={busy}
+                    onChange={(event) => setInvitation(event.target.value)}
+                  />
+                </Form.Item>
+              )}
+              <div className="pt-1">
                 <Button
+                  block
+                  size="large"
                   htmlType="submit"
                   type="primary"
                   loading={busy}
-                  disabled={!status || !invitation.trim() || !memberName.trim()}
+                  disabled={
+                    !status ||
+                    !memberName.trim() ||
+                    !(entryMode === 'create' ? name.trim() : invitation.trim())
+                  }
                 >
-                  加入房间
+                  {entryMode === 'create' ? '创建房间' : '加入房间'}
                 </Button>
               </div>
             </Form>
-          </Card>
-        </div>
+          </div>
+        </section>
       )}
       {room?.role !== 'guest' && (
         <Modal
@@ -324,6 +469,7 @@ export function Interconnect() {
           open={groupsOpen}
           width={900}
           footer={null}
+          styles={{ body: { paddingTop: 20 } }}
           onCancel={() => {
             if (!busy) setGroupsOpen(false)
           }}
@@ -331,8 +477,10 @@ export function Interconnect() {
           {error && (
             <Alert className="mb-3" type="error" showIcon title={error} />
           )}
-          <div className="mb-4 flex justify-end">
+          <div className="mb-5 flex justify-end">
             <Button
+              type="primary"
+              icon={<PlusOutlined />}
               disabled={busy || !status}
               onClick={() => setMember({ name: '' })}
             >
@@ -341,16 +489,12 @@ export function Interconnect() {
           </div>
           <Table<RoomStatus['members'][number]>
             rowKey="id"
-            size="small"
+            size="middle"
             pagination={false}
             dataSource={status?.members ?? []}
             loading={!status && !error}
-            scroll={{ x: 650 }}
+            scroll={{ x: 800 }}
             expandable={{
-              showExpandColumn: false,
-              expandedRowKeys: (status?.members ?? [])
-                .filter((entry) => entry.history.length > 0)
-                .map((entry) => entry.id),
               rowExpandable: (entry) => entry.history.length > 0,
               expandedRowRender: (entry) => (
                 <Table
@@ -394,7 +538,7 @@ export function Interconnect() {
                 title: '状态',
                 render: (_, entry) =>
                   entry.online ? (
-                    <Tag color="green">
+                    <Tag className="!m-0" bordered={false} color="green">
                       在线
                       {entry.sharing === 'approved' ? ' · Eagle 共享中' : ''}
                     </Tag>
@@ -415,8 +559,9 @@ export function Interconnect() {
               },
               {
                 title: '操作',
+                width: 300,
                 render: (_, entry) => (
-                  <Space wrap size={0}>
+                  <Space wrap size={4}>
                     <Button
                       type="link"
                       size="small"
@@ -470,21 +615,30 @@ export function Interconnect() {
           />
         </Modal>
       )}
-      <details className="rounded-lg border border-slate-200 p-4">
-        <summary className="cursor-pointer">高级设置</summary>
-        <div className="mt-3 space-y-3">
-          <label className="block" htmlFor="interconnect-peers">
-            连接服务器
-          </label>
-          <Input.TextArea
-            id="interconnect-peers"
-            rows={3}
-            value={peers}
-            onChange={(event) => setPeers(event.target.value)}
-            disabled={busy}
-          />
-          <div className="flex justify-end pt-2">
+      <details className="group rounded-xl border border-slate-200 bg-white">
+        <summary className="flex cursor-pointer list-none items-center justify-between rounded-xl px-5 py-4 font-medium text-slate-600 transition-colors hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)] [&::-webkit-details-marker]:hidden">
+          <span className="flex items-center gap-2">
+            <SettingOutlined className="text-slate-400" />
+            高级设置
+          </span>
+          <DownOutlined className="text-xs text-slate-400 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="space-y-4 border-t border-slate-100 p-5 sm:p-6">
+          <div className="space-y-2">
+            <label className="block" htmlFor="interconnect-peers">
+              连接服务器
+            </label>
+            <Input.TextArea
+              id="interconnect-peers"
+              rows={3}
+              value={peers}
+              onChange={(event) => setPeers(event.target.value)}
+              disabled={busy || revision === null}
+            />
+          </div>
+          <div className="flex justify-end">
             <Button
+              icon={<SaveOutlined />}
               disabled={busy || revision === null}
               onClick={() =>
                 act(async () => {
@@ -510,61 +664,12 @@ export function Interconnect() {
         </div>
       </details>
       <Modal
-        open={createOpen && !room}
-        title="创建房间"
-        okText="创建房间"
-        cancelText="取消"
-        confirmLoading={busy}
-        onCancel={() => {
-          if (!busy) setCreateOpen(false)
-        }}
-        okButtonProps={{
-          disabled: !status || !name.trim() || !memberName.trim(),
-          htmlType: 'submit',
-          form: 'interconnect-create-room',
-        }}
-      >
-        {error && (
-          <Alert className="mb-3" type="error" showIcon title={error} />
-        )}
-        <Form
-          id="interconnect-create-room"
-          layout="vertical"
-          onFinish={() =>
-            act(async () => {
-              if (!status || !name.trim() || !memberName.trim()) return
-              await createRoom(name.trim(), memberName.trim())
-              setCreateOpen(false)
-            })
-          }
-        >
-          <Form.Item label="房间名称" required>
-            <Input
-              value={name}
-              maxLength={80}
-              aria-label="房间名称"
-              onChange={(event) => setName(event.target.value)}
-            />
-          </Form.Item>
-          <Form.Item label="你的名称" required>
-            <Input
-              value={memberName}
-              maxLength={80}
-              aria-label="你的名称"
-              onChange={(event) => {
-                memberNameInitialized.current = true
-                setMemberName(event.target.value)
-              }}
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
-      <Modal
         open={member !== null}
         title={member?.id ? '修改权限组名称' : '添加权限组'}
         okText="保存"
         cancelText="取消"
         confirmLoading={busy}
+        styles={{ body: { paddingTop: 20, paddingBottom: 8 } }}
         onCancel={() => {
           if (!busy) setMember(null)
         }}
@@ -579,6 +684,8 @@ export function Interconnect() {
         }
       >
         <Input
+          size="large"
+          prefix={<TeamOutlined className="mr-1 text-slate-400" />}
           aria-label="权限组名称"
           value={member?.name ?? ''}
           maxLength={80}
@@ -593,23 +700,31 @@ export function Interconnect() {
         open={issued !== null}
         title="房间邀请"
         footer={null}
+        styles={{ body: { paddingTop: 20 } }}
         onCancel={() => setIssued(null)}
       >
-        <p className="mb-3">
+        <p className="mt-0 mb-4 leading-relaxed">
           此邀请仅交给使用此权限组的成员；重新生成会撤销该权限组的旧邀请和共享连接。
         </p>
-        <Input.TextArea rows={5} value={issued?.invitation ?? ''} readOnly />
-        <Button
-          className="mt-3"
-          type="primary"
-          onClick={async () => {
-            if (!issued) return
-            if (await copy(issued.invitation)) message.success('邀请已复制')
-            else message.error('复制失败，请手动选择邀请文本复制')
-          }}
-        >
-          复制完整邀请
-        </Button>
+        <Input.TextArea
+          rows={5}
+          aria-label="完整房间邀请"
+          value={issued?.invitation ?? ''}
+          readOnly
+        />
+        <div className="mt-5 flex justify-end">
+          <Button
+            type="primary"
+            icon={<CopyOutlined />}
+            onClick={async () => {
+              if (!issued) return
+              if (await copy(issued.invitation)) message.success('邀请已复制')
+              else message.error('复制失败，请手动选择邀请文本复制')
+            }}
+          >
+            复制完整邀请
+          </Button>
+        </div>
       </Modal>
     </div>
   )
