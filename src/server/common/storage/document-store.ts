@@ -82,10 +82,11 @@ export class DocumentStore<T = unknown> {
     )
   }
 
-  /** 整体替换；expectedRevision 不匹配抛 REVISION_CONFLICT */
+  /** 整体替换；修订检查通过后在锁内执行 beforeSave，再写入文档。 */
   readonly replace = (
     value: T,
     expectedRevision?: number,
+    beforeSave?: (value: T) => void | Promise<void>,
   ): Promise<StoredDocument<T>> => {
     this.assertValueSize(value)
     return resourceLock.run(this.file, async () => {
@@ -98,6 +99,8 @@ export class DocumentStore<T = unknown> {
           { currentRevision: revision },
         )
       }
+      await beforeSave?.(value)
+      this.assertValueSize(value)
       const next: StoredDocument<T> = {
         storageVersion: STORAGE_VERSION,
         revision: revision + 1,

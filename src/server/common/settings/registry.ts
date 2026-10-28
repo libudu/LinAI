@@ -24,7 +24,7 @@ export interface SettingsDef<T> {
   loadLegacy?: () => Partial<T> | Promise<Partial<T>>
   /** 可选的读取规范化：模块迁移旧字段并补齐默认值，不改变磁盘修订号。 */
   normalize?: (raw: unknown) => T
-  /** schema 校验后、写入前执行的模块业务约束。 */
+  /** schema 和修订校验后，在设置写锁内执行；可规范化即将保存的值。 */
   validateBeforeSave?: (value: T) => void | Promise<void>
 }
 
@@ -146,8 +146,11 @@ class SettingsRegistry {
         ? def.normalize(incoming)
         : mergeDefaults(def.defaults, incoming),
     )
-    await def.validateBeforeSave?.(value)
-    const doc = await store.replace(value, expectedRevision)
+    const doc = await store.replace(
+      value,
+      expectedRevision,
+      def.validateBeforeSave,
+    )
     return { revision: doc.revision, value: doc.value }
   }
 }

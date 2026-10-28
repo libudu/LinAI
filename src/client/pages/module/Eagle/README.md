@@ -18,6 +18,8 @@
 
 页面路由为 `/eagle`，业务 API 为 `/api/eagle`。设置、通用存储和中继分别在 `src/server/common/{settings,storage,relay}/resources.ts` 汇总注册。
 
+本地路径选择通过 Node 调用 Windows 原生文件夹对话框（窗口位于服务端所在电脑），也可手动输入路径。选择时只校验目录；保存本地库设置时，在设置修订检查通过后重新校验并原地初始化空目录，创建 `images/`、`mtime.json` 与 `metadata.json`，不改目录名称。非空目录按 Eagle 库结构校验，不依赖 `.library` 后缀；初始化使用库写锁和排他创建，不覆盖已有文件。
+
 ## 数据归属
 
 模块使用的 Eagle 库结构如下（省略无关文件）：

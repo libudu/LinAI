@@ -7,7 +7,6 @@ import {
   type RoomStatus,
 } from '../../Interconnect/api'
 import { useEagleConfig } from '../settings/useEagleConfig'
-import { validateDirectory } from '../sharing/api'
 import { useEagleStore } from '../store'
 import { DirectoryPicker } from './DirectoryPicker'
 
@@ -41,14 +40,14 @@ export const LibrarySetting = forwardRef<EagleSettingRef>((_props, ref) => {
           await config.fetchEagleConfig()
           message.success('已选择远程资源库')
         } else {
-          const directory = await validateDirectory(
-            values.libraryPath?.trim() || '',
-            false,
-          )
           await config.setEagleConfig({
             libraryMode: 'local',
-            libraryPath: directory.path,
+            libraryPath: values.libraryPath?.trim() || '',
           })
+          form.setFieldValue(
+            'libraryPath',
+            useEagleConfig.getState().libraryPath,
+          )
           message.success('本地资源库已保存')
           await useEagleStore.getState().reload()
         }
@@ -74,12 +73,12 @@ export const LibrarySetting = forwardRef<EagleSettingRef>((_props, ref) => {
           <Form.Item
             name="libraryPath"
             label="Eagle 资源库路径"
-            extra="选择已有 .library 资源库。编辑、整理确认和回收站操作会写入资源库。"
+            extra="选择空文件夹或已有 Eagle 资源库；空文件夹将在保存时原地初始化。编辑、整理确认和回收站操作会写入资源库。"
             rules={[
               { required: true, whitespace: true, message: '请选择资源库路径' },
             ]}
           >
-            <DirectoryPicker allowEmpty={false} />
+            <DirectoryPicker />
           </Form.Item>
         ) : (
           <Alert

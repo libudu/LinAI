@@ -12,7 +12,7 @@ import { visionSettingsSchema } from '../vision/settings'
 
 // Eagle 图片管理模块设置：注册式存储，落盘 data/eagle/config.json
 export const eagleSettingsSchema = z.object({
-  /** Eagle 资源库（.library 目录）的绝对路径 */
+  /** Eagle 资源库目录的绝对路径 */
   libraryPath: z.string().nullable(),
   libraryMode: z.enum(['local', 'remote']).default('local'),
   // 旧地址/邀请码字段保留磁盘兼容；新连接只能由远程互联后台创建。
@@ -40,6 +40,14 @@ settingsRegistry.register<EagleSettings>('eagle', {
   defaults: DEFAULT_EAGLE_SETTINGS,
   schema: eagleSettingsSchema,
   migrateLegacy,
+  validateBeforeSave: async (value) => {
+    if (value.libraryMode !== 'local') return
+    // 延迟加载库门面，避免设置注册与索引模块互相导入时提前执行。
+    const { prepareLibraryDirectory } = await import('./library')
+    value.libraryPath = await prepareLibraryDirectory(
+      value.libraryPath?.trim() || '',
+    )
+  },
 })
 
 /** 服务端内部读取（合并默认值） */

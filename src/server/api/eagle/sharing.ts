@@ -2,14 +2,12 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { streamSSE } from 'hono/streaming'
 import { z } from 'zod'
+import { pickLibraryDirectory } from '../../module/eagle/directory-picker'
 import { getItemDetail } from '../../module/eagle/library'
 import type { EagleLibraryAccess } from '../../module/eagle/library/shared-access'
 import { getEagleFolderSharingSettings } from '../../module/eagle/settings'
 import { issueOwnerSession } from '../../module/eagle/sharing/access'
-import {
-  listDirectories,
-  validateLibraryDirectory,
-} from '../../module/eagle/sharing/paths'
+import { validateLibraryDirectory } from '../../module/eagle/sharing/paths'
 import { isSharedRead } from '../../module/eagle/sharing/protocol'
 import {
   authorizeRead,
@@ -52,13 +50,16 @@ const sharingApi = new Hono()
       data: sharingSnapshot(),
     }),
   )
-  .get(
-    '/directories',
-    validate('query', z.object({ path: z.string().optional() })),
+  .post(
+    '/pick-directory',
+    validate('json', z.object({ path: z.string().optional() })),
     async (c) =>
       c.json({
         success: true as const,
-        data: await listDirectories(c.req.valid('query').path),
+        data: await pickLibraryDirectory(
+          c.req.valid('json').path,
+          c.req.raw.signal,
+        ),
       }),
   )
   .post(
