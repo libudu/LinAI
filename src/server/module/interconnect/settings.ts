@@ -29,7 +29,7 @@ export type InterconnectSettings = z.infer<typeof interconnectSettingsSchema>
 settingsRegistry.register<InterconnectSettings>('interconnect', {
   file: dataPath('interconnect', 'settings.json'),
   schema: interconnectSettingsSchema,
-  defaults: { peers: ['tcp://public.easytier.cn:11010'] },
+  defaults: { peers: ['tcp://easytier.weiai.org.cn:11010'] },
 })
 export const getInterconnectSettings = () =>
   settingsRegistry.get<InterconnectSettings>('interconnect')

@@ -36,6 +36,16 @@ const inviteSchema = z
   })
   .strict()
 type Invitation = z.infer<typeof inviteSchema>
+type ConnectionMode = 'direct' | 'relay' | 'unknown'
+
+// 内置核心的 peer --output json 返回展示行数组，cost 为 p2p / relay(n) / Local。
+const peerStatusSchema = z.array(
+  z.object({
+    ipv4: z.string(),
+    cost: z.string().optional(),
+  }),
+)
+
 type Member = { credentialId: string; ip: string; expiresAt: number }
 type Room = {
   id: string
@@ -51,7 +61,7 @@ type Room = {
 let room: Room | null = null
 let queue = Promise.resolve()
 let refreshing = false
-let routes = new Set<string>()
+let routes = new Map<string, ConnectionMode>()
 let networkError = ''
 function fail(message: string): never {
   throw new HTTPException(409, { message })
@@ -70,7 +80,7 @@ function mutate<T>(work: () => Promise<T>): Promise<T> {
 async function stop() {
   const current = room
   room = null
-  routes = new Set()
+  routes = new Map()
   networkError = ''
   revokeRoomGrant()
   revokeSharing()
@@ -91,7 +101,7 @@ function watchRoom(current: Room) {
     disconnectRemote()
     current.entry?.server.closeAllConnections?.()
     current.entry?.server.close()
-    routes = new Set()
+    routes = new Map()
   })
 }
 
@@ -165,6 +175,12 @@ export async function roomStatus() {
   const users = await getEagleSharingSettings()
   const current = room
   const sharing = sharingSnapshot()
+  const connected =
+    current?.role === 'guest'
+      ? routes.has(HOST_IP)
+      : [...(current?.guests.values() ?? [])].some((member) =>
+          routes.has(member.ip),
+        )
   return {
     room: current
       ? {
@@ -173,13 +189,15 @@ export async function roomStatus() {
           role: current.role,
           state: current.error
             ? ('error' as const)
-            : routes.size
+            : connected
               ? ('connected' as const)
               : ('waiting' as const),
           error: current.error || networkError,
           peers: current.peers,
           expiresAt: current.invitation?.expiresAt,
           hostOnline: routes.has(HOST_IP),
+          connection:
+            current.role === 'guest' ? (routes.get(HOST_IP) ?? null) : null,
         }
       : null,
     members: users.users.map((user) => {
@@ -189,6 +207,7 @@ export async function roomStatus() {
         name: user.name,
         invited: Boolean(member && member.expiresAt > Date.now()),
         online: Boolean(member && routes.has(member.ip)),
+        connection: member ? routes.get(member.ip) ?? null : null,
         expiresAt: member?.expiresAt,
         sharing: sharing.incoming.find(
           (entry) => entry.invitationCode === user.invitationCode,
@@ -378,42 +397,33 @@ const timer = setInterval(() => {
   refreshing = true
   void command<unknown>(current.core, ['peer'])
     .then((result) => {
-      const data = z
-        .object({
-          peer_routes: z.array(
-            z.object({
-              route: z
-                .object({
-                  ipv4_addr: z
-                    .object({
-                      address: z
-                        .object({ addr: z.number() })
-                        .nullable()
-                        .optional(),
-                    })
-                    .nullable()
-                    .optional(),
-                })
-                .nullable()
-                .optional(),
-            }),
-          ),
-        })
-        .parse(result)
-      const addresses = data.peer_routes.flatMap((entry) => {
-        const n = entry.route?.ipv4_addr?.address?.addr
-        return n === undefined
-          ? []
-          : [[n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.')]
-      })
-      if (room === current) {
-        routes = new Set(addresses)
+      const data = peerStatusSchema.parse(result)
+      const connections = new Map<string, ConnectionMode>()
+      for (const entry of data) {
+        // 排除本机和公共节点；连上公共节点不代表已经连上房间成员。
+        if (
+          entry.cost === 'Local' ||
+          (!inviteSchema.shape.ip.safeParse(entry.ipv4).success &&
+            entry.ipv4 !== HOST_IP)
+        )
+          continue
+        connections.set(
+          entry.ipv4,
+          entry.cost === 'p2p'
+            ? 'direct'
+            : /^relay\([1-9]\d*\)$/.test(entry.cost ?? '')
+              ? 'relay'
+              : 'unknown',
+        )
+      }
+      if (room === current && !current.error) {
+        routes = connections
         networkError = ''
       }
     })
     .catch(() => {
       if (room === current) {
-        routes = new Set()
+        routes = new Map()
         networkError =
           '尚未取得连接状态；请确认节点可达且支持 Secure Mode 临时凭据'
       }

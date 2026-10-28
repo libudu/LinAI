@@ -12,7 +12,6 @@ import {
   Space,
   Table,
   Tag,
-  Typography,
   message,
 } from 'antd'
 import copy from 'copy-to-clipboard'
@@ -34,6 +33,23 @@ import {
 } from './api'
 
 const settings = settingsClient<InterconnectSettings>('interconnect')
+
+function ConnectionTag({
+  mode,
+}: {
+  mode: NonNullable<RoomStatus['room']>['connection']
+}) {
+  if (mode === null) return null
+  return (
+    <Tag
+      color={
+        mode === 'direct' ? 'green' : mode === 'relay' ? 'orange' : undefined
+      }
+    >
+      {mode === 'direct' ? '直连' : mode === 'relay' ? '中转' : '连接方式待确认'}
+    </Tag>
+  )
+}
 
 export function Interconnect() {
   const [status, setStatus] = useState<RoomStatus | null>(null)
@@ -165,11 +181,14 @@ export function Interconnect() {
               }
             >
               {room.state === 'connected'
-                ? '已有成员连接'
+                ? room.role === 'guest'
+                  ? '已连接房主'
+                  : '已有成员连接'
                 : room.state === 'error'
                   ? '核心已退出'
                   : '等待连接'}
             </Tag>
+            {room.role === 'guest' && <ConnectionTag mode={room.connection} />}
           </Space>
           {room.error && (
             <Alert className="mt-3" type="warning" title={room.error} />
@@ -316,6 +335,15 @@ export function Interconnect() {
                   ),
               },
               {
+                title: '连接方式',
+                render: (_, entry) =>
+                  entry.online ? (
+                    <ConnectionTag mode={entry.connection} />
+                  ) : (
+                    '—'
+                  ),
+              },
+              {
                 title: '操作',
                 render: (_, entry) => (
                   <Space wrap size={0}>
@@ -373,12 +401,8 @@ export function Interconnect() {
         </Card>
       )}
       <details className="rounded-lg border border-slate-200 p-4">
-        <summary className="cursor-pointer">高级节点配置</summary>
+        <summary className="cursor-pointer">连接服务器</summary>
         <div className="mt-3 space-y-3">
-          <p className="text-sm text-slate-500">
-            每行一个兼容 Secure Mode 的 EasyTier TCP / UDP
-            共享节点。邀请自动携带节点信息；保存后用于下次创建房间。默认公共节点的可用性及中继策略由节点运营方决定。
-          </p>
           <Input.TextArea
             rows={3}
             value={peers}
@@ -409,11 +433,6 @@ export function Interconnect() {
           </Button>
         </div>
       </details>
-      <p className="text-xs text-slate-500">
-        默认 no-tun，仅转发 Eagle
-        专用共享端口。不会安装系统服务、修改路由、DNS、系统代理或防火墙；受管网络可能需要管理员放行。退出或关闭房间后邀请和共享失效，重启
-        LinAI 后需要重新建房。
-      </p>
       <Modal
         open={member !== null}
         title={member?.id ? '修改人员名称' : '添加人员'}
@@ -468,10 +487,6 @@ export function Interconnect() {
           复制完整邀请
         </Button>
       </Modal>
-      <Typography.Text type="secondary" className="text-xs">
-        EasyTier 以独立进程运行，采用
-        LGPL-3.0；包内含版本、哈希、许可和构建说明，对应源码保存在项目的 release-resources/easytier 目录，获取方式见包内 SOURCES.md。
-      </Typography.Text>
     </div>
   )
 }
