@@ -259,10 +259,17 @@ export async function roomStatus() {
               : ''),
           memberError: current.memberError,
           memberName: current.identity?.name,
-          participants:
+          participants: (
             current.role === 'host'
               ? activeParticipants(current)
-              : current.participants,
+              : current.participants
+          ).map((participant) => ({
+            ...participant,
+            role:
+              participant.address === HOST_IP
+                ? ('host' as const)
+                : ('guest' as const),
+          })),
           peers: current.peers,
           hostOnline: routes.has(HOST_IP),
           connection:
@@ -293,14 +300,18 @@ export async function roomStatus() {
 function activeParticipants(current: Room): Participant[] {
   if (current.error) return []
   return [
-    { name: current.identity?.name ?? '房主', address: HOST_IP },
+    { name: current.identity?.name ?? '房主', address: HOST_IP, connection: null },
     ...[...current.activeMembers.values()]
       .filter(
         (member) =>
           Date.now() - member.lastSeen < MEMBER_LEASE_MS &&
           routes.has(member.address),
       )
-      .map((member) => ({ name: member.name, address: member.address })),
+      .map((member) => ({
+        name: member.name,
+        address: member.address,
+        connection: routes.get(member.address) ?? null,
+      })),
   ]
 }
 

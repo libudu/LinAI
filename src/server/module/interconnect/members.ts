@@ -17,6 +17,7 @@ export type MemberLogin = z.infer<typeof memberLoginSchema>
 export const participantSchema = z.object({
   name: memberNameSchema,
   address: z.string(),
+  connection: z.enum(['direct', 'relay', 'unknown']).nullable().default(null),
 })
 export type Participant = z.infer<typeof participantSchema>
 

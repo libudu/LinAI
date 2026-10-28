@@ -223,7 +223,7 @@ export function Interconnect() {
                     disabled={busy || !status}
                     onClick={() => setGroupsOpen(true)}
                   >
-                    权限组
+                    邀请
                   </Button>
                 )}
                 <Popconfirm
@@ -266,9 +266,7 @@ export function Interconnect() {
                       : '已有成员连接'
                     : room.state === 'error'
                       ? '核心已退出'
-                      : room.role === 'host'
-                        ? '等待成员加入'
-                        : '正在连接房主'
+                      : '连接中'
                 }
               />
               {room.role === 'guest' && (
@@ -302,7 +300,28 @@ export function Interconnect() {
                 pagination={false}
                 dataSource={room.participants}
                 columns={[
-                  { title: '名称', dataIndex: 'name', ellipsis: true },
+                  {
+                    title: '名称',
+                    dataIndex: 'name',
+                    ellipsis: true,
+                    width: '50%',
+                    render: (name: string, entry) => (
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="truncate" title={name}>
+                          {name}
+                        </span>
+                        <span className="shrink-0">
+                          {entry.role === 'host' ? (
+                            <Tag className="!m-0" bordered={false} color="orange">
+                              房主
+                            </Tag>
+                          ) : (
+                            <ConnectionTag mode={entry.connection} />
+                          )}
+                        </span>
+                      </div>
+                    ),
+                  },
                   {
                     title: '虚拟 IP',
                     dataIndex: 'address',
