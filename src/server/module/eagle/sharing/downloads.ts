@@ -1,3 +1,4 @@
+import { changeBus } from '@/server/common/storage/change-bus'
 import { resourceLock } from '@/server/common/storage/resource-lock'
 import fs from 'fs-extra'
 import { randomUUID } from 'node:crypto'
@@ -8,6 +9,7 @@ import { pipeline } from 'node:stream/promises'
 import { EagleError } from '../errors'
 import {
   commitDownloadedItem,
+  createDownloadFolderMapping,
   downloadFolderPaths,
   downloadManifestSchema,
   ensureLibraryReady,
@@ -80,13 +82,17 @@ async function remoteResponse(
   return response
 }
 
-async function remoteManifest(session: Session) {
-  const response = await remoteResponse(session, '/library/manifest')
+async function remoteManifest(session: Session, folderId?: string) {
+  const query = folderId === undefined ? '' : `?${new URLSearchParams({ folderId })}`
+  const response = await remoteResponse(session, `/library/manifest${query}`)
   const json = await response.json()
   if (!json?.success) throw new Error('读取远程资源清单失败')
   const manifest = downloadManifestSchema.parse(json.data)
   downloadFolderPaths(manifest.folders)
-  return manifest
+  // 兼容尚未支持 folderId 的共享方，本地也只保留目标范围内的资源。
+  return folderId === undefined
+    ? manifest
+    : { ...manifest, items: scope(manifest, folderId).items }
 }
 
 function scope(manifest: DownloadManifest, folderId: string) {
@@ -116,8 +122,7 @@ function scope(manifest: DownloadManifest, folderId: string) {
 }
 
 function compare(remote: DownloadManifest, local: DownloadManifest | null) {
-  const remotePaths = downloadFolderPaths(remote.folders)
-  const localPaths = downloadFolderPaths(local?.folders ?? [])
+  const mapping = createDownloadFolderMapping(remote, local ?? { folders: [] })
   const localItems = new Map(local?.items.map((item) => [item.id, item]))
   const entries = new Map<
     string,
@@ -127,11 +132,13 @@ function compare(remote: DownloadManifest, local: DownloadManifest | null) {
     const existing = localItems.get(item.id)
     if (!existing) entries.set(item.id, { item, download: true })
     else {
-      const paths = (ids: string[], map: Map<string, string>) =>
-        JSON.stringify(ids.map((id) => map.get(id) ?? id).sort())
+      const localFolders = new Set(existing.folders)
       if (
         existing.isDeleted ||
-        paths(item.folders, remotePaths) !== paths(existing.folders, localPaths)
+        item.folders.some((id) => {
+          const localId = mapping.resolve(id)
+          return !localId || !localFolders.has(localId)
+        })
       )
         entries.set(item.id, { item, download: false })
     }
@@ -139,21 +146,38 @@ function compare(remote: DownloadManifest, local: DownloadManifest | null) {
   return entries
 }
 
-async function localManifest() {
-  const settings = await getEagleSettings()
-  if (!settings.libraryPath) return null
+async function localManifest(remote: DownloadManifest, libraryPath: string | null) {
+  if (!libraryPath) return null
   await ensureLibraryReady()
-  return getDownloadManifest()
+  return getDownloadManifest(undefined, {
+    itemIds: remote.items.map((item) => item.id),
+    libraryPath,
+  })
 }
 
-export async function getFolderDownloadStatuses() {
-  const session = await getRemoteConnection()
-  const [remote, local] = await Promise.all([
-    remoteManifest(session),
-    localManifest(),
-  ])
-  if ((await getRemoteConnection()) !== session)
-    throw new Error('远程连接已改变')
+async function assertDownloadContext(
+  session: Session,
+  libraryPath: string | null,
+  permissionsRevision: number | undefined,
+) {
+  if (
+    (await getRemoteConnection()) !== session ||
+    (await getEagleSettings()).libraryPath !== libraryPath
+  )
+    throw new Error('连接或本地资源库已改变，请重新检查文件夹')
+  session.controller.signal.throwIfAborted()
+  if (session.permissionsRevision !== permissionsRevision)
+    throw new Error('共享权限已改变，请重新检查文件夹')
+}
+
+async function loadFolderDownloadStatuses(
+  session: Session,
+  libraryPath: string | null,
+  permissionsRevision: number | undefined,
+) {
+  const remote = await remoteManifest(session)
+  const local = await localManifest(remote, libraryPath)
+  await assertDownloadContext(session, libraryPath, permissionsRevision)
   const entries = compare(remote, local)
   const parents = new Map(
     remote.folders.map((folder) => [folder.id, folder.parentId]),
@@ -183,24 +207,51 @@ export async function getFolderDownloadStatuses() {
   return { connectionId: session.id, folders: result }
 }
 
+const statusRequests = new Map<
+  string,
+  ReturnType<typeof loadFolderDownloadStatuses>
+>()
+let statusVersion = 0
+for (const resource of ['eagle.library', 'settings.eagle'])
+  changeBus.subscribe(resource, () => statusVersion++)
+
+export async function getFolderDownloadStatuses() {
+  const session = await getRemoteConnection()
+  const libraryPath = (await getEagleSettings()).libraryPath
+  const permissionsRevision = session.permissionsRevision
+  const key = JSON.stringify([
+    session.id,
+    libraryPath,
+    permissionsRevision,
+    statusVersion,
+    tasks.map((task) => [task.id, task.state]),
+  ])
+  const existing = statusRequests.get(key)
+  if (existing) return existing
+  // 只合并同一连接、权限及本地库版本的在途查询，不缓存已完成的结果。
+  const request = loadFolderDownloadStatuses(
+    session,
+    libraryPath,
+    permissionsRevision,
+  ).finally(() => statusRequests.delete(key))
+  statusRequests.set(key, request)
+  return request
+}
+
 export async function prepareFolderDownload(folderId: string) {
   const session = await getRemoteConnection()
   const libraryPath = (await getEagleSettings()).libraryPath
+  const permissionsRevision = session.permissionsRevision
   if (!libraryPath)
     throw new EagleError(
       'LOCAL_LIBRARY_REQUIRED',
       409,
       '请先配置本地资源库目录',
     )
-  const [manifest, local] = await Promise.all([
-    remoteManifest(session),
-    localManifest(),
-  ])
+  const manifest = await remoteManifest(session, folderId)
+  const local = await localManifest(manifest, libraryPath)
   const selected = scope(manifest, folderId)
-  const differences = compare(manifest, local)
-  const entries = selected.items.flatMap((item) =>
-    differences.has(item.id) ? [differences.get(item.id)!] : [],
-  )
+  const entries = [...compare(manifest, local).values()]
   const summary = entries.reduce<Summary>(
     (result, entry) => {
       if (entry.download) {
@@ -215,8 +266,7 @@ export async function prepareFolderDownload(folderId: string) {
   for (const [id, plan] of plans)
     if (now - plan.createdAt > 5 * 60 * 1000) plans.delete(id)
   if (plans.size >= 100) throw new Error('待确认任务过多，请稍后重试')
-  if ((await getRemoteConnection()) !== session)
-    throw new Error('远程连接已改变')
+  await assertDownloadContext(session, libraryPath, permissionsRevision)
   const id = randomUUID()
   const paths = downloadFolderPaths(manifest.folders)
   const folder = (JSON.parse(paths.get(folderId)!) as string[]).join(' / ')
@@ -225,10 +275,10 @@ export async function prepareFolderDownload(folderId: string) {
     libraryPath,
     folderId,
     folder,
-    manifest: { folders: manifest.folders, items: [] },
+    manifest: { ...manifest, items: [] },
     entries,
     createdAt: now,
-    permissionsRevision: session.permissionsRevision,
+    permissionsRevision,
   })
   return { id, folder: selected.folder.name, ...summary }
 }
@@ -287,19 +337,16 @@ export const startFolderDownload = (id: string) =>
       .run('eagle.download-queue', async () => {
         task.state = 'running'
         try {
-          const assertContext = async () => {
-            session.controller.signal.throwIfAborted()
-            if (
-              (await getRemoteConnection()) !== session ||
-              (await getEagleSettings()).libraryPath !== plan.libraryPath
+          const assertContext = () =>
+            assertDownloadContext(
+              session,
+              plan.libraryPath,
+              plan.permissionsRevision,
             )
-              throw new Error('连接或本地资源库已改变，请重新检查文件夹')
-            if (session.permissionsRevision !== plan.permissionsRevision)
-              throw new Error('共享权限已改变，请重新检查文件夹')
-          }
           await assertContext()
-          const fresh = await remoteManifest(session)
+          const fresh = await remoteManifest(session, plan.folderId)
           if (
+            fresh.libraryId !== plan.manifest.libraryId ||
             JSON.stringify(fresh.folders) !==
             JSON.stringify(plan.manifest.folders)
           )
@@ -307,7 +354,10 @@ export const startFolderDownload = (id: string) =>
           const currentItems = new Map(
             fresh.items.map((item) => [item.id, item]),
           )
-          const differences = compare(fresh, await localManifest())
+          const differences = compare(
+            fresh,
+            await localManifest(fresh, plan.libraryPath),
+          )
           const folderPaths = downloadFolderPaths(plan.manifest.folders)
           const validateItem = async (
             item: DownloadManifest['items'][number],

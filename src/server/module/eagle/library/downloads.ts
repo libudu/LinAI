@@ -9,7 +9,15 @@ import { z } from 'zod'
 import { runPool } from '../concurrency'
 import { EagleError } from '../errors'
 import { getEagleSettings } from '../settings'
-import { collectFolderPaths } from './folders'
+import {
+  createDownloadFolderMapping,
+  downloadFolderOrigins,
+  downloadFolderSchema,
+  getDownloadFolderState,
+  manifestFolders,
+  rememberDownloadFolders,
+} from './download-folders'
+import { collectFolderPaths, findRawFolder } from './folders'
 import { ensureIndex, libraryChanges } from './index-state'
 import { readWritableItemMeta, withLibraryMutation } from './mutation'
 import { toEagleItem } from './query'
@@ -19,14 +27,8 @@ import type { EagleRawFolder } from './types'
 
 const id = z.string().regex(/^[A-Za-z0-9]+$/)
 export const downloadManifestSchema = z.object({
-  folders: z.array(
-    z.object({
-      id: z.string().min(1),
-      name: z.string(),
-      description: z.string(),
-      parentId: z.string().nullable(),
-    }),
-  ),
+  libraryId: z.string().uuid().optional(),
+  folders: z.array(downloadFolderSchema),
   items: z.array(
     z.object({
       id,
@@ -47,25 +49,46 @@ export type DownloadItem = DownloadManifest['items'][number]
 
 export async function getDownloadManifest(
   access?: EagleLibraryAccess,
+  options: {
+    folderId?: string
+    itemIds?: readonly string[]
+    libraryPath?: string
+  } = {},
 ): Promise<DownloadManifest> {
   const index = await ensureIndex()
   if (!index) throw new EagleError('LIBRARY_UNAVAILABLE', 409, '资源库不可用')
   return withLibraryLock(index.libraryPath, async () => {
+    if (
+      options.libraryPath !== undefined &&
+      (index.libraryPath !== options.libraryPath ||
+        (await getEagleSettings()).libraryPath !== options.libraryPath)
+    )
+      throw new EagleError('LIBRARY_CHANGED', 409, '本地资源库已改变，请重新检查')
     const view = access ? projectSharedIndex(index, access) : index
-    const folders: DownloadManifest['folders'] = []
-    const visit = (nodes: EagleRawFolder[], parentId: string | null) => {
-      for (const folder of nodes) {
-        folders.push({
-          id: folder.id,
-          name: folder.name,
-          description: folder.description ?? '',
-          parentId,
-        })
-        visit(folder.children ?? [], folder.id)
-      }
+    let folderIds: Set<string> | undefined
+    if (options.folderId !== undefined) {
+      const folder = findRawFolder(view.folders, options.folderId)
+      if (!folder)
+        throw new EagleError('FOLDER_NOT_FOUND', 404, '文件夹不存在或已取消共享')
+      folderIds = new Set([
+        folder.id,
+        ...collectFolderPaths(folder.children ?? []).map(
+          ({ folder }) => folder.id,
+        ),
+      ])
     }
-    visit(view.folders, null)
-    const source = [...view.items.values()]
+    // 保留授权目录树与条目的全部授权归属，跨目录资源仍按完整路径同步分类。
+    const folderState = await getDownloadFolderState(index.libraryPath)
+    const folders = manifestFolders(view.folders, folderState)
+    const candidates = options.itemIds
+      ? [...new Set(options.itemIds)].flatMap((id) => {
+          const item = view.items.get(id)
+          return item ? [item] : []
+        })
+      : [...view.items.values()]
+    const source = folderIds
+      ? candidates.filter((item) => item.folders.some((id) => folderIds?.has(id)))
+      : candidates
     const missing = new Set<string>()
     if (!access)
       await runPool(source, 32, async (item) => {
@@ -114,29 +137,8 @@ export async function getDownloadManifest(
           isDeleted: item.isDeleted === true,
         }
       })
-    return { folders, items }
+    return { libraryId: folderState.libraryId, folders, items }
   })
-}
-
-/** 用目录名数组比较路径，避免不同资源库的目录 ID 不同造成重复下载。 */
-export function downloadFolderPaths(folders: DownloadManifest['folders']) {
-  const nodes = new Map(folders.map((folder) => [folder.id, folder]))
-  const result = new Map<string, string>()
-  const resolve = (
-    folderId: string,
-    visiting = new Set<string>(),
-  ): string[] => {
-    const folder = nodes.get(folderId)
-    if (!folder || visiting.has(folderId)) throw new Error('远程文件夹结构无效')
-    visiting.add(folderId)
-    return [
-      ...(folder.parentId ? resolve(folder.parentId, visiting) : []),
-      folder.name,
-    ]
-  }
-  for (const folder of folders)
-    result.set(folder.id, JSON.stringify(resolve(folder.id)))
-  return result
 }
 
 async function assertLocalLibrary(expected: string) {
@@ -161,7 +163,7 @@ async function assertPlainPath(target: string, directory = false) {
   return stat
 }
 
-/** 写库只经门面进入；锁内重读磁盘目录，按完整路径复用本地分类。 */
+/** 写库只经门面进入；锁内重读目录并复用比较时的映射规则，分类仅追加。 */
 export async function commitDownloadedItem(
   libraryPath: string,
   manifest: DownloadManifest,
@@ -183,7 +185,11 @@ export async function commitDownloadedItem(
         modificationTime?: number
       }
       let foldersChanged = false
-      const remotePaths = downloadFolderPaths(manifest.folders)
+      const folderState = await getDownloadFolderState(libraryPath)
+      const mapping = createDownloadFolderMapping(manifest, {
+        libraryId: folderState.libraryId,
+        folders: manifestFolders(root.folders, folderState),
+      })
       const localPaths = new Map(
         collectFolderPaths(root.folders, 'preorder').map(({ folder }) => [
           folder.id,
@@ -199,30 +205,32 @@ export async function commitDownloadedItem(
         if (cached) return cached
         const remote = nodes.get(folderId)
         if (!remote) throw new Error('远程文件夹不存在')
+        const localId = mapping.resolve(folderId)
+        if (localId) {
+          const existing = localPaths.get(localId)!
+          mapped.set(folderId, existing)
+          return existing
+        }
+        // 只有当前目录未匹配时才处理父目录；不能先按远程层级创建祖先。
         const parent = remote.parentId ? ensureFolder(remote.parentId) : null
         const siblings = parent ? (parent.children ??= []) : root.folders
-        let folder = siblings.find((entry) => entry.name === remote.name)
-        if (!folder) {
-          const id = localPaths.has(remote.id)
-            ? randomUUID().replaceAll('-', '')
-            : remote.id
-          folder = {
-            id,
-            name: remote.name,
-            description: remote.description,
-            children: [],
-          }
-          siblings.push(folder)
-          foldersChanged = true
-          localPaths.set(id, folder)
+        const id = localPaths.has(remote.id)
+          ? randomUUID().replaceAll('-', '')
+          : remote.id
+        const folder: EagleRawFolder = {
+          id,
+          name: remote.name,
+          description: remote.description,
+          children: [],
         }
+        siblings.push(folder)
+        foldersChanged = true
+        localPaths.set(id, folder)
+        mapping.bind(folderId, id)
         mapped.set(folderId, folder)
         return folder
       }
-      const folderIds = item.folders.map((id) => {
-        if (!remotePaths.has(id)) throw new Error('远程资源的目录无效')
-        return ensureFolder(id).id
-      })
+      const importedFolderIds = item.folders.map((id) => ensureFolder(id).id)
       const infoDir = path.join(imagesDir(libraryPath), `${item.id}.info`)
       const existing = index.items.get(item.id)
       if (!stagedFile && !existing)
@@ -256,6 +264,10 @@ export async function commitDownloadedItem(
         ? await readWritableItemMeta(libraryPath, item.id)
         : null
       if (existing && !oldMeta) throw new Error('本地条目元数据已不存在')
+      // 以锁内重读的磁盘归属为准，保留远程未共享或本地新增的分类。
+      const folderIds = [
+        ...new Set([...(oldMeta?.folders ?? []), ...importedFolderIds]),
+      ]
       if (foldersChanged) {
         root.modificationTime = changes.timestamp
         await writeJsonFile(rootPath, root, { backup: false })
@@ -265,6 +277,13 @@ export async function commitDownloadedItem(
       // 条目提交失败时，已创建的目录也必须通知浏览区刷新。
       if (foldersChanged)
         changeBus.publish({ resource: EAGLE_LIBRARY_RESOURCE })
+      await rememberDownloadFolders(
+        libraryPath,
+        [...mapped].map(([remoteId, folder]) => ({
+          localId: folder.id,
+          origins: downloadFolderOrigins(manifest, nodes.get(remoteId)!),
+        })),
+      )
       const meta = existing
         ? {
             ...oldMeta!,

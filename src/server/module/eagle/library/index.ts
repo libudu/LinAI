@@ -2,8 +2,11 @@
 export { convertHeifItem, getConversionCandidates } from './conversion'
 export { prepareLibraryDirectory } from './directory'
 export {
-  commitDownloadedItem,
+  createDownloadFolderMapping,
   downloadFolderPaths,
+} from './download-folders'
+export {
+  commitDownloadedItem,
   downloadManifestSchema,
   getDownloadManifest,
   type DownloadManifest,

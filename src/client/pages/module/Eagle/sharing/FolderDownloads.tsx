@@ -8,6 +8,7 @@ import { Alert, Button, Descriptions, Form, Modal, Spin, message } from 'antd'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DirectoryPicker } from '../SettingModal/DirectoryPicker'
 import { formatFileSize } from '../components/formatFileSize'
+import { RefreshQueue } from '../refreshQueue'
 import { useEagleConfig } from '../settings/useEagleConfig'
 import {
   fetchFolderDownloadStatuses,
@@ -39,6 +40,10 @@ export function useFolderDownloads(folders: EagleFolder[]) {
   const [error, setError] = useState('')
   const [refresh, setRefresh] = useState(0)
   const request = useRef(0)
+  const refreshStatuses = useRef<() => Promise<void>>(async () => {})
+  const [statusQueue] = useState(
+    () => new RefreshQueue(() => refreshStatuses.current()),
+  )
   const remote = libraryMode === 'remote'
   const connected = connectionState === 'approved'
   useEffect(() => {
@@ -49,21 +54,26 @@ export function useFolderDownloads(folders: EagleFolder[]) {
     setBusy(false)
   }, [connectionId, remote])
   useEffect(() => {
-    if (!remote || !connected) {
-      setStatuses({})
-      return
+    let active = true
+    refreshStatuses.current = async () => {
+      if (!active || !remote || !connected) return
+      try {
+        const result = await fetchFolderDownloadStatuses()
+        if (active && result.connectionId === connectionId)
+          setStatuses(result.folders)
+      } catch {
+        if (active) setStatuses({})
+      }
     }
     setStatuses({})
-    let active = true
+    if (!remote || !connected) {
+      return () => {
+        active = false
+      }
+    }
     const timer = window.setTimeout(() => {
-      void fetchFolderDownloadStatuses()
-        .then((result) => {
-          if (active && result.connectionId === connectionId)
-            setStatuses(result.folders)
-        })
-        .catch(() => {
-          if (active) setStatuses({})
-        })
+      // 在途请求串行合并；期间的新变化只补拉一次，旧响应不能覆盖新上下文。
+      void statusQueue.request()
     }, 250)
     return () => {
       active = false
@@ -78,6 +88,7 @@ export function useFolderDownloads(folders: EagleFolder[]) {
     folders,
     progress,
     refresh,
+    statusQueue,
   ])
 
   const loadPlan = useCallback(async (folder: EagleFolder) => {

@@ -64,11 +64,17 @@ const notModified = (
 const libraryApi = new Hono<{
   Bindings: { eagleSharingAccess?: EagleLibraryAccess }
 }>()
-  .get('/manifest', async (c) =>
-    c.json({
-      success: true as const,
-      data: await getDownloadManifest(c.env?.eagleSharingAccess),
-    }),
+  .get(
+    '/manifest',
+    validate('query', z.object({ folderId: z.string().min(1).optional() })),
+    async (c) =>
+      c.json({
+        success: true as const,
+        data: await getDownloadManifest(
+          c.env?.eagleSharingAccess,
+          c.req.valid('query'),
+        ),
+      }),
   )
   .use('/items/:id/*', async (c, next) => {
     const access = c.env?.eagleSharingAccess
