@@ -63,13 +63,21 @@ export async function getDownloadManifest(
       (index.libraryPath !== options.libraryPath ||
         (await getEagleSettings()).libraryPath !== options.libraryPath)
     )
-      throw new EagleError('LIBRARY_CHANGED', 409, '本地资源库已改变，请重新检查')
+      throw new EagleError(
+        'LIBRARY_CHANGED',
+        409,
+        '本地资源库已改变，请重新检查',
+      )
     const view = access ? projectSharedIndex(index, access) : index
     let folderIds: Set<string> | undefined
     if (options.folderId !== undefined) {
       const folder = findRawFolder(view.folders, options.folderId)
       if (!folder)
-        throw new EagleError('FOLDER_NOT_FOUND', 404, '文件夹不存在或已取消共享')
+        throw new EagleError(
+          'FOLDER_NOT_FOUND',
+          404,
+          '文件夹不存在或已取消共享',
+        )
       folderIds = new Set([
         folder.id,
         ...collectFolderPaths(folder.children ?? []).map(
@@ -87,7 +95,9 @@ export async function getDownloadManifest(
         })
       : [...view.items.values()]
     const source = folderIds
-      ? candidates.filter((item) => item.folders.some((id) => folderIds?.has(id)))
+      ? candidates.filter((item) =>
+          item.folders.some((id) => folderIds?.has(id)),
+        )
       : candidates
     const missing = new Set<string>()
     if (!access)
@@ -163,12 +173,12 @@ async function assertPlainPath(target: string, directory = false) {
   return stat
 }
 
-/** 写库只经门面进入；锁内重读目录并复用比较时的映射规则，分类仅追加。 */
+/** 写库只经门面进入；已有原文件直接跳过，仅为新下载的文件写入目录归属。 */
 export async function commitDownloadedItem(
   libraryPath: string,
   manifest: DownloadManifest,
   item: DownloadItem,
-  stagedFile: string | null,
+  stagedFile: string,
   signal: AbortSignal,
 ) {
   await assertLocalLibrary(libraryPath)
@@ -178,6 +188,17 @@ export async function commitDownloadedItem(
       signal.throwIfAborted()
       if (index.libraryPath !== libraryPath) throw new Error('本地资源库已改变')
       await assertLocalLibrary(libraryPath)
+      const infoDir = path.join(imagesDir(libraryPath), `${item.id}.info`)
+      const existing = index.items.get(item.id)
+      if (
+        existing &&
+        (await fs.pathExists(path.join(infoDir, existing.fileName)))
+      ) {
+        // 下载期间条目可能已出现，锁内也必须跳过，不能写回远程分类。
+        await assertPlainPath(infoDir, true)
+        await assertPlainPath(path.join(infoDir, existing.fileName))
+        return true
+      }
       const rootPath = path.join(libraryPath, 'metadata.json')
       await assertPlainPath(rootPath)
       const root = (await fs.readJson(rootPath)) as {
@@ -231,10 +252,6 @@ export async function commitDownloadedItem(
         return folder
       }
       const importedFolderIds = item.folders.map((id) => ensureFolder(id).id)
-      const infoDir = path.join(imagesDir(libraryPath), `${item.id}.info`)
-      const existing = index.items.get(item.id)
-      if (!stagedFile && !existing)
-        throw new Error('本地文件已不存在，请重新下载')
       // 先验证条目路径，再保存任何目录改动。
       if (await fs.pathExists(infoDir)) {
         await assertPlainPath(infoDir, true)
@@ -248,16 +265,14 @@ export async function commitDownloadedItem(
         /[. ]$/.test(item.name)
       )
         throw new Error('远程文件名不适用于本地资源库')
-      if (stagedFile && (await assertPlainPath(stagedFile)).size !== item.size)
+      if ((await assertPlainPath(stagedFile)).size !== item.size)
         throw new Error('下载的文件大小不正确')
       if (existing) {
-        if (stagedFile) {
-          if (
-            existing.ext !== item.ext ||
-            (await fs.pathExists(path.join(infoDir, existing.fileName)))
-          )
-            throw new Error('本地条目已改变，请重新检查下载任务')
-        } else await assertPlainPath(path.join(infoDir, existing.fileName))
+        if (
+          existing.ext !== item.ext ||
+          (await fs.pathExists(path.join(infoDir, existing.fileName)))
+        )
+          throw new Error('本地条目已改变，请重新检查下载任务')
         await assertPlainPath(path.join(infoDir, 'metadata.json'))
       }
       const oldMeta = existing
@@ -287,14 +302,10 @@ export async function commitDownloadedItem(
       const meta = existing
         ? {
             ...oldMeta!,
-            ...(stagedFile
-              ? {
-                  size: item.size,
-                  width: item.width,
-                  height: item.height,
-                  mtime: item.mtime,
-                }
-              : {}),
+            size: item.size,
+            width: item.width,
+            height: item.height,
+            mtime: item.mtime,
             folders: folderIds,
             isDeleted: false,
             lastModified: changes.timestamp,
@@ -316,24 +327,22 @@ export async function commitDownloadedItem(
         const originalPath = path.join(infoDir, existing.fileName)
         let copied: Stats | null = null
         try {
-          if (stagedFile) {
-            await fs.copyFile(
-              stagedFile,
-              originalPath,
-              fs.constants.COPYFILE_EXCL,
-            )
-            await fs.utimes(
-              originalPath,
-              new Date(item.mtime),
-              new Date(item.mtime),
-            )
-            copied = await fs.lstat(originalPath)
-            const handle = await open(originalPath, 'r+')
-            try {
-              await handle.sync()
-            } finally {
-              await handle.close()
-            }
+          await fs.copyFile(
+            stagedFile,
+            originalPath,
+            fs.constants.COPYFILE_EXCL,
+          )
+          await fs.utimes(
+            originalPath,
+            new Date(item.mtime),
+            new Date(item.mtime),
+          )
+          copied = await fs.lstat(originalPath)
+          const handle = await open(originalPath, 'r+')
+          try {
+            await handle.sync()
+          } finally {
+            await handle.close()
           }
           signal.throwIfAborted()
           await writeJsonFile(path.join(infoDir, 'metadata.json'), meta, {
@@ -373,7 +382,7 @@ export async function commitDownloadedItem(
         await fs.mkdir(staging)
         try {
           await fs.copyFile(
-            stagedFile!,
+            stagedFile,
             path.join(staging, safeName),
             fs.constants.COPYFILE_EXCL,
           )

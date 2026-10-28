@@ -3,18 +3,8 @@ import {
   CheckCircleFilled,
   ClockCircleOutlined,
   DownloadOutlined,
-  SyncOutlined,
 } from '@ant-design/icons'
-import {
-  Alert,
-  Button,
-  Descriptions,
-  Form,
-  Modal,
-  Spin,
-  Switch,
-  message,
-} from 'antd'
+import { Alert, Button, Descriptions, Form, Modal, Spin, message } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/shallow'
 import { DirectoryPicker } from '../SettingModal/DirectoryPicker'
@@ -61,7 +51,6 @@ export function useFolderDownloads(folders: EagleFolder[]) {
   const [statuses, setStatuses] = useState<Statuses>({})
   const [selected, setSelected] = useState<EagleFolder | null>(null)
   const [plan, setPlan] = useState<Plan | null>(null)
-  const [syncExisting, setSyncExisting] = useState(true)
   const [directory, setDirectory] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -143,7 +132,6 @@ export function useFolderDownloads(folders: EagleFolder[]) {
       setDirectory(useEagleConfig.getState().defaultLibraryPath)
       setError('')
       setPlan(null)
-      setSyncExisting(true)
       if (useEagleConfig.getState().libraryPath) void loadPlan(folder)
     },
     [connected, pendingFolders, loadPlan],
@@ -153,14 +141,12 @@ export function useFolderDownloads(folders: EagleFolder[]) {
       if (!remote) return null
       const status = statuses[folder.id]
       const pending = pendingFolders.has(folder.id)
-      const done = Boolean(status && status.download === 0 && status.sync === 0)
+      const done = status?.download === 0
       const title = pending
         ? '已加入下载队列'
         : done
-          ? '同步完成'
-          : status?.download === 0
-            ? '同步文件夹'
-            : '下载文件夹'
+          ? '下载完成'
+          : '下载文件夹'
       return (
         <span
           className="shrink-0"
@@ -179,8 +165,6 @@ export function useFolderDownloads(folders: EagleFolder[]) {
                 <ClockCircleOutlined />
               ) : done ? (
                 <CheckCircleFilled style={{ color: '#52c41a' }} />
-              ) : status?.download === 0 ? (
-                <SyncOutlined />
               ) : (
                 <DownloadOutlined />
               )
@@ -200,9 +184,7 @@ export function useFolderDownloads(folders: EagleFolder[]) {
     setBusy(false)
   }
   const configure = Boolean(selected && !libraryPath)
-  const hasWork = Boolean(
-    plan && (plan.download > 0 || (syncExisting && plan.sync > 0)),
-  )
+  const hasWork = Boolean(plan && plan.download > 0)
   const modal = (
     <Modal
       open={Boolean(selected)}
@@ -235,7 +217,7 @@ export function useFolderDownloads(folders: EagleFolder[]) {
             await setEagleConfig({ libraryPath: directory.trim() })
             if (request.current === version) await loadPlan(selected)
           } else if (plan) {
-            const task = await startFolderDownload(plan.id, syncExisting)
+            const task = await startFolderDownload(plan.id)
             // 立即显示等待状态，不必等下一次 SSE；已有的更新快照优先。
             useEagleSharing.setState((state) => {
               if (
@@ -292,27 +274,6 @@ export function useFolderDownloads(folders: EagleFolder[]) {
                 key: 'download',
                 label: '下载数量',
                 children: plan.download,
-              },
-              {
-                key: 'sync',
-                label: '同步数量',
-                children: (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        size="small"
-                        checked={syncExisting}
-                        onChange={setSyncExisting}
-                        disabled={busy}
-                        aria-label="同步本地已有资源"
-                      />
-                      <span>{plan.sync}</span>
-                    </div>
-                    <div className="text-xs text-red-500">
-                      同步将把本地已有的远程资源库中的文件挪到该目录下以保持一致
-                    </div>
-                  </div>
-                ),
               },
               {
                 key: 'bytes',

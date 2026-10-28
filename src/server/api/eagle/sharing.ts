@@ -82,20 +82,11 @@ const sharingApi = new Hono()
   )
   .post(
     '/downloads/start',
-    validate(
-      'json',
-      z.object({
-        id: z.string().uuid(),
-        syncExisting: z.boolean().default(true),
-      }),
-    ),
+    validate('json', z.object({ id: z.string().uuid() })),
     async (c) =>
       c.json({
         success: true as const,
-        data: await startFolderDownload(
-          c.req.valid('json').id,
-          c.req.valid('json').syncExisting,
-        ),
+        data: await startFolderDownload(c.req.valid('json').id),
       }),
   )
   .get(

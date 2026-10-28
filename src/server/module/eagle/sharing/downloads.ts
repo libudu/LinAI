@@ -9,7 +9,6 @@ import { pipeline } from 'node:stream/promises'
 import { EagleError } from '../errors'
 import {
   commitDownloadedItem,
-  createDownloadFolderMapping,
   downloadFolderPaths,
   downloadManifestSchema,
   ensureLibraryReady,
@@ -21,7 +20,7 @@ import { downloadSnapshot, downloadTasks as tasks } from './download-state'
 import { getRemoteConnection, recordTransfer } from './service'
 
 type Session = Awaited<ReturnType<typeof getRemoteConnection>>
-type Summary = { download: number; sync: number; bytes: number }
+type Summary = { download: number; bytes: number }
 const plans = new Map<
   string,
   {
@@ -30,7 +29,7 @@ const plans = new Map<
     folderId: string
     folder: string
     manifest: DownloadManifest
-    entries: { item: DownloadManifest['items'][number]; download: boolean }[]
+    entries: DownloadManifest['items']
     createdAt: number
     permissionsRevision: number | undefined
   }
@@ -125,29 +124,17 @@ function scope(manifest: DownloadManifest, folderId: string) {
   }
 }
 
-function compare(remote: DownloadManifest, local: DownloadManifest | null) {
-  const mapping = createDownloadFolderMapping(remote, local ?? { folders: [] })
-  const localItems = new Map(local?.items.map((item) => [item.id, item]))
-  const entries = new Map<
-    string,
-    { item: DownloadManifest['items'][number]; download: boolean }
-  >()
-  for (const item of remote.items) {
-    const existing = localItems.get(item.id)
-    if (!existing) entries.set(item.id, { item, download: true })
-    else {
-      const localFolders = new Set(existing.folders)
-      if (
-        existing.isDeleted ||
-        item.folders.some((id) => {
-          const localId = mapping.resolve(id)
-          return !localId || !localFolders.has(localId)
-        })
-      )
-        entries.set(item.id, { item, download: false })
-    }
-  }
-  return entries
+function missingItems(
+  remote: DownloadManifest,
+  local: DownloadManifest | null,
+) {
+  // 本地清单已排除缺失原文件的条目，只按 ID 判断是否已下载，不比较分类。
+  const localIds = new Set(local?.items.map((item) => item.id))
+  return new Map(
+    remote.items
+      .filter((item) => !localIds.has(item.id))
+      .map((item) => [item.id, item]),
+  )
 }
 
 async function localManifest(
@@ -185,17 +172,14 @@ async function loadFolderDownloadStatuses(
   const remote = await remoteManifest(session)
   const local = await localManifest(remote, libraryPath)
   await assertDownloadContext(session, libraryPath, permissionsRevision)
-  const entries = compare(remote, local)
+  const entries = missingItems(remote, local)
   const parents = new Map(
     remote.folders.map((folder) => [folder.id, folder.parentId]),
   )
   const result: Record<string, Summary> = Object.fromEntries(
-    remote.folders.map((folder) => [
-      folder.id,
-      { download: 0, sync: 0, bytes: 0 },
-    ]),
+    remote.folders.map((folder) => [folder.id, { download: 0, bytes: 0 }]),
   )
-  for (const { item, download } of entries.values()) {
+  for (const item of entries.values()) {
     const affected = new Set<string>()
     for (let folderId of item.folders) {
       while (folderId && !affected.has(folderId)) {
@@ -205,10 +189,8 @@ async function loadFolderDownloadStatuses(
     }
     for (const id of affected)
       if (result[id]) {
-        if (download) {
-          result[id].download++
-          result[id].bytes += item.size
-        } else result[id].sync++
+        result[id].download++
+        result[id].bytes += item.size
       }
   }
   return { connectionId: session.id, folders: result }
@@ -258,16 +240,14 @@ export async function prepareFolderDownload(folderId: string) {
     )
   const manifest = await remoteManifest(session, folderId)
   const local = await localManifest(manifest, libraryPath)
-  const entries = [...compare(manifest, local).values()]
+  const entries = [...missingItems(manifest, local).values()]
   const summary = entries.reduce<Summary>(
-    (result, entry) => {
-      if (entry.download) {
-        result.download++
-        result.bytes += entry.item.size
-      } else result.sync++
+    (result, item) => {
+      result.download++
+      result.bytes += item.size
       return result
     },
-    { download: 0, sync: 0, bytes: 0 },
+    { download: 0, bytes: 0 },
   )
   const now = Date.now()
   for (const [id, plan] of plans)
@@ -291,7 +271,7 @@ export async function prepareFolderDownload(folderId: string) {
   return { id, folder, ...summary }
 }
 
-export const startFolderDownload = (id: string, syncExisting = true) =>
+export const startFolderDownload = (id: string) =>
   resourceLock.run('eagle.download-start', async () => {
     const existing = tasks.find((task) => task.id === id)
     if (existing)
@@ -303,11 +283,9 @@ export const startFolderDownload = (id: string, syncExisting = true) =>
     const plan = plans.get(id)
     if (!plan || Date.now() - plan.createdAt > 5 * 60 * 1000)
       throw new Error('下载清单已过期，请重新打开文件夹')
-    const entries = plan.entries.filter(
-      (entry) => entry.download || syncExisting,
-    )
+    const entries = plan.entries
     if (entries.length === 0)
-      throw new EagleError('NO_DOWNLOAD_WORK', 400, '没有需要下载或同步的资源')
+      throw new EagleError('NO_DOWNLOAD_WORK', 400, '没有需要下载的资源')
     const session = await getRemoteConnection()
     if (
       session !== plan.connection ||
@@ -378,7 +356,7 @@ export const startFolderDownload = (id: string, syncExisting = true) =>
           const currentItems = new Map(
             fresh.items.map((item) => [item.id, item]),
           )
-          const differences = compare(
+          const missing = missingItems(
             fresh,
             await localManifest(fresh, plan.libraryPath),
           )
@@ -409,86 +387,76 @@ export const startFolderDownload = (id: string, syncExisting = true) =>
             if (session.permissionsRevision !== plan.permissionsRevision)
               throw new Error('共享权限已改变，请重新检查文件夹')
           }
-          for (const entry of entries) {
+          for (const item of entries) {
             await assertContext()
             // 每项只读取该条目的详情，不重复拉取整个资源库清单。
-            const current = currentItems.get(entry.item.id)
-            if (
-              !current ||
-              JSON.stringify(current) !== JSON.stringify(entry.item)
-            )
+            const current = currentItems.get(item.id)
+            if (!current || JSON.stringify(current) !== JSON.stringify(item))
               throw new Error('远程资源已改变，请重新检查文件夹')
-            const difference = differences.get(entry.item.id)
-            // 排队期间资源可能已由其他任务下载；关闭同步时仍须保留其本地分类。
-            if (!difference || (!syncExisting && !difference.download)) {
+            // 排队期间资源可能已由其他任务下载，不再修改其本地分类。
+            if (!missing.has(item.id)) {
               task.completed++
               continue
             }
-            await validateItem(entry.item)
-            let temporary: string | null = null
+            await validateItem(item)
+            const temporary = await fs.mkdtemp(
+              path.join(os.tmpdir(), 'linai-eagle-download-'),
+            )
             try {
-              if (difference.download) {
-                temporary = await fs.mkdtemp(
-                  path.join(os.tmpdir(), 'linai-eagle-download-'),
-                )
-                const response = await remoteResponse(
-                  session,
-                  `/library/items/${entry.item.id}/file`,
-                )
-                if (
-                  !response.body ||
-                  response.headers.get('etag')?.replaceAll('"', '') !==
-                    entry.item.contentVersion
-                ) {
-                  await response.body?.cancel()
-                  throw new Error('远程资源版本已改变')
-                }
-                let bytes = 0
-                const count = new Transform({
-                  transform(chunk: Buffer, _encoding, callback) {
-                    bytes += chunk.length
-                    task.currentProgress = Math.min(
-                      0.99,
-                      bytes / Math.max(1, entry.item.size),
-                    )
-                    recordTransfer(session, chunk.length)
-                    if (bytes > entry.item.size)
-                      callback(new Error('远程文件大小已改变'))
-                    else callback(null, chunk)
-                  },
-                })
-                await pipeline(
-                  Readable.fromWeb(
-                    response.body as import('node:stream/web').ReadableStream,
-                  ),
-                  count,
-                  fs.createWriteStream(path.join(temporary, 'original'), {
-                    flags: 'wx',
-                  }),
-                  { signal: session.controller.signal },
-                )
-                if (bytes !== entry.item.size)
-                  throw new Error('远程文件下载不完整')
+              const response = await remoteResponse(
+                session,
+                `/library/items/${item.id}/file`,
+              )
+              if (
+                !response.body ||
+                response.headers.get('etag')?.replaceAll('"', '') !==
+                  item.contentVersion
+              ) {
+                await response.body?.cancel()
+                throw new Error('远程资源版本已改变')
               }
-              if (difference.download) await validateItem(entry.item)
+              let bytes = 0
+              const count = new Transform({
+                transform(chunk: Buffer, _encoding, callback) {
+                  bytes += chunk.length
+                  task.currentProgress = Math.min(
+                    0.99,
+                    bytes / Math.max(1, item.size),
+                  )
+                  recordTransfer(session, chunk.length)
+                  if (bytes > item.size)
+                    callback(new Error('远程文件大小已改变'))
+                  else callback(null, chunk)
+                },
+              })
+              await pipeline(
+                Readable.fromWeb(
+                  response.body as import('node:stream/web').ReadableStream,
+                ),
+                count,
+                fs.createWriteStream(path.join(temporary, 'original'), {
+                  flags: 'wx',
+                }),
+                { signal: session.controller.signal },
+              )
+              if (bytes !== item.size) throw new Error('远程文件下载不完整')
+              await validateItem(item)
               await commitDownloadedItem(
                 plan.libraryPath,
                 plan.manifest,
-                entry.item,
-                temporary ? path.join(temporary, 'original') : null,
+                item,
+                path.join(temporary, 'original'),
                 session.controller.signal,
               )
               task.completed++
               task.currentProgress = 0
             } finally {
-              if (temporary) {
-                await fs
-                  .unlink(path.join(temporary, 'original'))
-                  .catch((error: NodeJS.ErrnoException) => {
-                    if (error.code !== 'ENOENT') throw error
-                  })
-                await fs.rmdir(temporary)
-              }
+              await fs
+                .unlink(path.join(temporary, 'original'))
+                .catch((error: NodeJS.ErrnoException) => {
+                  if (error.code !== 'ENOENT') throw error
+                })
+              await fs.rmdir(temporary)
             }
           }
           task.state = 'completed'
