@@ -2,7 +2,8 @@ import { HTTPException } from 'hono/http-exception'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { changeBus } from '../../../common/storage/change-bus'
-import { getSystemSettings } from '../../system/settings'
+import { findRoomGrant, hasRoomGrant } from '../../interconnect/access'
+import { fetchRoomResource } from '../../interconnect/https'
 import { refreshIndex } from '../library'
 import {
   getEagleFolderSharingSettings,
@@ -22,13 +23,13 @@ type Incoming = Transfer & {
   token: string
   name: string
   invitationCode: string
+  roomSecret: string
   folderSharingCode: string
   state: State
   createdAt: number
   lastSeen: number
   closedAt?: number
   error?: string
-  owner?: string
   libraryPath: string
   controller: AbortController
   readController: AbortController
@@ -37,6 +38,7 @@ type Outgoing = Transfer & {
   id: string
   token: string
   url: string
+  certificate: string
   invitationCode: string
   state: State
   error: string
@@ -45,16 +47,13 @@ type Outgoing = Transfer & {
   permissionsRevision?: number
 }
 
-const pages = new Map<string, symbol>()
 const incoming = new Map<string, Incoming>()
 const outgoing = new Map<string, Outgoing>()
+const CONNECTION = 'interconnect'
 let attempts: number[] = []
 
 function fail(message: string): never {
   throw new HTTPException(409, { message })
-}
-export function requirePage(pageId: string) {
-  if (!pages.has(pageId)) fail('当前前端页面未连接，请刷新页面后重试')
 }
 
 function terminate(
@@ -68,72 +67,67 @@ function terminate(
   session.controller.abort()
 }
 
-export function disconnectRemote(pageId: string) {
-  const session = outgoing.get(pageId)
-  outgoing.delete(pageId)
+export function disconnectRemote() {
+  const session = outgoing.get(CONNECTION)
+  outgoing.delete(CONNECTION)
   if (!session) return
   session.controller.abort()
   if (session.token)
-    void remoteJson(session.url, '/session/close', session.token, {}).catch(
-      () => undefined,
-    )
+    void remoteJson(
+      session.url,
+      session.certificate,
+      '/session/close',
+      session.token,
+      {},
+    ).catch(() => undefined)
 }
 
-export function openPage(pageId: string) {
-  // 同一页面的 SSE 重连也必须重新授权，不恢复旧会话。
-  closePage(pageId)
-  const identity = Symbol()
-  pages.set(pageId, identity)
-  return () => {
-    if (pages.get(pageId) === identity) closePage(pageId)
-  }
-}
-
-export function closePage(pageId: string) {
-  pages.delete(pageId)
-  disconnectRemote(pageId)
-  for (const session of incoming.values()) {
-    if (
-      session.owner === pageId ||
-      (pages.size === 0 && session.state === 'pending')
-    )
-      terminate(session, '共享方已关闭前端页面')
-  }
+export function revokeSharing(code?: string) {
+  for (const session of incoming.values())
+    if (!code || session.invitationCode === code)
+      terminate(session, '房间成员授权已撤销')
 }
 
 export function normalizeRemoteUrl(input: string) {
   const url = new URL(input)
   if (
-    !['http:', 'https:'].includes(url.protocol) ||
+    url.protocol !== 'https:' ||
+    url.hostname !== '127.0.0.1' ||
+    url.pathname !== '/' ||
     url.username ||
     url.password ||
     url.search ||
     url.hash
   )
-    fail('目标 LinAI 地址必须是无账号、查询参数和片段的 HTTP(S) URL')
+    fail('房间资源只能通过本地的固定 TLS 转发访问')
   return url.href.replace(/\/+$/, '')
 }
 
 async function remoteJson(
   url: string,
+  certificate: string,
   endpoint: string,
   token?: string,
   body?: object,
   signal?: AbortSignal,
 ) {
-  const response = await fetch(`${url}/api/eagle/sharing${endpoint}`, {
-    method: 'POST',
-    redirect: 'error',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  const response = await fetchRoomResource(
+    `${url}/api/eagle/sharing${endpoint}`,
+    certificate,
+    {
+      method: 'POST',
+      redirect: 'error',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body ?? {}),
+      signal: AbortSignal.any([
+        AbortSignal.timeout(8000),
+        ...(signal ? [signal] : []),
+      ]),
     },
-    body: JSON.stringify(body ?? {}),
-    signal: AbortSignal.any([
-      AbortSignal.timeout(8000),
-      ...(signal ? [signal] : []),
-    ]),
-  })
+  )
   let json
   try {
     json = await response.json()
@@ -166,22 +160,20 @@ export async function requestSharing(
   if (attempts.length >= 30) fail('共享请求过于频繁，请稍后重试')
   attempts.push(now)
   if (requesterInstance === instanceId) fail('不能连接到自己的 LinAI')
-  if (!pages.size) fail('对方尚未打开 LinAI 前端页面')
-  if (!/^\d{6}$/.test((await getSystemSettings()).loginCode))
-    fail('共享方尚未配置系统登录验证码，无法共享 Eagle 资源库')
+  const grant = findRoomGrant(invitationCode)
+  if (!grant) fail('房间邀请已过期或撤销')
   const settings = await getEagleSettings()
   if (settings.libraryMode !== 'local' || !settings.libraryPath)
     fail('对方没有可共享的本地 Eagle 资源库')
   const user = (await getEagleSharingSettings()).users.find(
-    (user) => user.invitationCode === invitationCode,
+    (user) => user.invitationCode === grant.code,
   )
   if (!user) fail('邀请码无效或共享用户已删除')
   if (incoming.size >= 100) fail('共享连接数量已达上限，请稍后重试')
   if (
     [...incoming.values()].some(
       (session) =>
-        session.invitationCode === invitationCode &&
-        session.state === 'pending',
+        session.invitationCode === grant.code && session.state === 'pending',
     )
   )
     fail('该用户已有共享请求正在等待同意')
@@ -189,6 +181,7 @@ export async function requestSharing(
     id: randomUUID(),
     token: randomBytes(32).toString('hex'),
     ...user,
+    roomSecret: invitationCode,
     folderSharingCode: user.folderSharingCode ?? user.invitationCode,
     state: 'pending',
     createdAt: now,
@@ -199,7 +192,6 @@ export async function requestSharing(
     bytes: 0,
     samples: [],
   }
-  if (!pages.size) fail('对方已关闭 LinAI 前端页面')
   incoming.set(session.token, session)
   return { id: session.id, token: session.token, state: session.state }
 }
@@ -216,10 +208,9 @@ async function validIncoming(token: string) {
     terminate(session, '共享连接已超时，请重新请求授权')
     fail('共享连接已超时，请重新请求授权')
   }
-  const [settings, sharing, system] = await Promise.all([
+  const [settings, sharing] = await Promise.all([
     getEagleSettings(),
     getEagleSharingSettings(),
-    getSystemSettings(),
   ])
   const user = sharing.users.find(
     (user) =>
@@ -228,9 +219,7 @@ async function validIncoming(token: string) {
         session.folderSharingCode,
   )
   if (
-    !pages.size ||
-    !/^\d{6}$/.test(system.loginCode) ||
-    (session.owner && !pages.has(session.owner)) ||
+    !hasRoomGrant(session.invitationCode, session.roomSecret) ||
     settings.libraryMode !== 'local' ||
     settings.libraryPath !== session.libraryPath ||
     !user
@@ -238,7 +227,7 @@ async function validIncoming(token: string) {
     terminate(session, '共享方已离线、切换资源库或取消了此用户的授权')
     fail('共享方已离线、切换资源库或取消了此用户的授权')
   }
-  // 读取设置期间也可能关闭页面。
+  // 读取设置期间也可能撤销成员。
   if (session.controller.signal.aborted) fail('共享连接已终止')
   session.name = user.name
   return session
@@ -256,12 +245,7 @@ export function closeIncoming(token: string) {
   if (session) terminate(session, '请求方已断开共享连接')
 }
 
-export async function decideSharing(
-  pageId: string,
-  id: string,
-  approve: boolean,
-) {
-  requirePage(pageId)
+export async function decideSharing(id: string, approve: boolean) {
   const session = [...incoming.values()].find((session) => session.id === id)
   if (!session || session.state !== 'pending')
     fail('该共享请求已被处理或已失效')
@@ -281,10 +265,8 @@ export async function decideSharing(
     )
     throw error
   }
-  requirePage(pageId)
   if (session.state !== 'pending' || session.controller.signal.aborted)
     fail('该共享请求已失效')
-  session.owner = pageId
   session.state = 'approved'
 }
 
@@ -315,20 +297,18 @@ function transferSnapshot(session: Transfer) {
   }
 }
 
-export async function connectRemote(
-  pageId: string,
-  config: {
-    url: string
-    invitationCode: string
-  },
-) {
-  requirePage(pageId)
+export async function connectRemote(config: {
+  url: string
+  certificate: string
+  invitationCode: string
+}) {
   const url = normalizeRemoteUrl(config.url)
-  disconnectRemote(pageId)
+  disconnectRemote()
   const session: Outgoing = {
     id: randomUUID(),
     token: '',
     url,
+    certificate: config.certificate,
     invitationCode: config.invitationCode,
     state: 'pending',
     error: '',
@@ -337,10 +317,11 @@ export async function connectRemote(
     controller: new AbortController(),
     checking: false,
   }
-  outgoing.set(pageId, session)
+  outgoing.set(CONNECTION, session)
   try {
     const result = await remoteJson(
       url,
+      config.certificate,
       '/request',
       undefined,
       { invitationCode: config.invitationCode, instanceId },
@@ -348,10 +329,17 @@ export async function connectRemote(
     )
     if (!result.token || !result.id || result.state !== 'pending')
       fail('目标 LinAI 返回了不兼容的共享请求响应')
-    if (outgoing.get(pageId) !== session || session.controller.signal.aborted) {
-      void remoteJson(url, '/session/close', result.token, {}).catch(
-        () => undefined,
-      )
+    if (
+      outgoing.get(CONNECTION) !== session ||
+      session.controller.signal.aborted
+    ) {
+      void remoteJson(
+        url,
+        config.certificate,
+        '/session/close',
+        result.token,
+        {},
+      ).catch(() => undefined)
       fail('共享连接已取消')
     }
     session.token = result.token
@@ -364,9 +352,8 @@ export async function connectRemote(
   }
 }
 
-export function sharingSnapshot(pageId: string) {
-  requirePage(pageId)
-  const session = outgoing.get(pageId)
+export function sharingSnapshot() {
+  const session = outgoing.get(CONNECTION)
   return {
     incoming: [...incoming.values()]
       .filter(
@@ -393,25 +380,18 @@ export function sharingSnapshot(pageId: string) {
   }
 }
 
-export async function getRemoteConnection(pageId: string) {
-  requirePage(pageId)
-  const session = outgoing.get(pageId)
+export async function getRemoteConnection() {
+  const session = outgoing.get(CONNECTION)
   if (
     !session ||
     session.state !== 'approved' ||
     session.controller.signal.aborted
   )
     fail('远程资源库尚未连接或连接已终止，请在设置中重新连接')
-  const settings = await getEagleSettings()
-  if (
-    normalizeRemoteUrl(settings.remoteUrl) !== session.url ||
-    settings.invitationCode !== session.invitationCode
-  )
-    fail('远程资源库配置已改变，请重新连接')
   return session
 }
 
-// 心跳由服务端持续发送，避免后台浏览器定时器节流误断线；页面 SSE 是连接存活的前提。
+// 后端心跳不依赖浏览器页面；退出房间、撤销权限及租约到期仍立即终止传输。
 const timer = setInterval(() => {
   const now = Date.now()
   for (const [token, session] of incoming) {
@@ -424,11 +404,7 @@ const timer = setInterval(() => {
     if (session.closedAt && now - session.closedAt > 15000)
       incoming.delete(token)
   }
-  for (const [pageId, session] of outgoing) {
-    if (!pages.has(pageId)) {
-      disconnectRemote(pageId)
-      continue
-    }
+  for (const session of outgoing.values()) {
     if (
       !session.token ||
       session.checking ||
@@ -438,6 +414,7 @@ const timer = setInterval(() => {
     session.checking = true
     void remoteJson(
       session.url,
+      session.certificate,
       '/session/heartbeat',
       session.token,
       {},

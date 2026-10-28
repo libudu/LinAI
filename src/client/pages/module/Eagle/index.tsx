@@ -8,6 +8,7 @@ import { openEagleSettingModal } from './SettingModal'
 import { useEagleConfig } from './settings/useEagleConfig'
 import { useEagleVisionConfig } from './settings/useEagleVisionConfig'
 import { useFolderSharing } from './sharing/folderSharing'
+import { LibrarySource } from './sharing/LibrarySource'
 import { useEagleSharing } from './sharing/store'
 import { requestEagleLibraryRefresh, useEagleStore } from './store'
 import { Toolbar } from './Toolbar'
@@ -69,13 +70,16 @@ export function Eagle() {
   if (libraryMode === 'remote' && !remoteConnected) {
     return (
       <div className="mx-auto max-w-xl space-y-4 p-6">
+        <LibrarySource />
         <Alert
           type="warning"
           showIcon
           title="远程资源库未连接"
           description={
             outgoing?.error ||
-            '关闭或刷新任意一方前端页面后，需重新请求共享授权。'
+            (outgoing?.state === 'pending'
+              ? '等待房主同意本次只读共享请求。'
+              : '请在「远程互联」加入房间并请求 Eagle 共享授权。')
           }
         />
         <Button type="primary" onClick={() => openEagleSettingModal()}>

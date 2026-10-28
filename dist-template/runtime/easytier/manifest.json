@@ -1,0 +1,50 @@
+{
+  "version": "2.7.0-linai.6487a5e",
+  "upstream": "https://github.com/EasyTier/EasyTier",
+  "commit": "6487a5e4638ef9129909c062722142928645adaf",
+  "target": "x86_64-pc-windows-gnu",
+  "platform": "Windows 10/11 x64",
+  "build": {
+    "rust": "1.95.0",
+    "gccDistribution": "w64devkit 2.10.1",
+    "protoc": "36.2",
+    "defaultFeatures": false,
+    "features": [
+      "cli",
+      "smoltcp",
+      "tcp-hole-punch",
+      "aes-gcm",
+      "endpoint-discovery"
+    ],
+    "releaseLto": false,
+    "codegenUnits": 8,
+    "patches": [
+      "easytier-core crate-type rlib only"
+    ]
+  },
+  "binaryAudit": {
+    "architecture": "AMD64",
+    "nonSystemImports": [],
+    "delayImports": false,
+    "packetDll": false,
+    "tunFeature": false,
+    "fakeTcpFeature": false,
+    "executed": false
+  },
+  "files": {
+    ".gitattributes": "31fbc9f4e21bc24bd78312f25b2583ada94b6a8ca53e35b317137c9cd3a052f4",
+    "LICENSE-GPL-3.0.txt": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+    "LICENSE-LGPL-3.0.txt": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118",
+    "LICENSE-MINGW.txt": "ecff91ddb5799c8b79a4bdb576921b9c3e2989783fd1944527e8eb9b41a5ff5f",
+    "SOURCES.md": "4d2eb45da07cd297fb2154352f31bd716986bdae7a1cbdfd8f1686faf2640ef3",
+    "build-portable.ps1": "13686f9002b37eff973db418cd314eac86955b1fb1a612d1dbeaa20ff97fb2d7",
+    "easytier-cli.exe": "ac3561f4a7cf31b341920d1eb8f7e990e8d263dfcfff1fc84d4d0d0e4f4c56da",
+    "easytier-core.exe": "9af0325b1235b311a30bbcb0244b2c1c80c3f0d3a5cb717515c438e4987dafcc",
+    "watch-parent.ps1": "1ddd69cd9622f75bcb540037ceb631b630602877e583b5ce6f7f5101e73b7317"
+  },
+  "correspondingSource": {
+    "fileName": "EasyTier-2.7.0-linai.6487a5e-source.zip",
+    "sha256": "876278a8905e6b3c152aac2754e54e53084476e276733f2be434a8cd492599e7",
+    "size": 90300165
+  }
+}

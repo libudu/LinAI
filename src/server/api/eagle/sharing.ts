@@ -14,12 +14,8 @@ import { isSharedRead } from '../../module/eagle/sharing/protocol'
 import {
   authorizeRead,
   closeIncoming,
-  closePage,
-  connectRemote,
   decideSharing,
-  disconnectRemote,
   heartbeatIncoming,
-  openPage,
   recordTransfer,
   requestSharing,
   sharingSnapshot,
@@ -28,7 +24,6 @@ import { bindSharedResponse } from '../../module/eagle/sharing/transport'
 import libraryApi from './library'
 import { validate } from './validation'
 
-const pageSchema = z.object({ pageId: z.string().uuid() })
 const bearer = (authorization?: string) => {
   if (!authorization || !/^Bearer [a-f0-9]{64}$/.test(authorization))
     throw new HTTPException(403, { message: '缺少有效的共享凭据' })
@@ -41,67 +36,32 @@ const sharingApi = new Hono()
     await next()
   })
   .get('/local-session', (c) => issueOwnerSession(c))
-  .get('/events', validate('query', pageSchema), (c) => {
-    const { pageId } = c.req.valid('query')
+  .get('/events', (c) => {
     return streamSSE(c, async (stream) => {
-      const close = openPage(pageId)
-      stream.onAbort(close)
-      try {
-        while (!stream.aborted) {
-          await stream.writeSSE({
-            event: 'status',
-            data: JSON.stringify(sharingSnapshot(pageId)),
-          })
-          await stream.sleep(1000)
-        }
-      } finally {
-        close()
+      while (!stream.aborted) {
+        await stream.writeSSE({
+          event: 'status',
+          data: JSON.stringify(sharingSnapshot()),
+        })
+        await stream.sleep(1000)
       }
     })
   })
-  .post('/page/close', validate('query', pageSchema), (c) => {
-    closePage(c.req.valid('query').pageId)
-    return c.json({ success: true as const, data: null })
-  })
-  .get('/status', validate('query', pageSchema), (c) =>
+  .get('/status', (c) =>
     c.json({
       success: true as const,
-      data: sharingSnapshot(c.req.valid('query').pageId),
+      data: sharingSnapshot(),
     }),
   )
   .post(
     '/decision',
-    validate(
-      'json',
-      pageSchema.extend({ id: z.string().uuid(), approve: z.boolean() }),
-    ),
+    validate('json', z.object({ id: z.string().uuid(), approve: z.boolean() })),
     async (c) => {
-      const { pageId, id, approve } = c.req.valid('json')
-      await decideSharing(pageId, id, approve)
+      const { id, approve } = c.req.valid('json')
+      await decideSharing(id, approve)
       return c.json({ success: true as const, data: null })
     },
   )
-  .post(
-    '/connect',
-    validate(
-      'json',
-      pageSchema.extend({
-        url: z.string().url(),
-        invitationCode: z.string().regex(/^[A-Za-z0-9]{8}$/),
-      }),
-    ),
-    async (c) => {
-      const { pageId, ...config } = c.req.valid('json')
-      return c.json({
-        success: true as const,
-        data: await connectRemote(pageId, config),
-      })
-    },
-  )
-  .post('/disconnect', validate('json', pageSchema), (c) => {
-    disconnectRemote(c.req.valid('json').pageId)
-    return c.json({ success: true as const, data: null })
-  })
   .get(
     '/directories',
     validate('query', z.object({ path: z.string().optional() })),
@@ -134,7 +94,7 @@ const sharingApi = new Hono()
     validate(
       'json',
       z.object({
-        invitationCode: z.string().regex(/^[A-Za-z0-9]{8}$/),
+        invitationCode: z.string().regex(/^[a-f0-9]{64}$/),
         instanceId: z.string().uuid(),
       }),
     ),

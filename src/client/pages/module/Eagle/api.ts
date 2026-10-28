@@ -1,7 +1,7 @@
 import { rpcData } from '@/client/service/http'
 import type { EagleMediaType } from '@/shared/eagle/types'
 import type { InferRequestType } from 'hono/client'
-import { eaglePageId, eagleRpc } from './rpc'
+import { eagleRpc } from './rpc'
 
 export const fetchEagleOverview = (mediaType: EagleMediaType) =>
   rpcData(eagleRpc.overview.$get({ query: { mediaType } }))
@@ -98,11 +98,11 @@ export const trashAllUnclassifiedEagleItems = (mediaType: EagleMediaType) =>
   rpcData(eagleRpc.unclassified.trash.$post({ query: { mediaType } }))
 
 export const eagleThumbnailUrl = (id: string, version?: string) =>
-  `${eagleRpc.items[':id'].thumbnail.$path({ param: { id } })}?pageId=${eaglePageId}${version ? `&v=${version}` : ''}`
+  `${eagleRpc.items[':id'].thumbnail.$path({ param: { id } })}${version ? `?v=${encodeURIComponent(version)}` : ''}`
 export const eagleFileUrl = (id: string, version?: string) =>
-  `${eagleRpc.items[':id'].file.$path({ param: { id } })}?pageId=${eaglePageId}${version ? `&v=${version}` : ''}`
+  `${eagleRpc.items[':id'].file.$path({ param: { id } })}${version ? `?v=${encodeURIComponent(version)}` : ''}`
 export const eaglePreviewUrl = (id: string, version?: string) =>
-  `${eagleRpc.items[':id'].preview.$path({ param: { id } })}?pageId=${eaglePageId}${version ? `&v=${version}` : ''}`
+  `${eagleRpc.items[':id'].preview.$path({ param: { id } })}${version ? `?v=${encodeURIComponent(version)}` : ''}`
 export const eagleVideoContactSheetUrl = (id: string) =>
   eagleRpc.items[':id']['video-contact-sheet'].$path({ param: { id } })
 

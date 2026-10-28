@@ -113,7 +113,7 @@ export function FolderSharingOptions() {
         ) : (
           <Empty
             description={
-              loading ? '加载共享人员…' : '请先在设置的「共享用户」中添加人员'
+              loading ? '加载共享人员…' : '请先在「远程互联」中添加人员'
             }
           />
         )}

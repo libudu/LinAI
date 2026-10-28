@@ -17,11 +17,7 @@ const eagleApi = new Hono()
     }
     if (c.req.method !== 'GET')
       throw new HTTPException(403, { message: '远程共享资源库不能编辑或删除' })
-    return proxySharedRead(
-      c.req.header('x-eagle-page') || c.req.query('pageId') || '',
-      path,
-      c.req.raw,
-    )
+    return proxySharedRead(path, c.req.raw)
   })
   .route('/organize/image', createOrganizeApi('image'))
   .route('/organize/video', createOrganizeApi('video'))

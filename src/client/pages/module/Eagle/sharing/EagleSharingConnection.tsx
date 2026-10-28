@@ -1,6 +1,5 @@
 import { message, Modal } from 'antd'
 import { useEffect } from 'react'
-import { eaglePageId } from '../rpc'
 import { ensureEagleOwnerSession } from './access'
 import { decideSharing, type SharingStatus } from './api'
 import { useEagleSharing } from './store'
@@ -25,9 +24,7 @@ export function EagleSharingConnection() {
     }
     const open = () => {
       if (stopped || !authorized) return
-      source = new EventSource(
-        `/api/eagle/sharing/events?pageId=${eaglePageId}`,
-      )
+      source = new EventSource('/api/eagle/sharing/events')
       source.addEventListener('status', (event) => {
         const status = JSON.parse((event as MessageEvent).data) as SharingStatus
         useEagleSharing.setState({ ...status, connected: true })
@@ -43,7 +40,7 @@ export function EagleSharingConnection() {
           }
         }
         for (const entry of status.incoming) {
-          const content = `用户【${entry.name}（${entry.invitationCode}）】请求共享 Eagle 资源库，是否同意？`
+          const content = `房间人员【${entry.name}】请求只读浏览 Eagle 资源库。仅开放你在文件夹可见性中授权的范围，是否同意？`
           const dialog = dialogs.get(entry.id)
           if (dialog) {
             dialog.update({ content })
@@ -92,12 +89,9 @@ export function EagleSharingConnection() {
     const close = () => {
       source?.close()
       source = null
-      navigator.sendBeacon(
-        `/api/eagle/sharing/page/close?pageId=${eaglePageId}`,
-      )
       clear()
     }
-    // pagehide 可覆盖正常关闭、导航和 BFCache；恢复页面只重建在线状态，不恢复授权。
+    // 页面只订阅状态；后台会话由房间管理，刷新和关闭页面不撤销授权。
     const resume = () => {
       if (!source) open()
     }

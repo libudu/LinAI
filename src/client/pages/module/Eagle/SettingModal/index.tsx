@@ -6,13 +6,12 @@ import {
 } from '../../../common/components/SettingModal'
 import { useEagleConfig } from '../settings/useEagleConfig'
 import { LibrarySetting, type EagleSettingRef } from './LibrarySetting'
-import { SharingUsersSetting } from './SharingUsersSetting'
 import {
   VisionEndpointSetting,
   type VisionEndpointSettingRef,
 } from './VisionEndpointSetting'
 
-// 打开 Eagle 图片管理设置弹窗，三个标签页独立保存。
+// 资源库与视觉设置独立保存；连接和人员统一由远程互联管理。
 export async function openEagleSettingModal(options?: {
   initialTab?: string
   initialOnly?: boolean
@@ -35,12 +34,6 @@ export async function openEagleSettingModal(options?: {
       label: '资源库',
       children: <LibrarySetting ref={eagleRef} />,
       onSave: () => eagleRef.current!.save(),
-    },
-    {
-      key: 'sharing-users',
-      label: '共享用户',
-      children: <SharingUsersSetting />,
-      hideFooter: true,
     },
     {
       key: 'vision-endpoint',

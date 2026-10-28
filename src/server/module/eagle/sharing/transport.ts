@@ -1,4 +1,5 @@
 import { HTTPException } from 'hono/http-exception'
+import { fetchRoomResource } from '../../interconnect/https'
 import { isSharedRead } from './protocol'
 import { getRemoteConnection, recordTransfer } from './service'
 
@@ -57,16 +58,12 @@ export function bindSharedResponse(
   return new Response(body, { status: response.status, headers })
 }
 
-export async function proxySharedRead(
-  pageId: string,
-  path: string,
-  request: Request,
-) {
+export async function proxySharedRead(path: string, request: Request) {
   if (!isSharedRead(path))
     throw new HTTPException(403, {
       message: '远程共享资源库仅支持浏览和预览，不能编辑或删除',
     })
-  const session = await getRemoteConnection(pageId)
+  const session = await getRemoteConnection()
   const url = new URL(`${session.url}/api/eagle/sharing/library${path}`)
   const source = new URL(request.url)
   for (const [key, value] of source.searchParams) {
@@ -85,7 +82,11 @@ export async function proxySharedRead(
     controller.signal,
   ])
   try {
-    const response = await fetch(url, { headers, signal, redirect: 'error' })
+    const response = await fetchRoomResource(url, session.certificate, {
+      headers,
+      signal,
+      redirect: 'error',
+    })
     return bindSharedResponse(response, signal, (bytes) =>
       recordTransfer(session, bytes),
     )

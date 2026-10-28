@@ -5,6 +5,7 @@
  */
 import '../../module/eagle/settings'
 import '../../module/gpt-image/settings'
+import '../../module/interconnect/settings'
 import '../../module/novel/settings'
 import '../../module/system/settings'
 import '../../module/tts/settings'
