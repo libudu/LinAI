@@ -1,4 +1,8 @@
-@import 'tailwindcss';
+/* 仅扫描前端、共享源码和入口，避免仓库中的临时源码等内容拖慢样式生成。 */
+@import 'tailwindcss' source('./');
+@source '../shared';
+@source '../../index.html';
+@source '../../login.html';
 
 /* ---------- 主题 CSS 变量 ---------- */
 @layer base {
