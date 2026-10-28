@@ -8,7 +8,6 @@ import { openEagleSettingModal } from './SettingModal'
 import { useEagleConfig } from './settings/useEagleConfig'
 import { useEagleVisionConfig } from './settings/useEagleVisionConfig'
 import { useFolderSharing } from './sharing/folderSharing'
-import { LibrarySource } from './sharing/LibrarySource'
 import { useEagleSharing } from './sharing/store'
 import { requestEagleLibraryRefresh, useEagleStore } from './store'
 import { Toolbar } from './Toolbar'
@@ -70,7 +69,6 @@ export function Eagle() {
   if (libraryMode === 'remote' && !remoteConnected) {
     return (
       <div className="mx-auto max-w-xl space-y-4 p-6">
-        <LibrarySource />
         <Alert
           type="warning"
           showIcon

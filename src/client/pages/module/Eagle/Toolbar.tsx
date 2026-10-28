@@ -34,7 +34,6 @@ import { openEagleSettingModal } from './SettingModal'
 import { useEagleConfig } from './settings/useEagleConfig'
 import { useEagleVisionConfig } from './settings/useEagleVisionConfig'
 import { FolderSharingOptions } from './sharing/FolderSharingOptions'
-import { LibrarySource } from './sharing/LibrarySource'
 import { SharingIndicator } from './sharing/SharingIndicator'
 import { useEagleSharing } from './sharing/store'
 import type { EagleImageSize } from './store'
@@ -233,7 +232,6 @@ export function Toolbar() {
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-slate-200 px-4 py-2 dark:border-slate-700">
       <Space wrap>
-        <LibrarySource />
         {!isMobile && (
           <div className="flex w-25 shrink-0 flex-col items-start justify-center overflow-hidden">
             <span className="inline-flex max-w-full items-baseline gap-1">

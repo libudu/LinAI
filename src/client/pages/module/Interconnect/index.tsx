@@ -34,7 +34,7 @@ import {
 } from 'antd'
 import copy from 'copy-to-clipboard'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useEagleConfig } from '../Eagle/settings/useEagleConfig'
 import { ensureEagleOwnerSession } from '../Eagle/sharing/access'
 import {
@@ -84,6 +84,7 @@ function ConnectionTag({
 
 export function Interconnect() {
   const { token } = theme.useToken()
+  const navigate = useNavigate()
   const [status, setStatus] = useState<RoomStatus | null>(null)
   const [entryMode, setEntryMode] = useState<'create' | 'join'>('create')
   const [groupsOpen, setGroupsOpen] = useState(false)
@@ -177,6 +178,7 @@ export function Interconnect() {
       await useEagleConfig.getState().fetchEagleConfig()
       setConnectLibraryOpen(false)
       message.success('已切换为房主的远程资源库')
+      navigate('/eagle')
     })
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -268,7 +270,9 @@ export function Interconnect() {
                       : '已有成员连接'
                     : room.state === 'error'
                       ? '核心已退出'
-                      : '连接中'
+                      : room.role === 'host'
+                        ? '等待连接'
+                        : '连接中'
                 }
               />
               {room.role === 'guest' && (
@@ -366,12 +370,6 @@ export function Interconnect() {
                 >
                   连接房主远程资源库
                 </Button>
-                <Link
-                  to="/eagle"
-                  className="app-accent-text rounded-md px-2 py-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)]"
-                >
-                  打开 Eagle
-                </Link>
               </Space>
             </div>
           )}
