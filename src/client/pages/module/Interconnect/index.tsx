@@ -413,33 +413,6 @@ export function Interconnect() {
           {room.role === 'host' && (
             <div className="border-t border-slate-100 p-5 sm:p-6">
               {permissionGroups}
-              {issued && (
-                <div className="mt-5">
-                  <p className="mt-0 mb-4 leading-relaxed">
-                    此邀请仅交给使用此权限组的成员；重新生成会撤销该权限组的旧邀请和共享连接。
-                  </p>
-                  <Input.TextArea
-                    rows={5}
-                    aria-label="完整房间邀请"
-                    value={issued.invitation}
-                    readOnly
-                  />
-                  <div className="mt-5 flex justify-end">
-                    <Button
-                      type="primary"
-                      icon={<CopyOutlined />}
-                      onClick={async () => {
-                        if (!issued) return
-                        if (await copy(issued.invitation))
-                          message.success('邀请已复制')
-                        else message.error('复制失败，请手动选择邀请文本复制')
-                      }}
-                    >
-                      复制完整邀请
-                    </Button>
-                  </div>
-                </div>
-              )}
             </div>
           )}
           {room.participants.length > 0 && (
@@ -645,6 +618,40 @@ export function Interconnect() {
             </Form>
           </div>
         </section>
+      )}
+      {room?.role === 'host' && (
+        <Modal
+          title="房间邀请"
+          open={issued !== null}
+          onCancel={() => setIssued(null)}
+          footer={[
+            <Button key="close" onClick={() => setIssued(null)}>
+              关闭
+            </Button>,
+            <Button
+              key="copy"
+              type="primary"
+              icon={<CopyOutlined />}
+              onClick={async () => {
+                if (!issued) return
+                if (await copy(issued.invitation)) message.success('邀请已复制')
+                else message.error('复制失败，请手动选择邀请文本复制')
+              }}
+            >
+              复制完整邀请
+            </Button>,
+          ]}
+        >
+          <p className="mt-0 mb-4 leading-relaxed">
+            此邀请仅交给使用此权限组的成员；重新生成会撤销该权限组的旧邀请和共享连接。
+          </p>
+          <Input.TextArea
+            rows={5}
+            aria-label="完整房间邀请"
+            value={issued?.invitation ?? ''}
+            readOnly
+          />
+        </Modal>
       )}
       {room?.role === 'guest' && (
         <Modal
