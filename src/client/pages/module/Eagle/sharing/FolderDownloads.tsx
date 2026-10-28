@@ -109,7 +109,7 @@ export function useFolderDownloads(folders: EagleFolder[]) {
   const select = useCallback(
     (folder: EagleFolder) => {
       setSelected(folder)
-      setDirectory('')
+      setDirectory(useEagleConfig.getState().defaultLibraryPath)
       setError('')
       setPlan(null)
       if (useEagleConfig.getState().libraryPath) void loadPlan(folder)
@@ -209,9 +209,15 @@ export function useFolderDownloads(folders: EagleFolder[]) {
         {configure ? (
           <Form layout="vertical">
             <div className="mb-4">
-              请选择本地空文件夹或已有的Eagle资源库目录
+              下载的资源将保存到本地资源库。默认在 LinAI 所在目录下创建
+              「Eagle资源库」文件夹，也可选择其他空文件夹或已有 Eagle 资源库。
             </div>
-            <Form.Item label="本地资源库目录" className="!mb-0" required>
+            <Form.Item
+              label="本地资源库目录"
+              extra="点击「保存并继续」后创建或连接资源库，再确认本次下载。"
+              className="!mb-0"
+              required
+            >
               <DirectoryPicker
                 value={directory}
                 onChange={setDirectory}

@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
+import { getDefaultLibraryPath } from '../../module/eagle/library-path'
 import { getEagleSettings } from '../../module/eagle/settings'
 import { proxySharedRead } from '../../module/eagle/sharing/transport'
 import libraryApi from './library'
@@ -7,6 +8,9 @@ import { createOrganizeApi } from './organize'
 import sharingApi from './sharing'
 
 const eagleApi = new Hono()
+  .get('/default-library-directory', (c) =>
+    c.json({ success: true as const, data: { path: getDefaultLibraryPath() } }),
+  )
   .route('/sharing', sharingApi)
   .use('*', async (c, next) => {
     if ((await getEagleSettings()).libraryMode !== 'remote') return next()

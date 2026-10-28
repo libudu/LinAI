@@ -21,7 +21,11 @@ export const LibrarySetting = forwardRef<EagleSettingRef>((_props, ref) => {
   const [status, setStatus] = useState<RoomStatus | null>(null)
   const [error, setError] = useState('')
   useEffect(() => {
-    form.setFieldsValue(useEagleConfig.getState())
+    const settings = useEagleConfig.getState()
+    form.setFieldsValue({
+      ...settings,
+      libraryPath: settings.libraryPath || settings.defaultLibraryPath,
+    })
     void fetchRoomStatus()
       .then(setStatus)
       .catch((error) =>
@@ -73,7 +77,7 @@ export const LibrarySetting = forwardRef<EagleSettingRef>((_props, ref) => {
           <Form.Item
             name="libraryPath"
             label="Eagle 资源库路径"
-            extra="选择空文件夹或已有 Eagle 资源库；空文件夹将在保存时原地初始化。编辑、整理确认和回收站操作会写入资源库。"
+            extra="默认在 LinAI 所在目录下创建「Eagle资源库」文件夹，保存后即可使用。也可选择其他空文件夹新建资源库，或选择已有 Eagle 资源库继续使用。"
             rules={[
               { required: true, whitespace: true, message: '请选择资源库路径' },
             ]}

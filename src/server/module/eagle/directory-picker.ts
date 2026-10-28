@@ -20,8 +20,12 @@ try {
     $dialog.AutoUpgradeEnabled = $true
     $dialog.UseDescriptionForTitle = $true
   }
-  if ($env:LINAI_EAGLE_INITIAL_DIRECTORY -and (Test-Path -LiteralPath $env:LINAI_EAGLE_INITIAL_DIRECTORY -PathType Container)) {
-    $dialog.SelectedPath = $env:LINAI_EAGLE_INITIAL_DIRECTORY
+  $initialDirectory = $env:LINAI_EAGLE_INITIAL_DIRECTORY
+  if ($initialDirectory -and -not (Test-Path -LiteralPath $initialDirectory -PathType Container)) {
+    $initialDirectory = [System.IO.Path]::GetDirectoryName($initialDirectory)
+  }
+  if ($initialDirectory -and (Test-Path -LiteralPath $initialDirectory -PathType Container)) {
+    $dialog.SelectedPath = $initialDirectory
   }
   $owner.ShowInTaskbar = $false
   $owner.Opacity = 0

@@ -2,14 +2,39 @@ import fs from 'fs-extra'
 import { open } from 'node:fs/promises'
 import path from 'node:path'
 import { EagleError } from '../errors'
+import { getDefaultLibraryPath } from '../library-path'
 import { validateLibraryDirectory } from '../sharing/paths'
 import { withLibraryLock } from './runtime'
 
 /** 保存设置时才初始化；锁内重新校验，排他创建，绝不覆盖已有内容。 */
 export async function prepareLibraryDirectory(input: string) {
-  const selected = await validateLibraryDirectory(input)
-  return withLibraryLock(selected.path, async () => {
-    const directory = await validateLibraryDirectory(selected.path)
+  const defaultPath = getDefaultLibraryPath()
+  const isDefault =
+    path.isAbsolute(input) && path.relative(defaultPath, input) === ''
+  const createDefault = isDefault && !(await fs.pathExists(input))
+  // 默认目录可以尚不存在；先解析父目录，确保初始化与其他库写操作使用同一锁键。
+  const selectedPath = createDefault
+    ? path.join(
+        await fs.realpath(path.dirname(defaultPath)),
+        path.basename(defaultPath),
+      )
+    : (await validateLibraryDirectory(input)).path
+  return withLibraryLock(selectedPath, async () => {
+    let createdRoot = false
+    if (createDefault) {
+      try {
+        await fs.mkdir(selectedPath)
+        createdRoot = true
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST')
+          throw new EagleError(
+            'LIBRARY_INITIALIZATION_FAILED',
+            500,
+            `创建默认资源库文件夹失败：${error instanceof Error ? error.message : '写入失败'}`,
+          )
+      }
+    }
+    const directory = await validateLibraryDirectory(selectedPath)
     if (directory.kind === 'library') return directory.path
 
     const imagesPath = path.join(directory.path, 'images')
@@ -48,9 +73,14 @@ export async function prepareLibraryDirectory(input: string) {
         ...createdFiles.map((file) => fs.unlink(file)),
         ...(createdImages ? [fs.rmdir(imagesPath)] : []),
       ])
-      const cleanupFailed = cleanup.some(
-        (result) => result.status === 'rejected',
-      )
+      let cleanupFailed = cleanup.some((result) => result.status === 'rejected')
+      if (createdRoot) {
+        try {
+          await fs.rmdir(selectedPath)
+        } catch {
+          cleanupFailed = true
+        }
+      }
       throw new EagleError(
         'LIBRARY_INITIALIZATION_FAILED',
         500,

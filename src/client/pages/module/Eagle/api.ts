@@ -3,6 +3,9 @@ import type { EagleMediaType } from '@/shared/eagle/types'
 import type { InferRequestType } from 'hono/client'
 import { eagleRpc } from './rpc'
 
+export const fetchDefaultLibraryDirectory = () =>
+  rpcData(eagleRpc['default-library-directory'].$get())
+
 export const fetchEagleOverview = (mediaType: EagleMediaType) =>
   rpcData(eagleRpc.overview.$get({ query: { mediaType } }))
 
