@@ -40,7 +40,12 @@ export function DownloadLogButton({
   }, [open, groupId, userId])
   return (
     <>
-      <Button type="link" size="small" onClick={() => setOpen(true)}>
+      <Button
+        type="link"
+        size="small"
+        style={{ paddingInlineStart: 0 }}
+        onClick={() => setOpen(true)}
+      >
         日志
       </Button>
       <Modal

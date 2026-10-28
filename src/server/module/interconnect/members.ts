@@ -86,3 +86,12 @@ export async function recordMemberLogin(
   else history[index] = record
   await historyStore.replace(history)
 }
+
+// 与成员登记共用房间命令队列，避免读改写覆盖同时发生的登录记录。
+export async function removeMemberHistory(groupId: string, userId: string) {
+  const history = await getMemberHistory()
+  const remaining = history.filter(
+    (entry) => entry.groupId !== groupId || entry.id !== userId,
+  )
+  if (remaining.length !== history.length) await historyStore.replace(remaining)
+}

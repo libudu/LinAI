@@ -4,6 +4,7 @@ import { memberNameSchema } from '../module/interconnect/members'
 import {
   createRoom,
   deleteMember,
+  deleteMemberHistory,
   inviteMember,
   joinRoom,
   leaveRoom,
@@ -85,6 +86,15 @@ const api = new Hono()
     validate('json', z.object({ id: idSchema })),
     async (c) => {
       await deleteMember(c.req.valid('json').id)
+      return c.json({ success: true as const, data: null })
+    },
+  )
+  .post(
+    '/delete-member-history',
+    validate('json', z.object({ groupId: idSchema, userId: z.string().uuid() })),
+    async (c) => {
+      const { groupId, userId } = c.req.valid('json')
+      await deleteMemberHistory(groupId, userId)
       return c.json({ success: true as const, data: null })
     },
   )

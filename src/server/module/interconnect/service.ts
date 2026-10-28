@@ -24,6 +24,7 @@ import {
   getMemberIdentity,
   participantSchema,
   recordMemberLogin,
+  removeMemberHistory,
   saveMemberIdentity,
   type MemberLogin,
   type Participant,
@@ -455,6 +456,9 @@ async function revokeMemberInternal(id: string) {
 
 export const revokeMember = (id: string) =>
   mutate(() => revokeMemberInternal(id))
+
+export const deleteMemberHistory = (groupId: string, userId: string) =>
+  mutate(() => removeMemberHistory(groupId, userId))
 
 export const deleteMember = (id: string) =>
   mutate(async () => {

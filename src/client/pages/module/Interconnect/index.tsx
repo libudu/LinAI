@@ -40,6 +40,7 @@ import { ensureEagleOwnerSession } from '../Eagle/sharing/access'
 import {
   createRoom,
   deleteMember,
+  deleteMemberHistory,
   fetchRoomStatus,
   inviteMember,
   joinRoom,
@@ -212,9 +213,13 @@ export function Interconnect() {
             <Table
               rowKey="id"
               size="small"
-              pagination={false}
+              pagination={{
+                pageSize: 10,
+                showSizeChanger: false,
+                hideOnSinglePage: true,
+              }}
               dataSource={entry.history}
-              scroll={{ x: 650 }}
+              scroll={{ x: 680 }}
               columns={[
                 {
                   title: '名称',
@@ -226,7 +231,7 @@ export function Interconnect() {
                   title: '用户标识',
                   dataIndex: 'id',
                   ellipsis: true,
-                  width: 240,
+                  width: 120,
                 },
                 {
                   title: '虚拟 IP',
@@ -241,13 +246,27 @@ export function Interconnect() {
                 },
                 {
                   title: '操作',
-                  width: 70,
+                  width: 130,
                   render: (_, user) => (
-                    <DownloadLogButton
-                      groupId={entry.id}
-                      userId={user.id}
-                      name={user.name}
-                    />
+                    <Space size={4}>
+                      <DownloadLogButton
+                        groupId={entry.id}
+                        userId={user.id}
+                        name={user.name}
+                      />
+                      <Popconfirm
+                        title="删除这条连接记录？"
+                        description="用户下次重新连接时会再次记录。"
+                        disabled={busy}
+                        onConfirm={() =>
+                          act(() => deleteMemberHistory(entry.id, user.id))
+                        }
+                      >
+                        <Button type="link" size="small" danger disabled={busy}>
+                          删除
+                        </Button>
+                      </Popconfirm>
+                    </Space>
                   ),
                 },
               ]}

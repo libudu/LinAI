@@ -25,4 +25,6 @@ export const revokeMember = (id: string) =>
   rpcData(rpc.revoke.$post({ json: { id } }))
 export const deleteMember = (id: string) =>
   rpcData(rpc['delete-member'].$post({ json: { id } }))
+export const deleteMemberHistory = (groupId: string, userId: string) =>
+  rpcData(rpc['delete-member-history'].$post({ json: { groupId, userId } }))
 export const selectRemoteLibrary = () => rpcData(rpc.eagle.$post())
