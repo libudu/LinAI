@@ -17,21 +17,11 @@ import {
   type DownloadManifest,
 } from '../library'
 import { getEagleSettings } from '../settings'
+import { downloadTasks as tasks } from './download-state'
 import { getRemoteConnection, recordTransfer } from './service'
 
 type Session = Awaited<ReturnType<typeof getRemoteConnection>>
 type Summary = { download: number; sync: number; bytes: number }
-type Task = {
-  id: string
-  connectionId: string
-  folderId: string
-  folder: string
-  completed: number
-  total: number
-  state: 'queued' | 'running' | 'completed' | 'error'
-  error: string
-}
-const tasks: Task[] = []
 const plans = new Map<
   string,
   {
@@ -45,9 +35,6 @@ const plans = new Map<
     permissionsRevision: number | undefined
   }
 >()
-
-export const downloadSnapshot = () =>
-  tasks.map((task) => ({ ...task, remaining: task.total - task.completed }))
 
 async function remoteResponse(
   session: Session,
@@ -83,7 +70,8 @@ async function remoteResponse(
 }
 
 async function remoteManifest(session: Session, folderId?: string) {
-  const query = folderId === undefined ? '' : `?${new URLSearchParams({ folderId })}`
+  const query =
+    folderId === undefined ? '' : `?${new URLSearchParams({ folderId })}`
   const response = await remoteResponse(session, `/library/manifest${query}`)
   const json = await response.json()
   if (!json?.success) throw new Error('读取远程资源清单失败')
@@ -146,7 +134,10 @@ function compare(remote: DownloadManifest, local: DownloadManifest | null) {
   return entries
 }
 
-async function localManifest(remote: DownloadManifest, libraryPath: string | null) {
+async function localManifest(
+  remote: DownloadManifest,
+  libraryPath: string | null,
+) {
   if (!libraryPath) return null
   await ensureLibraryReady()
   return getDownloadManifest(undefined, {
@@ -308,17 +299,22 @@ export const startFolderDownload = (id: string) =>
     const response = await remoteResponse(session, '/session/download', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId: id, folderId: plan.folderId }),
+      body: JSON.stringify({
+        taskId: id,
+        folderId: plan.folderId,
+        total: plan.entries.length,
+      }),
     })
     const json = await response.json()
     if (!json?.success) throw new Error('记录下载日志失败')
     session.controller.signal.throwIfAborted()
-    const task: Task = {
+    const task: (typeof tasks)[number] = {
       id,
       connectionId: session.id,
       folderId: plan.folderId,
       folder: plan.folder,
       completed: 0,
+      currentProgress: 0,
       total: plan.entries.length,
       state: 'queued',
       error: '',
@@ -348,7 +344,7 @@ export const startFolderDownload = (id: string) =>
           if (
             fresh.libraryId !== plan.manifest.libraryId ||
             JSON.stringify(fresh.folders) !==
-            JSON.stringify(plan.manifest.folders)
+              JSON.stringify(plan.manifest.folders)
           )
             throw new Error('远程文件夹已改变，请重新检查')
           const currentItems = new Map(
@@ -422,6 +418,10 @@ export const startFolderDownload = (id: string) =>
                 const count = new Transform({
                   transform(chunk: Buffer, _encoding, callback) {
                     bytes += chunk.length
+                    task.currentProgress = Math.min(
+                      0.99,
+                      bytes / Math.max(1, entry.item.size),
+                    )
                     recordTransfer(session, chunk.length)
                     if (bytes > entry.item.size)
                       callback(new Error('远程文件大小已改变'))
@@ -450,6 +450,7 @@ export const startFolderDownload = (id: string) =>
                 session.controller.signal,
               )
               task.completed++
+              task.currentProgress = 0
             } finally {
               if (temporary) {
                 await fs

@@ -10,6 +10,7 @@ import {
   getEagleSettings,
   getEagleSharingSettings,
 } from '../settings'
+import { downloadSnapshot, type DownloadProgress } from './download-state'
 import { validateLibraryDirectory } from './paths'
 
 const LEASE_MS = 12000
@@ -33,6 +34,7 @@ type Incoming = Transfer & {
   libraryPath: string
   controller: AbortController
   readController: AbortController
+  downloads: (DownloadProgress & { folder: string })[]
 }
 type Outgoing = Transfer & {
   id: string
@@ -184,6 +186,7 @@ export async function requestSharing(
     readController: new AbortController(),
     bytes: 0,
     samples: [],
+    downloads: [],
   }
   incoming.set(session.token, session)
   try {
@@ -232,9 +235,25 @@ async function validIncoming(token: string) {
   return session
 }
 
-export async function heartbeatIncoming(token: string) {
+export async function heartbeatIncoming(
+  token: string,
+  downloads: DownloadProgress[] = [],
+) {
   const session = await validIncoming(token)
   session.lastSeen = Date.now()
+  // 只能更新本会话已校验目录并登记的任务，不能通过心跳伪造文件夹记录。
+  for (const progress of downloads) {
+    const task = session.downloads.find((entry) => entry.id === progress.id)
+    if (
+      !task ||
+      task.total !== progress.total ||
+      progress.completed < task.completed ||
+      task.state === 'completed' ||
+      task.state === 'error'
+    )
+      continue
+    Object.assign(task, progress)
+  }
   const permissions = await getEagleFolderSharingSettings()
   return { state: session.state, permissionsRevision: permissions.revision }
 }
@@ -343,7 +362,10 @@ export function sharingSnapshot() {
         invitationCode: entry.invitationCode,
         state: entry.state,
         ...transferSnapshot(entry),
-        tasks: [] as string[],
+        downloads: entry.downloads.map((task) => ({
+          ...task,
+          remaining: task.total - task.completed,
+        })),
       })),
     outgoing: session
       ? {
@@ -386,7 +408,18 @@ const timer = setInterval(() => {
       session.transport,
       '/session/heartbeat',
       session.token,
-      {},
+      {
+        downloads: downloadSnapshot()
+          .filter((task) => task.connectionId === session.id)
+          .map(({ id, completed, total, percent, state, error }) => ({
+            id,
+            completed,
+            total,
+            percent,
+            state,
+            error: error.slice(0, 1000),
+          })),
+      },
       session.controller.signal,
     )
       .then((result) => {

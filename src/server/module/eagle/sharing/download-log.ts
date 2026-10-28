@@ -42,6 +42,7 @@ export async function recordDownloadLog(
   token: string,
   folderId: string,
   taskId: string,
+  total?: number,
 ) {
   const session = await authorizeRead(token)
   const grant = findRoomGrant(session.roomSecret)
@@ -84,21 +85,41 @@ export async function recordDownloadLog(
       throw new Error('房间用户已改变')
     const logs = await readLogs()
     if (
-      logs.some(
+      !logs.some(
         (log) =>
           log.id === taskId &&
           log.groupId === grant.code &&
           log.userId === userId,
       )
-    )
-      return
-    logs.push({
-      id: taskId,
-      groupId: grant.code,
-      userId,
-      folder: names.join(' / '),
-      createdAt: Date.now(),
-    })
-    await store.replace(logs)
+    ) {
+      logs.push({
+        id: taskId,
+        groupId: grant.code,
+        userId,
+        folder: names.join(' / '),
+        createdAt: Date.now(),
+      })
+      await store.replace(logs)
+    }
+    if (
+      total !== undefined &&
+      !session.downloads.some((task) => task.id === taskId)
+    ) {
+      session.downloads.push({
+        id: taskId,
+        folder: names.join(' / '),
+        completed: 0,
+        total,
+        percent: 0,
+        state: 'queued',
+        error: '',
+      })
+      while (session.downloads.length > 100) {
+        const index = session.downloads.findIndex(
+          (task) => task.state === 'completed' || task.state === 'error',
+        )
+        session.downloads.splice(index < 0 ? 0 : index, 1)
+      }
+    }
   })
 }

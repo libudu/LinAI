@@ -12,7 +12,10 @@ import {
   recordDownloadLog,
 } from '../../module/eagle/sharing/download-log'
 import {
+  downloadProgressSchema,
   downloadSnapshot,
+} from '../../module/eagle/sharing/download-state'
+import {
   getFolderDownloadStatuses,
   prepareFolderDownload,
   startFolderDownload,
@@ -150,11 +153,22 @@ const sharingApi = new Hono()
       })
     },
   )
-  .post('/session/heartbeat', async (c) =>
-    c.json({
-      success: true as const,
-      data: await heartbeatIncoming(bearer(c.req.header('authorization'))),
-    }),
+  .post(
+    '/session/heartbeat',
+    validate(
+      'json',
+      z.object({
+        downloads: z.array(downloadProgressSchema).max(100).optional(),
+      }),
+    ),
+    async (c) =>
+      c.json({
+        success: true as const,
+        data: await heartbeatIncoming(
+          bearer(c.req.header('authorization')),
+          c.req.valid('json').downloads,
+        ),
+      }),
   )
   .post('/session/close', (c) => {
     closeIncoming(bearer(c.req.header('authorization')))
@@ -164,14 +178,24 @@ const sharingApi = new Hono()
     '/session/download',
     validate(
       'json',
-      z.object({ folderId: z.string().min(1), taskId: z.string().uuid() }),
+      z.object({
+        folderId: z.string().min(1),
+        taskId: z.string().uuid(),
+        total: z
+          .number()
+          .int()
+          .positive()
+          .max(Number.MAX_SAFE_INTEGER)
+          .optional(),
+      }),
     ),
     async (c) => {
-      const { folderId, taskId } = c.req.valid('json')
+      const { folderId, taskId, total } = c.req.valid('json')
       await recordDownloadLog(
         bearer(c.req.header('authorization')),
         folderId,
         taskId,
+        total,
       )
       return c.json({ success: true as const, data: null })
     },

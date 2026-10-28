@@ -166,9 +166,7 @@ export function useFolderDownloads(folders: EagleFolder[]) {
   const modal = (
     <Modal
       open={Boolean(selected)}
-      title={
-        configure ? '配置本地资源库' : `资源下载 · ${selected?.name ?? ''}`
-      }
+      title={configure ? '配置本地资源库' : '资源下载'}
       onCancel={close}
       confirmLoading={busy}
       maskClosable={!busy}
@@ -229,8 +227,19 @@ export function useFolderDownloads(folders: EagleFolder[]) {
           <Descriptions
             column={1}
             items={[
-              { key: 'download', label: '需要下载', children: plan.download },
-              { key: 'sync', label: '需要同步', children: plan.sync },
+              { key: 'folder', label: '目标目录', children: plan.folder },
+              ...(plan.download > 0
+                ? [
+                    {
+                      key: 'download',
+                      label: '需要下载',
+                      children: plan.download,
+                    },
+                  ]
+                : []),
+              ...(plan.sync > 0
+                ? [{ key: 'sync', label: '需要同步', children: plan.sync }]
+                : []),
               {
                 key: 'bytes',
                 label: '预计大小',

@@ -1,5 +1,5 @@
-import { Alert, Empty } from 'antd'
 import { useEffect } from 'react'
+import { DownloadTaskList } from './DownloadTaskList'
 import { ensureEagleOwnerSession } from './access'
 import type { SharingStatus } from './api'
 import { useEagleSharing } from './store'
@@ -8,27 +8,7 @@ export function DownloadTasks() {
   const downloads = useEagleSharing((state) => state.downloads)
   const connectionId = useEagleSharing((state) => state.outgoing?.id)
   const tasks = downloads.filter((task) => task.connectionId === connectionId)
-  if (!tasks.length)
-    return (
-      <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无下载任务" />
-    )
-  return (
-    <div className="space-y-3">
-      {tasks.map((task) => (
-        <div key={task.id} className="space-y-2 border-b border-slate-200 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <span className="min-w-0 truncate" title={task.folder}>
-              {task.folder}
-            </span>
-            <span className="shrink-0">
-              已完成 {task.completed} · 剩余 {task.remaining}
-            </span>
-          </div>
-          {task.error && <Alert type="error" showIcon title={task.error} />}
-        </div>
-      ))}
-    </div>
-  )
+  return <DownloadTaskList key={connectionId} tasks={tasks} />
 }
 
 /** 在应用根挂载，持续同步 Eagle 共享连接与传输状态。 */
