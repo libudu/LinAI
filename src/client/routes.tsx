@@ -2,7 +2,6 @@ import {
   AppstoreOutlined,
   AudioOutlined,
   BookOutlined,
-  CloudOutlined,
   FolderOpenOutlined,
   HighlightOutlined,
   LinkOutlined,
@@ -19,7 +18,6 @@ import { Interconnect } from './pages/module/Interconnect'
 import { Novel } from './pages/module/Novel'
 import { openNovelSettingModal } from './pages/module/Novel/SettingModal'
 import { PerlerBead } from './pages/module/PerlerBead'
-import { YunwuAdmin } from './pages/module/YunwuAdmin'
 
 export interface AppRoute {
   path: string
@@ -96,13 +94,5 @@ export const appRoutes: AppRoute[] = [
     element: <Interconnect />,
     key: 'interconnect',
     icon: <LinkOutlined />,
-  },
-  {
-    path: '/yunwu-admin',
-    label: '云雾用户管理',
-    element: <YunwuAdmin />,
-    key: 'yunwu-admin',
-    icon: <CloudOutlined />,
-    adminOnly: true,
   },
 ]

@@ -19,7 +19,6 @@ import interconnectApi from './api/interconnect'
 import openaiApi from './api/openai'
 import ttsApi from './api/tts'
 import ttsInworldApi from './api/tts/inworld'
-import yunwuTokenApi from './api/yunwu-token'
 import { requireLogin } from './common/auth/middleware'
 import { StorageError } from './common/storage/errors'
 import { EagleError } from './module/eagle/errors'
@@ -108,7 +107,6 @@ const routes = app
   .route('/api/tts', ttsApi)
   .route('/api/tts-inworld', ttsInworldApi)
   .route('/api/gptImage', gptImageApi)
-  .route('/api/gptImage', yunwuTokenApi)
   .route('/api/eagle', eagleApi)
   .route('/api/interconnect', interconnectApi)
   // 图片业务接口沿用既有 URL，任务与图库由生图业务服务编排。

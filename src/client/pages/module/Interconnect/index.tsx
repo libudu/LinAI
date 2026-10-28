@@ -135,13 +135,6 @@ export function Interconnect() {
     })
   return (
     <div className="mx-auto max-w-4xl space-y-5 p-4 sm:p-6">
-      <div>
-        <h1 className="text-xl font-semibold">远程互联</h1>
-        <p className="mt-2 text-sm text-slate-500">
-          通过 EasyTier
-          建立一个私有房间。连接由后端保持，切换页面或刷新浏览器后仍然有效。
-        </p>
-      </div>
       {error && (
         <Alert
           type="error"

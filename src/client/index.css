@@ -280,17 +280,6 @@ html[data-theme='dark'] [class~='hover:border-blue-500']:hover {
   border-color: rgb(96 165 250 / 0.5);
 }
 
-/* ----- 状态卡渐变（YunwuAdmin 用户/分组卡片） ----- */
-html[data-theme='dark'] [class~='from-blue-50'] {
-  --tw-gradient-from: rgb(59 130 246 / 0.15);
-}
-html[data-theme='dark'] [class~='from-green-50'] {
-  --tw-gradient-from: rgb(34 197 94 / 0.15);
-}
-html[data-theme='dark'] [class~='to-white'] {
-  --tw-gradient-to: #1a1d24;
-}
-
 /* ----- 特例：ring 描边的白底偏移 ----- */
 html[data-theme='dark'] [class~='ring-offset-white'] {
   --tw-ring-offset-color: #1a1d24;
