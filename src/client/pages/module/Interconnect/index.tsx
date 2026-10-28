@@ -266,7 +266,9 @@ export function Interconnect() {
                       : '已有成员连接'
                     : room.state === 'error'
                       ? '核心已退出'
-                      : '等待连接'
+                      : room.role === 'host'
+                        ? '等待成员加入'
+                        : '正在连接房主'
                 }
               />
               {room.role === 'guest' && (

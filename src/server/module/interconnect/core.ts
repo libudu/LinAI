@@ -111,7 +111,9 @@ export async function command<T>(core: Core, args: string[]): Promise<T> {
         ? core.output.sanitize(error.stderr.trim())
         : ''
     throw new Error(
-      stderr || core.output.message() || 'EasyTier RPC unavailable',
+      stderr ||
+        core.output.message({ includeConnectionRetries: false }) ||
+        'EasyTier RPC unavailable',
     )
   }
 }

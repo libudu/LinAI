@@ -4,9 +4,21 @@ import { stripVTControlCharacters } from 'node:util'
 const MAX_LINE = 8192
 const ERROR_LEASE_MS = 30000
 
-/** 只保留核心错误正文；原始配置、普通日志和接入密钥不对外返回。 */
+// 单次探测失败、心跳断开及离线节点转发失败不代表整个房间故障。
+function isConnectionRetry(message: string) {
+  return (
+    /^connect timeout after /i.test(message) ||
+    /^too many consecutive pingpong failures, closing the connection\b/i.test(
+      message,
+    ) ||
+    /^forward packet error\b.*\bPeerNoConnectionError\(/i.test(message)
+  )
+}
+
+/** 分别保留核心错误与连接重试诊断；原始配置、普通日志和接入密钥不对外返回。 */
 export class CoreOutput {
   private errors = new Map<string, number>()
+  private connectionRetries = new Map<string, number>()
   private secrets: string[]
 
   constructor(secrets: (string | undefined)[]) {
@@ -72,16 +84,30 @@ export class CoreOutput {
         .slice(reconnect + 'reconnect_result=Err('.length)
         .replace(/\)$/, '')
     message = this.sanitize(message)
-    this.errors.delete(message)
-    this.errors.set(message, Date.now())
-    if (this.errors.size > 8)
-      this.errors.delete(this.errors.keys().next().value!)
+    const entries = isConnectionRetry(message)
+      ? this.connectionRetries
+      : this.errors
+    entries.delete(message)
+    entries.set(message, Date.now())
+    if (entries.size > 8) entries.delete(entries.keys().next().value!)
   }
 
-  message() {
+  clearConnectionRetries() {
+    this.connectionRetries.clear()
+  }
+
+  message({ includeConnectionRetries = true } = {}) {
     const now = Date.now()
-    for (const [message, time] of this.errors)
-      if (now - time > ERROR_LEASE_MS) this.errors.delete(message)
-    return [...this.errors.keys()].slice(-4).join('\n')
+    for (const entries of [this.errors, this.connectionRetries])
+      for (const [message, time] of entries)
+        if (now - time > ERROR_LEASE_MS) entries.delete(message)
+    return [
+      ...this.errors,
+      ...(includeConnectionRetries ? this.connectionRetries : []),
+    ]
+      .sort((a, b) => a[1] - b[1])
+      .slice(-4)
+      .map(([message]) => message)
+      .join('\n')
   }
 }

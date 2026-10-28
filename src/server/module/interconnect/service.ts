@@ -78,6 +78,7 @@ type Room = {
   activeMembers: Map<string, ActiveMember>
   participants: Participant[]
   memberError: string
+  hostDisconnectedAt: number | null
   controller: AbortController
   error: string
 }
@@ -87,6 +88,7 @@ let refreshing = false
 let routes = new Map<string, ConnectionMode>()
 let networkError = ''
 const MEMBER_LEASE_MS = 15000
+const CONNECTION_GRACE_MS = 30000
 function fail(message: string): never {
   throw new HTTPException(409, { message })
 }
@@ -160,6 +162,7 @@ export const createRoom = (name: string, memberName: string) =>
         activeMembers: new Map(),
         participants: [],
         memberError: '',
+        hostDisconnectedAt: null,
         controller: new AbortController(),
         error: '',
       })
@@ -207,6 +210,7 @@ export const joinRoom = (text: string, name: string) =>
       activeMembers: new Map(),
       participants: [],
       memberError: '',
+      hostDisconnectedAt: Date.now(),
       controller: new AbortController(),
       error: '',
     })
@@ -228,6 +232,11 @@ export async function roomStatus() {
       : [...(current?.guests.values() ?? [])].some((member) =>
           routes.has(member.ip),
         )
+  const connectionDelayed =
+    current?.role === 'guest' &&
+    !connected &&
+    current.hostDisconnectedAt !== null &&
+    Date.now() - current.hostDisconnectedAt >= CONNECTION_GRACE_MS
   return {
     room: current
       ? {
@@ -241,10 +250,13 @@ export async function roomStatus() {
               : ('waiting' as const),
           error:
             current.error ||
+            networkError ||
             (!connected || current.memberError
-              ? current.core.output.message()
+              ? current.core.output.message({ includeConnectionRetries: false })
               : '') ||
-            networkError,
+            (connectionDelayed
+              ? '暂未连接到房主，正在自动重试。请确认房主仍在房间中，且双方网络可用。'
+              : ''),
           memberError: current.memberError,
           memberName: current.identity?.name,
           participants:
@@ -570,8 +582,15 @@ const timer = setInterval(() => {
         routes = connections
         networkError = ''
         if (current.role === 'guest') {
-          if (connections.has(HOST_IP)) await syncMember(current)
-          else current.participants = []
+          if (connections.has(HOST_IP)) {
+            current.hostDisconnectedAt = null
+            current.core.output.clearConnectionRetries()
+            await syncMember(current)
+          } else {
+            current.hostDisconnectedAt ??= Date.now()
+            current.participants = []
+            current.memberError = ''
+          }
         }
       }
     })
@@ -579,6 +598,8 @@ const timer = setInterval(() => {
       if (room === current) {
         routes = new Map()
         current.participants = []
+        current.memberError = ''
+        if (current.role === 'guest') current.hostDisconnectedAt ??= Date.now()
         networkError =
           error instanceof Error ? error.message : 'EasyTier RPC unavailable'
       }
