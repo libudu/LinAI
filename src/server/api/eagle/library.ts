@@ -7,6 +7,7 @@ import {
   convertHeifItem,
   deleteItem,
   getConversionCandidates,
+  getDownloadManifest,
   getFolderTree,
   getItemDetail,
   getItems,
@@ -63,6 +64,12 @@ const notModified = (
 const libraryApi = new Hono<{
   Bindings: { eagleSharingAccess?: EagleLibraryAccess }
 }>()
+  .get('/manifest', async (c) =>
+    c.json({
+      success: true as const,
+      data: await getDownloadManifest(c.env?.eagleSharingAccess),
+    }),
+  )
   .use('/items/:id/*', async (c, next) => {
     const access = c.env?.eagleSharingAccess
     if (access && !(await getItemDetail(c.req.param('id')!, access)))

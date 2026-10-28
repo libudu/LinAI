@@ -7,6 +7,16 @@ import { getItemDetail } from '../../module/eagle/library'
 import type { EagleLibraryAccess } from '../../module/eagle/library/shared-access'
 import { getEagleFolderSharingSettings } from '../../module/eagle/settings'
 import { issueOwnerSession } from '../../module/eagle/sharing/access'
+import {
+  getDownloadLogs,
+  recordDownloadLog,
+} from '../../module/eagle/sharing/download-log'
+import {
+  downloadSnapshot,
+  getFolderDownloadStatuses,
+  prepareFolderDownload,
+  startFolderDownload,
+} from '../../module/eagle/sharing/downloads'
 import { validateLibraryDirectory } from '../../module/eagle/sharing/paths'
 import { isSharedRead } from '../../module/eagle/sharing/protocol'
 import {
@@ -27,6 +37,11 @@ const bearer = (authorization?: string) => {
   return authorization.slice(7)
 }
 
+const statusSnapshot = () => ({
+  ...sharingSnapshot(),
+  downloads: downloadSnapshot(),
+})
+
 const sharingApi = new Hono()
   .use('*', async (c, next) => {
     c.header('Cache-Control', 'no-store')
@@ -38,7 +53,7 @@ const sharingApi = new Hono()
       while (!stream.aborted) {
         await stream.writeSSE({
           event: 'status',
-          data: JSON.stringify(sharingSnapshot()),
+          data: JSON.stringify(statusSnapshot()),
         })
         await stream.sleep(1000)
       }
@@ -47,8 +62,46 @@ const sharingApi = new Hono()
   .get('/status', (c) =>
     c.json({
       success: true as const,
-      data: sharingSnapshot(),
+      data: statusSnapshot(),
     }),
+  )
+  .get('/downloads/folders', async (c) =>
+    c.json({ success: true as const, data: await getFolderDownloadStatuses() }),
+  )
+  .post(
+    '/downloads/prepare',
+    validate('json', z.object({ folderId: z.string().min(1) })),
+    async (c) =>
+      c.json({
+        success: true as const,
+        data: await prepareFolderDownload(c.req.valid('json').folderId),
+      }),
+  )
+  .post(
+    '/downloads/start',
+    validate('json', z.object({ id: z.string().uuid() })),
+    async (c) =>
+      c.json({
+        success: true as const,
+        data: await startFolderDownload(c.req.valid('json').id),
+      }),
+  )
+  .get(
+    '/downloads/logs',
+    validate(
+      'query',
+      z.object({
+        groupId: z.string().regex(/^[A-Za-z0-9]{8}$/),
+        userId: z.string().uuid(),
+      }),
+    ),
+    async (c) => {
+      const { groupId, userId } = c.req.valid('query')
+      return c.json({
+        success: true as const,
+        data: await getDownloadLogs(groupId, userId),
+      })
+    },
   )
   .post(
     '/pick-directory',
@@ -107,6 +160,22 @@ const sharingApi = new Hono()
     closeIncoming(bearer(c.req.header('authorization')))
     return c.json({ success: true as const, data: null })
   })
+  .post(
+    '/session/download',
+    validate(
+      'json',
+      z.object({ folderId: z.string().min(1), taskId: z.string().uuid() }),
+    ),
+    async (c) => {
+      const { folderId, taskId } = c.req.valid('json')
+      await recordDownloadLog(
+        bearer(c.req.header('authorization')),
+        folderId,
+        taskId,
+      )
+      return c.json({ success: true as const, data: null })
+    },
+  )
   .get('/library/*', async (c) => {
     const path = c.req.path.split('/sharing/library')[1] || '/'
     if (!isSharedRead(path))

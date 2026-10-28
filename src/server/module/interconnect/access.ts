@@ -5,6 +5,7 @@ type Grant = {
   code: string
   secret: string
   memberName?: string
+  memberId?: string
 }
 const grants = new Map<string, Grant>()
 
@@ -16,8 +17,8 @@ export function issueRoomGrant(code: string) {
 
 export function findRoomGrant(secret: string) {
   if (!/^[a-f0-9]{64}$/.test(secret)) return undefined
-  return [...grants.values()].find(
-    (grant) => timingSafeEqual(Buffer.from(grant.secret), Buffer.from(secret)),
+  return [...grants.values()].find((grant) =>
+    timingSafeEqual(Buffer.from(grant.secret), Buffer.from(secret)),
   )
 }
 

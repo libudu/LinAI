@@ -49,6 +49,7 @@ import {
   selectRemoteLibrary,
   type RoomStatus,
 } from './api'
+import { DownloadLogButton } from './DownloadLogButton'
 
 const settings = settingsClient<InterconnectSettings>('interconnect')
 
@@ -237,6 +238,17 @@ export function Interconnect() {
                   dataIndex: 'lastLoginAt',
                   width: 180,
                   render: (value: number) => new Date(value).toLocaleString(),
+                },
+                {
+                  title: '操作',
+                  width: 70,
+                  render: (_, user) => (
+                    <DownloadLogButton
+                      groupId={entry.id}
+                      userId={user.id}
+                      name={user.name}
+                    />
+                  ),
                 },
               ]}
             />

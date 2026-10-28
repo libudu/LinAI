@@ -41,7 +41,7 @@ settingsRegistry.register<EagleSettings>('eagle', {
   schema: eagleSettingsSchema,
   migrateLegacy,
   validateBeforeSave: async (value) => {
-    if (value.libraryMode !== 'local') return
+    if (value.libraryMode !== 'local' && !value.libraryPath?.trim()) return
     // 延迟加载库门面，避免设置注册与索引模块互相导入时提前执行。
     const { prepareLibraryDirectory } = await import('./library')
     value.libraryPath = await prepareLibraryDirectory(

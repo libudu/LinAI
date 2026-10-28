@@ -25,6 +25,7 @@ type Incoming = Transfer & {
   invitationCode: string
   roomSecret: string
   folderSharingCode: string
+  memberId: string
   state: State
   lastSeen: number
   closedAt?: number
@@ -156,6 +157,8 @@ export async function requestSharing(
   if (requesterInstance === instanceId) fail('不能连接到自己的 LinAI')
   const grant = findRoomGrant(invitationCode)
   if (!grant) fail('房间邀请已过期或撤销')
+  if (!grant.memberId) fail('房间成员尚未登记，请稍后重新连接')
+  const memberId = grant.memberId
   const settings = await getEagleSettings()
   if (settings.libraryMode !== 'local' || !settings.libraryPath)
     fail('对方没有可共享的本地 Eagle 资源库')
@@ -173,6 +176,7 @@ export async function requestSharing(
     ...user,
     roomSecret: invitationCode,
     folderSharingCode: user.folderSharingCode ?? user.invitationCode,
+    memberId,
     state: 'approved',
     lastSeen: Date.now(),
     libraryPath: settings.libraryPath,
@@ -214,6 +218,7 @@ async function validIncoming(token: string) {
   )
   if (
     !hasRoomGrant(session.invitationCode, session.roomSecret) ||
+    findRoomGrant(session.roomSecret)?.memberId !== session.memberId ||
     settings.libraryMode !== 'local' ||
     settings.libraryPath !== session.libraryPath ||
     !user

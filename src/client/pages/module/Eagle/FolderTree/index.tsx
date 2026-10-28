@@ -12,8 +12,9 @@ import {
 } from '@ant-design/icons'
 import type { TreeDataNode, TreeProps } from 'antd'
 import { message, Segmented, Switch, Tree } from 'antd'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useEagleConfig } from '../settings/useEagleConfig'
+import { useFolderDownloads } from '../sharing/FolderDownloads'
 import { useFolderSharing } from '../sharing/folderSharing'
 import { requestEagleLibraryRefresh, useEagleStore } from '../store'
 import { EditFolderModal } from './EditFolderModal'
@@ -62,6 +63,7 @@ const toTreeData = (
   showDescription: boolean,
   showEmptyFolders: boolean,
   sharing: SharingControls,
+  renderDownload: (folder: EagleFolder) => ReactNode,
 ): TreeDataNode[] =>
   folders
     .filter((folder) => showEmptyFolders || folder.totalCount > 0)
@@ -116,6 +118,7 @@ const toTreeData = (
               />
             </span>
           )}
+          {renderDownload(folder)}
         </span>
       ),
       children: toTreeData(
@@ -124,6 +127,7 @@ const toTreeData = (
         showDescription,
         showEmptyFolders,
         sharing,
+        renderDownload,
       ),
     }))
 
@@ -162,6 +166,7 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
     showEmptyFolders,
   } = useEagleStore()
   const { libraryMode, libraryPath } = useEagleConfig()
+  const downloads = useFolderDownloads(folders)
   const sharing = useFolderSharing()
   const sharingControls = useMemo<SharingControls>(() => {
     const library = sharing.value.libraries.find(
@@ -207,29 +212,26 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
   const [editingFolder, setEditingFolder] = useState<EagleFolder | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const initialSelectionRevealedRef = useRef(false)
-  const fixedTreeData = useMemo<TreeDataNode[]>(
-    () => {
-      const nodes: TreeDataNode[] = [
-        { key: '', title: renderTitle('全部', allTotal), children: undefined },
-      ]
-      if (libraryMode === 'local') {
-        nodes.push(
-          {
-            key: EAGLE_UNCLASSIFIED_FOLDER_ID,
-            title: renderTitle('未分类', unclassifiedTotal),
-            children: undefined,
-          },
-          {
-            key: EAGLE_TRASH_FOLDER_ID,
-            title: renderTitle('回收站', trashTotal),
-            children: undefined,
-          },
-        )
-      }
-      return nodes
-    },
-    [libraryMode, allTotal, unclassifiedTotal, trashTotal],
-  )
+  const fixedTreeData = useMemo<TreeDataNode[]>(() => {
+    const nodes: TreeDataNode[] = [
+      { key: '', title: renderTitle('全部', allTotal), children: undefined },
+    ]
+    if (libraryMode === 'local') {
+      nodes.push(
+        {
+          key: EAGLE_UNCLASSIFIED_FOLDER_ID,
+          title: renderTitle('未分类', unclassifiedTotal),
+          children: undefined,
+        },
+        {
+          key: EAGLE_TRASH_FOLDER_ID,
+          title: renderTitle('回收站', trashTotal),
+          children: undefined,
+        },
+      )
+    }
+    return nodes
+  }, [libraryMode, allTotal, unclassifiedTotal, trashTotal])
   const treeData = useMemo<TreeDataNode[]>(
     () =>
       toTreeData(
@@ -238,8 +240,15 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
         showFolderDescription,
         showEmptyFolders,
         sharingControls,
+        downloads.renderButton,
       ),
-    [folders, showFolderDescription, showEmptyFolders, sharingControls],
+    [
+      folders,
+      showFolderDescription,
+      showEmptyFolders,
+      sharingControls,
+      downloads.renderButton,
+    ],
   )
   const treeProps: TreeProps = {
     selectedKeys: [currentFolderId],
@@ -346,6 +355,7 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
           )
         }}
       />
+      {downloads.modal}
     </div>
   )
 }

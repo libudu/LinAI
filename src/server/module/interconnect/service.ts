@@ -353,6 +353,7 @@ const loginMember = (secret: string, identity: MemberLogin) =>
     if (current.controller.signal.aborted || findRoomGrant(secret) !== grant)
       fail('房间邀请已撤销，请向房主索取新邀请')
     grant.memberName = identity.name
+    grant.memberId = identity.id
     current.activeMembers.set(grant.code, {
       ...identity,
       address: member.ip,
@@ -546,6 +547,8 @@ export const selectRemoteLibrary = () =>
       current.invitation.expiresAt <= Date.now()
     )
       fail('房间凭据已过期，请向房主索取新邀请')
+    await syncMember(current)
+    if (current.memberError) fail(current.memberError)
     const result = await connectRemote({
       transport: current.transport,
       invitationCode: current.invitation.eagleSecret,

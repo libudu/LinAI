@@ -2,6 +2,7 @@ import { Button, Empty, Modal } from 'antd'
 import { useState } from 'react'
 import { formatFileSize } from '../components/formatFileSize'
 import { useEagleConfig } from '../settings/useEagleConfig'
+import { DownloadTasks } from './EagleSharingConnection'
 import { useEagleSharing } from './store'
 
 export function SharingIndicator() {
@@ -38,10 +39,7 @@ export function SharingIndicator() {
               )}
               /s
             </div>
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="暂无任务（尚未开放下载到本地）"
-            />
+            <DownloadTasks />
           </div>
         ) : (
           active.map((entry) => (
@@ -56,10 +54,6 @@ export function SharingIndicator() {
                 传输速度：{formatFileSize(Math.round(entry.bytesPerSecond))}/s ·
                 已传输：{formatFileSize(entry.bytes)}
               </div>
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description="暂无任务（尚未开放下载到本地）"
-              />
             </div>
           ))
         )}
