@@ -12,8 +12,8 @@ const rpc = hc<AppType>('/', {
 
 export const fetchRoomStatus = () => rpcData(rpc.status.$get())
 export type RoomStatus = Awaited<ReturnType<typeof fetchRoomStatus>>
-export const createRoom = (name: string) =>
-  rpcData(rpc.create.$post({ json: { name } }))
+export const createRoom = (name: string, memberName: string) =>
+  rpcData(rpc.create.$post({ json: { name, memberName } }))
 export const joinRoom = (invitation: string, name: string) =>
   rpcData(rpc.join.$post({ json: { invitation, name } }))
 export const leaveRoom = () => rpcData(rpc.leave.$post())

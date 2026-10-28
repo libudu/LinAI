@@ -45,13 +45,19 @@ function ConnectionTag({
         mode === 'direct' ? 'green' : mode === 'relay' ? 'orange' : undefined
       }
     >
-      {mode === 'direct' ? '直连' : mode === 'relay' ? '中转' : '连接方式待确认'}
+      {mode === 'direct'
+        ? '直连'
+        : mode === 'relay'
+          ? '中转'
+          : '连接方式待确认'}
     </Tag>
   )
 }
 
 export function Interconnect() {
   const [status, setStatus] = useState<RoomStatus | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [groupsOpen, setGroupsOpen] = useState(false)
   const [name, setName] = useState('我的房间')
   const [memberName, setMemberName] = useState('')
   const memberNameInitialized = useRef(false)
@@ -148,23 +154,28 @@ export function Interconnect() {
         <Card
           title={room.name}
           extra={
-            <Popconfirm
-              title={
-                room.role === 'host'
-                  ? '关闭房间并撤销所有邀请和共享？'
-                  : '退出当前房间？'
-              }
-              onConfirm={() =>
-                act(async () => {
-                  await leaveRoom()
-                  setIssued(null)
-                })
-              }
-            >
-              <Button danger disabled={busy}>
-                {room.role === 'host' ? '关闭房间' : '退出房间'}
-              </Button>
-            </Popconfirm>
+            <Space wrap>
+              {room.role === 'host' && (
+                <Button onClick={() => setGroupsOpen(true)}>编辑权限组</Button>
+              )}
+              <Popconfirm
+                title={
+                  room.role === 'host'
+                    ? '关闭房间并撤销所有邀请和共享？'
+                    : '退出当前房间？'
+                }
+                onConfirm={() =>
+                  act(async () => {
+                    await leaveRoom()
+                    setIssued(null)
+                  })
+                }
+              >
+                <Button danger disabled={busy}>
+                  {room.role === 'host' ? '关闭房间' : '退出房间'}
+                </Button>
+              </Popconfirm>
+            </Space>
           }
         >
           <Space wrap>
@@ -247,26 +258,22 @@ export function Interconnect() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           <Card title="创建房间">
-            <Form
-              layout="vertical"
-              onFinish={() => act(() => createRoom(name.trim()))}
-            >
-              <Form.Item label="房间名称">
-                <Input
-                  value={name}
-                  maxLength={80}
-                  onChange={(event) => setName(event.target.value)}
-                />
-              </Form.Item>
+            <p className="mb-6">创建自己的房间，邀请其他成员加入。</p>
+            <div className="flex flex-col items-start gap-3">
               <Button
-                htmlType="submit"
                 type="primary"
-                loading={busy}
-                disabled={!status || !name.trim()}
+                disabled={busy || !status}
+                onClick={() => setCreateOpen(true)}
               >
                 创建房间
               </Button>
-            </Form>
+              <Button
+                disabled={busy || !status}
+                onClick={() => setGroupsOpen(true)}
+              >
+                编辑权限组
+              </Button>
+            </div>
           </Card>
           <Card title="加入房间">
             <Form
@@ -278,15 +285,11 @@ export function Interconnect() {
                 })
               }
             >
-              <Form.Item
-                label="名称"
-                required
-                extra="加入房间后向其他成员显示的名字"
-              >
+              <Form.Item label="你的名称" required>
                 <Input
                   value={memberName}
                   maxLength={80}
-                  aria-label="加入房间的名称"
+                  aria-label="你的名称"
                   onChange={(event) => {
                     memberNameInitialized.current = true
                     setMemberName(event.target.value)
@@ -301,36 +304,48 @@ export function Interconnect() {
                   onChange={(event) => setInvitation(event.target.value)}
                 />
               </Form.Item>
-              <Button
-                htmlType="submit"
-                type="primary"
-                loading={busy}
-                disabled={!status || !invitation.trim() || !memberName.trim()}
-              >
-                加入房间
-              </Button>
+              <div className="flex justify-end">
+                <Button
+                  htmlType="submit"
+                  type="primary"
+                  loading={busy}
+                  disabled={!status || !invitation.trim() || !memberName.trim()}
+                >
+                  加入房间
+                </Button>
+              </div>
             </Form>
           </Card>
         </div>
       )}
       {room?.role !== 'guest' && (
-        <Card
-          title="权限组"
-          extra={
+        <Modal
+          title="编辑权限组"
+          open={groupsOpen}
+          width={900}
+          footer={null}
+          onCancel={() => {
+            if (!busy) setGroupsOpen(false)
+          }}
+        >
+          {error && (
+            <Alert className="mb-3" type="error" showIcon title={error} />
+          )}
+          <div className="mb-4 flex justify-end">
             <Button
               disabled={busy || !status}
               onClick={() => setMember({ name: '' })}
             >
               添加权限组
             </Button>
-          }
-        >
+          </div>
           <Table<RoomStatus['members'][number]>
             rowKey="id"
             size="small"
             pagination={false}
             dataSource={status?.members ?? []}
             loading={!status && !error}
+            scroll={{ x: 650 }}
             expandable={{
               showExpandColumn: false,
               expandedRowKeys: (status?.members ?? [])
@@ -453,41 +468,97 @@ export function Interconnect() {
               },
             ]}
           />
-        </Card>
+        </Modal>
       )}
       <details className="rounded-lg border border-slate-200 p-4">
-        <summary className="cursor-pointer">连接服务器</summary>
+        <summary className="cursor-pointer">高级设置</summary>
         <div className="mt-3 space-y-3">
+          <label className="block" htmlFor="interconnect-peers">
+            连接服务器
+          </label>
           <Input.TextArea
+            id="interconnect-peers"
             rows={3}
             value={peers}
             onChange={(event) => setPeers(event.target.value)}
             disabled={busy}
           />
-          <Button
-            disabled={busy || revision === null}
-            onClick={() =>
-              act(async () => {
-                if (revision === null) return
-                const snapshot = await settings.put(
-                  {
-                    peers: peers
-                      .split(/\r?\n/)
-                      .map((peer) => peer.trim())
-                      .filter(Boolean),
-                  },
-                  revision,
-                )
-                setPeers(snapshot.value.peers.join('\n'))
-                setRevision(snapshot.revision)
-                message.success('节点配置已保存')
-              })
-            }
-          >
-            保存节点配置
-          </Button>
+          <div className="flex justify-end pt-2">
+            <Button
+              disabled={busy || revision === null}
+              onClick={() =>
+                act(async () => {
+                  if (revision === null) return
+                  const snapshot = await settings.put(
+                    {
+                      peers: peers
+                        .split(/\r?\n/)
+                        .map((peer) => peer.trim())
+                        .filter(Boolean),
+                    },
+                    revision,
+                  )
+                  setPeers(snapshot.value.peers.join('\n'))
+                  setRevision(snapshot.revision)
+                  message.success('节点配置已保存')
+                })
+              }
+            >
+              保存节点配置
+            </Button>
+          </div>
         </div>
       </details>
+      <Modal
+        open={createOpen && !room}
+        title="创建房间"
+        okText="创建房间"
+        cancelText="取消"
+        confirmLoading={busy}
+        onCancel={() => {
+          if (!busy) setCreateOpen(false)
+        }}
+        okButtonProps={{
+          disabled: !status || !name.trim() || !memberName.trim(),
+          htmlType: 'submit',
+          form: 'interconnect-create-room',
+        }}
+      >
+        {error && (
+          <Alert className="mb-3" type="error" showIcon title={error} />
+        )}
+        <Form
+          id="interconnect-create-room"
+          layout="vertical"
+          onFinish={() =>
+            act(async () => {
+              if (!status || !name.trim() || !memberName.trim()) return
+              await createRoom(name.trim(), memberName.trim())
+              setCreateOpen(false)
+            })
+          }
+        >
+          <Form.Item label="房间名称" required>
+            <Input
+              value={name}
+              maxLength={80}
+              aria-label="房间名称"
+              onChange={(event) => setName(event.target.value)}
+            />
+          </Form.Item>
+          <Form.Item label="你的名称" required>
+            <Input
+              value={memberName}
+              maxLength={80}
+              aria-label="你的名称"
+              onChange={(event) => {
+                memberNameInitialized.current = true
+                setMemberName(event.target.value)
+              }}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
       <Modal
         open={member !== null}
         title={member?.id ? '修改权限组名称' : '添加权限组'}

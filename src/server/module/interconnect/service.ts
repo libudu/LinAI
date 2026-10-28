@@ -133,10 +133,11 @@ function watchRoom(current: Room) {
   })
 }
 
-export const createRoom = (name: string) =>
+export const createRoom = (name: string, memberName: string) =>
   mutate(async () => {
     if (room) fail('请先退出当前房间')
     const settings = await getInterconnectSettings()
+    const identity = await saveMemberIdentity(memberName)
     const id = randomUUID()
     // 先占用专用共享端口，失败时不启动核心。
     const entry = await openSharingEntry({ login: loginMember })
@@ -151,6 +152,7 @@ export const createRoom = (name: string) =>
         id,
         name,
         role: 'host',
+        identity: { ...identity, sessionId: randomUUID() },
         peers: settings.value.peers,
         core,
         entry,
@@ -260,7 +262,7 @@ export async function roomStatus() {
           .sort((a, b) => b.lastLoginAt - a.lastLoginAt),
         invited: Boolean(member),
         online: Boolean(member && routes.has(member.ip)),
-        connection: member ? routes.get(member.ip) ?? null : null,
+        connection: member ? (routes.get(member.ip) ?? null) : null,
         sharing: sharing.incoming.find(
           (entry) => entry.invitationCode === user.invitationCode,
         )?.state,
@@ -274,7 +276,7 @@ export async function roomStatus() {
 function activeParticipants(current: Room): Participant[] {
   if (current.error) return []
   return [
-    { name: '房主', address: HOST_IP },
+    { name: current.identity?.name ?? '房主', address: HOST_IP },
     ...[...current.activeMembers.values()]
       .filter(
         (member) =>

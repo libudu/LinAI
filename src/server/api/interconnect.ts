@@ -25,9 +25,16 @@ const api = new Hono()
   )
   .post(
     '/create',
-    validate('json', z.object({ name: z.string().trim().min(1).max(80) })),
+    validate(
+      'json',
+      z.object({
+        name: z.string().trim().min(1).max(80),
+        memberName: memberNameSchema,
+      }),
+    ),
     async (c) => {
-      await createRoom(c.req.valid('json').name)
+      const { name, memberName } = c.req.valid('json')
+      await createRoom(name, memberName)
       return c.json({ success: true as const, data: null })
     },
   )
@@ -62,17 +69,13 @@ const api = new Hono()
       return c.json({ success: true as const, data: null })
     },
   )
-  .post(
-    '/invite',
-    validate('json', z.object({ id: idSchema })),
-    async (c) => {
-      const { id } = c.req.valid('json')
-      return c.json({
-        success: true as const,
-        data: await inviteMember(id),
-      })
-    },
-  )
+  .post('/invite', validate('json', z.object({ id: idSchema })), async (c) => {
+    const { id } = c.req.valid('json')
+    return c.json({
+      success: true as const,
+      data: await inviteMember(id),
+    })
+  })
   .post('/revoke', validate('json', z.object({ id: idSchema })), async (c) => {
     await revokeMember(c.req.valid('json').id)
     return c.json({ success: true as const, data: null })

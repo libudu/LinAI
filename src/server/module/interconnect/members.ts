@@ -48,7 +48,7 @@ export async function getMemberIdentity() {
   return parsed.data
 }
 
-// 调用方在房间命令队列中执行，避免并发首次加入生成不同的标识。
+// 调用方在房间命令队列中执行，避免并发首次创建或加入生成不同的标识。
 export async function saveMemberIdentity(name: string): Promise<Identity> {
   const current = await getMemberIdentity()
   const identity = { id: current?.id ?? randomUUID(), name }
