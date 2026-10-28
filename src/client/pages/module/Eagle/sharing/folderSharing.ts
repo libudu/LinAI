@@ -129,7 +129,7 @@ export const useFolderSharing = create<FolderSharingState>()((set, get) => ({
       libraries.push(library)
     }
     if (library.selectionVersion !== 2) {
-      // 同时展开所有人的旧规则，避免修改当前用户时改变其他用户的授权范围。
+      // 同时展开所有人的旧规则，避免修改当前权限组时改变其他权限组的授权范围。
       library.everyone = [
         ...resolveSharedFolderIds(folders, library.everyone, 1),
       ]

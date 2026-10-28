@@ -4,12 +4,23 @@ import { bodyLimit } from 'hono/body-limit'
 import { HTTPException } from 'hono/http-exception'
 import { createServer, type Server } from 'node:https'
 import { generate } from 'selfsigned'
+import { ZodError } from 'zod'
 import sharingApi from '../../api/eagle/sharing'
+import { validate } from '../../api/eagle/validation'
 import { isEagleSharingProtocol } from '../eagle/sharing/protocol'
 import { SHARING_PORT } from './core'
+import {
+  memberLoginSchema,
+  type MemberLogin,
+  type Participant,
+} from './members'
 
-/** 只挂载共享协议，绝不调用主 app.fetch；即使 no-tun 将来源映射到回环也无管理入口。 */
-export async function openSharingEntry() {
+const MEMBER_LOGIN_PATH = '/api/interconnect/member/login'
+
+/** 只挂载成员登记和共享协议，绝不调用主 app.fetch，无本地管理入口。 */
+export async function openSharingEntry(options: {
+  login: (secret: string, member: MemberLogin) => Promise<Participant[]>
+}) {
   const identity = await generate(
     [{ name: 'commonName', value: 'localhost' }],
     {
@@ -19,11 +30,14 @@ export async function openSharingEntry() {
   )
   const app = new Hono()
     .use('*', async (c, next) => {
-      if (!isEagleSharingProtocol(c.req.method, c.req.path))
+      if (
+        !isEagleSharingProtocol(c.req.method, c.req.path) &&
+        !(c.req.method === 'POST' && c.req.path === MEMBER_LOGIN_PATH)
+      )
         return c.json(
           {
             success: false as const,
-            error: { message: '此端口只提供 Eagle 只读共享协议' },
+            error: { message: '此端口只提供房间成员登记及 Eagle 只读共享协议' },
           },
           403,
         )
@@ -31,6 +45,15 @@ export async function openSharingEntry() {
       await next()
     })
     .use('*', bodyLimit({ maxSize: 4096 }))
+    .post(MEMBER_LOGIN_PATH, validate('json', memberLoginSchema), async (c) => {
+      const authorization = c.req.header('Authorization') ?? ''
+      if (!/^Bearer [a-f0-9]{64}$/.test(authorization))
+        throw new HTTPException(403, { message: '缺少有效的房间邀请凭据' })
+      return c.json({
+        success: true as const,
+        data: await options.login(authorization.slice(7), c.req.valid('json')),
+      })
+    })
     .route('/api/eagle/sharing', sharingApi)
   app.onError((error, c) =>
     c.json(
@@ -38,10 +61,18 @@ export async function openSharingEntry() {
         success: false as const,
         error: {
           message:
-            error instanceof HTTPException ? error.message : '共享资源处理失败',
+            error instanceof HTTPException
+              ? error.message
+              : error instanceof ZodError
+                ? '房间请求格式不正确'
+                : '房间请求处理失败',
         },
       },
-      error instanceof HTTPException ? error.status : 500,
+      error instanceof HTTPException
+        ? error.status
+        : error instanceof ZodError
+          ? 400
+          : 500,
     ),
   )
   return new Promise<{ server: Server; certificate: string }>(

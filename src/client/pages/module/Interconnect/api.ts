@@ -14,13 +14,13 @@ export const fetchRoomStatus = () => rpcData(rpc.status.$get())
 export type RoomStatus = Awaited<ReturnType<typeof fetchRoomStatus>>
 export const createRoom = (name: string) =>
   rpcData(rpc.create.$post({ json: { name } }))
-export const joinRoom = (invitation: string) =>
-  rpcData(rpc.join.$post({ json: { invitation } }))
+export const joinRoom = (invitation: string, name: string) =>
+  rpcData(rpc.join.$post({ json: { invitation, name } }))
 export const leaveRoom = () => rpcData(rpc.leave.$post())
 export const saveMember = (name: string, id?: string) =>
   rpcData(rpc.members.$post({ json: { name, id } }))
-export const inviteMember = (id: string, ttlHours: number) =>
-  rpcData(rpc.invite.$post({ json: { id, ttlHours } }))
+export const inviteMember = (id: string) =>
+  rpcData(rpc.invite.$post({ json: { id } }))
 export const revokeMember = (id: string) =>
   rpcData(rpc.revoke.$post({ json: { id } }))
 export const deleteMember = (id: string) =>

@@ -8,7 +8,6 @@ import {
   Input,
   Modal,
   Popconfirm,
-  Select,
   Space,
   Table,
   Tag,
@@ -54,12 +53,12 @@ function ConnectionTag({
 export function Interconnect() {
   const [status, setStatus] = useState<RoomStatus | null>(null)
   const [name, setName] = useState('我的房间')
+  const [memberName, setMemberName] = useState('')
+  const memberNameInitialized = useRef(false)
   const [invitation, setInvitation] = useState('')
   const [issued, setIssued] = useState<{
     invitation: string
-    expiresAt: number
   } | null>(null)
-  const [ttl, setTtl] = useState(24)
   const [member, setMember] = useState<{ id?: string; name: string } | null>(
     null,
   )
@@ -80,7 +79,13 @@ export function Interconnect() {
       loading = true
       try {
         const next = await fetchRoomStatus()
-        if (active) setStatus(next)
+        if (active) {
+          setStatus(next)
+          if (!memberNameInitialized.current) {
+            memberNameInitialized.current = true
+            setMemberName(next.memberName)
+          }
+        }
       } catch (error) {
         if (active)
           setError(error instanceof Error ? error.message : '读取房间失败')
@@ -171,6 +176,7 @@ export function Interconnect() {
         >
           <Space wrap>
             <Tag>{room.role === 'host' ? '房主' : '成员'}</Tag>
+            {room.memberName && <Tag>名称：{room.memberName}</Tag>}
             <Tag
               color={
                 room.state === 'connected'
@@ -193,10 +199,27 @@ export function Interconnect() {
           {room.error && (
             <Alert className="mt-3" type="warning" title={room.error} />
           )}
-          {room.expiresAt && (
-            <p className="mt-3 text-sm text-slate-500">
-              凭据到期：{new Date(room.expiresAt).toLocaleString()}
-            </p>
+          {room.memberError && (
+            <Alert
+              className="mt-3"
+              type="warning"
+              title={`成员信息同步失败，将自动重试：${room.memberError}`}
+            />
+          )}
+          {room.participants.length > 0 && (
+            <div className="mt-4">
+              <div className="mb-2 text-sm font-medium">房间成员</div>
+              <Table
+                rowKey="address"
+                size="small"
+                pagination={false}
+                dataSource={room.participants}
+                columns={[
+                  { title: '名称', dataIndex: 'name', ellipsis: true },
+                  { title: '虚拟 IP', dataIndex: 'address' },
+                ]}
+              />
+            </div>
           )}
           {room.role === 'guest' && (
             <div className="mt-4 space-y-3">
@@ -257,11 +280,26 @@ export function Interconnect() {
               layout="vertical"
               onFinish={() =>
                 act(async () => {
-                  await joinRoom(invitation)
+                  await joinRoom(invitation, memberName.trim())
                   setInvitation('')
                 })
               }
             >
+              <Form.Item
+                label="名称"
+                required
+                extra="加入房间后向其他成员显示的名字"
+              >
+                <Input
+                  value={memberName}
+                  maxLength={80}
+                  aria-label="加入房间的名称"
+                  onChange={(event) => {
+                    memberNameInitialized.current = true
+                    setMemberName(event.target.value)
+                  }}
+                />
+              </Form.Item>
               <Form.Item label="粘贴房主发来的完整邀请">
                 <Input.TextArea
                   rows={3}
@@ -274,7 +312,7 @@ export function Interconnect() {
                 htmlType="submit"
                 type="primary"
                 loading={busy}
-                disabled={!status || !invitation.trim()}
+                disabled={!status || !invitation.trim() || !memberName.trim()}
               >
                 加入房间
               </Button>
@@ -284,40 +322,64 @@ export function Interconnect() {
       )}
       {room?.role !== 'guest' && (
         <Card
-          title="人员"
+          title="权限组"
           extra={
             <Button
               disabled={busy || !status}
               onClick={() => setMember({ name: '' })}
             >
-              添加人员
+              添加权限组
             </Button>
           }
         >
-          <p className="mb-4 text-sm text-slate-500">
-            原 Eagle
-            共享用户及文件夹授权已沿用。为每位人员单独复制邀请，加入房间后仍需明确批准
-            Eagle 共享；文件夹范围在 <Link to="/eagle">Eagle 展示选项</Link>{' '}
-            设置。
-          </p>
-          <div className="mb-3 flex items-center gap-2 text-sm">
-            邀请有效期
-            <Select
-              value={ttl}
-              onChange={setTtl}
-              options={[
-                { value: 1, label: '1 小时' },
-                { value: 24, label: '24 小时' },
-                { value: 168, label: '7 天' },
-              ]}
-            />
-          </div>
           <Table<RoomStatus['members'][number]>
             rowKey="id"
             size="small"
             pagination={false}
             dataSource={status?.members ?? []}
             loading={!status && !error}
+            expandable={{
+              showExpandColumn: false,
+              expandedRowKeys: (status?.members ?? [])
+                .filter((entry) => entry.history.length > 0)
+                .map((entry) => entry.id),
+              rowExpandable: (entry) => entry.history.length > 0,
+              expandedRowRender: (entry) => (
+                <Table
+                  rowKey="id"
+                  size="small"
+                  pagination={false}
+                  dataSource={entry.history}
+                  scroll={{ x: 650 }}
+                  columns={[
+                    {
+                      title: '名称',
+                      dataIndex: 'name',
+                      ellipsis: true,
+                      width: 120,
+                    },
+                    {
+                      title: '用户标识',
+                      dataIndex: 'id',
+                      ellipsis: true,
+                      width: 240,
+                    },
+                    {
+                      title: '虚拟 IP',
+                      dataIndex: 'address',
+                      width: 130,
+                    },
+                    {
+                      title: '上次登录时间',
+                      dataIndex: 'lastLoginAt',
+                      width: 180,
+                      render: (value: number) =>
+                        new Date(value).toLocaleString(),
+                    },
+                  ]}
+                />
+              ),
+            }}
             columns={[
               { title: '名称', dataIndex: 'name', ellipsis: true },
               {
@@ -353,7 +415,7 @@ export function Interconnect() {
                       disabled={busy || !room || room.state === 'error'}
                       onClick={() =>
                         act(async () => {
-                          setIssued(await inviteMember(entry.id, ttl))
+                          setIssued(await inviteMember(entry.id))
                         })
                       }
                     >
@@ -386,7 +448,7 @@ export function Interconnect() {
                       </Button>
                     )}
                     <Popconfirm
-                      title="删除此人员并撤销连接？已有文件夹授权记录会保留。"
+                      title="删除此权限组并撤销连接？已有文件夹授权记录会保留。"
                       onConfirm={() => act(() => deleteMember(entry.id))}
                     >
                       <Button type="link" size="small" danger disabled={busy}>
@@ -435,7 +497,7 @@ export function Interconnect() {
       </details>
       <Modal
         open={member !== null}
-        title={member?.id ? '修改人员名称' : '添加人员'}
+        title={member?.id ? '修改权限组名称' : '添加权限组'}
         okText="保存"
         cancelText="取消"
         confirmLoading={busy}
@@ -453,7 +515,7 @@ export function Interconnect() {
         }
       >
         <Input
-          aria-label="人员名称"
+          aria-label="权限组名称"
           value={member?.name ?? ''}
           maxLength={80}
           onChange={(event) =>
@@ -470,13 +532,11 @@ export function Interconnect() {
         onCancel={() => setIssued(null)}
       >
         <p className="mb-3">
-          此邀请仅交给对应人员；重新生成会撤销该人员的旧邀请和共享连接。
+          此邀请仅交给使用此权限组的成员；重新生成会撤销该权限组的旧邀请和共享连接。
         </p>
         <Input.TextArea rows={5} value={issued?.invitation ?? ''} readOnly />
-        <p className="my-3 text-sm text-slate-500">
-          到期：{issued ? new Date(issued.expiresAt).toLocaleString() : ''}
-        </p>
         <Button
+          className="mt-3"
           type="primary"
           onClick={async () => {
             if (!issued) return

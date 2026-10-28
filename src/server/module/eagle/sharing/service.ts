@@ -168,7 +168,7 @@ export async function requestSharing(
   const user = (await getEagleSharingSettings()).users.find(
     (user) => user.invitationCode === grant.code,
   )
-  if (!user) fail('邀请码无效或共享用户已删除')
+  if (!user) fail('邀请无效或权限组已删除')
   if (incoming.size >= 100) fail('共享连接数量已达上限，请稍后重试')
   if (
     [...incoming.values()].some(
@@ -176,7 +176,7 @@ export async function requestSharing(
         session.invitationCode === grant.code && session.state === 'pending',
     )
   )
-    fail('该用户已有共享请求正在等待同意')
+    fail('该权限组已有共享请求正在等待同意')
   const session: Incoming = {
     id: randomUUID(),
     token: randomBytes(32).toString('hex'),
@@ -224,8 +224,8 @@ async function validIncoming(token: string) {
     settings.libraryPath !== session.libraryPath ||
     !user
   ) {
-    terminate(session, '共享方已离线、切换资源库或取消了此用户的授权')
-    fail('共享方已离线、切换资源库或取消了此用户的授权')
+    terminate(session, '共享方已离线、切换资源库或取消了此权限组的授权')
+    fail('共享方已离线、切换资源库或取消了此权限组的授权')
   }
   // 读取设置期间也可能撤销成员。
   if (session.controller.signal.aborted) fail('共享连接已终止')
@@ -362,6 +362,7 @@ export function sharingSnapshot() {
       .map((entry) => ({
         id: entry.id,
         name: entry.name,
+        memberName: findRoomGrant(entry.roomSecret)?.memberName,
         invitationCode: entry.invitationCode,
         state: entry.state,
         ...transferSnapshot(entry),
@@ -448,7 +449,7 @@ changeBus.subscribe('settings.eagle-folder-sharing', () => {
   }
 })
 
-// 删除用户或切换库后立即撤销在途读取，不能等下一次媒体请求才发现。
+// 删除权限组或切换库后立即撤销在途读取，不能等下一次媒体请求才发现。
 for (const resource of [
   'settings.eagle',
   'settings.eagle-sharing',

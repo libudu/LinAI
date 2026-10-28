@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { memberNameSchema } from '../module/interconnect/members'
 import {
   createRoom,
   deleteMember,
@@ -32,9 +33,13 @@ const api = new Hono()
   )
   .post(
     '/join',
-    validate('json', z.object({ invitation: z.string().max(16020) })),
+    validate(
+      'json',
+      z.object({ invitation: z.string().max(16020), name: memberNameSchema }),
+    ),
     async (c) => {
-      await joinRoom(c.req.valid('json').invitation)
+      const { invitation, name } = c.req.valid('json')
+      await joinRoom(invitation, name)
       return c.json({ success: true as const, data: null })
     },
   )
@@ -59,15 +64,12 @@ const api = new Hono()
   )
   .post(
     '/invite',
-    validate(
-      'json',
-      z.object({ id: idSchema, ttlHours: z.number().int().min(1).max(168) }),
-    ),
+    validate('json', z.object({ id: idSchema })),
     async (c) => {
-      const { id, ttlHours } = c.req.valid('json')
+      const { id } = c.req.valid('json')
       return c.json({
         success: true as const,
-        data: await inviteMember(id, ttlHours),
+        data: await inviteMember(id),
       })
     },
   )

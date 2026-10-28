@@ -4,22 +4,20 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 type Grant = {
   code: string
   secret: string
-  expiresAt: number
+  memberName?: string
 }
 const grants = new Map<string, Grant>()
 
-export function issueRoomGrant(code: string, expiresAt: number) {
+export function issueRoomGrant(code: string) {
   const secret = randomBytes(32).toString('hex')
-  grants.set(code, { code, secret, expiresAt })
+  grants.set(code, { code, secret })
   return secret
 }
 
 export function findRoomGrant(secret: string) {
   if (!/^[a-f0-9]{64}$/.test(secret)) return undefined
   return [...grants.values()].find(
-    (grant) =>
-      grant.expiresAt > Date.now() &&
-      timingSafeEqual(Buffer.from(grant.secret), Buffer.from(secret)),
+    (grant) => timingSafeEqual(Buffer.from(grant.secret), Buffer.from(secret)),
   )
 }
 

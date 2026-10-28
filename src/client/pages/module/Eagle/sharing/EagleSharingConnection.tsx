@@ -40,7 +40,10 @@ export function EagleSharingConnection() {
           }
         }
         for (const entry of status.incoming) {
-          const content = `房间人员【${entry.name}】请求只读浏览 Eagle 资源库。仅开放你在文件夹可见性中授权的范围，是否同意？`
+          const requester = entry.memberName
+            ? `成员【${entry.memberName}】（权限组【${entry.name}】）`
+            : `权限组【${entry.name}】的成员`
+          const content = `${requester}请求只读浏览 Eagle 资源库。仅开放你在文件夹可见性中授权的范围，是否同意？`
           const dialog = dialogs.get(entry.id)
           if (dialog) {
             dialog.update({ content })

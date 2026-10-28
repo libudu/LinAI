@@ -35,13 +35,13 @@ export function FolderSharingOptions() {
         options={[
           { value: 'hidden', label: '隐藏' },
           { value: 'everyone', label: '所有人' },
-          { value: 'user', label: '指定人' },
+          { value: 'user', label: '指定权限组' },
         ]}
       />
       {view === 'user' && (
         <div className="mt-2 flex items-center justify-between gap-2">
           <span className="truncate text-sm" title={selectedUser?.name}>
-            {selectedUser?.name ?? '尚未选择共享人员'}
+            {selectedUser?.name ?? '尚未选择权限组'}
           </span>
           <Button
             size="small"
@@ -67,7 +67,7 @@ export function FolderSharingOptions() {
         />
       )}
       <Modal
-        title="选择共享人员"
+        title="选择权限组"
         open={open}
         centered
         okText="选择"
@@ -113,7 +113,7 @@ export function FolderSharingOptions() {
         ) : (
           <Empty
             description={
-              loading ? '加载共享人员…' : '请先在「远程互联」中添加人员'
+              loading ? '加载权限组…' : '请先在「远程互联」中添加权限组'
             }
           />
         )}

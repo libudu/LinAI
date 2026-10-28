@@ -15,9 +15,19 @@ import {
   revokeSharing,
   sharingSnapshot,
 } from '../eagle/sharing/service'
-import { issueRoomGrant, revokeRoomGrant } from './access'
+import { findRoomGrant, issueRoomGrant, revokeRoomGrant } from './access'
 import { command, HOST_IP, startCore, type Core } from './core'
 import { openSharingEntry } from './entry'
+import { fetchRoomResource } from './https'
+import {
+  getMemberHistory,
+  getMemberIdentity,
+  participantSchema,
+  recordMemberLogin,
+  saveMemberIdentity,
+  type MemberLogin,
+  type Participant,
+} from './members'
 import { getInterconnectSettings, peerUrlSchema } from './settings'
 
 const inviteSchema = z
@@ -31,7 +41,8 @@ const inviteSchema = z
     credential: z.string().regex(/^[A-Za-z0-9+/]{43}=$/),
     certificate: z.string().max(4096).startsWith('-----BEGIN CERTIFICATE-----'),
     eagleSecret: z.string().regex(/^[a-f0-9]{64}$/),
-    expiresAt: z.number().int().positive(),
+    // 仅兼容旧邀请；新邀请不再携带有效期。
+    expiresAt: z.number().int().positive().optional(),
     peers: z.array(peerUrlSchema).min(1).max(10),
   })
   .strict()
@@ -46,7 +57,14 @@ const peerStatusSchema = z.array(
   }),
 )
 
-type Member = { credentialId: string; ip: string; expiresAt: number }
+// EasyTier 要求正数 TTL，不支持无到期值；统一延长至 9999 年末，保留主动撤销。
+const credentialExpiryUnix = 253402300799
+
+type Member = { credentialId: string; ip: string }
+type ActiveMember = MemberLogin & {
+  address: string
+  lastSeen: number
+}
 type Room = {
   id: string
   name: string
@@ -56,6 +74,11 @@ type Room = {
   entry?: Awaited<ReturnType<typeof openSharingEntry>>
   guests: Map<string, Member>
   invitation?: Invitation
+  identity?: MemberLogin
+  activeMembers: Map<string, ActiveMember>
+  participants: Participant[]
+  memberError: string
+  controller: AbortController
   error: string
 }
 let room: Room | null = null
@@ -63,6 +86,7 @@ let queue = Promise.resolve()
 let refreshing = false
 let routes = new Map<string, ConnectionMode>()
 let networkError = ''
+const MEMBER_LEASE_MS = 15000
 function fail(message: string): never {
   throw new HTTPException(409, { message })
 }
@@ -86,6 +110,7 @@ async function stop() {
   revokeSharing()
   disconnectRemote()
   if (!current) return
+  current.controller.abort()
   current.entry?.server.closeAllConnections?.()
   current.entry?.server.close()
   await current.core.stop()
@@ -96,6 +121,9 @@ function watchRoom(current: Room) {
   current.core.process.once('exit', () => {
     if (room !== current) return
     current.error = 'EasyTier 核心已退出，请关闭房间后重新连接'
+    current.controller.abort()
+    current.activeMembers.clear()
+    current.participants = []
     revokeRoomGrant()
     revokeSharing()
     disconnectRemote()
@@ -111,7 +139,7 @@ export const createRoom = (name: string) =>
     const settings = await getInterconnectSettings()
     const id = randomUUID()
     // 先占用专用共享端口，失败时不启动核心。
-    const entry = await openSharingEntry()
+    const entry = await openSharingEntry({ login: loginMember })
     try {
       const core = await startCore({
         roomId: id,
@@ -127,6 +155,10 @@ export const createRoom = (name: string) =>
         core,
         entry,
         guests: new Map(),
+        activeMembers: new Map(),
+        participants: [],
+        memberError: '',
+        controller: new AbortController(),
         error: '',
       })
     } catch (error) {
@@ -135,7 +167,7 @@ export const createRoom = (name: string) =>
     }
   })
 
-export const joinRoom = (text: string) =>
+export const joinRoom = (text: string, name: string) =>
   mutate(async () => {
     if (room) fail('请先退出当前房间')
     const encoded = text.trim().replace(/^linai-room:v1:/, '')
@@ -149,8 +181,12 @@ export const joinRoom = (text: string) =>
     } catch {
       fail('房间邀请格式不兼容或内容已损坏')
     }
-    if (invitation.expiresAt <= Date.now())
+    if (
+      invitation.expiresAt !== undefined &&
+      invitation.expiresAt <= Date.now()
+    )
       fail('此邀请已过期，请向房主索取新邀请')
+    const identity = await saveMemberIdentity(name)
     const core = await startCore({
       roomId: invitation.roomId,
       peers: invitation.peers,
@@ -165,6 +201,11 @@ export const joinRoom = (text: string) =>
       core,
       guests: new Map(),
       invitation,
+      identity: { ...identity, sessionId: randomUUID() },
+      activeMembers: new Map(),
+      participants: [],
+      memberError: '',
+      controller: new AbortController(),
       error: '',
     })
   })
@@ -172,7 +213,11 @@ export const joinRoom = (text: string) =>
 export const leaveRoom = () => mutate(stop)
 
 export async function roomStatus() {
-  const users = await getEagleSharingSettings()
+  const [users, history, identity] = await Promise.all([
+    getEagleSharingSettings(),
+    getMemberHistory(),
+    getMemberIdentity(),
+  ])
   const current = room
   const sharing = sharingSnapshot()
   const connected =
@@ -193,8 +238,13 @@ export async function roomStatus() {
               ? ('connected' as const)
               : ('waiting' as const),
           error: current.error || networkError,
+          memberError: current.memberError,
+          memberName: current.identity?.name,
+          participants:
+            current.role === 'host'
+              ? activeParticipants(current)
+              : current.participants,
           peers: current.peers,
-          expiresAt: current.invitation?.expiresAt,
           hostOnline: routes.has(HOST_IP),
           connection:
             current.role === 'guest' ? (routes.get(HOST_IP) ?? null) : null,
@@ -205,16 +255,104 @@ export async function roomStatus() {
       return {
         id: user.invitationCode,
         name: user.name,
-        invited: Boolean(member && member.expiresAt > Date.now()),
+        history: history
+          .filter((entry) => entry.groupId === user.invitationCode)
+          .sort((a, b) => b.lastLoginAt - a.lastLoginAt),
+        invited: Boolean(member),
         online: Boolean(member && routes.has(member.ip)),
         connection: member ? routes.get(member.ip) ?? null : null,
-        expiresAt: member?.expiresAt,
         sharing: sharing.incoming.find(
           (entry) => entry.invitationCode === user.invitationCode,
         )?.state,
       }
     }),
     eagle: sharing.outgoing,
+    memberName: identity?.name ?? '',
+  }
+}
+
+function activeParticipants(current: Room): Participant[] {
+  if (current.error) return []
+  return [
+    { name: '房主', address: HOST_IP },
+    ...[...current.activeMembers.values()]
+      .filter(
+        (member) =>
+          Date.now() - member.lastSeen < MEMBER_LEASE_MS &&
+          routes.has(member.address),
+      )
+      .map((member) => ({ name: member.name, address: member.address })),
+  ]
+}
+
+// 独立登记不依赖 Eagle 审批；持有邀请能力才可更新该权限组的历史。
+const loginMember = (secret: string, identity: MemberLogin) =>
+  mutate(async () => {
+    const current = room
+    const grant = findRoomGrant(secret)
+    if (!current || current.role !== 'host' || current.error || !grant)
+      fail('房间邀请已撤销，请向房主索取新邀请')
+    const member = current.guests.get(grant.code)
+    const settings = await getEagleSharingSettings()
+    if (
+      !member ||
+      current.controller.signal.aborted ||
+      findRoomGrant(secret) !== grant ||
+      !settings.users.some((user) => user.invitationCode === grant.code)
+    )
+      fail('权限组已不存在或邀请已撤销')
+    const previous = current.activeMembers.get(grant.code)
+    if (
+      !previous ||
+      previous.id !== identity.id ||
+      previous.sessionId !== identity.sessionId ||
+      previous.name !== identity.name ||
+      Date.now() - previous.lastSeen >= MEMBER_LEASE_MS
+    )
+      await recordMemberLogin(grant.code, identity, member.ip)
+    if (current.controller.signal.aborted || findRoomGrant(secret) !== grant)
+      fail('房间邀请已撤销，请向房主索取新邀请')
+    grant.memberName = identity.name
+    current.activeMembers.set(grant.code, {
+      ...identity,
+      address: member.ip,
+      lastSeen: Date.now(),
+    })
+    return activeParticipants(current)
+  })
+
+async function syncMember(current: Room) {
+  if (!current.invitation || !current.identity || !current.core.forwardPort)
+    return
+  try {
+    const response = await fetchRoomResource(
+      `https://127.0.0.1:${current.core.forwardPort}/api/interconnect/member/login`,
+      current.invitation.certificate,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${current.invitation.eagleSecret}`,
+        },
+        body: JSON.stringify(current.identity),
+        signal: AbortSignal.any([
+          AbortSignal.timeout(6000),
+          current.controller.signal,
+        ]),
+      },
+    )
+    const result = await response.json()
+    if (!response.ok || result?.success !== true)
+      throw new Error(result?.error?.message || '房间成员登记失败')
+    const participants = z.array(participantSchema).max(254).parse(result.data)
+    if (room !== current || current.controller.signal.aborted) return
+    current.participants = participants
+    current.memberError = ''
+  } catch (error) {
+    if (room !== current || current.controller.signal.aborted) return
+    current.participants = []
+    current.memberError =
+      error instanceof Error ? error.message : '房间成员登记失败，将自动重试'
   }
 }
 
@@ -223,7 +361,7 @@ export const saveMember = (name: string, id?: string) =>
     const snapshot =
       await settingsRegistry.get<EagleSharingSettings>('eagle-sharing')
     if (id && !snapshot.value.users.some((user) => user.invitationCode === id))
-      fail('人员已不存在，请刷新')
+      fail('权限组已不存在，请刷新')
     let code: string
     const permissions = await getEagleFolderSharingSettings()
     const reserved = new Set(
@@ -231,6 +369,7 @@ export const saveMember = (name: string, id?: string) =>
         Object.keys(library.users),
       ),
     )
+    for (const entry of await getMemberHistory()) reserved.add(entry.groupId)
     do {
       code = randomBytes(6).toString('hex').slice(0, 8)
     } while (
@@ -267,6 +406,7 @@ async function revokeMemberInternal(id: string) {
   revokeRoomGrant(id)
   revokeSharing(id)
   const current = room
+  current?.activeMembers.delete(id)
   const member = current?.guests.get(id)
   if (member && current) {
     await command(current.core, ['credential', 'revoke', member.credentialId])
@@ -293,14 +433,14 @@ export const deleteMember = (id: string) =>
     )
   })
 
-export const inviteMember = (id: string, ttlHours: number) =>
+export const inviteMember = (id: string) =>
   mutate(async () => {
     const current = room
     if (!current || current.role !== 'host' || current.error)
       fail('请先创建房间')
     const users = await getEagleSharingSettings()
     if (!users.users.some((user) => user.invitationCode === id))
-      fail('请先添加该人员')
+      fail('请先添加该权限组')
     const previous = current.guests.get(id)
     await revokeMemberInternal(id)
     const used = new Set(
@@ -311,7 +451,7 @@ export const inviteMember = (id: string, ttlHours: number) =>
       Array.from({ length: 253 }, (_, index) => `10.127.62.${index + 2}`).find(
         (ip) => !used.has(ip),
       )
-    if (!ip) fail('房间人数已达上限')
+    if (!ip) fail('房间权限组数量已达上限')
     const credentialId = randomUUID()
     const credential = z
       .object({
@@ -323,7 +463,7 @@ export const inviteMember = (id: string, ttlHours: number) =>
           'credential',
           'generate',
           '--ttl',
-          String(ttlHours * 3600),
+          String(credentialExpiryUnix - Math.floor(Date.now() / 1000)),
           '--credential-id',
           credentialId,
           '--groups',
@@ -332,11 +472,9 @@ export const inviteMember = (id: string, ttlHours: number) =>
           'false',
         ]),
       )
-    const expiresAt = Date.now() + ttlHours * 3600000
     current.guests.set(id, {
       credentialId: credential.credential_id,
       ip,
-      expiresAt,
     })
     const invitation: Invitation = {
       version: 1,
@@ -346,12 +484,10 @@ export const inviteMember = (id: string, ttlHours: number) =>
       peers: current.peers,
       certificate: current.entry!.certificate,
       credential: credential.credential_secret,
-      eagleSecret: issueRoomGrant(id, expiresAt),
-      expiresAt,
+      eagleSecret: issueRoomGrant(id),
     }
     return {
       invitation: `linai-room:v1:${Buffer.from(JSON.stringify(invitation)).toString('base64url')}`,
-      expiresAt,
     }
   })
 
@@ -366,7 +502,11 @@ export const selectRemoteLibrary = () =>
       !current.core.forwardPort
     )
       fail('请先加入共享方的房间')
-    if (current.invitation.expiresAt <= Date.now()) fail('房间凭据已过期')
+    if (
+      current.invitation.expiresAt !== undefined &&
+      current.invitation.expiresAt <= Date.now()
+    )
+      fail('房间凭据已过期，请向房主索取新邀请')
     const result = await connectRemote({
       url: `https://127.0.0.1:${current.core.forwardPort}`,
       certificate: current.invitation.certificate,
@@ -390,13 +530,16 @@ export const selectRemoteLibrary = () =>
 const timer = setInterval(() => {
   const current = room
   if (!current || current.error || refreshing) return
-  if (current.invitation && current.invitation.expiresAt <= Date.now()) {
+  if (
+    current.invitation?.expiresAt !== undefined &&
+    current.invitation.expiresAt <= Date.now()
+  ) {
     void leaveRoom().catch(() => undefined)
     return
   }
   refreshing = true
   void command<unknown>(current.core, ['peer'])
-    .then((result) => {
+    .then(async (result) => {
       const data = peerStatusSchema.parse(result)
       const connections = new Map<string, ConnectionMode>()
       for (const entry of data) {
@@ -419,11 +562,16 @@ const timer = setInterval(() => {
       if (room === current && !current.error) {
         routes = connections
         networkError = ''
+        if (current.role === 'guest') {
+          if (connections.has(HOST_IP)) await syncMember(current)
+          else current.participants = []
+        }
       }
     })
     .catch(() => {
       if (room === current) {
         routes = new Map()
+        current.participants = []
         networkError =
           '尚未取得连接状态；请确认节点可达且支持 Secure Mode 临时凭据'
       }
