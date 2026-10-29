@@ -164,19 +164,25 @@ export async function invitationPeers(core: Core, peers: string[]) {
       ? addresses.map((address) => `${protocol}//${address}:${port}`)
       : []
   })
-  return [...new Set([...direct, ...peers])].slice(0, 10)
+  // 必须保留房主配置的所有节点，避免局域网地址挤掉跨网唯一可达的公共节点。
+  const servers = [...new Set(peers)]
+  const local = direct
+    .filter((peer) => !servers.includes(peer))
+    .slice(0, Math.max(0, 10 - servers.length))
+  return [...local, ...servers]
 }
 
 export async function startCore(options: {
   roomId: string
   peers: string[]
-  secret?: string
-  credential?: string
+  role: 'host' | 'guest'
+  secret: string
   ip: string
 }) {
   const directory = await coreDirectory()
   const rpcPort = await freeLoopbackPort()
-  let forwardPort = options.credential ? await freeLoopbackPort() : null
+  const isHost = options.role === 'host'
+  let forwardPort = isHost ? null : await freeLoopbackPort()
   // 查询空闲端口后尚未绑定，系统可能立即复用同一个端口。
   while (forwardPort === rpcPort) forwardPort = await freeLoopbackPort()
   const configFile = dataPath('interconnect', 'active.toml')
@@ -205,11 +211,11 @@ listeners = ["tcp://0.0.0.0:0", "udp://0.0.0.0:0"]
 ${options.peers.map((peer) => `[[peer]]\nuri = ${q(peer)}\n`).join('\n')}
 [network_identity]
 network_name = ${q(`linai-${options.roomId}`)}
-${options.secret ? `network_secret = ${q(options.secret)}` : ''}
+network_secret = ${q(options.secret)}
 [secure_mode]
-enabled = true
-${options.credential ? `local_private_key = ${q(options.credential)}` : ''}
+enabled = false
 [flags]
+enable_encryption = true
 no_tun = true
 use_smoltcp = true
 bind_device = false
@@ -231,7 +237,7 @@ proto = "tcp"`
 }
 ${chain(
   1,
-  options.secret
+  isHost
     ? rule(
         'eagle-read-only',
         `destination_ips = ["${HOST_IP}/32"]\nports = ["${SHARING_PORT}"]\nstateful = true`,
@@ -240,7 +246,7 @@ ${chain(
 )}
 ${chain(
   2,
-  options.secret
+  isHost
     ? rule(
         'eagle-response',
         `source_ips = ["${HOST_IP}/32"]\nsource_ports = ["${SHARING_PORT}"]`,
@@ -259,7 +265,7 @@ ${chain(
 ${chain(3)}
 `
   await fs.writeFile(configFile, config, { mode: 0o600 })
-  const output = new CoreOutput([options.secret, options.credential])
+  const output = new CoreOutput([options.secret])
   const child = spawn(
     path.join(directory, 'easytier-core.exe'),
     [

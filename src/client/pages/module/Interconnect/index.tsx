@@ -313,11 +313,11 @@ export function Interconnect() {
                       })
                     }
                   >
-                    撤销
+                    撤销授权
                   </Button>
                 )}
                 <Popconfirm
-                  title="删除此权限组并撤销连接？已有文件夹授权记录会保留。"
+                  title="删除此权限组并撤销共享授权？已有文件夹授权记录会保留。"
                   onConfirm={() =>
                     act(async () => {
                       await deleteMember(entry.id)
@@ -405,16 +405,20 @@ export function Interconnect() {
                   status={
                     room.state === 'connected'
                       ? 'success'
-                      : room.state === 'error'
+                      : room.state === 'error' || room.state === 'revoked'
                         ? 'error'
                         : 'default'
                   }
                   text={
                     room.state === 'connected'
                       ? '已连接房主'
-                      : room.state === 'error'
-                        ? '核心已退出'
-                        : '连接中'
+                      : room.state === 'revoked'
+                        ? '共享授权已撤销'
+                        : room.state === 'error'
+                          ? '核心已退出'
+                          : room.memberError
+                            ? '成员登记失败'
+                            : '连接中'
                   }
                 />
                 {room.role === 'guest' && (
@@ -444,8 +448,8 @@ export function Interconnect() {
                     握手超时或连接关闭可能来自不可达的地址、网络限制或服务器不兼容；转发超时表示尚未成功访问房主服务，单条日志无法确定原因。
                   </p>
                   <p className="m-0">
-                    跨网络连接需要双方能够访问支持 EasyTier
-                    安全模式的公共节点，无法直连时还需要节点允许中转。房主更换连接服务器后，需要关闭并重新创建房间、发送新邀请；加入方修改本机服务器设置不会更改当前邀请。
+                    跨网络连接需要双方能够访问同一个 EasyTier
+                    公共节点，无法直连时还需要节点允许中转。房主更换连接服务器后，需要关闭并重新创建房间、发送新邀请；加入方修改本机服务器设置不会更改当前邀请。
                   </p>
                   <div>
                     <div className="mb-1">邀请中的连接地址</div>
@@ -454,7 +458,9 @@ export function Interconnect() {
                     </div>
                   </div>
                   <div>
-                    <div className="mb-1">最近 30 秒的核心诊断（已隐藏密钥）</div>
+                    <div className="mb-1">
+                      最近 30 秒的核心诊断（已隐藏密钥）
+                    </div>
                     <pre className="m-0 max-h-48 overflow-auto rounded bg-slate-50 p-2 text-xs break-all whitespace-pre-wrap">
                       {room.diagnostics || '最近没有核心错误日志。'}
                     </pre>
@@ -696,7 +702,10 @@ export function Interconnect() {
           ]}
         >
           <p className="mt-0 mb-4 leading-relaxed">
-            此邀请仅交给使用此权限组的成员；重新生成会撤销该权限组的旧邀请和共享连接。
+            此邀请仅交给使用此权限组的成员；重新生成会撤销该权限组的旧共享授权并终止共享连接。
+          </p>
+          <p className="mb-4 leading-relaxed">
+            普通模式下，撤销共享授权后成员仍可能留在房间网络中。如需彻底断开旧成员，请关闭并重新创建房间，再邀请其他成员。
           </p>
           <Input.TextArea
             rows={5}

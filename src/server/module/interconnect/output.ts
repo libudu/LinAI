@@ -40,7 +40,7 @@ export class CoreOutput {
       .replace(/[A-Za-z0-9+/]{43}=/g, '[REDACTED]')
       .replace(/[a-f0-9]{64}/gi, '[REDACTED]')
       .replace(
-        /((?:network_secret|private_key|credential_secret|authorization|eagleSecret)[^:=]*[:=]).*/gi,
+        /((?:network_secret|networkSecret|private_key|credential_secret|authorization|eagleSecret)[^:=]*[:=]).*/gi,
         '$1 [REDACTED]',
       )
       .slice(0, MAX_LINE)
