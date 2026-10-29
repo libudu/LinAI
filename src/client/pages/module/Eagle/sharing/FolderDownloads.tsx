@@ -146,7 +146,9 @@ export function useFolderDownloads(folders: EagleFolder[]) {
         ? '已加入下载队列'
         : done
           ? '下载完成'
-          : '下载文件夹'
+          : status
+            ? `待下载 ${status.download} 个文件`
+            : '下载文件夹'
       return (
         <span
           className="shrink-0"
@@ -157,6 +159,7 @@ export function useFolderDownloads(folders: EagleFolder[]) {
           <Button
             type="text"
             size="small"
+            className="!gap-1"
             title={title}
             aria-label={`${folder.name}：${title}`}
             disabled={pending || done || !connected}
@@ -170,7 +173,11 @@ export function useFolderDownloads(folders: EagleFolder[]) {
               )
             }
             onClick={() => select(folder)}
-          />
+          >
+            {!pending && !done && status && (
+              <span className="text-xs tabular-nums">{status.download}</span>
+            )}
+          </Button>
         </span>
       )
     },
