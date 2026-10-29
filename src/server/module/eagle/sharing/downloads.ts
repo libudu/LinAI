@@ -7,6 +7,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
+import { setTimeout as delay } from 'node:timers/promises'
+import { runPool } from '../concurrency'
 import { EagleError } from '../errors'
 import {
   commitDownloadedItem,
@@ -37,6 +39,43 @@ const plans = new Map<
     permissionsRevision: number | undefined
   }
 >()
+
+/** 只清理本次创建的文件和空目录，分别保留错误；短暂占用时有限重试。 */
+async function cleanupTemporaryDownload(directory: string) {
+  const errors: unknown[] = []
+  for (const remove of [
+    () => fs.unlink(path.join(directory, 'original')),
+    () => fs.rmdir(directory),
+  ]) {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await remove()
+        break
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code
+        if (code === 'ENOENT') break
+        if (
+          attempt < 2 &&
+          ['EPERM', 'EBUSY', 'EACCES', 'ENOTEMPTY'].includes(code ?? '')
+        ) {
+          await delay(50 * (attempt + 1))
+          continue
+        }
+        errors.push(error)
+        break
+      }
+    }
+  }
+  if (errors.length)
+    throw new AggregateError(
+      errors,
+      errors
+        .map((error) =>
+          error instanceof Error ? error.message : String(error),
+        )
+        .join('；'),
+    )
+}
 
 function assertNoActiveFolderDownload(
   session: Session,
@@ -75,6 +114,7 @@ async function remoteResponse(
       headers,
       signal: AbortSignal.any([
         session.controller.signal,
+        ...(init?.signal ? [init.signal] : []),
         AbortSignal.timeout(
           endpoint.endsWith('/file') ? 30 * 60 * 1000 : 30000,
         ),
@@ -323,7 +363,7 @@ export const startFolderDownload = (id: string) =>
       mediaType: plan.mediaType,
       folder: plan.folder,
       completed: 0,
-      currentProgress: 0,
+      currentProgress: new Map(),
       total: entries.length,
       state: 'queued',
       error: '',
@@ -341,13 +381,23 @@ export const startFolderDownload = (id: string) =>
     void resourceLock
       .run('eagle.download-queue', async () => {
         task.state = 'running'
+        // 文件失败只取消本任务，保留共享连接及后续文件夹任务。
+        const controller = new AbortController()
+        const signal = AbortSignal.any([
+          session.controller.signal,
+          controller.signal,
+        ])
+        const cleanupErrors: unknown[] = []
         try {
-          const assertContext = () =>
-            assertDownloadContext(
+          const assertContext = async () => {
+            signal.throwIfAborted()
+            await assertDownloadContext(
               session,
               plan.libraryPath,
               plan.permissionsRevision,
             )
+            signal.throwIfAborted()
+          }
           await assertContext()
           const fresh = await remoteManifest(
             session,
@@ -374,6 +424,7 @@ export const startFolderDownload = (id: string) =>
             const response = await remoteResponse(
               session,
               `/library/items/${item.id}/detail`,
+              { signal },
             )
             const json = await response.json()
             const detail = json?.data
@@ -390,29 +441,33 @@ export const startFolderDownload = (id: string) =>
                 JSON.stringify(expectedPaths)
             )
               throw new Error('远程资源已改变，请重新检查文件夹')
-            session.controller.signal.throwIfAborted()
+            signal.throwIfAborted()
             if (session.permissionsRevision !== plan.permissionsRevision)
               throw new Error('共享权限已改变，请重新检查文件夹')
           }
-          for (const item of entries) {
-            await assertContext()
-            // 每项只读取该条目的详情，不重复拉取整个资源库清单。
-            const current = currentItems.get(item.id)
-            if (!current || JSON.stringify(current) !== JSON.stringify(item))
-              throw new Error('远程资源已改变，请重新检查文件夹')
-            // 排队期间资源可能已由其他任务下载，不再修改其本地分类。
-            if (!missing.has(item.id)) {
-              task.completed++
-              continue
-            }
-            await validateItem(item)
-            const temporary = await fs.mkdtemp(
-              path.join(os.tmpdir(), 'linai-eagle-download-'),
-            )
+          // 工作槽覆盖下载、等待入库及清理，最多暂存三个文件，避免磁盘积压。
+          await runPool(entries, 3, async (item) => {
+            let temporary: string | undefined
             try {
+              await assertContext()
+              // 每项只读取该条目的详情，不重复拉取整个资源库清单。
+              const current = currentItems.get(item.id)
+              if (!current || JSON.stringify(current) !== JSON.stringify(item))
+                throw new Error('远程资源已改变，请重新检查文件夹')
+              // 排队期间资源可能已由其他任务下载，不再修改其本地分类。
+              if (!missing.has(item.id)) {
+                task.completed++
+                return
+              }
+              await validateItem(item)
+              temporary = await fs.mkdtemp(
+                path.join(os.tmpdir(), 'linai-eagle-download-'),
+              )
+              signal.throwIfAborted()
               const response = await remoteResponse(
                 session,
                 `/library/items/${item.id}/file`,
+                { signal },
               )
               if (
                 !response.body ||
@@ -426,9 +481,9 @@ export const startFolderDownload = (id: string) =>
               const count = new Transform({
                 transform(chunk: Buffer, _encoding, callback) {
                   bytes += chunk.length
-                  task.currentProgress = Math.min(
-                    0.99,
-                    bytes / Math.max(1, item.size),
+                  task.currentProgress.set(
+                    item.id,
+                    Math.min(0.99, bytes / Math.max(1, item.size)),
                   )
                   recordTransfer(session, chunk.length)
                   if (bytes > item.size)
@@ -444,32 +499,70 @@ export const startFolderDownload = (id: string) =>
                 fs.createWriteStream(path.join(temporary, 'original'), {
                   flags: 'wx',
                 }),
-                { signal: session.controller.signal },
+                { signal },
               )
               if (bytes !== item.size) throw new Error('远程文件下载不完整')
-              await validateItem(item)
-              await commitDownloadedItem(
-                plan.libraryPath,
-                plan.manifest,
-                item,
-                path.join(temporary, 'original'),
-                session.controller.signal,
-              )
-              task.completed++
-              task.currentProgress = 0
+              const stagedFile = path.join(temporary, 'original')
+              // 校验与提交串行执行；其他工作槽仍可继续下载。
+              await resourceLock.run('eagle.download-commit', async () => {
+                try {
+                  await assertContext()
+                  await validateItem(item)
+                  await assertContext()
+                  await commitDownloadedItem(
+                    plan.libraryPath,
+                    plan.manifest,
+                    item,
+                    stagedFile,
+                    signal,
+                  )
+                  task.completed++
+                  task.currentProgress.delete(item.id)
+                } catch (error) {
+                  // 释放提交队列前取消，等待中的文件不能继续入库。
+                  controller.abort(error)
+                  throw error
+                }
+              })
+            } catch (error) {
+              // 清理可能耗时，先中断其他请求和流，保留最先发生的错误。
+              controller.abort(error)
+              throw error
             } finally {
-              await fs
-                .unlink(path.join(temporary, 'original'))
-                .catch((error: NodeJS.ErrnoException) => {
-                  if (error.code !== 'ENOENT') throw error
-                })
-              await fs.rmdir(temporary)
+              if (temporary) {
+                try {
+                  await cleanupTemporaryDownload(temporary)
+                } catch (error) {
+                  cleanupErrors.push(error)
+                  controller.abort(error)
+                  throw error
+                }
+              }
             }
-          }
+          })
+          signal.throwIfAborted()
           task.state = 'completed'
         } catch (error) {
+          // runPool 等待所有工作槽收尾后才抛错，下一文件夹不会与旧任务重叠。
+          const reason = signal.aborted ? signal.reason : error
           task.state = 'error'
-          task.error = error instanceof Error ? error.message : '下载失败'
+          task.error = cleanupErrors.includes(reason)
+            ? `临时文件清理失败：${reason instanceof Error ? reason.message : String(reason)}`
+            : reason instanceof Error
+              ? reason.message
+              : '下载失败'
+          const otherCleanupErrors = cleanupErrors.filter(
+            (error) => error !== reason,
+          )
+          if (otherCleanupErrors.length)
+            task.error += `；临时文件清理失败：${otherCleanupErrors
+              .map((error) =>
+                error instanceof Error ? error.message : String(error),
+              )
+              .join('；')}`
+        } finally {
+          // 失败后只保留实际入库或已存在的文件计数。
+          task.currentProgress.clear()
         }
       })
       .catch((error) => {

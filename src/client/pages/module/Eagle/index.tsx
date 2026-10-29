@@ -2,6 +2,7 @@ import { usePlatform } from '@/client/hooks/usePlatform'
 import { subscribeStorageEvent } from '@/client/service/storage-events'
 import { Alert, Button, Empty, message } from 'antd'
 import { useEffect, useState } from 'react'
+import { useShallow } from 'zustand/shallow'
 import { FolderTree } from './FolderTree'
 import { ResourceGrid } from './ResourceGrid'
 import { openEagleSettingModal } from './SettingModal'
@@ -15,12 +16,32 @@ import { Toolbar } from './Toolbar'
 
 // Eagle 图片管理：左侧文件夹目录树 + 右侧资源网格（移动端目录树改由工具栏抽屉进入）
 export function Eagle() {
-  const { libraryPath, libraryMode, remoteUrl, fetchEagleConfig, setEagleConfig } =
-    useEagleConfig()
+  const {
+    libraryPath,
+    libraryMode,
+    remoteUrl,
+    fetchEagleConfig,
+    setEagleConfig,
+  } = useEagleConfig()
   const [switchingToLocal, setSwitchingToLocal] = useState(false)
-  const { outgoing, connected } = useEagleSharing()
+  // 速度和下载进度每秒变化，只让连接身份、权限或状态变化触发整页更新。
+  const {
+    connectionId,
+    connectionState,
+    permissionsRevision,
+    connectionError,
+    connected,
+  } = useEagleSharing(
+    useShallow((state) => ({
+      connectionId: state.outgoing?.id,
+      connectionState: state.outgoing?.state,
+      permissionsRevision: state.outgoing?.permissionsRevision,
+      connectionError: state.outgoing?.error,
+      connected: state.connected,
+    })),
+  )
   const loadFolderSharing = useFolderSharing((state) => state.load)
-  const remoteConnected = connected && outgoing?.state === 'approved'
+  const remoteConnected = connected && connectionState === 'approved'
   const fetchVisionConfig = useEagleVisionConfig((s) => s.fetchConfig)
   const init = useEagleStore((s) => s.init)
   const showFolderTree = useEagleStore((s) => s.showFolderTree)
@@ -44,13 +65,7 @@ export function Eagle() {
   useEffect(() => {
     if (libraryMode === 'remote' && remoteConnected)
       void init().catch(console.error)
-  }, [
-    libraryMode,
-    remoteConnected,
-    outgoing?.id,
-    outgoing?.permissionsRevision,
-    init,
-  ])
+  }, [libraryMode, remoteConnected, connectionId, permissionsRevision, init])
 
   useEffect(() => {
     if (libraryMode !== 'local') return
@@ -97,10 +112,10 @@ export function Eagle() {
           showIcon
           title="远程资源库未连接"
           description={
-            outgoing?.error ||
-            (outgoing?.state === 'connecting'
+            connectionError ||
+            (connectionState === 'connecting'
               ? '正在连接共享方的远程资源库。'
-              : outgoing?.state === 'pending'
+              : connectionState === 'pending'
                 ? '正在等待共享方同意连接。'
                 : '请在 Eagle 设置中填写共享方的 IP 地址、端口和邀请码，重新连接远程资源库。')
           }

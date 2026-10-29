@@ -19,7 +19,8 @@ type Task = Omit<DownloadProgress, 'percent'> & {
   folderId: string
   mediaType: EagleMediaType
   folder: string
-  currentProgress: number
+  /** 各在途文件的传输比例；入库成功后转入 completed，不向共享协议暴露。 */
+  currentProgress: Map<string, number>
 }
 
 // 独立于会话服务，供下载执行器和后台心跳共用，避免循环依赖。
@@ -34,6 +35,14 @@ export const downloadSnapshot = () =>
         ? 100
         : Math.min(
             99,
-            Math.floor(((task.completed + currentProgress) / task.total) * 100),
+            Math.floor(
+              ((task.completed +
+                [...currentProgress.values()].reduce(
+                  (sum, value) => sum + value,
+                  0,
+                )) /
+                task.total) *
+                100,
+            ),
           ),
   }))

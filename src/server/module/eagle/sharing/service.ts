@@ -349,21 +349,26 @@ export async function authorizeRead(token: string) {
 
 export function recordTransfer(session: Transfer, bytes: number) {
   session.bytes += bytes
-  const time = Math.floor(Date.now() / 1000) * 1000
+  const now = Date.now()
+  const time = Math.floor(now / 1000) * 1000
   const last = session.samples.at(-1)
   if (last?.time === time) last.bytes += bytes
-  else session.samples.push({ time, bytes })
-  session.samples = session.samples.filter(
-    (sample) => Date.now() - sample.time < 5000,
-  )
+  else {
+    // 每秒最多整理一次采样窗口，避免三路传输逐分块分配新数组。
+    session.samples = session.samples.filter(
+      (sample) => now - sample.time < 5000,
+    )
+    session.samples.push({ time, bytes })
+  }
 }
 
 function transferSnapshot(session: Transfer) {
+  const now = Date.now()
   return {
     bytes: session.bytes,
     bytesPerSecond:
       session.samples
-        .filter((sample) => Date.now() - sample.time < 5000)
+        .filter((sample) => now - sample.time < 5000)
         .reduce((total, sample) => total + sample.bytes, 0) / 5,
   }
 }

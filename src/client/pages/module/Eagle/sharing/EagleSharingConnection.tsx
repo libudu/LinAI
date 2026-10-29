@@ -1,16 +1,22 @@
 import { message, Modal } from 'antd'
-import { useEffect } from 'react'
+import { memo, useEffect } from 'react'
+import { shallow, useShallow } from 'zustand/shallow'
 import { DownloadTaskList } from './DownloadTaskList'
 import { ensureEagleOwnerSession } from './access'
 import { decideSharing, type SharingStatus } from './api'
 import { useEagleSharing } from './store'
 
-export function DownloadTasks() {
-  const downloads = useEagleSharing((state) => state.downloads)
+export const DownloadTasks = memo(function DownloadTasks() {
   const connectionId = useEagleSharing((state) => state.outgoing?.id)
-  const tasks = downloads.filter((task) => task.connectionId === connectionId)
+  const tasks = useEagleSharing(
+    useShallow((state) =>
+      state.downloads.filter(
+        (task) => task.connectionId === state.outgoing?.id,
+      ),
+    ),
+  )
   return <DownloadTaskList key={connectionId} tasks={tasks} />
-}
+})
 
 /** 在应用根挂载，持续同步 Eagle 共享连接与传输状态。 */
 export function EagleSharingConnection() {
@@ -60,7 +66,21 @@ export function EagleSharingConnection() {
           const status = JSON.parse(
             (event as MessageEvent).data,
           ) as SharingStatus
-          useEagleSharing.setState({ ...status, connected: true })
+          useEagleSharing.setState((state) => {
+            // SSE 仍每秒同步速度；未变化的任务复用引用，避免任务列表跟随空快照刷新。
+            const downloads = status.downloads.map((task, index) =>
+              shallow(task, state.downloads[index])
+                ? state.downloads[index]
+                : task,
+            )
+            return {
+              ...status,
+              downloads: shallow(downloads, state.downloads)
+                ? state.downloads
+                : downloads,
+              connected: true,
+            }
+          })
           const pending = new Set(
             status.incoming
               .filter((entry) => entry.state === 'pending')
