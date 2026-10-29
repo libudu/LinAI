@@ -1,12 +1,13 @@
 import { usePlatform } from '@/client/hooks/usePlatform'
 import { subscribeStorageEvent } from '@/client/service/storage-events'
-import { Alert, Button, Empty } from 'antd'
-import { useEffect } from 'react'
+import { Alert, Button, Empty, message } from 'antd'
+import { useEffect, useState } from 'react'
 import { FolderTree } from './FolderTree'
 import { ResourceGrid } from './ResourceGrid'
 import { openEagleSettingModal } from './SettingModal'
 import { useEagleConfig } from './settings/useEagleConfig'
 import { useEagleVisionConfig } from './settings/useEagleVisionConfig'
+import { disconnectRemoteLibrary } from './sharing/api'
 import { useFolderSharing } from './sharing/folderSharing'
 import { useEagleSharing } from './sharing/store'
 import { requestEagleLibraryRefresh, useEagleStore } from './store'
@@ -14,8 +15,9 @@ import { Toolbar } from './Toolbar'
 
 // Eagle 图片管理：左侧文件夹目录树 + 右侧资源网格（移动端目录树改由工具栏抽屉进入）
 export function Eagle() {
-  const { libraryPath, libraryMode, remoteUrl, fetchEagleConfig } =
+  const { libraryPath, libraryMode, remoteUrl, fetchEagleConfig, setEagleConfig } =
     useEagleConfig()
+  const [switchingToLocal, setSwitchingToLocal] = useState(false)
   const { outgoing, connected } = useEagleSharing()
   const loadFolderSharing = useFolderSharing((state) => state.load)
   const remoteConnected = connected && outgoing?.state === 'approved'
@@ -72,9 +74,24 @@ export function Eagle() {
     })
   }, [libraryPath, libraryMode])
 
+  const switchToLocalLibrary = async () => {
+    setSwitchingToLocal(true)
+    try {
+      await setEagleConfig({ libraryMode: 'local' })
+      await disconnectRemoteLibrary()
+      await useEagleStore.getState().reload()
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : '切换本地资源库失败',
+      )
+    } finally {
+      setSwitchingToLocal(false)
+    }
+  }
+
   if (libraryMode === 'remote' && !remoteConnected) {
     return (
-      <div className="mx-auto max-w-xl space-y-4 p-6">
+      <div className="mx-auto flex max-w-xl flex-col gap-6 p-6">
         <Alert
           type="warning"
           showIcon
@@ -88,9 +105,20 @@ export function Eagle() {
                 : '请在 Eagle 设置中填写共享方的 IP 地址、端口和邀请码，重新连接远程资源库。')
           }
         />
-        <Button type="primary" onClick={() => openEagleSettingModal()}>
-          连接远程资源库
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="primary"
+            disabled={switchingToLocal}
+            onClick={() => openEagleSettingModal()}
+          >
+            连接远程资源库
+          </Button>
+          {libraryPath && (
+            <Button loading={switchingToLocal} onClick={switchToLocalLibrary}>
+              切换为本地资源库
+            </Button>
+          )}
+        </div>
       </div>
     )
   }
