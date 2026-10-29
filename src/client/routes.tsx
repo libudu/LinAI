@@ -94,5 +94,6 @@ export const appRoutes: AppRoute[] = [
     element: <Interconnect />,
     key: 'interconnect',
     icon: <LinkOutlined />,
+    hidden: true,
   },
 ]

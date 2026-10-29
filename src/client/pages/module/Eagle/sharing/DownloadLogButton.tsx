@@ -1,6 +1,6 @@
 import { Alert, Button, Modal, Table } from 'antd'
 import { useEffect, useState } from 'react'
-import { fetchDownloadLogs } from '../Eagle/sharing/api'
+import { fetchDownloadLogs } from './api'
 
 type Logs = Awaited<ReturnType<typeof fetchDownloadLogs>>
 

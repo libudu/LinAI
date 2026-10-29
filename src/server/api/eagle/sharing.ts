@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { streamSSE } from 'hono/streaming'
 import { z } from 'zod'
+import { getRequestIdentity } from '../../common/auth/network'
 import { pickLibraryDirectory } from '../../module/eagle/directory-picker'
 import { getItemDetail } from '../../module/eagle/library'
 import type { EagleLibraryAccess } from '../../module/eagle/library/shared-access'
@@ -21,17 +22,29 @@ import {
   prepareFolderDownload,
   startFolderDownload,
 } from '../../module/eagle/sharing/downloads'
+import {
+  deleteSharingHistory,
+  getSharingHistory,
+} from '../../module/eagle/sharing/history'
 import { validateLibraryDirectory } from '../../module/eagle/sharing/paths'
 import { isSharedRead } from '../../module/eagle/sharing/protocol'
 import {
   authorizeRead,
   closeIncoming,
+  connectRemote,
+  decideSharing,
+  disconnectRemote,
   heartbeatIncoming,
   recordTransfer,
   requestSharing,
   sharingSnapshot,
 } from '../../module/eagle/sharing/service'
 import { bindSharedResponse } from '../../module/eagle/sharing/transport'
+import {
+  getMemberIdentity,
+  memberLoginSchema,
+  memberNameSchema,
+} from '../../module/interconnect/members'
 import libraryApi from './library'
 import { validate } from './validation'
 
@@ -45,6 +58,7 @@ const statusSnapshot = () => ({
   ...sharingSnapshot(),
   downloads: downloadSnapshot(),
 })
+const historyQuery = z.object({ groupId: z.string().regex(/^[A-Za-z0-9]{8}$/) })
 
 const sharingApi = new Hono()
   .use('*', async (c, next) => {
@@ -52,6 +66,24 @@ const sharingApi = new Hono()
     await next()
   })
   .get('/local-session', (c) => issueOwnerSession(c))
+  .get('/identity', async (c) =>
+    c.json({ success: true as const, data: await getMemberIdentity() }),
+  )
+  .get('/history', validate('query', historyQuery), async (c) =>
+    c.json({
+      success: true as const,
+      data: await getSharingHistory(c.req.valid('query').groupId),
+    }),
+  )
+  .post(
+    '/history/delete',
+    validate('json', historyQuery.extend({ userId: z.string().uuid() })),
+    async (c) => {
+      const { groupId, userId } = c.req.valid('json')
+      await deleteSharingHistory(groupId, userId)
+      return c.json({ success: true as const, data: null })
+    },
+  )
   .get('/events', (c) => {
     return streamSSE(c, async (stream) => {
       while (!stream.aborted) {
@@ -69,6 +101,35 @@ const sharingApi = new Hono()
       data: statusSnapshot(),
     }),
   )
+  .post(
+    '/decision',
+    validate('json', z.object({ id: z.string().uuid(), approve: z.boolean() })),
+    async (c) => {
+      const { id, approve } = c.req.valid('json')
+      await decideSharing(id, approve)
+      return c.json({ success: true as const, data: null })
+    },
+  )
+  .post(
+    '/connect',
+    validate(
+      'json',
+      z.object({
+        url: z.string().url(),
+        invitationCode: z.string().regex(/^[A-Za-z0-9]{8}$/),
+        memberName: memberNameSchema.optional(),
+      }),
+    ),
+    async (c) =>
+      c.json({
+        success: true as const,
+        data: await connectRemote(c.req.valid('json')),
+      }),
+  )
+  .post('/disconnect', (c) => {
+    disconnectRemote()
+    return c.json({ success: true as const, data: null })
+  })
   .get(
     '/downloads/folders',
     validate('query', eagleMediaQuerySchema.required()),
@@ -153,15 +214,19 @@ const sharingApi = new Hono()
     validate(
       'json',
       z.object({
-        invitationCode: z.string().regex(/^[a-f0-9]{64}$/),
+        invitationCode: z.string().regex(/^(?:[A-Za-z0-9]{8}|[a-f0-9]{64})$/),
         instanceId: z.string().uuid(),
+        member: memberLoginSchema.optional(),
       }),
     ),
     async (c) => {
-      const { invitationCode, instanceId } = c.req.valid('json')
+      const { invitationCode, instanceId, member } = c.req.valid('json')
       return c.json({
         success: true as const,
-        data: await requestSharing(invitationCode, instanceId),
+        data: await requestSharing(invitationCode, instanceId, {
+          member,
+          address: (await getRequestIdentity(c)).ip,
+        }),
       })
     },
   )

@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { findRoomGrant } from '../../interconnect/access'
 import { getFolderTree } from '../library'
 import { getEagleFolderSharingSettings } from '../settings'
+import { getSharingGroupCodes } from './history'
 import { authorizeRead } from './service'
 
 const logSchema = z.array(
@@ -32,8 +33,9 @@ async function readLogs() {
 }
 
 export async function getDownloadLogs(groupId: string, userId: string) {
+  const codes = await getSharingGroupCodes(groupId)
   return (await readLogs())
-    .filter((log) => log.groupId === groupId && log.userId === userId)
+    .filter((log) => codes.has(log.groupId) && log.userId === userId)
     .sort((a, b) => b.createdAt - a.createdAt)
 }
 
@@ -45,8 +47,10 @@ export async function recordDownloadLog(
   total?: number,
 ) {
   const session = await authorizeRead(token)
-  const grant = findRoomGrant(session.roomSecret)
-  if (!grant || grant.memberId !== session.memberId)
+  const grant = session.roomSecret
+    ? findRoomGrant(session.roomSecret)
+    : undefined
+  if (session.roomSecret && (!grant || grant.memberId !== session.memberId))
     throw new Error('请重新连接远程资源库后下载资源')
   const userId = session.memberId
   const readSignal = session.readController.signal
@@ -81,20 +85,23 @@ export async function recordDownloadLog(
   return resourceLock.run('eagle.download-log', async () => {
     await authorizeRead(token)
     readSignal.throwIfAborted()
-    if (findRoomGrant(session.roomSecret)?.memberId !== userId)
+    if (
+      session.roomSecret &&
+      findRoomGrant(session.roomSecret)?.memberId !== userId
+    )
       throw new Error('房间用户已改变')
     const logs = await readLogs()
     if (
       !logs.some(
         (log) =>
           log.id === taskId &&
-          log.groupId === grant.code &&
+          log.groupId === session.folderSharingCode &&
           log.userId === userId,
       )
     ) {
       logs.push({
         id: taskId,
-        groupId: grant.code,
+        groupId: session.folderSharingCode,
         userId,
         folder: names.join(' / '),
         createdAt: Date.now(),

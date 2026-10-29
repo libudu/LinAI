@@ -15,7 +15,7 @@ export const eagleSettingsSchema = z.object({
   /** Eagle 资源库目录的绝对路径 */
   libraryPath: z.string().nullable(),
   libraryMode: z.enum(['local', 'remote']).default('local'),
-  // 旧地址/邀请码字段保留磁盘兼容；新连接只能由远程互联后台创建。
+  /** 直接连接共享方的 HTTP(S) 地址与八位邀请码 */
   remoteUrl: z.string().default(''),
   invitationCode: z.string().default(''),
 })
@@ -62,7 +62,7 @@ export const eagleSharingSettingsSchema = z.object({
         invitationCode: z
           .string()
           .regex(/^[A-Za-z0-9]{8}$/, '邀请码必须是八位字母或数字'),
-        // 沿用旧共享用户的稳定权限键；不再把八位键作为网络接入凭据。
+        // 稳定的文件夹权限键，重新生成邀请码时保留原有授权范围。
         folderSharingCode: z
           .string()
           .regex(/^[A-Za-z0-9]{8}$/)

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { dataPath } from '../../common/storage/data-path'
 import { DocumentStore } from '../../common/storage/document-store'
 import { StorageError } from '../../common/storage/errors'
+import { resourceLock } from '../../common/storage/resource-lock'
 
 export const memberNameSchema = z.string().trim().min(1).max(80)
 const identitySchema = z.object({
@@ -49,12 +50,17 @@ export async function getMemberIdentity() {
   return parsed.data
 }
 
-// 调用方在房间命令队列中执行，避免并发首次创建或加入生成不同的标识。
+// 直连与房间共用身份，在同一资源队列中创建或改名。
 export async function saveMemberIdentity(name: string): Promise<Identity> {
-  const current = await getMemberIdentity()
-  const identity = { id: current?.id ?? randomUUID(), name }
-  if (current?.name !== name) await identityStore.replace(identity)
-  return identity
+  return resourceLock.run('eagle.sharing-identity', async () => {
+    const current = await getMemberIdentity()
+    const identity = {
+      id: current?.id ?? randomUUID(),
+      name: memberNameSchema.parse(name),
+    }
+    if (current?.name !== identity.name) await identityStore.replace(identity)
+    return identity
+  })
 }
 
 export async function getMemberHistory() {
@@ -71,27 +77,36 @@ export async function recordMemberLogin(
   member: MemberLogin,
   address: string,
 ) {
-  const history = await getMemberHistory()
-  const record = {
-    groupId,
-    id: member.id,
-    name: member.name,
-    address,
-    lastLoginAt: Date.now(),
-  }
-  const index = history.findIndex(
-    (entry) => entry.groupId === groupId && entry.id === member.id,
-  )
-  if (index < 0) history.push(record)
-  else history[index] = record
-  await historyStore.replace(history)
+  return resourceLock.run('eagle.sharing-history', async () => {
+    const history = await getMemberHistory()
+    const record = {
+      groupId,
+      id: member.id,
+      name: member.name,
+      address,
+      lastLoginAt: Date.now(),
+    }
+    const index = history.findIndex(
+      (entry) => entry.groupId === groupId && entry.id === member.id,
+    )
+    if (index < 0) history.push(record)
+    else history[index] = record
+    await historyStore.replace(history)
+  })
 }
 
-// 与成员登记共用房间命令队列，避免读改写覆盖同时发生的登录记录。
-export async function removeMemberHistory(groupId: string, userId: string) {
-  const history = await getMemberHistory()
-  const remaining = history.filter(
-    (entry) => entry.groupId !== groupId || entry.id !== userId,
-  )
-  if (remaining.length !== history.length) await historyStore.replace(remaining)
+// 与两种连接方式的登录登记共用资源队列，删除不撤销当前连接。
+export async function removeMemberHistory(
+  groupId: string | string[],
+  userId: string,
+) {
+  return resourceLock.run('eagle.sharing-history', async () => {
+    const groups = new Set(typeof groupId === 'string' ? [groupId] : groupId)
+    const history = await getMemberHistory()
+    const remaining = history.filter(
+      (entry) => !groups.has(entry.groupId) || entry.id !== userId,
+    )
+    if (remaining.length !== history.length)
+      await historyStore.replace(remaining)
+  })
 }

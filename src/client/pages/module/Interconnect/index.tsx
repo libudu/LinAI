@@ -37,6 +37,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useEagleConfig } from '../Eagle/settings/useEagleConfig'
 import { ensureEagleOwnerSession } from '../Eagle/sharing/access'
+import { DownloadLogButton } from '../Eagle/sharing/DownloadLogButton'
 import {
   createRoom,
   deleteMember,
@@ -50,7 +51,6 @@ import {
   selectRemoteLibrary,
   type RoomStatus,
 } from './api'
-import { DownloadLogButton } from './DownloadLogButton'
 
 const settings = settingsClient<InterconnectSettings>('interconnect')
 

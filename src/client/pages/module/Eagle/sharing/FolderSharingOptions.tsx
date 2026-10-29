@@ -35,13 +35,13 @@ export function FolderSharingOptions() {
         options={[
           { value: 'hidden', label: '隐藏' },
           { value: 'everyone', label: '所有人' },
-          { value: 'user', label: '指定权限组' },
+          { value: 'user', label: '指定用户' },
         ]}
       />
       {view === 'user' && (
         <div className="mt-2 flex items-center justify-between gap-2">
           <span className="truncate text-sm" title={selectedUser?.name}>
-            {selectedUser?.name ?? '尚未选择权限组'}
+            {selectedUser?.name ?? '尚未选择共享用户'}
           </span>
           <Button
             size="small"
@@ -67,7 +67,7 @@ export function FolderSharingOptions() {
         />
       )}
       <Modal
-        title="选择权限组"
+        title="选择共享用户"
         open={open}
         centered
         okText="选择"
@@ -113,7 +113,9 @@ export function FolderSharingOptions() {
         ) : (
           <Empty
             description={
-              loading ? '加载权限组…' : '请先在「远程互联」中添加权限组'
+              loading
+                ? '加载共享用户…'
+                : '请先在 Eagle 设置的「共享人员」中添加共享用户'
             }
           />
         )}

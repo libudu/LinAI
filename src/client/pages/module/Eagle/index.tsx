@@ -82,8 +82,10 @@ export function Eagle() {
           description={
             outgoing?.error ||
             (outgoing?.state === 'connecting'
-              ? '正在连接房主的远程资源库。'
-              : '请在「远程互联」加入房间并连接房主远程资源库。')
+              ? '正在连接共享方的远程资源库。'
+              : outgoing?.state === 'pending'
+                ? '正在等待共享方同意连接。'
+                : '请在 Eagle 设置中填写共享方的 IP 地址、端口和邀请码，重新连接远程资源库。')
           }
         />
         <Button type="primary" onClick={() => openEagleSettingModal()}>
