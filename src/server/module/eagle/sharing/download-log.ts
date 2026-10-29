@@ -1,5 +1,3 @@
-import { dataPath } from '@/server/common/storage/data-path'
-import { DocumentStore } from '@/server/common/storage/document-store'
 import { StorageError } from '@/server/common/storage/errors'
 import { resourceLock } from '@/server/common/storage/resource-lock'
 import type { EagleMediaType } from '@/shared/eagle/types'
@@ -8,6 +6,7 @@ import { getFolderTree } from '../library'
 import { getEagleFolderSharingSettings } from '../settings'
 import { getSharingGroupCodes } from './history'
 import { authorizeRead } from './service'
+import { createSharingDocumentStore } from './storage'
 
 const logSchema = z.array(
   z.object({
@@ -18,11 +17,9 @@ const logSchema = z.array(
     createdAt: z.number(),
   }),
 )
-const store = new DocumentStore<z.infer<typeof logSchema>>(
-  // 沿用历史数据目录，保留已有 Eagle 下载日志。
-  dataPath('interconnect', 'download-history.json'),
-  { maxValueLength: 16 * 1024 * 1024 },
-)
+const store = createSharingDocumentStore('download-history.json', logSchema, {
+  maxValueLength: 16 * 1024 * 1024,
+})
 
 async function readLogs() {
   const { value } = await store.get()

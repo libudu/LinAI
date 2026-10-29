@@ -1,9 +1,8 @@
-import { dataPath } from '@/server/common/storage/data-path'
-import { DocumentStore } from '@/server/common/storage/document-store'
 import { StorageError } from '@/server/common/storage/errors'
 import { resourceLock } from '@/server/common/storage/resource-lock'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
+import { createSharingDocumentStore } from './storage'
 
 export const memberNameSchema = z.string().trim().min(1).max(80)
 const identitySchema = z.object({
@@ -23,15 +22,15 @@ const historySchema = z.array(
   }),
 )
 type Identity = z.infer<typeof identitySchema>
-type LoginHistory = z.infer<typeof historySchema>
 
 // 由后端维护，不开放通用写接口；名称和设备标识与权限组授权相互独立。
-// 沿用历史数据目录，移除旧模块不重置 Eagle 的用户标识与登录记录。
-const identityStore = new DocumentStore<Identity>(
-  dataPath('interconnect', 'identity.json'),
+const identityStore = createSharingDocumentStore(
+  'identity.json',
+  identitySchema,
 )
-const historyStore = new DocumentStore<LoginHistory>(
-  dataPath('interconnect', 'member-history.json'),
+const historyStore = createSharingDocumentStore(
+  'member-history.json',
+  historySchema,
   { maxValueLength: 2 * 1024 * 1024 },
 )
 

@@ -14,7 +14,7 @@
 - `policy.ts` 的 `PRESERVED_DIRECTORIES` 声明用户数据保护范围，目前只有整个 `data/`。比较使用规范化后的实际路径，忽略 Windows 大小写，避免相似目录名被误跳过。
 - 当前正在执行的 `process.execPath` 保留，避免覆盖被 Windows 占用的 Node 可执行文件；其他 `runtime/` 文件正常更新。这个流程不升级正在使用的 Node 本身。
 - `node_modules/` 完整暂存后整体替换，失败时尝试恢复旧依赖目录。其他程序文件按文件覆盖，不保证整个软件目录的事务回滚。文件解压或替换失败必须返回非零退出码。
-- 成功更新后清理旧版已废弃的 `server/easytier/` 与 `runtime/easytier/` 程序资源；不清理 `data/`，Eagle 的共享身份、登录记录和下载日志继续兼容原有数据路径。
+- 成功更新后清理旧版已废弃的 `server/easytier/` 与 `runtime/easytier/` 程序资源；不清理 `data/`。Eagle 共享身份、登录记录和下载日志由业务存储在首次读写时迁入 `data/eagle/sharing/`，已有新数据优先，旧数据保留为只读备份，不依赖升级脚本移动用户文件。
 
 ## 兼容更老的迁移脚本
 
