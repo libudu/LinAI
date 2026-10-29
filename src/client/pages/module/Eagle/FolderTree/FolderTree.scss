@@ -1,5 +1,30 @@
 // 文件夹树大号节点：加大行高、字号与节点间距
 .eagle-folder-tree {
+  &[data-library-mode='remote'] {
+    .eagle-folder-title-line {
+      gap: 0;
+    }
+
+    .eagle-folder-name {
+      // 名称先保留完整宽度，超过整行可用宽度后才省略。
+      flex-shrink: 0;
+      max-width: 100%;
+    }
+
+    .eagle-folder-count {
+      // 总数先收缩至零；间隔放在可裁剪内容中，避免隐藏后仍挤占名称空间。
+      min-width: 0;
+      flex-shrink: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+
+      &::before {
+        content: '\00a0';
+      }
+    }
+  }
+
   .ant-tree-indent-unit {
     width: 12px;
   }

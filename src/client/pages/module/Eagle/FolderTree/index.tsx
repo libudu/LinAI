@@ -29,12 +29,15 @@ const renderTitle = (
   description?: string,
   showDescription?: boolean,
 ) => (
-  <span className="flex min-w-0 flex-col items-start">
-    <span className="inline-flex max-w-full items-baseline gap-1">
-      <span className="truncate" title={name}>
-        {name}
+  <span
+    className="flex min-w-0 flex-col items-start"
+    title={`${name} (${count})`}
+  >
+    <span className="eagle-folder-title-line inline-flex max-w-full items-baseline gap-1">
+      <span className="eagle-folder-name truncate">{name}</span>
+      <span className="eagle-folder-count shrink-0 text-sm text-slate-400">
+        ({count})
       </span>
-      <span className="shrink-0 text-sm text-slate-400">({count})</span>
     </span>
     {showDescription && description ? (
       <span
@@ -310,7 +313,10 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
   ])
 
   return (
-    <div className="eagle-folder-tree flex h-full min-h-0 flex-col overflow-hidden">
+    <div
+      className="eagle-folder-tree flex h-full min-h-0 flex-col overflow-hidden"
+      data-library-mode={libraryMode}
+    >
       <Segmented<EagleMediaType>
         block
         size="large"
