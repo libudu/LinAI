@@ -1,3 +1,4 @@
+import type { EagleMediaType } from '@/shared/eagle/types'
 import { z } from 'zod'
 
 export const downloadProgressSchema = z
@@ -16,6 +17,7 @@ export type DownloadProgress = z.infer<typeof downloadProgressSchema>
 type Task = Omit<DownloadProgress, 'percent'> & {
   connectionId: string
   folderId: string
+  mediaType: EagleMediaType
   folder: string
   currentProgress: number
 }

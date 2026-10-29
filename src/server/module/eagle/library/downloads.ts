@@ -1,5 +1,6 @@
 import { changeBus } from '@/server/common/storage/change-bus'
 import { writeJsonFile } from '@/server/common/storage/json-file'
+import type { EagleMediaType } from '@/shared/eagle/types'
 import fs from 'fs-extra'
 import { randomUUID } from 'node:crypto'
 import type { Stats } from 'node:fs'
@@ -21,7 +22,12 @@ import { collectFolderPaths, findRawFolder } from './folders'
 import { ensureIndex, ensureLibraryReady, libraryChanges } from './index-state'
 import { readWritableItemMeta, withLibraryMutation } from './mutation'
 import { toEagleItem } from './query'
-import { EAGLE_LIBRARY_RESOURCE, imagesDir, withLibraryLock } from './runtime'
+import {
+  EAGLE_LIBRARY_RESOURCE,
+  imagesDir,
+  matchesMediaType,
+  withLibraryLock,
+} from './runtime'
 import { projectSharedIndex, type EagleLibraryAccess } from './shared-access'
 import type { EagleRawFolder } from './types'
 
@@ -53,13 +59,17 @@ export const downloadStatusManifestSchema = z.object({
   items: z.array(
     downloadManifestSchema.shape.items.element.pick({
       id: true,
+      ext: true,
       size: true,
       folders: true,
     }),
   ),
 })
 
-export async function getDownloadStatusManifest(access?: EagleLibraryAccess) {
+export async function getDownloadStatusManifest(
+  access?: EagleLibraryAccess,
+  mediaType?: EagleMediaType,
+) {
   const index = await ensureIndex()
   if (!index) throw new EagleError('LIBRARY_UNAVAILABLE', 409, '资源库不可用')
   return withLibraryLock(index.libraryPath, async () => {
@@ -74,11 +84,14 @@ export async function getDownloadStatusManifest(access?: EagleLibraryAccess) {
     visit(view.folders, null)
     return {
       folders,
-      items: [...view.items.values()].map(({ id, size, folders }) => ({
-        id,
-        size,
-        folders: [...folders],
-      })),
+      items: [...view.items.values()]
+        .filter((item) => matchesMediaType(item.ext, mediaType))
+        .map(({ id, ext, size, folders }) => ({
+          id,
+          ext,
+          size,
+          folders: [...folders],
+        })),
     }
   })
 }
@@ -124,6 +137,7 @@ export async function getDownloadManifest(
     folderId?: string
     itemIds?: readonly string[]
     libraryPath?: string
+    mediaType?: EagleMediaType
   } = {},
 ): Promise<DownloadManifest> {
   const index = await ensureIndex()
@@ -165,11 +179,11 @@ export async function getDownloadManifest(
           return item ? [item] : []
         })
       : [...view.items.values()]
-    const source = folderIds
-      ? candidates.filter((item) =>
-          item.folders.some((id) => folderIds?.has(id)),
-        )
-      : candidates
+    const source = candidates.filter(
+      (item) =>
+        matchesMediaType(item.ext, options.mediaType) &&
+        (!folderIds || item.folders.some((id) => folderIds.has(id))),
+    )
     const missing = new Set<string>()
     if (!access)
       await runPool(source, 32, async (item) => {

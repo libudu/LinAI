@@ -166,7 +166,7 @@ export function FolderTree({ onSelected }: { onSelected?: () => void }) {
     showEmptyFolders,
   } = useEagleStore()
   const { libraryMode, libraryPath } = useEagleConfig()
-  const downloads = useFolderDownloads(folders)
+  const downloads = useFolderDownloads(folders, mediaType)
   const sharing = useFolderSharing()
   const sharingControls = useMemo<SharingControls>(() => {
     const library = sharing.value.libraries.find(

@@ -1,4 +1,4 @@
-import type { EagleFolder } from '@/shared/eagle/types'
+import type { EagleFolder, EagleMediaType } from '@/shared/eagle/types'
 import {
   CheckCircleFilled,
   ClockCircleOutlined,
@@ -23,7 +23,10 @@ type Statuses = Awaited<
 >['folders']
 type Plan = Awaited<ReturnType<typeof prepareFolderDownload>>
 
-export function useFolderDownloads(folders: EagleFolder[]) {
+export function useFolderDownloads(
+  folders: EagleFolder[],
+  mediaType: EagleMediaType,
+) {
   const { libraryMode, libraryPath, setEagleConfig } = useEagleConfig()
   const connectionId = useEagleSharing((state) => state.outgoing?.id)
   const connectionState = useEagleSharing((state) => state.outgoing?.state)
@@ -39,6 +42,7 @@ export function useFolderDownloads(folders: EagleFolder[]) {
         .filter(
           (task) =>
             task.connectionId === state.outgoing?.id &&
+            task.mediaType === mediaType &&
             (task.state === 'queued' || task.state === 'running'),
         )
         .map((task) => task.folderId),
@@ -68,18 +72,29 @@ export function useFolderDownloads(folders: EagleFolder[]) {
     setPlan(null)
     setError('')
     setBusy(false)
-  }, [connectionId, remote])
+  }, [connectionId, remote, mediaType])
   useEffect(() => {
-    // 只有连接、权限或本地库改变时清空；普通刷新保留已确认的状态。
+    // 媒体类型、连接、权限或本地库改变时清空；普通刷新保留已确认的状态。
     setStatuses({})
-  }, [remote, connected, connectionId, permissionsRevision, libraryPath])
+  }, [
+    remote,
+    connected,
+    connectionId,
+    permissionsRevision,
+    libraryPath,
+    mediaType,
+  ])
   useEffect(() => {
     let active = true
     refreshStatuses.current = async () => {
       if (!active || !remote || !connected) return
       try {
-        const result = await fetchFolderDownloadStatuses()
-        if (active && result.connectionId === connectionId)
+        const result = await fetchFolderDownloadStatuses(mediaType)
+        if (
+          active &&
+          result.connectionId === connectionId &&
+          result.mediaType === mediaType
+        )
           setStatuses(result.folders)
       } catch {
         // 暂时读取失败时保留当前状态，避免已完成图标退回下载图标。
@@ -104,27 +119,31 @@ export function useFolderDownloads(folders: EagleFolder[]) {
     connectionId,
     permissionsRevision,
     libraryPath,
+    mediaType,
     folders,
     progress,
     refresh,
     statusQueue,
   ])
 
-  const loadPlan = useCallback(async (folder: EagleFolder) => {
-    const version = ++request.current
-    setBusy(true)
-    setError('')
-    setPlan(null)
-    try {
-      const next = await prepareFolderDownload(folder.id)
-      if (request.current === version) setPlan(next)
-    } catch (error) {
-      if (request.current === version)
-        setError(error instanceof Error ? error.message : '读取下载清单失败')
-    } finally {
-      if (request.current === version) setBusy(false)
-    }
-  }, [])
+  const loadPlan = useCallback(
+    async (folder: EagleFolder) => {
+      const version = ++request.current
+      setBusy(true)
+      setError('')
+      setPlan(null)
+      try {
+        const next = await prepareFolderDownload(folder.id, mediaType)
+        if (request.current === version) setPlan(next)
+      } catch (error) {
+        if (request.current === version)
+          setError(error instanceof Error ? error.message : '读取下载清单失败')
+      } finally {
+        if (request.current === version) setBusy(false)
+      }
+    },
+    [mediaType],
+  )
   const select = useCallback(
     (folder: EagleFolder) => {
       if (!connected || pendingFolders.has(folder.id)) return
@@ -276,6 +295,11 @@ export function useFolderDownloads(folders: EagleFolder[]) {
                 key: 'folder',
                 label: '目标目录',
                 children: <span className="break-all">{plan.folder}</span>,
+              },
+              {
+                key: 'mediaType',
+                label: '资源类型',
+                children: plan.mediaType === 'image' ? '图片' : '视频',
               },
               {
                 key: 'download',

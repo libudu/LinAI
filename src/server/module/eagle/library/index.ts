@@ -46,7 +46,7 @@ export {
   getLibraryChanges,
   getLibraryOverview,
 } from './query'
-export { isVideoExt } from './runtime'
+export { isVideoExt, matchesMediaType } from './runtime'
 export type {
   EagleItemDetail,
   EagleItemMediaSource,

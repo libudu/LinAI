@@ -1,5 +1,6 @@
 import { changeBus } from '@/server/common/storage/change-bus'
 import { resourceLock } from '@/server/common/storage/resource-lock'
+import type { EagleMediaType } from '@/shared/eagle/types'
 import fs from 'fs-extra'
 import { randomUUID } from 'node:crypto'
 import os from 'node:os'
@@ -13,6 +14,7 @@ import {
   downloadManifestSchema,
   downloadStatusManifestSchema,
   getDownloadedItemIds,
+  matchesMediaType,
   type DownloadManifest,
 } from '../library'
 import { getEagleSettings } from '../settings'
@@ -27,6 +29,7 @@ const plans = new Map<
     connection: Session
     libraryPath: string
     folderId: string
+    mediaType: EagleMediaType
     folder: string
     manifest: DownloadManifest
     entries: DownloadManifest['items']
@@ -35,19 +38,24 @@ const plans = new Map<
   }
 >()
 
-function assertNoActiveFolderDownload(session: Session, folderId: string) {
+function assertNoActiveFolderDownload(
+  session: Session,
+  folderId: string,
+  mediaType: EagleMediaType,
+) {
   if (
     tasks.some(
       (task) =>
         task.connectionId === session.id &&
         task.folderId === folderId &&
+        task.mediaType === mediaType &&
         (task.state === 'queued' || task.state === 'running'),
     )
   )
     throw new EagleError(
       'DUPLICATE_DOWNLOAD_TASK',
       409,
-      '此文件夹已在下载队列中，请等待当前任务结束',
+      '此文件夹的同类资源已在下载队列中，请等待当前任务结束',
     )
 }
 
@@ -84,12 +92,20 @@ async function remoteResponse(
   return response
 }
 
-async function remoteManifest(session: Session, folderId: string) {
-  const query = new URLSearchParams({ folderId })
+async function remoteManifest(
+  session: Session,
+  folderId: string,
+  mediaType: EagleMediaType,
+) {
+  const query = new URLSearchParams({ folderId, mediaType })
   const response = await remoteResponse(session, `/library/manifest?${query}`)
   const json = await response.json()
   if (!json?.success) throw new Error('读取远程资源清单失败')
   const manifest = downloadManifestSchema.parse(json.data)
+  // 接收端也按任务类型过滤，避免旧版房主忽略查询参数后下载其他类型。
+  manifest.items = manifest.items.filter((item) =>
+    matchesMediaType(item.ext, mediaType),
+  )
   downloadFolderPaths(manifest.folders)
   if (!manifest.folders.some((entry) => entry.id === folderId))
     throw new EagleError('FOLDER_NOT_FOUND', 404, '文件夹不存在或已取消共享')
@@ -134,11 +150,19 @@ async function loadFolderDownloadStatuses(
   session: Session,
   libraryPath: string | null,
   permissionsRevision: number | undefined,
+  mediaType: EagleMediaType,
 ) {
-  const response = await remoteResponse(session, '/library/manifest/summary')
+  const query = new URLSearchParams({ mediaType })
+  const response = await remoteResponse(
+    session,
+    `/library/manifest/summary?${query}`,
+  )
   const json = await response.json()
   if (!json?.success) throw new Error('读取远程资源清单失败')
   const remote = downloadStatusManifestSchema.parse(json.data)
+  remote.items = remote.items.filter((item) =>
+    matchesMediaType(item.ext, mediaType),
+  )
   const localIds = await localItemIds(remote, libraryPath)
   await assertDownloadContext(session, libraryPath, permissionsRevision)
   const parents = new Map(
@@ -164,7 +188,7 @@ async function loadFolderDownloadStatuses(
         result[id].bytes += item.size
       }
   }
-  return { connectionId: session.id, folders: result }
+  return { connectionId: session.id, mediaType, folders: result }
 }
 
 const statusRequests = new Map<
@@ -175,7 +199,7 @@ let statusVersion = 0
 for (const resource of ['eagle.library', 'settings.eagle'])
   changeBus.subscribe(resource, () => statusVersion++)
 
-export async function getFolderDownloadStatuses() {
+export async function getFolderDownloadStatuses(mediaType: EagleMediaType) {
   const session = await getRemoteConnection()
   const libraryPath = (await getEagleSettings()).libraryPath
   const permissionsRevision = session.permissionsRevision
@@ -183,6 +207,7 @@ export async function getFolderDownloadStatuses() {
     session.id,
     libraryPath,
     permissionsRevision,
+    mediaType,
     statusVersion,
     tasks.map((task) => [task.id, task.state]),
   ])
@@ -193,14 +218,18 @@ export async function getFolderDownloadStatuses() {
     session,
     libraryPath,
     permissionsRevision,
+    mediaType,
   ).finally(() => statusRequests.delete(key))
   statusRequests.set(key, request)
   return request
 }
 
-export async function prepareFolderDownload(folderId: string) {
+export async function prepareFolderDownload(
+  folderId: string,
+  mediaType: EagleMediaType,
+) {
   const session = await getRemoteConnection()
-  assertNoActiveFolderDownload(session, folderId)
+  assertNoActiveFolderDownload(session, folderId, mediaType)
   const libraryPath = (await getEagleSettings()).libraryPath
   const permissionsRevision = session.permissionsRevision
   if (!libraryPath)
@@ -209,7 +238,7 @@ export async function prepareFolderDownload(folderId: string) {
       409,
       '请先配置本地资源库目录',
     )
-  const manifest = await remoteManifest(session, folderId)
+  const manifest = await remoteManifest(session, folderId, mediaType)
   const local = await localItemIds(manifest, libraryPath)
   const entries = [...missingItems(manifest, local).values()]
   const summary = entries.reduce<Summary>(
@@ -225,7 +254,7 @@ export async function prepareFolderDownload(folderId: string) {
     if (now - plan.createdAt > 5 * 60 * 1000) plans.delete(id)
   if (plans.size >= 100) throw new Error('待确认任务过多，请稍后重试')
   await assertDownloadContext(session, libraryPath, permissionsRevision)
-  assertNoActiveFolderDownload(session, folderId)
+  assertNoActiveFolderDownload(session, folderId, mediaType)
   const id = randomUUID()
   const paths = downloadFolderPaths(manifest.folders)
   const folder = (JSON.parse(paths.get(folderId)!) as string[]).join(' / ')
@@ -233,13 +262,14 @@ export async function prepareFolderDownload(folderId: string) {
     connection: session,
     libraryPath,
     folderId,
+    mediaType,
     folder,
     manifest: { ...manifest, items: [] },
     entries,
     createdAt: now,
     permissionsRevision,
   })
-  return { id, folder, ...summary }
+  return { id, folder, mediaType, ...summary }
 }
 
 export const startFolderDownload = (id: string) =>
@@ -264,8 +294,8 @@ export const startFolderDownload = (id: string) =>
       (await getEagleSettings()).libraryPath !== plan.libraryPath
     )
       throw new Error('连接、权限或本地资源库已改变，请重新检查')
-    // 在启动锁内按连接和目录查重，避免不同清单并发创建同一个下载任务。
-    assertNoActiveFolderDownload(session, plan.folderId)
+    // 在启动锁内按连接、目录和媒体类型查重，图片与视频可分别排队。
+    assertNoActiveFolderDownload(session, plan.folderId, plan.mediaType)
     if (
       tasks.some(
         (task) => task.state === 'queued' || task.state === 'running',
@@ -289,6 +319,7 @@ export const startFolderDownload = (id: string) =>
       id,
       connectionId: session.id,
       folderId: plan.folderId,
+      mediaType: plan.mediaType,
       folder: plan.folder,
       completed: 0,
       currentProgress: 0,
@@ -317,7 +348,11 @@ export const startFolderDownload = (id: string) =>
               plan.permissionsRevision,
             )
           await assertContext()
-          const fresh = await remoteManifest(session, plan.folderId)
+          const fresh = await remoteManifest(
+            session,
+            plan.folderId,
+            plan.mediaType,
+          )
           if (
             fresh.libraryId !== plan.manifest.libraryId ||
             JSON.stringify(fresh.folders) !==

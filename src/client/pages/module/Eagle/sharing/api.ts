@@ -1,4 +1,5 @@
 import { rpcData } from '@/client/service/http'
+import type { EagleMediaType } from '@/shared/eagle/types'
 import { eagleRpc } from '../rpc'
 
 const rpc = eagleRpc.sharing
@@ -9,10 +10,12 @@ export const pickDirectory = (path?: string, signal?: AbortSignal) =>
 export const validateDirectory = (path: string, allowEmpty = true) =>
   rpcData(rpc['validate-directory'].$post({ json: { path, allowEmpty } }))
 
-export const fetchFolderDownloadStatuses = () =>
-  rpcData(rpc.downloads.folders.$get())
-export const prepareFolderDownload = (folderId: string) =>
-  rpcData(rpc.downloads.prepare.$post({ json: { folderId } }))
+export const fetchFolderDownloadStatuses = (mediaType: EagleMediaType) =>
+  rpcData(rpc.downloads.folders.$get({ query: { mediaType } }))
+export const prepareFolderDownload = (
+  folderId: string,
+  mediaType: EagleMediaType,
+) => rpcData(rpc.downloads.prepare.$post({ json: { folderId, mediaType } }))
 export const startFolderDownload = (id: string) =>
   rpcData(rpc.downloads.start.$post({ json: { id } }))
 export const fetchDownloadLogs = (groupId: string, userId: string) =>

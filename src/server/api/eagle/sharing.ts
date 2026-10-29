@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { pickLibraryDirectory } from '../../module/eagle/directory-picker'
 import { getItemDetail } from '../../module/eagle/library'
 import type { EagleLibraryAccess } from '../../module/eagle/library/shared-access'
+import { eagleMediaQuerySchema } from '../../module/eagle/schemas'
 import { getEagleFolderSharingSettings } from '../../module/eagle/settings'
 import { issueOwnerSession } from '../../module/eagle/sharing/access'
 import {
@@ -68,17 +69,28 @@ const sharingApi = new Hono()
       data: statusSnapshot(),
     }),
   )
-  .get('/downloads/folders', async (c) =>
-    c.json({ success: true as const, data: await getFolderDownloadStatuses() }),
-  )
-  .post(
-    '/downloads/prepare',
-    validate('json', z.object({ folderId: z.string().min(1) })),
+  .get(
+    '/downloads/folders',
+    validate('query', eagleMediaQuerySchema.required()),
     async (c) =>
       c.json({
         success: true as const,
-        data: await prepareFolderDownload(c.req.valid('json').folderId),
+        data: await getFolderDownloadStatuses(c.req.valid('query').mediaType),
       }),
+  )
+  .post(
+    '/downloads/prepare',
+    validate(
+      'json',
+      eagleMediaQuerySchema.required().extend({ folderId: z.string().min(1) }),
+    ),
+    async (c) => {
+      const { folderId, mediaType } = c.req.valid('json')
+      return c.json({
+        success: true as const,
+        data: await prepareFolderDownload(folderId, mediaType),
+      })
+    },
   )
   .post(
     '/downloads/start',
