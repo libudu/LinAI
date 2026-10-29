@@ -11,6 +11,8 @@ export const connectRemoteLibrary = (config: {
   memberName?: string
 }) => rpcData(rpc.connect.$post({ json: config }))
 export const disconnectRemoteLibrary = () => rpcData(rpc.disconnect.$post())
+export const disconnectIncomingConnection = (id: string) =>
+  rpcData(rpc['disconnect-incoming'].$post({ json: { id } }))
 export const fetchSharingIdentity = () => rpcData(rpc.identity.$get())
 export const fetchSharingHistory = (groupId: string) =>
   rpcData(rpc.history.$get({ query: { groupId } }))

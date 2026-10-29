@@ -38,6 +38,7 @@ import {
   closeIncoming,
   connectRemote,
   decideSharing,
+  disconnectIncoming,
   disconnectRemote,
   heartbeatIncoming,
   recordTransfer,
@@ -130,6 +131,14 @@ const sharingApi = new Hono()
     disconnectRemote()
     return c.json({ success: true as const, data: null })
   })
+  .post(
+    '/disconnect-incoming',
+    validate('json', z.object({ id: z.string().uuid() })),
+    (c) => {
+      disconnectIncoming(c.req.valid('json').id)
+      return c.json({ success: true as const, data: null })
+    },
+  )
   .get(
     '/downloads/folders',
     validate('query', eagleMediaQuerySchema.required()),

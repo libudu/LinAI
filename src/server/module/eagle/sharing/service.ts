@@ -298,6 +298,13 @@ export function closeIncoming(token: string) {
   if (session) terminate(session, '请求方已断开共享连接')
 }
 
+/** 房主通过管理接口按连接 ID 关闭会话，不向前端暴露共享凭据。 */
+export function disconnectIncoming(id: string) {
+  const session = [...incoming.values()].find((session) => session.id === id)
+  if (!session) fail('该共享连接已失效')
+  terminate(session, '共享方已主动断开连接，请重新连接远程资源库')
+}
+
 export async function decideSharing(id: string, approve: boolean) {
   const session = [...incoming.values()].find((session) => session.id === id)
   if (!session || session.state !== 'pending')
