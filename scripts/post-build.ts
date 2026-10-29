@@ -3,6 +3,7 @@ import fs from 'fs-extra'
 import JSZip from 'jszip'
 import { createHash } from 'node:crypto'
 import path from 'path'
+import { assertReleaseMigrationPath } from '../src/server/common/migration/policy'
 import { pruneDist } from './prune-dist'
 
 async function main() {
@@ -108,8 +109,10 @@ async function main() {
       overwrite: true,
       filter: (file) => path.resolve(file) !== easytierDir,
     })
-    // 重建此目录，清除旧构建遗留的 source.zip，dist 本身也不携带源码归档。
-    const distEasytierDir = path.resolve('dist/runtime/easytier')
+    // 旧版迁移跳过整个 runtime，放到 server 下可在首次升级时直接安装。
+    // 移除旧发布布局，避免重复携带核心及遗留源码归档。
+    fs.removeSync(path.resolve('dist/runtime/easytier'))
+    const distEasytierDir = path.resolve('dist/server/easytier')
     fs.emptyDirSync(distEasytierDir)
     for (const name of ['manifest.json', ...Object.keys(easytierManifest.files)]) {
       fs.copyFileSync(
@@ -295,6 +298,11 @@ async function main() {
           const subFolder = zipFolder.folder(item)
           if (subFolder) addFolderToZip(itemPath, subFolder)
         } else {
+          const relativePath = path
+            .relative(distDir, itemPath)
+            .split(path.sep)
+            .join('/')
+          assertReleaseMigrationPath(relativePath)
           zipFolder.file(item, fs.readFileSync(itemPath))
         }
       }

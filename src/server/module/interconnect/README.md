@@ -32,9 +32,11 @@
 
 ## 发布与验证
 
-运行资源固定在 `dist-template/runtime/easytier/`，开发和发布启动仅校验清单 `files` 的 SHA-256。包内保留核心、CLI、许可、来源及修改/构建说明，不依赖运行时下载。
+开发资源固定在 `dist-template/runtime/easytier/`，发布时将同一份已校验资源放到 `server/easytier/`，启动优先读取发布目录，不读取旧的 `runtime/easytier/`。开发和发布启动仅校验清单 `files` 的 SHA-256。包内保留核心、CLI、许可、来源及修改/构建说明，不依赖运行时下载。
 
-对应源码输入位于 `release-resources/easytier/EasyTier-2.7.0-linai-gateway1.6487a5e-source.zip`，包含修改后的固定提交源码、依赖 crate/git 源码及运行库许可。旧版对应源码可从 Git 历史获取。运行时清单 `correspondingSource` 记录文件名、大小与 SHA-256，将项目内源码与核心版本/提交关联；不参与启动文件校验。`post-build.ts` 在发布前验证两类文件，重建 `dist/runtime/easytier/` 清除旧源码归档，不再复制源码归档到仓库根目录，也不作为发布附件上传；private/public 复用项目内的同一份源码，`dist` 与主 ZIP 都不含源码 ZIP。
+版本迁移默认更新程序文件，仅保留用户数据和正在运行的 Node 可执行文件，EasyTier 随 `server/` 更新。更旧的迁移程序虽然跳过 `runtime/`，仍会解压 `server/easytier/`，旧用户直接向原批处理拖入新包一次即可升级，无需先替换脚本。新版迁移会转交包内新版程序，额外校验并整体替换 `server/easytier/`；旧布局下的资源可保留，但不再被使用。迁移前应关闭 LinAI，避免核心文件被占用。通用规则和发布兼容检查见[迁移约定](../../common/migration/README.md)。
+
+对应源码输入位于 `release-resources/easytier/EasyTier-2.7.0-linai-gateway1.6487a5e-source.zip`，包含修改后的固定提交源码、依赖 crate/git 源码及运行库许可。旧版对应源码可从 Git 历史获取。运行时清单 `correspondingSource` 记录文件名、大小与 SHA-256，将项目内源码与核心版本/提交关联；不参与启动文件校验。`post-build.ts` 在发布前验证两类文件，重建 `dist/server/easytier/` 并删除旧的 `dist/runtime/easytier/`，清除旧源码归档，不再复制源码归档到仓库根目录，也不作为发布附件上传；private/public 复用项目内的同一份源码，`dist` 与主 ZIP 都不含源码 ZIP。
 
 仓库通过 https://github.com/libudu/LinAI/releases 发布；工作流仅上传主包，在发布说明中链接到同一 tag 下项目目录中的源码文件。包内 `SOURCES.md` 指引用户按 LinAI 版本 tag 查找项目内源码并按清单验哈希。按 GPLv3 6(d)（LGPLv3 引用），分发程序时仍需维持接收者可免费访问的对应源码位置及明确获取指引；仅保存在接收者无法访问的本地目录不足以提供源码。更新核心时必须同时更新对应源码、构建说明及清单，不可复用旧源码归档冒充新核心源码。
 

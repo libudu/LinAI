@@ -9,7 +9,8 @@ import { dataPath } from '../../common/storage/data-path'
 import { CoreOutput } from './output'
 
 const execute = promisify(execFile)
-const runtime = path.resolve(process.cwd(), 'runtime/easytier')
+// 旧版迁移会跳过整个 runtime，发布资源放在 server 下才能一次升级到位。
+const runtime = path.resolve(process.cwd(), 'server/easytier')
 const developmentRuntime = path.resolve(
   process.cwd(),
   'dist-template/runtime/easytier',
