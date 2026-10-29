@@ -1,10 +1,7 @@
-import {
-  getMemberHistory,
-  removeMemberHistory,
-} from '../../interconnect/members'
 import { getEagleSharingSettings } from '../settings'
+import { getMemberHistory, removeMemberHistory } from './members'
 
-/** 换邀请码后仍按稳定权限键读取历史，同时兼容旧房间记录。 */
+/** 换邀请码后仍按稳定权限键读取历史，同时兼容旧记录。 */
 export async function getSharingGroupCodes(groupId: string) {
   const { users } = await getEagleSharingSettings()
   const user = users.find(

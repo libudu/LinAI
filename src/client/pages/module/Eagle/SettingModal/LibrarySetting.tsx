@@ -41,7 +41,7 @@ export const LibrarySetting = forwardRef<EagleSettingRef>((_props, ref) => {
     form.setFieldsValue({
       ...config,
       libraryPath: config.libraryPath || config.defaultLibraryPath,
-      // 互联房间名称与长邀请不能用于 IP 直连。
+      // 旧配置中的非 HTTP 地址或非八位邀请码不作为直连默认值。
       remoteUrl: /^https?:\/\//.test(config.remoteUrl) ? config.remoteUrl : '',
       invitationCode: /^[A-Za-z0-9]{8}$/.test(config.invitationCode)
         ? config.invitationCode

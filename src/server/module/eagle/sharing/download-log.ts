@@ -3,7 +3,6 @@ import { DocumentStore } from '@/server/common/storage/document-store'
 import { StorageError } from '@/server/common/storage/errors'
 import { resourceLock } from '@/server/common/storage/resource-lock'
 import { z } from 'zod'
-import { findRoomGrant } from '../../interconnect/access'
 import { getFolderTree } from '../library'
 import { getEagleFolderSharingSettings } from '../settings'
 import { getSharingGroupCodes } from './history'
@@ -19,6 +18,7 @@ const logSchema = z.array(
   }),
 )
 const store = new DocumentStore<z.infer<typeof logSchema>>(
+  // 沿用历史数据目录，保留已有 Eagle 下载日志。
   dataPath('interconnect', 'download-history.json'),
   { maxValueLength: 16 * 1024 * 1024 },
 )
@@ -47,11 +47,6 @@ export async function recordDownloadLog(
   total?: number,
 ) {
   const session = await authorizeRead(token)
-  const grant = session.roomSecret
-    ? findRoomGrant(session.roomSecret)
-    : undefined
-  if (session.roomSecret && (!grant || grant.memberId !== session.memberId))
-    throw new Error('请重新连接远程资源库后下载资源')
   const userId = session.memberId
   const readSignal = session.readController.signal
   const settings = await getEagleFolderSharingSettings()
@@ -85,11 +80,6 @@ export async function recordDownloadLog(
   return resourceLock.run('eagle.download-log', async () => {
     await authorizeRead(token)
     readSignal.throwIfAborted()
-    if (
-      session.roomSecret &&
-      findRoomGrant(session.roomSecret)?.memberId !== userId
-    )
-      throw new Error('房间用户已改变')
     const logs = await readLogs()
     if (
       !logs.some(

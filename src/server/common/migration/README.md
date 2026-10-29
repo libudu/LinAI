@@ -13,12 +13,12 @@
 - 默认解压和覆盖包内全部程序文件，新增顶层目录、工具和附属文件无需添加解压白名单。
 - `policy.ts` 的 `PRESERVED_DIRECTORIES` 声明用户数据保护范围，目前只有整个 `data/`。比较使用规范化后的实际路径，忽略 Windows 大小写，避免相似目录名被误跳过。
 - 当前正在执行的 `process.execPath` 保留，避免覆盖被 Windows 占用的 Node 可执行文件；其他 `runtime/` 文件正常更新。这个流程不升级正在使用的 Node 本身。
-- `node_modules/` 和 `server/easytier/` 完整暂存后整体替换，失败时尝试恢复对应旧目录。其他程序文件按文件覆盖，不保证整个软件目录的事务回滚。
-- EasyTier 安装前校验包内清单和 SHA-256，启动前继续校验。文件解压或替换失败必须返回非零退出码。
+- `node_modules/` 完整暂存后整体替换，失败时尝试恢复旧依赖目录。其他程序文件按文件覆盖，不保证整个软件目录的事务回滚。文件解压或替换失败必须返回非零退出码。
+- 成功更新后清理旧版已废弃的 `server/easytier/` 与 `runtime/easytier/` 程序资源；不清理 `data/`，Eagle 的共享身份、登录记录和下载日志继续兼容原有数据路径。
 
 ## 兼容更老的迁移脚本
 
-早期脚本会跳过路径以 `data` 或 `runtime` 开头的文件，无法靠新包修改已经运行的旧代码。因此，新增程序文件必须放在 `server/`、`tools/` 等正常更新区域。EasyTier 模板仍在 `dist-template/runtime/easytier/`，发布时放入 `server/easytier/`。
+早期脚本会跳过路径以 `data` 或 `runtime` 开头的文件，无法靠新包修改已经运行的旧代码。因此，新增程序文件必须放在 `server/`、`tools/` 等正常更新区域。
 
 发布脚本遍历待打包文件时调用 `assertReleaseMigrationPath()`，拒绝非 `data/` 的 `data*` 路径，以及 `runtime*` 下原有 Node 发行文件之外的内容。新增工具放错位置会中止发布，避免旧用户升级时静默漏装；更新 Node 发行模板时需同步核对 `policy.ts` 中允许的发行文件列表。
 

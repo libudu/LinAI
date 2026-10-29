@@ -2,14 +2,6 @@ import { HTTPException } from 'hono/http-exception'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { changeBus } from '../../../common/storage/change-bus'
-import { findRoomGrant, hasRoomGrant } from '../../interconnect/access'
-import type { RoomTransport } from '../../interconnect/https'
-import {
-  getMemberIdentity,
-  recordMemberLogin,
-  saveMemberIdentity,
-  type MemberLogin,
-} from '../../interconnect/members'
 import { getSystemSettings } from '../../system/settings'
 import { ensureLibraryReady } from '../library'
 import {
@@ -18,6 +10,12 @@ import {
   getEagleSharingSettings,
 } from '../settings'
 import { downloadSnapshot, type DownloadProgress } from './download-state'
+import {
+  getMemberIdentity,
+  recordMemberLogin,
+  saveMemberIdentity,
+  type MemberLogin,
+} from './members'
 import { validateLibraryDirectory } from './paths'
 
 const LEASE_MS = 12000
@@ -37,7 +35,6 @@ type Incoming = Transfer & {
   token: string
   name: string
   invitationCode: string
-  roomSecret?: string
   folderSharingCode: string
   memberId: string
   memberName: string
@@ -56,7 +53,7 @@ type Outgoing = Transfer & {
   id: string
   token: string
   url: string
-  transport: RoomTransport
+  transport: ReturnType<typeof directTransport>
   invitationCode: string
   state: State
   error: string
@@ -99,12 +96,6 @@ export function disconnectRemote() {
     ).catch(() => undefined)
 }
 
-export function revokeSharing(code?: string) {
-  for (const session of incoming.values())
-    if (session.roomSecret && (!code || session.invitationCode === code))
-      terminate(session, '房间成员授权已撤销')
-}
-
 export function normalizeRemoteUrl(input: string) {
   const url = new URL(input)
   if (
@@ -120,11 +111,11 @@ export function normalizeRemoteUrl(input: string) {
 }
 
 /** 直接访问共享方，仅向固定目标发送共享协议请求，不携带本机管理 Cookie。 */
-function directTransport(input: string): RoomTransport {
+function directTransport(input: string) {
   const url = normalizeRemoteUrl(input)
   return {
     url,
-    fetch(path, init) {
+    fetch(path: string | URL, init?: RequestInit) {
       const target = new URL(path, `${url}/`)
       if (
         target.origin !== url ||
@@ -133,17 +124,15 @@ function directTransport(input: string): RoomTransport {
         fail('共享请求目标不匹配')
       return fetch(target, { ...init, redirect: 'error', credentials: 'omit' })
     },
-    close() {},
   }
 }
 
 async function remoteJson(
-  transport: RoomTransport,
+  transport: ReturnType<typeof directTransport>,
   endpoint: string,
   token?: string,
   body?: object,
   signal?: AbortSignal,
-  timeoutMs = 8000,
 ) {
   const response = await transport.fetch(`/api/eagle/sharing${endpoint}`, {
     method: 'POST',
@@ -154,7 +143,7 @@ async function remoteJson(
     },
     body: JSON.stringify(body ?? {}),
     signal: AbortSignal.any([
-      AbortSignal.timeout(timeoutMs),
+      AbortSignal.timeout(8000),
       ...(signal ? [signal] : []),
     ]),
   })
@@ -191,27 +180,18 @@ export async function requestSharing(
   if (attempts.length >= 30) fail('共享请求过于频繁，请稍后重试')
   attempts.push(now)
   if (requesterInstance === instanceId) fail('不能连接到自己的 LinAI')
-  const direct = /^[A-Za-z0-9]{8}$/.test(invitationCode)
-  const grant = direct ? undefined : findRoomGrant(invitationCode)
-  if (!direct && !grant) fail('房间邀请已过期或撤销')
-  if (grant && !grant.memberId) fail('房间成员尚未登记，请稍后重新连接')
-  if (direct && !/^\d{6}$/.test((await getSystemSettings()).loginCode))
+  if (!/^\d{6}$/.test((await getSystemSettings()).loginCode))
     fail('共享方尚未配置系统登录验证码，无法共享 Eagle 资源库')
-  const memberId = grant?.memberId ?? requester.member?.id ?? requesterInstance
+  const memberId = requester.member?.id ?? requesterInstance
   const settings = await getEagleSettings()
   if (settings.libraryMode !== 'local' || !settings.libraryPath)
     fail('对方没有可共享的本地 Eagle 资源库')
   const user = (await getEagleSharingSettings()).users.find(
-    (user) => user.invitationCode === (grant?.code ?? invitationCode),
+    (user) => user.invitationCode === invitationCode,
   )
   if (!user) fail('邀请码无效或共享用户已删除')
-  if (!direct) {
-    await validateLibraryDirectory(settings.libraryPath, false)
-    await ensureLibraryReady()
-  }
   if (incoming.size >= 100) fail('共享连接数量已达上限，请稍后重试')
   if (
-    direct &&
     [...incoming.values()].some(
       (session) =>
         session.invitationCode === invitationCode &&
@@ -223,12 +203,11 @@ export async function requestSharing(
     id: randomUUID(),
     token: randomBytes(32).toString('hex'),
     ...user,
-    roomSecret: direct ? undefined : invitationCode,
     folderSharingCode: user.folderSharingCode ?? user.invitationCode,
     memberId,
-    memberName: grant?.memberName ?? requester.member?.name ?? user.name,
+    memberName: requester.member?.name ?? user.name,
     address: requester.address,
-    state: direct ? 'pending' : 'approved',
+    state: 'pending',
     createdAt: Date.now(),
     lastSeen: Date.now(),
     libraryPath: settings.libraryPath,
@@ -240,7 +219,7 @@ export async function requestSharing(
   }
   incoming.set(session.token, session)
   try {
-    // 加载资源库期间可能已经撤销邀请、删除权限组或切库。
+    // 握手期间可能已经删除共享用户或切库。
     // 在握手中提供权限版本，避免首次心跳补充版本时重复加载首屏。
     const status = await heartbeatIncoming(session.token)
     return { id: session.id, token: session.token, ...status }
@@ -273,10 +252,7 @@ async function validIncoming(token: string) {
         session.folderSharingCode,
   )
   if (
-    (session.roomSecret
-      ? !hasRoomGrant(session.invitationCode, session.roomSecret) ||
-        findRoomGrant(session.roomSecret)?.memberId !== session.memberId
-      : !/^\d{6}$/.test((await getSystemSettings()).loginCode)) ||
+    !/^\d{6}$/.test((await getSystemSettings()).loginCode) ||
     settings.libraryMode !== 'local' ||
     settings.libraryPath !== session.libraryPath ||
     !user
@@ -284,7 +260,7 @@ async function validIncoming(token: string) {
     terminate(session, '共享方已离线、切换资源库或取消了此用户的授权')
     fail('共享方已离线、切换资源库或取消了此用户的授权')
   }
-  // 读取设置期间也可能撤销成员。
+  // 读取设置期间也可能撤销共享用户。
   if (session.controller.signal.aborted) fail('共享连接已终止')
   session.name = user.name
   return session
@@ -381,28 +357,18 @@ function transferSnapshot(session: Transfer) {
   }
 }
 
-export async function connectRemote(
-  config:
-    | {
-        transport: RoomTransport
-        invitationCode: string
-      }
-    | {
-        url: string
-        invitationCode: string
-        memberName?: string
-      },
-) {
-  const direct = 'url' in config
-  const transport = direct ? directTransport(config.url) : config.transport
+export async function connectRemote(config: {
+  url: string
+  invitationCode: string
+  memberName?: string
+}) {
+  const transport = directTransport(config.url)
   const url = normalizeRemoteUrl(transport.url)
-  const identity = direct
-    ? await saveMemberIdentity(
-        config.memberName?.trim() ||
-          (await getMemberIdentity())?.name ||
-          '共享用户',
-      )
-    : undefined
+  const identity = await saveMemberIdentity(
+    config.memberName?.trim() ||
+      (await getMemberIdentity())?.name ||
+      '共享用户',
+  )
   disconnectRemote()
   const session: Outgoing = {
     id: randomUUID(),
@@ -426,15 +392,14 @@ export async function connectRemote(
       {
         invitationCode: config.invitationCode,
         instanceId,
-        ...(identity ? { member: { ...identity, sessionId: session.id } } : {}),
+        member: { ...identity, sessionId: session.id },
       },
       session.controller.signal,
-      direct ? 8000 : CONNECT_MS,
     )
     if (
       !result.token ||
       !result.id ||
-      result.state !== (direct ? 'pending' : 'approved') ||
+      result.state !== 'pending' ||
       result.permissionsRevision === undefined
     )
       fail('目标 LinAI 返回了无效的共享连接响应')
@@ -469,9 +434,7 @@ export function sharingSnapshot() {
       .map((entry) => ({
         id: entry.id,
         name: entry.name,
-        memberName: entry.roomSecret
-          ? findRoomGrant(entry.roomSecret)?.memberName
-          : entry.memberName,
+        memberName: entry.memberName,
         invitationCode: entry.invitationCode,
         state: entry.state,
         ...transferSnapshot(entry),
@@ -574,7 +537,7 @@ changeBus.subscribe('settings.eagle-folder-sharing', () => {
   }
 })
 
-// 删除权限组或切换库后立即撤销在途读取，不能等下一次媒体请求才发现。
+// 删除共享用户或切换库后立即撤销在途读取，不能等下一次媒体请求才发现。
 for (const resource of [
   'settings.eagle',
   'settings.eagle-sharing',

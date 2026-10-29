@@ -24,11 +24,16 @@ const packageRules = [
   },
 ]
 
-/** 只清理发布目录，不修改开发依赖、模板、用户数据或受校验的 EasyTier 资源。 */
+/** 只清理发布目录，不修改开发依赖、模板或用户数据。 */
 export function pruneDist(distDirectory: string) {
   const root = path.resolve(distDirectory)
   const rules = packageRules.filter((rule) => {
-    const manifestPath = path.join(root, 'node_modules', rule.name, 'package.json')
+    const manifestPath = path.join(
+      root,
+      'node_modules',
+      rule.name,
+      'package.json',
+    )
     if (!fs.existsSync(manifestPath)) return false
     const manifest = fs.readJsonSync(manifestPath)
     if (manifest.version === rule.version) return true

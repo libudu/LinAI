@@ -1,9 +1,9 @@
+import { dataPath } from '@/server/common/storage/data-path'
+import { DocumentStore } from '@/server/common/storage/document-store'
+import { StorageError } from '@/server/common/storage/errors'
+import { resourceLock } from '@/server/common/storage/resource-lock'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import { dataPath } from '../../common/storage/data-path'
-import { DocumentStore } from '../../common/storage/document-store'
-import { StorageError } from '../../common/storage/errors'
-import { resourceLock } from '../../common/storage/resource-lock'
 
 export const memberNameSchema = z.string().trim().min(1).max(80)
 const identitySchema = z.object({
@@ -14,13 +14,6 @@ export const memberLoginSchema = identitySchema.extend({
   sessionId: z.string().uuid(),
 })
 export type MemberLogin = z.infer<typeof memberLoginSchema>
-
-export const participantSchema = z.object({
-  name: memberNameSchema,
-  address: z.string(),
-  connection: z.enum(['direct', 'relay', 'unknown']).nullable().default(null),
-})
-export type Participant = z.infer<typeof participantSchema>
 
 const historySchema = z.array(
   identitySchema.extend({
@@ -33,6 +26,7 @@ type Identity = z.infer<typeof identitySchema>
 type LoginHistory = z.infer<typeof historySchema>
 
 // 由后端维护，不开放通用写接口；名称和设备标识与权限组授权相互独立。
+// 沿用历史数据目录，移除旧模块不重置 Eagle 的用户标识与登录记录。
 const identityStore = new DocumentStore<Identity>(
   dataPath('interconnect', 'identity.json'),
 )
@@ -46,11 +40,11 @@ export async function getMemberIdentity() {
   if (snapshot.value === undefined) return null
   const parsed = identitySchema.safeParse(snapshot.value)
   if (!parsed.success)
-    throw new StorageError('CORRUPT', '远程互联的用户标识文件格式不正确')
+    throw new StorageError('CORRUPT', 'Eagle 共享用户标识文件格式不正确')
   return parsed.data
 }
 
-// 直连与房间共用身份，在同一资源队列中创建或改名。
+// 在同一资源队列中创建身份或改名。
 export async function saveMemberIdentity(name: string): Promise<Identity> {
   return resourceLock.run('eagle.sharing-identity', async () => {
     const current = await getMemberIdentity()
@@ -68,7 +62,7 @@ export async function getMemberHistory() {
   if (snapshot.value === undefined) return []
   const parsed = historySchema.safeParse(snapshot.value)
   if (!parsed.success)
-    throw new StorageError('CORRUPT', '远程互联的登录历史文件格式不正确')
+    throw new StorageError('CORRUPT', 'Eagle 共享登录历史文件格式不正确')
   return parsed.data
 }
 
@@ -95,7 +89,7 @@ export async function recordMemberLogin(
   })
 }
 
-// 与两种连接方式的登录登记共用资源队列，删除不撤销当前连接。
+// 与登录登记共用资源队列，删除不撤销当前连接。
 export async function removeMemberHistory(
   groupId: string | string[],
   userId: string,

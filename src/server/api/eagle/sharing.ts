@@ -26,6 +26,11 @@ import {
   deleteSharingHistory,
   getSharingHistory,
 } from '../../module/eagle/sharing/history'
+import {
+  getMemberIdentity,
+  memberLoginSchema,
+  memberNameSchema,
+} from '../../module/eagle/sharing/members'
 import { validateLibraryDirectory } from '../../module/eagle/sharing/paths'
 import { isSharedRead } from '../../module/eagle/sharing/protocol'
 import {
@@ -40,11 +45,6 @@ import {
   sharingSnapshot,
 } from '../../module/eagle/sharing/service'
 import { bindSharedResponse } from '../../module/eagle/sharing/transport'
-import {
-  getMemberIdentity,
-  memberLoginSchema,
-  memberNameSchema,
-} from '../../module/interconnect/members'
 import libraryApi from './library'
 import { validate } from './validation'
 
@@ -214,7 +214,7 @@ const sharingApi = new Hono()
     validate(
       'json',
       z.object({
-        invitationCode: z.string().regex(/^(?:[A-Za-z0-9]{8}|[a-f0-9]{64})$/),
+        invitationCode: z.string().regex(/^[A-Za-z0-9]{8}$/),
         instanceId: z.string().uuid(),
         member: memberLoginSchema.optional(),
       }),

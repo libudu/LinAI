@@ -51,9 +51,7 @@ export async function guardEagleAccess(c: Context, next: Next) {
     ? decodeURIComponent(path.slice('/api/settings/'.length))
     : ''
   const management =
-    path.startsWith('/api/interconnect/') ||
     path.startsWith('/api/eagle/sharing/') ||
-    settingId === 'interconnect' ||
     settingId === 'eagle-sharing' ||
     settingId === 'eagle-folder-sharing'
   if (management || (await getEagleSharingSettings()).users.length > 0) {

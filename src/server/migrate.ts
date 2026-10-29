@@ -1,7 +1,7 @@
 import fs from 'fs-extra'
 import JSZip from 'jszip'
 import { spawn } from 'node:child_process'
-import { createHash, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { open } from 'node:fs/promises'
 import path from 'path'
 import {
@@ -47,50 +47,6 @@ async function runLatestMigrator(
     })
   } finally {
     await fs.remove(scriptPath)
-  }
-}
-
-async function validateEasytier(zip: JSZip, zipRootPath: string) {
-  const prefix = `${zipRootPath}server/easytier/`
-  const manifestFile = zip.file(`${prefix}manifest.json`)
-  if (!manifestFile) throw new Error('新版压缩包缺少 EasyTier 运行资源清单')
-  const manifest = JSON.parse(await manifestFile.async('string')) as {
-    files?: Record<string, string>
-  }
-  if (
-    !manifest.files ||
-    typeof manifest.files !== 'object' ||
-    Array.isArray(manifest.files)
-  )
-    throw new Error('新版压缩包的 EasyTier 运行资源清单无效')
-  for (const name of [
-    'easytier-core.exe',
-    'easytier-cli.exe',
-    'watch-parent.ps1',
-    'LICENSE-LGPL-3.0.txt',
-    'LICENSE-GPL-3.0.txt',
-    'LICENSE-MINGW.txt',
-    'build-portable.ps1',
-    'SOURCES.md',
-  ])
-    if (!manifest.files[name])
-      throw new Error(`新版压缩包的 EasyTier 运行资源清单缺少 ${name}`)
-  for (const [name, hash] of Object.entries(manifest.files)) {
-    if (
-      !/^[A-Za-z0-9._-]+$/.test(name) ||
-      name === '.' ||
-      name === '..' ||
-      typeof hash !== 'string' ||
-      !/^[a-f0-9]{64}$/i.test(hash)
-    )
-      throw new Error('新版压缩包的 EasyTier 运行资源清单无效')
-    const file = zip.file(`${prefix}${name}`)
-    if (!file) throw new Error(`新版压缩包缺少 EasyTier 文件：${name}`)
-    const actual = createHash('sha256')
-      .update(await file.async('nodebuffer'))
-      .digest('hex')
-    if (actual !== hash.toLowerCase())
-      throw new Error(`新版压缩包的 EasyTier 文件校验失败：${name}`)
   }
 }
 
@@ -172,19 +128,13 @@ async function run() {
     return
   }
 
-  // 依赖和 EasyTier 都整体替换，避免旧文件残留或核心与清单版本混用。
-  const replacementPaths = ['node_modules', 'server/easytier'].filter(
-    (directory) =>
-      Object.entries(zip.files).some(
-        ([relativePath, file]) =>
-          !file.dir && relativePath.startsWith(`${zipRootPath}${directory}/`),
-      ),
+  // 依赖整体替换，避免已移除的包继续残留。
+  const replacementPaths = ['node_modules'].filter((directory) =>
+    Object.entries(zip.files).some(
+      ([relativePath, file]) =>
+        !file.dir && relativePath.startsWith(`${zipRootPath}${directory}/`),
+    ),
   )
-  // 校验通过后才开始覆盖旧版文件，缺失或损坏的核心不能安装。
-  if (replacementPaths.includes('server/easytier')) {
-    await validateEasytier(zip, zipRootPath)
-  }
-
   console.log('正在解压新版本文件，请稍候...')
   let extractedCount = 0
   const stagingDir = replacementPaths.length
@@ -224,7 +174,10 @@ async function run() {
         targetRelativePath.includes(':')
       )
         throw new Error(`压缩包包含无效路径：${relativePath}`)
-      const targetKey = targetRelativePath.split(path.sep).join('/').toLowerCase()
+      const targetKey = targetRelativePath
+        .split(path.sep)
+        .join('/')
+        .toLowerCase()
 
       // 默认更新所有文件，仅保留用户数据和无法覆盖的当前 Node 可执行文件。
       if (
@@ -285,6 +238,11 @@ async function run() {
       }
       if (!preserveStaging) await fs.remove(stagingDir)
     }
+  }
+
+  // 旧版网络运行资源不再随新版分发；仅清理程序目录，保留整个 data 目录。
+  for (const directory of ['server/easytier', 'runtime/easytier']) {
+    await fs.remove(path.join(rootDir, directory))
   }
 
   console.log(`\n迁移完成！共更新/覆盖了 ${extractedCount} 个文件。`)

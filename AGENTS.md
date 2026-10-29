@@ -9,7 +9,6 @@
 - 仅在所有代码编写完成的最后运行类型检查，仅使用 `npx tsc --noEmit`，不要用 eslint、不要用 build 命令
 - 除非明确要求，否则禁止使用视觉能力验证结果，避免视觉能力造成过量 token 消耗
 - 涉及图片整理或 Eagle 的需求，先阅读 `src/client/pages/module/Eagle/README.md` 了解相关设计；不涉及则无需阅读
-- 涉及远程互联的需求，先阅读 `src/server/module/interconnect/README.md` 了解相关设计；不涉及则无需阅读
 
 ## 常用命令
 

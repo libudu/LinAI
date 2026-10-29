@@ -4,7 +4,6 @@ import {
   BookOutlined,
   FolderOpenOutlined,
   HighlightOutlined,
-  LinkOutlined,
   PictureOutlined,
 } from '@ant-design/icons'
 import type { ReactNode } from 'react'
@@ -14,7 +13,6 @@ import { Eagle } from './pages/module/Eagle'
 import { openEagleSettingModal } from './pages/module/Eagle/SettingModal'
 import { TTS } from './pages/module/GeminiTTS'
 import { openTTSSettingModal } from './pages/module/GeminiTTS/SettingModal'
-import { Interconnect } from './pages/module/Interconnect'
 import { Novel } from './pages/module/Novel'
 import { openNovelSettingModal } from './pages/module/Novel/SettingModal'
 import { PerlerBead } from './pages/module/PerlerBead'
@@ -87,13 +85,5 @@ export const appRoutes: AppRoute[] = [
     icon: <FolderOpenOutlined />,
     onClickSetting: () => openEagleSettingModal(),
     fullBleed: true,
-  },
-  {
-    path: '/interconnect',
-    label: '远程互联',
-    element: <Interconnect />,
-    key: 'interconnect',
-    icon: <LinkOutlined />,
-    hidden: true,
   },
 ]

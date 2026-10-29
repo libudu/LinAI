@@ -15,7 +15,6 @@ import eagleApi from './api/eagle'
 import gptImageApi from './api/gpt-image'
 import staticApi from './api/gpt-image/assets'
 import taskApi from './api/gpt-image/tasks'
-import interconnectApi from './api/interconnect'
 import openaiApi from './api/openai'
 import ttsApi from './api/tts'
 import ttsInworldApi from './api/tts/inworld'
@@ -98,7 +97,6 @@ app.get(
   serveStatic({ path: path.resolve(__dirname, '../client/login.html') }),
 )
 app.use('/api/eagle/*', guardEagleAccess)
-app.use('/api/interconnect/*', guardEagleAccess)
 app.use('/api/settings/*', guardEagleAccess)
 
 const routes = app
@@ -108,7 +106,6 @@ const routes = app
   .route('/api/tts-inworld', ttsInworldApi)
   .route('/api/gptImage', gptImageApi)
   .route('/api/eagle', eagleApi)
-  .route('/api/interconnect', interconnectApi)
   // 图片业务接口沿用既有 URL，任务与图库由生图业务服务编排。
   .route('/api/task', taskApi)
   .route('/api/static', staticApi)
