@@ -4,10 +4,17 @@ import { stripVTControlCharacters } from 'node:util'
 const MAX_LINE = 8192
 const ERROR_LEASE_MS = 30000
 
-// 单次探测失败、心跳断开及离线节点转发失败不代表整个房间故障。
+// 单次探测、握手、心跳及转发超时不代表整个房间故障，持续失败由房间状态提示。
 function isConnectionRetry(message: string) {
   return (
     /^connect timeout after /i.test(message) ||
+    /^handshake timeout after /i.test(message) ||
+    /^wait response error:\s*conn closed during wait handshake response\b/i.test(
+      message,
+    ) ||
+    /^port-forward connect failed\b.*\bkind:\s*DeadlineExceeded\b/i.test(
+      message,
+    ) ||
     /^too many consecutive pingpong failures, closing the connection\b/i.test(
       message,
     ) ||

@@ -263,8 +263,15 @@ export async function roomStatus() {
               ? current.core.output.message({ includeConnectionRetries: false })
               : '') ||
             (connectionDelayed
-              ? '暂未连接到房主，正在自动重试。请确认房主仍在房间中，且双方网络可用。'
+              ? '暂未连接到房主，正在自动重试。请确认房主仍在房间中；若持续失败，请检查连接服务器是否可用并支持安全模式，或更换网络重试。'
               : ''),
+          diagnostics:
+            current.error ||
+            networkError ||
+            connectionDelayed ||
+            current.memberError
+              ? current.core.output.message()
+              : '',
           memberError: current.memberError,
           memberName: current.identity?.name,
           participants: (current.role === 'host'
@@ -610,8 +617,9 @@ const timer = setInterval(() => {
         if (current.role === 'guest') {
           if (connections.has(HOST_IP)) {
             current.hostDisconnectedAt = null
-            current.core.output.clearConnectionRetries()
             await syncMember(current)
+            if (room === current && !current.memberError)
+              current.core.output.clearConnectionRetries()
           } else {
             current.hostDisconnectedAt ??= Date.now()
             current.participants = []

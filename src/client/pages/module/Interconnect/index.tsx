@@ -436,6 +436,32 @@ export function Interconnect() {
             {room.memberError && (
               <Alert type="warning" showIcon title={room.memberError} />
             )}
+            {room.role === 'guest' && (room.error || room.memberError) && (
+              <details className="rounded-lg border border-slate-200 p-3 text-sm text-slate-500">
+                <summary className="cursor-pointer">连接诊断</summary>
+                <div className="mt-3 space-y-3">
+                  <p className="m-0">
+                    握手超时或连接关闭可能来自不可达的地址、网络限制或服务器不兼容；转发超时表示尚未成功访问房主服务，单条日志无法确定原因。
+                  </p>
+                  <p className="m-0">
+                    跨网络连接需要双方能够访问支持 EasyTier
+                    安全模式的公共节点，无法直连时还需要节点允许中转。房主更换连接服务器后，需要关闭并重新创建房间、发送新邀请；加入方修改本机服务器设置不会更改当前邀请。
+                  </p>
+                  <div>
+                    <div className="mb-1">邀请中的连接地址</div>
+                    <div className="font-mono break-all whitespace-pre-wrap">
+                      {room.peers.join('\n')}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-1">最近 30 秒的核心诊断（已隐藏密钥）</div>
+                    <pre className="m-0 max-h-48 overflow-auto rounded bg-slate-50 p-2 text-xs break-all whitespace-pre-wrap">
+                      {room.diagnostics || '最近没有核心错误日志。'}
+                    </pre>
+                  </div>
+                </div>
+              </details>
+            )}
           </div>
           {room.role === 'host' && (
             <div className="border-t border-slate-100 p-5 sm:p-6">
