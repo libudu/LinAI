@@ -309,6 +309,7 @@ export const startFolderDownload = (id: string) =>
       body: JSON.stringify({
         taskId: id,
         folderId: plan.folderId,
+        mediaType: plan.mediaType,
         total: entries.length,
       }),
     })

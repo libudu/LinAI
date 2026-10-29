@@ -5,7 +5,8 @@ import type { SharingStatus } from './api'
 type Task = Pick<
   SharingStatus['downloads'][number],
   'id' | 'folder' | 'completed' | 'remaining' | 'percent' | 'state' | 'error'
->
+> &
+  Partial<Pick<SharingStatus['downloads'][number], 'mediaType'>>
 
 const states = {
   queued: '等待下载',
@@ -40,6 +41,11 @@ export function DownloadTaskList({ tasks }: { tasks: Task[] }) {
             <div key={task.id} className="space-y-1 py-2">
               <div className="flex items-center justify-between gap-3 text-sm">
                 <div className="flex min-w-0 items-baseline gap-1">
+                  {task.mediaType && (
+                    <span className="shrink-0">
+                      [{task.mediaType === 'image' ? '图片' : '视频'}]
+                    </span>
+                  )}
                   <span className="min-w-0 truncate" title={task.folder}>
                     {task.folder}
                   </span>

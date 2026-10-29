@@ -258,6 +258,7 @@ const sharingApi = new Hono()
       z.object({
         folderId: z.string().min(1),
         taskId: z.string().uuid(),
+        mediaType: z.enum(['image', 'video']).optional(),
         total: z
           .number()
           .int()
@@ -267,12 +268,13 @@ const sharingApi = new Hono()
       }),
     ),
     async (c) => {
-      const { folderId, taskId, total } = c.req.valid('json')
+      const { folderId, taskId, total, mediaType } = c.req.valid('json')
       await recordDownloadLog(
         bearer(c.req.header('authorization')),
         folderId,
         taskId,
         total,
+        mediaType,
       )
       return c.json({ success: true as const, data: null })
     },

@@ -1,3 +1,4 @@
+import type { EagleMediaType } from '@/shared/eagle/types'
 import { HTTPException } from 'hono/http-exception'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { z } from 'zod'
@@ -47,7 +48,10 @@ type Incoming = Transfer & {
   libraryPath: string
   controller: AbortController
   readController: AbortController
-  downloads: (DownloadProgress & { folder: string })[]
+  downloads: (DownloadProgress & {
+    folder: string
+    mediaType?: EagleMediaType
+  })[]
 }
 type Outgoing = Transfer & {
   id: string

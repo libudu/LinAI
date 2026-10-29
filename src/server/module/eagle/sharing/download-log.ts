@@ -2,6 +2,7 @@ import { dataPath } from '@/server/common/storage/data-path'
 import { DocumentStore } from '@/server/common/storage/document-store'
 import { StorageError } from '@/server/common/storage/errors'
 import { resourceLock } from '@/server/common/storage/resource-lock'
+import type { EagleMediaType } from '@/shared/eagle/types'
 import { z } from 'zod'
 import { getFolderTree } from '../library'
 import { getEagleFolderSharingSettings } from '../settings'
@@ -45,6 +46,7 @@ export async function recordDownloadLog(
   folderId: string,
   taskId: string,
   total?: number,
+  mediaType?: EagleMediaType,
 ) {
   const session = await authorizeRead(token)
   const userId = session.memberId
@@ -105,6 +107,7 @@ export async function recordDownloadLog(
       session.downloads.push({
         id: taskId,
         folder: names.join(' / '),
+        mediaType,
         completed: 0,
         total,
         percent: 0,
