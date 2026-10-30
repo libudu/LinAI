@@ -48,44 +48,15 @@ const createContactSheet = async (
   layout: ReturnType<typeof getVideoContactSheetLayout>,
   signal?: AbortSignal,
 ) => {
-  if (!ffmpegPath) throw new Error('当前平台缺少视频解码器')
   const frames: Buffer[] = []
   // 输入前 seek，长视频无需从头解码；每次仅保留一张小图，不缓存原视频。
   for (let index = 0; index < layout.frameCount; index++) {
-    const frame = await runMediaCommand(
-      ffmpegPath,
-      [
-        '-hide_banner',
-        '-loglevel',
-        'error',
-        '-nostdin',
-        '-threads',
-        '1',
-        '-ss',
-        String(index * layout.interval),
-        '-i',
-        filePath,
-        '-map',
-        '0:v:0',
-        '-an',
-        '-sn',
-        '-dn',
-        '-vf',
-        `scale=iw*sar:ih,setsar=1,scale=${layout.maxDimension}:${layout.maxDimension}:force_original_aspect_ratio=decrease`,
-        '-frames:v',
-        '1',
-        '-threads',
-        '1',
-        '-f',
-        'image2pipe',
-        '-c:v',
-        'png',
-        'pipe:1',
-      ],
+    const frame = await extractVideoFrame(
+      filePath,
+      index * layout.interval,
+      layout.maxDimension,
       signal,
     )
-    if (!frame.length)
-      throw new Error(`视频 ${index * layout.interval} 秒处无法提取画面`)
     frames.push(frame)
   }
   signal?.throwIfAborted()
@@ -109,6 +80,50 @@ const createContactSheet = async (
     )
     .webp({ quality })
     .toBuffer()
+}
+
+/** 共用单帧抽取，FFmpeg 自动处理旋转，保持显示比例。调用方负责限制解码并发。 */
+export const extractVideoFrame = async (
+  filePath: string,
+  seconds: number,
+  maxDimension: number,
+  signal?: AbortSignal,
+) => {
+  if (!ffmpegPath) throw new Error('当前平台缺少视频解码器')
+  const frame = await runMediaCommand(
+    ffmpegPath,
+    [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-nostdin',
+      '-threads',
+      '1',
+      '-ss',
+      String(seconds),
+      '-i',
+      filePath,
+      '-map',
+      '0:v:0',
+      '-an',
+      '-sn',
+      '-dn',
+      '-vf',
+      `scale=iw*sar:ih,setsar=1,scale=${maxDimension}:${maxDimension}:force_original_aspect_ratio=decrease`,
+      '-frames:v',
+      '1',
+      '-threads',
+      '1',
+      '-f',
+      'image2pipe',
+      '-c:v',
+      'png',
+      'pipe:1',
+    ],
+    signal,
+  )
+  if (!frame.length) throw new Error(`视频 ${seconds} 秒处无法提取画面`)
+  return frame
 }
 
 /** 联系表随视频长期保存在库内；按需读取，改名、分类和搬迁库不使其失效。 */

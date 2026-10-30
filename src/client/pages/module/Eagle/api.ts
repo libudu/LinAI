@@ -101,7 +101,8 @@ export const trashAllUnclassifiedEagleItems = (mediaType: EagleMediaType) =>
   rpcData(eagleRpc.unclassified.trash.$post({ query: { mediaType } }))
 
 export const eagleThumbnailUrl = (id: string, version?: string) =>
-  `${eagleRpc.items[':id'].thumbnail.$path({ param: { id } })}${version ? `?v=${encodeURIComponent(version)}` : ''}`
+  // 更新规则版本，避开旧版浏览器缓存中的视频占位图。
+  `${eagleRpc.items[':id'].thumbnail.$path({ param: { id } })}?thumbnail=2${version ? `&v=${encodeURIComponent(version)}` : ''}`
 export const eagleFileUrl = (id: string, version?: string) =>
   `${eagleRpc.items[':id'].file.$path({ param: { id } })}${version ? `?v=${encodeURIComponent(version)}` : ''}`
 export const eaglePreviewUrl = (id: string, version?: string) =>

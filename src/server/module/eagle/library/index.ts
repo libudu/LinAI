@@ -60,3 +60,4 @@ export {
   readVideoContactSheet,
   saveVideoContactSheet,
 } from './video-contact-sheet'
+export { saveVideoThumbnail } from './video-thumbnail'

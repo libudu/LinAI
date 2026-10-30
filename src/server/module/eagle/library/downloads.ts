@@ -25,6 +25,7 @@ import { toEagleItem } from './query'
 import {
   EAGLE_LIBRARY_RESOURCE,
   imagesDir,
+  isVideoExt,
   matchesMediaType,
   withLibraryLock,
 } from './runtime'
@@ -265,6 +266,7 @@ export async function commitDownloadedItem(
   item: DownloadItem,
   stagedFile: string,
   signal: AbortSignal,
+  stagedThumbnail?: string,
 ) {
   await assertLocalLibrary(libraryPath)
   const committed = await withLibraryMutation<boolean>(
@@ -364,6 +366,29 @@ export async function commitDownloadedItem(
         ? await readWritableItemMeta(libraryPath, item.id)
         : null
       if (existing && !oldMeta) throw new Error('本地条目元数据已不存在')
+      let thumbnailName = existing?.thumbnailName ?? null
+      let writeThumbnail = false
+      if (stagedThumbnail) {
+        if (!isVideoExt(item.ext)) throw new Error('仅视频下载支持附带封面')
+        await assertPlainPath(stagedThumbnail)
+        if (
+          thumbnailName &&
+          (await fs.pathExists(path.join(infoDir, thumbnailName)))
+        ) {
+          // 补下载时保留本地已有封面，不覆盖外部 Eagle 的修改。
+          await assertPlainPath(path.join(infoDir, thumbnailName))
+        } else {
+          thumbnailName = `${existing?.name ?? item.name}_thumbnail.png`
+          if (
+            path.basename(thumbnailName) !== thumbnailName ||
+            /[\\/:*?"<>|\x00-\x1f]/.test(thumbnailName)
+          )
+            throw new Error('视频封面文件名不适用于本地资源库')
+          if (await fs.pathExists(path.join(infoDir, thumbnailName)))
+            throw new Error('本地视频封面已出现，请刷新资源库后重试')
+          writeThumbnail = true
+        }
+      }
       // 以锁内重读的磁盘归属为准，保留远程未共享或本地新增的分类。
       const folderIds = [
         ...new Set([...(oldMeta?.folders ?? []), ...importedFolderIds]),
@@ -411,6 +436,10 @@ export async function commitDownloadedItem(
         signal.throwIfAborted()
         const originalPath = path.join(infoDir, existing.fileName)
         let copied: Stats | null = null
+        let copiedThumbnail: Stats | null = null
+        const thumbnailPath = thumbnailName
+          ? path.join(infoDir, thumbnailName)
+          : null
         try {
           await fs.copyFile(
             stagedFile,
@@ -429,27 +458,50 @@ export async function commitDownloadedItem(
           } finally {
             await handle.close()
           }
+          if (writeThumbnail && thumbnailPath) {
+            await fs.copyFile(
+              stagedThumbnail!,
+              thumbnailPath,
+              fs.constants.COPYFILE_EXCL,
+            )
+            copiedThumbnail = await fs.lstat(thumbnailPath)
+            const handle = await open(thumbnailPath, 'r+')
+            try {
+              await handle.sync()
+            } finally {
+              await handle.close()
+            }
+          }
           signal.throwIfAborted()
           await writeJsonFile(path.join(infoDir, 'metadata.json'), meta, {
             backup: false,
           })
         } catch (error) {
-          if (copied) {
-            const current = await assertPlainPath(originalPath)
+          const created = [
+            { target: originalPath, stat: copied },
+            { target: thumbnailPath, stat: copiedThumbnail },
+          ].filter(
+            (file): file is { target: string; stat: Stats } =>
+              file.target !== null && file.stat !== null,
+          )
+          // 全部校验通过后才回滚，保留已被外部修改的文件。
+          for (const { target, stat } of created) {
+            const current = await assertPlainPath(target)
             if (
-              current.ino !== copied.ino ||
-              current.size !== copied.size ||
-              current.mtimeMs !== copied.mtimeMs
+              current.ino !== stat.ino ||
+              current.size !== stat.size ||
+              current.mtimeMs !== stat.mtimeMs
             )
               throw new Error(
                 '补下载的文件已被外部修改，已保留文件，请检查本地资源库',
               )
-            await fs.unlink(originalPath)
           }
+          for (const { target } of created) await fs.unlink(target)
           throw error
         }
         index.items.set(item.id, {
           ...existing,
+          thumbnailName,
           size: meta.size,
           width: meta.width ?? 0,
           height: meta.height ?? 0,
@@ -476,6 +528,20 @@ export async function commitDownloadedItem(
             new Date(item.mtime),
             new Date(item.mtime),
           )
+          if (writeThumbnail && thumbnailName) {
+            const target = path.join(staging, thumbnailName)
+            await fs.copyFile(
+              stagedThumbnail!,
+              target,
+              fs.constants.COPYFILE_EXCL,
+            )
+            const handle = await open(target, 'r+')
+            try {
+              await handle.sync()
+            } finally {
+              await handle.close()
+            }
+          }
           await writeJsonFile(path.join(staging, 'metadata.json'), meta, {
             backup: false,
           })
@@ -493,7 +559,11 @@ export async function commitDownloadedItem(
           // 仅清理本次创建的确切文件和空目录，不递归清理库内目录。
           if (await fs.pathExists(staging)) {
             await assertPlainPath(staging, true)
-            for (const name of [safeName, 'metadata.json']) {
+            for (const name of [
+              safeName,
+              'metadata.json',
+              ...(writeThumbnail && thumbnailName ? [thumbnailName] : []),
+            ]) {
               const file = path.join(staging, name)
               if (await fs.pathExists(file)) {
                 await assertPlainPath(file)
@@ -507,7 +577,7 @@ export async function commitDownloadedItem(
           ...item,
           folders: folderIds,
           fileName: safeName,
-          thumbnailName: null,
+          thumbnailName,
           isDeleted: false,
           lastModified: changes.timestamp,
         })

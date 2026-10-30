@@ -333,11 +333,20 @@ const libraryApi = new Hono<{
     try {
       const source = await getMediaSource(c.req.param('id'))
       if (!source) return errorResponse(c, 404, '条目不存在')
-      if (notModified(c, source.contentVersion)) return c.body(null, 304)
-      const thumbnail = await getThumbnail(source)
+      const missingVideoThumbnail =
+        isVideoExt(source.ext) &&
+        (!source.thumbnailPath || !(await fs.pathExists(source.thumbnailPath)))
+      if (!missingVideoThumbnail && notModified(c, source.contentVersion))
+        return c.body(null, 304)
+      const thumbnail = await getThumbnail(source, {
+        // 远程只读共享不能触发对方写库或解码。
+        generateVideoThumbnail: !c.env?.eagleSharingAccess,
+      })
       return c.body(thumbnail.content, 200, {
         'Content-Type': thumbnail.contentType,
-        ...itemCacheHeaders(source.contentVersion, c.req.query('v')),
+        ...(thumbnail.contentType === 'image/svg+xml'
+          ? { 'Cache-Control': 'no-store' }
+          : itemCacheHeaders(source.contentVersion, c.req.query('v'))),
       })
     } catch (error) {
       return mediaErrorResponse(c, error)

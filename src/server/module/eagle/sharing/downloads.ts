@@ -8,6 +8,7 @@ import path from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { setTimeout as delay } from 'node:timers/promises'
+import sharp from 'sharp'
 import { runPool } from '../concurrency'
 import { EagleError } from '../errors'
 import {
@@ -16,6 +17,7 @@ import {
   downloadManifestSchema,
   downloadStatusManifestSchema,
   getDownloadedItemIds,
+  isVideoExt,
   matchesMediaType,
   type DownloadManifest,
 } from '../library'
@@ -45,6 +47,7 @@ async function cleanupTemporaryDownload(directory: string) {
   const errors: unknown[] = []
   for (const remove of [
     () => fs.unlink(path.join(directory, 'original')),
+    () => fs.unlink(path.join(directory, 'thumbnail.png')),
     () => fs.rmdir(directory),
   ]) {
     for (let attempt = 0; ; attempt++) {
@@ -150,6 +153,54 @@ async function remoteManifest(
   if (!manifest.folders.some((entry) => entry.id === folderId))
     throw new EagleError('FOLDER_NOT_FOUND', 404, '文件夹不存在或已取消共享')
   return manifest
+}
+
+/** 只获取真实的视频封面，统一输出 Eagle 可识别的 PNG，不下载联系表或占位图。 */
+async function downloadVideoThumbnail(
+  session: Session,
+  item: DownloadManifest['items'][number],
+  directory: string,
+  signal: AbortSignal,
+) {
+  const response = await remoteResponse(
+    session,
+    `/library/items/${item.id}/thumbnail`,
+    { signal },
+  )
+  if (
+    !response.body ||
+    response.headers.get('etag')?.replaceAll('"', '') !== item.contentVersion
+  ) {
+    await response.body?.cancel()
+    throw new Error('远程视频封面版本已改变')
+  }
+  // 视频没有 Eagle 缩略图时，接口返回默认 SVG 播放图标，不将其保存为封面。
+  if (
+    response.headers.get('content-type')?.split(';')[0].trim() ===
+    'image/svg+xml'
+  ) {
+    await response.body.cancel()
+    return undefined
+  }
+  let bytes = 0
+  const count = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      bytes += chunk.length
+      recordTransfer(session, chunk.length)
+      if (bytes > 32 * 1024 * 1024)
+        callback(new Error('远程视频封面超过 32 MB'))
+      else callback(null, chunk)
+    },
+  })
+  const target = path.join(directory, 'thumbnail.png')
+  await pipeline(
+    Readable.fromWeb(response.body as import('node:stream/web').ReadableStream),
+    count,
+    sharp({ limitInputPixels: 32 * 1024 * 1024 }).png(),
+    fs.createWriteStream(target, { flags: 'wx' }),
+    { signal },
+  )
+  return target
 }
 
 function missingItems(remote: DownloadManifest, localIds: ReadonlySet<string>) {
@@ -503,6 +554,9 @@ export const startFolderDownload = (id: string) =>
               )
               if (bytes !== item.size) throw new Error('远程文件下载不完整')
               const stagedFile = path.join(temporary, 'original')
+              const stagedThumbnail = isVideoExt(item.ext)
+                ? await downloadVideoThumbnail(session, item, temporary, signal)
+                : undefined
               // 校验与提交串行执行；其他工作槽仍可继续下载。
               await resourceLock.run('eagle.download-commit', async () => {
                 try {
@@ -515,6 +569,7 @@ export const startFolderDownload = (id: string) =>
                     item,
                     stagedFile,
                     signal,
+                    stagedThumbnail,
                   )
                   task.completed++
                   task.currentProgress.delete(item.id)

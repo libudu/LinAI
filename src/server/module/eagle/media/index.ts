@@ -7,6 +7,7 @@ import type { EagleItemMediaSource } from '../library'
 import { getItemMediaSource, isVideoExt } from '../library'
 import { THUMB_SIZE, thumbnailCachePath } from './cache'
 import { encodeStaticHeif } from './heic'
+import { getVideoThumbnail } from './video-thumbnail'
 
 const MIME_BY_EXT: Record<string, string> = {
   jpg: 'image/jpeg',
@@ -79,8 +80,11 @@ export const getPreview = async (source: EagleItemMediaSource) => {
   }
 }
 
-/** 优先库内缩略图，缺失时生成应用缓存；同图请求串行，避免临时文件相互覆盖。 */
-export const getThumbnail = async (source: EagleItemMediaSource) => {
+/** 优先库内缩略图；本地视频缺失时补齐库内封面，图片回退到应用缓存。 */
+export const getThumbnail = async (
+  source: EagleItemMediaSource,
+  { generateVideoThumbnail = true } = {},
+) => {
   if (source.thumbnailPath) {
     try {
       const file = await fs.readFile(source.thumbnailPath)
@@ -93,6 +97,17 @@ export const getThumbnail = async (source: EagleItemMediaSource) => {
     }
   }
   if (isVideoExt(source.ext)) {
+    if (generateVideoThumbnail) {
+      try {
+        const thumbnail = await getVideoThumbnail(source)
+        return {
+          content: new Uint8Array(thumbnail.buffer),
+          contentType: mimeOf(path.extname(thumbnail.filePath).slice(1)),
+        }
+      } catch (error) {
+        console.error(`[Eagle] 视频封面生成失败：${source.id}`, error)
+      }
+    }
     return {
       content: `<svg xmlns="http://www.w3.org/2000/svg" width="${THUMB_SIZE}" height="${THUMB_SIZE}" viewBox="0 0 24 24" fill="#94a3b8"><path d="M8 5v14l11-7z"/></svg>`,
       contentType: 'image/svg+xml',
