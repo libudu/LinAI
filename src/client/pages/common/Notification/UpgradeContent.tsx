@@ -3,6 +3,11 @@ import copy from 'copy-to-clipboard'
 import { MessageList } from './MessageList'
 
 const upgradeHistory = [
+  `LinAI v2.2.0 更新内容 🐱：
+🦅 Eagle 新增远程资源库共享，支持邀请码、连接审批、文件夹授权
+📥 远程资源库支持按目录下载图片与视频，展示下载数量和进度，视频封面随同下载并支持本地缺失补齐
+🎞️ 视频支持裁剪另存与预览内整理确认，图片和视频整理任务可独立并行，优化播放手势交互
+🔐 新增远程访问登录验证码，可在系统设置中配置`,
   `LinAI v2.1.0 更新内容 🐱：
 🔌 新增 ComfyUI 工作流生图接入，云端接入点升级至 gpt-image-2.5，支持 xhigh / max 画质
 🦅 Eagle 智能整理支持视频、子目录分类与递归仅重命名，新增快速确认和批量提交
