@@ -16,9 +16,11 @@ function formatFileSize(bytes: number) {
 export function TaskImage({
   src,
   showSize,
+  onPreview,
 }: {
   src: string
   showSize: boolean
+  onPreview: () => void
 }) {
   const [size, setSize] = useState<{ width: number; height: number } | null>(
     null,
@@ -57,6 +59,10 @@ export function TaskImage({
         <Image
           src={src}
           alt="result"
+          onClick={onPreview}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') onPreview()
+          }}
           classNames={{
             root: 'w-full h-full',
             image: 'w-full! h-full! object-cover',

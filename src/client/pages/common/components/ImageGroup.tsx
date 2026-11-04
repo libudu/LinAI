@@ -6,6 +6,7 @@ interface ImageGroupProps {
   width: number
   height: number
   previewGroup?: boolean
+  onPreview?: (imageIndex: number) => void
 }
 
 const MAX_VISIBLE_IMAGES = 8
@@ -16,6 +17,7 @@ export function ImageGroup({
   width,
   height,
   previewGroup = true,
+  onPreview,
 }: ImageGroupProps) {
   if (!images || images.length === 0) return null
 
@@ -85,6 +87,11 @@ export function ImageGroup({
               <Image
                 src={url}
                 alt={`image-${index}`}
+                onClick={() => onPreview?.(index)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ')
+                    onPreview?.(index)
+                }}
                 width={cardWidth}
                 height={cardHeight}
                 className="object-cover"
@@ -100,6 +107,11 @@ export function ImageGroup({
                 key={`hidden-${index}`}
                 src={url}
                 alt={`image-hidden-${index}`}
+                onClick={() => onPreview?.(MAX_VISIBLE_IMAGES + index)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ')
+                    onPreview?.(MAX_VISIBLE_IMAGES + index)
+                }}
               />
             ))}
           </div>

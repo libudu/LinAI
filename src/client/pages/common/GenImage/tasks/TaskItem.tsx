@@ -21,9 +21,15 @@ interface TaskItemProps {
   task: Task & { outputUrls: string[] }
   downloadedIds: string[]
   onDownloaded: () => void
+  onPreview: (imageIndex: number) => void
 }
 
-export function TaskItem({ task, downloadedIds, onDownloaded }: TaskItemProps) {
+export function TaskItem({
+  task,
+  downloadedIds,
+  onDownloaded,
+  onPreview,
+}: TaskItemProps) {
   const { gptImageSettings } = useLocalSetting()
   const { retry: handleRetry } = useImageGeneration()
 
@@ -78,11 +84,13 @@ export function TaskItem({ task, downloadedIds, onDownloaded }: TaskItemProps) {
                 width={100}
                 height={130}
                 previewGroup={false}
+                onPreview={onPreview}
               />
             </div>
           ) : (
             <TaskImage
               src={task.outputUrls[0]}
+              onPreview={() => onPreview(0)}
               showSize={gptImageSettings.showImageSizeInTaskList ?? true}
             />
           )}

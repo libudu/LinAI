@@ -15,6 +15,7 @@ interface DeleteTaskButtonProps {
   status?: string
   source?: string
   onSuccess?: () => void
+  className?: string
 }
 
 export function TaskItemDeleteButton({
@@ -22,6 +23,7 @@ export function TaskItemDeleteButton({
   status,
   source,
   onSuccess,
+  className,
 }: DeleteTaskButtonProps) {
   const { gptImageSettings } = useLocalSetting()
   const [deleting, setDeleting] = useState(false)
@@ -116,6 +118,7 @@ export function TaskItemDeleteButton({
       <Button
         type="text"
         danger
+        className={className}
         icon={<DeleteOutlined />}
         onClick={handleDelete}
         loading={deleting}
