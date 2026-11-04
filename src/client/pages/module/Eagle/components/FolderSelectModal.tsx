@@ -16,6 +16,7 @@ interface FolderSelectModalProps {
   title?: string
   /** 整理来源选择可包含「全部」，归档目标选择默认不包含 */
   includeAll?: boolean
+  autoFocusSearch?: boolean
 }
 
 const toSelectTreeData = (folders: EagleFolder[]): TreeDataNode[] =>
@@ -32,6 +33,7 @@ export function FolderSelectModal({
   initialFolderId,
   title = '选择文件夹',
   includeAll = false,
+  autoFocusSearch = false,
 }: FolderSelectModalProps) {
   const folders = useEagleStore((s) => s.folders)
   const folderMap = useMemo(() => {
@@ -68,6 +70,7 @@ export function FolderSelectModal({
       title={title}
       treeData={treeData}
       initialKey={initialKey}
+      autoFocusSearch={autoFocusSearch}
       onClose={onClose}
       onConfirm={(key) => {
         const info = folderMap.get(key)

@@ -2,6 +2,7 @@ import { ExportOutlined } from '@ant-design/icons'
 import { Image, message, type ImageProps } from 'antd'
 import { useEffect, useRef, useState } from 'react'
 import { eagleFileUrl, eaglePreviewUrl, fetchEagleItemDetail } from '../api'
+import { ImagePendingContextMenu } from './ImagePendingContextMenu'
 import { MediaEditSaveButton } from './MediaEditSaveButton'
 import { getRotationEditOperations } from './rotation'
 
@@ -35,65 +36,74 @@ export function RotatableImage({
   const version = media?.id === itemId ? media.contentVersion : undefined
   const src = version ? eaglePreviewUrl(itemId, version) : props.src
   return (
-    <Image
-      {...props}
-      src={src}
-      preview={{
-        open,
-        src,
-        onOpenChange: (next) => {
-          if (busy) return
-          setOpen(next)
-          const request = ++sequence.current
-          if (next)
-            void fetchEagleItemDetail(itemId)
-              .then((detail) => {
-                if (request === sequence.current)
-                  setMedia({
-                    id: itemId,
-                    contentVersion: detail.contentVersion,
-                  })
-              })
-              .catch((error) => {
-                if (request === sequence.current)
-                  message.error(
-                    error instanceof Error ? error.message : '加载媒体信息失败',
-                  )
-              })
-        },
-        actionsRender: (originalNode, { transform }) => (
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <div className={busy ? 'pointer-events-none opacity-50' : ''}>
-              {originalNode}
+    <ImagePendingContextMenu itemId={itemId}>
+      <Image
+        {...props}
+        src={src}
+        preview={{
+          open,
+          src,
+          imageRender: (originalNode) => (
+            <ImagePendingContextMenu itemId={itemId}>
+              <span className="contents">{originalNode}</span>
+            </ImagePendingContextMenu>
+          ),
+          onOpenChange: (next) => {
+            if (busy) return
+            setOpen(next)
+            const request = ++sequence.current
+            if (next)
+              void fetchEagleItemDetail(itemId)
+                .then((detail) => {
+                  if (request === sequence.current)
+                    setMedia({
+                      id: itemId,
+                      contentVersion: detail.contentVersion,
+                    })
+                })
+                .catch((error) => {
+                  if (request === sequence.current)
+                    message.error(
+                      error instanceof Error
+                        ? error.message
+                        : '加载媒体信息失败',
+                    )
+                })
+          },
+          actionsRender: (originalNode, { transform }) => (
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <div className={busy ? 'pointer-events-none opacity-50' : ''}>
+                {originalNode}
+              </div>
+              <MediaEditSaveButton
+                key={itemId}
+                id={itemId}
+                contentVersion={version}
+                operations={getRotationEditOperations(transform.rotate)}
+                onBusyChange={setBusy}
+                onSaved={(item) => {
+                  setMedia({ id: item.id, contentVersion: item.contentVersion })
+                  setOpen(false)
+                }}
+              />
+              {showOriginal && (
+                <button
+                  type="button"
+                  title="在新标签页查看原图"
+                  aria-label="在新标签页查看原图"
+                  className="flex cursor-pointer items-center gap-1 rounded-full bg-black/40 px-3 py-1.5 text-xs text-white/85 hover:bg-black/60 hover:text-white"
+                  onClick={() =>
+                    window.open(eagleFileUrl(itemId, version), '_blank')
+                  }
+                >
+                  <ExportOutlined />
+                  <span>查看原图</span>
+                </button>
+              )}
             </div>
-            <MediaEditSaveButton
-              key={itemId}
-              id={itemId}
-              contentVersion={version}
-              operations={getRotationEditOperations(transform.rotate)}
-              onBusyChange={setBusy}
-              onSaved={(item) => {
-                setMedia({ id: item.id, contentVersion: item.contentVersion })
-                setOpen(false)
-              }}
-            />
-            {showOriginal && (
-              <button
-                type="button"
-                title="在新标签页查看原图"
-                aria-label="在新标签页查看原图"
-                className="flex cursor-pointer items-center gap-1 rounded-full bg-black/40 px-3 py-1.5 text-xs text-white/85 hover:bg-black/60 hover:text-white"
-                onClick={() =>
-                  window.open(eagleFileUrl(itemId, version), '_blank')
-                }
-              >
-                <ExportOutlined />
-                <span>查看原图</span>
-              </button>
-            )}
-          </div>
-        ),
-      }}
-    />
+          ),
+        }}
+      />
+    </ImagePendingContextMenu>
   )
 }

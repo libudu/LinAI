@@ -1,4 +1,3 @@
-import { usePendingImages } from '@/client/features/image-assets'
 import {
   EAGLE_TRASH_FOLDER_ID,
   EAGLE_UNCLASSIFIED_FOLDER_ID,
@@ -7,7 +6,6 @@ import {
 import { Modal, message } from 'antd'
 import { useRef, useState } from 'react'
 import {
-  addEagleItemToGallery,
   deleteEagleItem,
   eagleFileUrl,
   purgeEagleItem,
@@ -15,6 +13,7 @@ import {
 } from '../api'
 import { confirmDeleteEagleItem } from '../components/confirmDeleteModal'
 import type { SelectedFolderInfo } from '../folders'
+import { addEagleImageToPending } from '../pendingImages'
 import { requestEagleLibraryRefresh } from '../store'
 
 /** 获取修改文件夹弹窗的初始选中文件夹 ID */
@@ -39,7 +38,6 @@ const getInitialFolderId = (
 
 /** 网格条目操作与弹窗状态；卡片和网格不直接协调写操作。 */
 export function useResourceActions(currentFolderId: string) {
-  const addPendingImage = usePendingImages((s) => s.add)
   const [movingItem, setMovingItem] = useState<EagleItem | null>(null)
   const [trashingItem, setTrashingItem] = useState(false)
   const trashingRef = useRef(false)
@@ -93,15 +91,8 @@ export function useResourceActions(currentFolderId: string) {
     }
   }
 
-  const handleAddToGallery = async (item: EagleItem) => {
-    try {
-      const url = await addEagleItemToGallery(item.id)
-      await addPendingImage(url)
-      message.success('已添加到图库待使用')
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '添加失败')
-    }
-  }
+  const handleAddToGallery = (item: EagleItem) =>
+    addEagleImageToPending(item.id)
 
   const handlePurgeItem = (item: EagleItem) => {
     Modal.confirm({

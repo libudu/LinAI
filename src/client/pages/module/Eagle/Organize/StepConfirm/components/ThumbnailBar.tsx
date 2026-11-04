@@ -7,6 +7,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useEffect, useMemo, useRef } from 'react'
 import { eagleThumbnailUrl } from '../../../api'
+import { ImagePendingContextMenu } from '../../../components/ImagePendingContextMenu'
 import { useOrganizeMedia } from '../../media'
 import {
   SPECIAL_CATEGORY_LOW_QUALITY,
@@ -163,31 +164,36 @@ export function ThumbnailBar({
                     </span>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => onSelect(item.result.itemId)}
-                    className={`relative h-24 w-24 shrink-0 overflow-hidden rounded-md border-2 transition-colors ${
-                      item.result.itemId === selectedId
-                        ? 'border-blue-500'
-                        : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600'
-                    }`}
+                  <ImagePendingContextMenu
+                    itemId={item.result.itemId}
+                    disabled={mediaType !== 'image'}
                   >
-                    <img
-                      src={
-                        mediaType === 'video'
-                          ? previewUrl(item.result.itemId)
-                          : eagleThumbnailUrl(item.result.itemId)
-                      }
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                      alt="thumbnail"
-                    />
-                    {item.result.lowQuality && (
-                      <span className="absolute top-1 left-1 rounded bg-amber-500/90 px-1 py-0.5 text-[9px] font-bold text-white shadow-xs">
-                        低质
-                      </span>
-                    )}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => onSelect(item.result.itemId)}
+                      className={`relative h-24 w-24 shrink-0 overflow-hidden rounded-md border-2 transition-colors ${
+                        item.result.itemId === selectedId
+                          ? 'border-blue-500'
+                          : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600'
+                      }`}
+                    >
+                      <img
+                        src={
+                          mediaType === 'video'
+                            ? previewUrl(item.result.itemId)
+                            : eagleThumbnailUrl(item.result.itemId)
+                        }
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                        alt="thumbnail"
+                      />
+                      {item.result.lowQuality && (
+                        <span className="absolute top-1 left-1 rounded bg-amber-500/90 px-1 py-0.5 text-[9px] font-bold text-white shadow-xs">
+                          低质
+                        </span>
+                      )}
+                    </button>
+                  </ImagePendingContextMenu>
                 )}
               </div>
             )

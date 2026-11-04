@@ -3,7 +3,7 @@ import {
   FolderOutlined,
   SearchOutlined,
 } from '@ant-design/icons'
-import type { TreeDataNode } from 'antd'
+import type { InputRef, TreeDataNode } from 'antd'
 import { Button, Empty, Input, Modal, Tree } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -18,6 +18,7 @@ interface FolderTreeSelectModalProps {
   emptyDescription?: string
   onClear?: () => void
   clearDisabled?: boolean
+  autoFocusSearch?: boolean
 }
 
 // 保留匹配节点及其父目录，便于区分不同路径下的同名文件夹。
@@ -56,12 +57,14 @@ export function FolderTreeSelectModal({
   emptyDescription = '没有匹配的文件夹',
   onClear,
   clearDisabled = false,
+  autoFocusSearch = false,
 }: FolderTreeSelectModalProps) {
   const [selectedKey, setSelectedKey] = useState(initialKey)
   const [expandedKeys, setExpandedKeys] = useState<string[]>([])
   const [search, setSearch] = useState('')
   const keyword = search.trim().toLowerCase()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<InputRef>(null)
   const prevOpenRef = useRef(false)
   const filteredTreeData = useMemo(
     () => (keyword ? filterTreeData(treeData, keyword) : treeData),
@@ -151,13 +154,18 @@ export function FolderTreeSelectModal({
         )
       }
       afterOpenChange={(visible) => {
-        if (visible) scrollToSelected()
+        if (visible) {
+          scrollToSelected()
+          if (autoFocusSearch)
+            searchInputRef.current?.focus({ preventScroll: true })
+        }
       }}
       destroyOnHidden
       centered
       width={460}
     >
       <Input
+        ref={searchInputRef}
         className="mt-3"
         prefix={<SearchOutlined />}
         allowClear

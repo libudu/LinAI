@@ -214,6 +214,7 @@ export function DetailPanel({
 
       <FolderSelectModal
         open={folderSelectOpen}
+        autoFocusSearch
         initialFolderId={initialFolderId}
         onClose={() => setFolderSelectOpen(false)}
         onConfirm={onManualFolderSelect}

@@ -183,7 +183,7 @@ export function Toolbar() {
   const handlePurgeAllTrash = () => {
     Modal.confirm({
       title: '全部彻底删除',
-      content: `确定要彻底删除回收站下的全部 ${trashTotal} 个${mediaType === 'image' ? '图片（含 GIF）' : '视频'}文件吗？原文件总大小为 ${formatFileSize(trashSize)}。此操作将从磁盘永久删除原文件且无法撤销。`,
+      content: `确定要彻底删除回收站下的全部 ${trashTotal} 个${mediaType === 'image' ? '图片' : '视频'}文件吗？原文件总大小为 ${formatFileSize(trashSize)}。此操作将从磁盘永久删除原文件且无法撤销。`,
       okText: '全部彻底删除',
       okType: 'danger',
       cancelText: '取消',
@@ -192,9 +192,7 @@ export function Toolbar() {
         setPurgingTrash(true)
         try {
           const res = await purgeEagleTrash(mediaType)
-          message.success(
-            `已彻底删除 ${res.count} 个文件，原文件总大小 ${formatFileSize(res.size)}`,
-          )
+          message.success(`已彻底删除 ${res.count} 个文件`)
           await requestEagleLibraryRefresh()
         } catch (error) {
           message.error(error instanceof Error ? error.message : '删除失败')
@@ -209,7 +207,7 @@ export function Toolbar() {
   const handleTrashAllUnclassified = () => {
     Modal.confirm({
       title: '全部移动到回收站',
-      content: `确定要将未分类下的全部 ${unclassifiedTotal} 个${mediaType === 'image' ? '图片（含 GIF）' : '视频'}文件移动到回收站吗？`,
+      content: `确定要将未分类下的全部 ${unclassifiedTotal} 个${mediaType === 'image' ? '图片' : '视频'}文件移动到回收站吗？`,
       okText: '全部移动到回收站',
       okType: 'danger',
       cancelText: '取消',
@@ -266,8 +264,8 @@ export function Toolbar() {
         <Input.Search
           allowClear
           defaultValue={keyword}
-          placeholder="搜索当前文件夹的文件名"
-          aria-label="搜索当前文件夹的文件名"
+          placeholder="搜索当前文件夹"
+          aria-label="搜索当前文件夹"
           title="多个关键词用空格分隔，文件名需同时包含所有关键词"
           className="w-52 md:w-64"
           onSearch={handleSearch}

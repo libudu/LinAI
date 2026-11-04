@@ -1,6 +1,8 @@
 import type { OrganizeFailedItem } from '@/shared/eagle/organize'
 import { Button, Empty, Spin } from 'antd'
 import { eagleThumbnailUrl } from '../../api'
+import { ImagePendingContextMenu } from '../../components/ImagePendingContextMenu'
+import { useOrganizeMedia } from '../media'
 
 interface FailedListProps {
   items: OrganizeFailedItem[]
@@ -17,6 +19,7 @@ export function FailedList({
   onRetry,
   onSkip,
 }: FailedListProps) {
+  const { mediaType } = useOrganizeMedia()
   if (loading && items.length === 0) {
     return (
       <div className="flex h-full items-center justify-center py-6">
@@ -40,12 +43,17 @@ export function FailedList({
     <div className="h-full divide-y divide-slate-100 overflow-y-auto dark:divide-slate-700/60">
       {items.map((item) => (
         <div key={item.itemId} className="flex items-center gap-3 px-1 py-2">
-          <img
-            src={eagleThumbnailUrl(item.itemId)}
-            alt=""
-            loading="lazy"
-            className="h-10 w-10 shrink-0 rounded object-cover"
-          />
+          <ImagePendingContextMenu
+            itemId={item.itemId}
+            disabled={mediaType !== 'image'}
+          >
+            <img
+              src={eagleThumbnailUrl(item.itemId)}
+              alt=""
+              loading="lazy"
+              className="h-10 w-10 shrink-0 rounded object-cover"
+            />
+          </ImagePendingContextMenu>
           <div className="min-w-0 flex-1">
             <div className="truncate text-xs font-medium text-slate-700 dark:text-slate-300">
               {item.itemName ?? item.itemId}
