@@ -215,6 +215,7 @@ function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
                         urls={pendingUrls}
                         selectedUrls={selectedUrls}
                         onSelect={handleSelect}
+                        onSelectionChange={setSelectedUrls}
                       />
                     ),
                 },
@@ -264,6 +265,7 @@ function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
                   unreferencedUrls={unreferencedUrls}
                   onSelectFolder={setSelectedInputFolder}
                   onSelectImage={handleSelect}
+                  onSelectionChange={setSelectedUrls}
                 />
               ),
           },
@@ -281,6 +283,7 @@ function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
                   selectedUrls={selectedUrls}
                   unreferencedUrls={unreferencedUrls}
                   onSelect={handleSelect}
+                  onSelectionChange={setSelectedUrls}
                 />
               ),
           },

@@ -2,12 +2,14 @@ import { DeleteOutlined } from '@ant-design/icons'
 import { Tooltip } from 'antd'
 import { useMemo } from 'react'
 import { normalizeComparableUrl } from './useGalleryImages'
+import { useGalleryMarqueeSelection } from './useGalleryMarqueeSelection'
 
 interface GalleryImageGridProps {
   urls: string[]
   selectedUrls: string[]
   unreferencedUrls?: ReadonlySet<string>
   onSelect: (url: string) => void
+  onSelectionChange?: (urls: string[]) => void
   onImageError?: (url: string) => void
   onRemove?: (url: string) => void
   className?: string
@@ -18,10 +20,16 @@ export function GalleryImageGrid({
   selectedUrls,
   unreferencedUrls,
   onSelect,
+  onSelectionChange,
   onImageError,
   onRemove,
   className = 'max-h-[60vh] overflow-y-auto',
 }: GalleryImageGridProps) {
+  const { gridRef, selectionRect } = useGalleryMarqueeSelection({
+    urls,
+    selectedUrls,
+    onSelectionChange,
+  })
   const selectionOrderMap = useMemo(
     () => new Map(selectedUrls.map((url, index) => [url, index + 1])),
     [selectedUrls],
@@ -33,7 +41,8 @@ export function GalleryImageGrid({
 
   return (
     <div
-      className={`grid grid-cols-3 gap-2 p-1 sm:grid-cols-4 md:grid-cols-5 ${className}`}
+      ref={gridRef}
+      className={`relative grid grid-cols-3 gap-2 p-1 sm:grid-cols-4 md:grid-cols-5 ${onSelectionChange ? 'select-none' : ''} ${className}`}
     >
       {urls.map((url) => {
         const order = selectionOrderMap.get(url)
@@ -42,6 +51,7 @@ export function GalleryImageGrid({
         return (
           <div
             key={url}
+            data-gallery-url={url}
             className={`group relative aspect-square cursor-pointer overflow-hidden rounded-lg border-2 bg-slate-100 transition-all ${
               selected
                 ? 'border-blue-500 shadow-[0_0_0_2px_rgba(59,130,246,0.15)]'
@@ -89,6 +99,12 @@ export function GalleryImageGrid({
           </div>
         )
       })}
+      {selectionRect && (
+        <div
+          className="pointer-events-none absolute z-30 border border-blue-500 bg-blue-500/15"
+          style={selectionRect}
+        />
+      )}
     </div>
   )
 }

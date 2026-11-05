@@ -10,6 +10,7 @@ interface InputImageGalleryProps {
   unreferencedUrls: ReadonlySet<string>
   onSelectFolder: (folder: string | null) => void
   onSelectImage: (url: string) => void
+  onSelectionChange: (urls: string[]) => void
 }
 
 export function InputImageGallery({
@@ -20,6 +21,7 @@ export function InputImageGallery({
   unreferencedUrls,
   onSelectFolder,
   onSelectImage,
+  onSelectionChange,
 }: InputImageGalleryProps) {
   const selectedFolderView = folders.find(
     (folder) => folder.folder === selectedFolder,
@@ -46,6 +48,7 @@ export function InputImageGallery({
           selectedUrls={selectedUrls}
           unreferencedUrls={unreferencedUrls}
           onSelect={onSelectImage}
+          onSelectionChange={onSelectionChange}
         />
       </div>
     )
@@ -75,6 +78,7 @@ export function InputImageGallery({
           selectedUrls={selectedUrls}
           unreferencedUrls={unreferencedUrls}
           onSelect={onSelectImage}
+          onSelectionChange={onSelectionChange}
           className=""
         />
       )}
