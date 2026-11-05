@@ -230,12 +230,19 @@ export function getImageEndpointCapabilities(
       quota: getQuotaProvider(endpoint) !== 'none',
       cancel: false,
     }
+  const modelVersion = endpoint.modelId?.match(
+    /^gpt-image-(\d+)(?:\.(\d+))?(?:-|$)/,
+  )
+  const supportsExtendedQuality =
+    !!modelVersion &&
+    (Number(modelVersion[1]) > 2 ||
+      (Number(modelVersion[1]) === 2 && Number(modelVersion[2] ?? 0) >= 5))
   return {
     minImages: 0,
     maxImages: 10,
     maxOutputs: GPT_IMAGE_OUTPUT_MAX_N,
     sizes: ['1k', '2k', '4k'],
-    qualities: endpoint.modelId?.includes('gpt-image-2.5')
+    qualities: supportsExtendedQuality
       ? ['medium', 'high', 'xhigh', 'max']
       : ['medium', 'high'],
     aspectRatio: true,
