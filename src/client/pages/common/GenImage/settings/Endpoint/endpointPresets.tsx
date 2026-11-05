@@ -35,8 +35,8 @@ const PRESET_REMARKS: Record<string, ReactNode> = {
     <div>
       <div>
         官网：
-        <a href="https://api.openlux.ai" target="_blank">
-          https://api.openlux.ai/
+        <a href="https://openlux.ai" target="_blank">
+          https://openlux.ai/
         </a>
       </div>
       <div>同系列高精度版本，细节与提示词还原更强，面向精品商业图像创作。</div>
@@ -52,6 +52,14 @@ const PRESET_REMARKS: Record<string, ReactNode> = {
         </a>
       </div>
       <div>固定计费 0.04r 一张</div>
+    </div>
+  ),
+  'DragonAPI gpt-image-2.6': (
+    <div>
+      官网：
+      <a href="https://dragon3api.com" target="_blank">
+        https://dragon3api.com/
+      </a>
     </div>
   ),
   'Venice qwen-image-3-edit': (

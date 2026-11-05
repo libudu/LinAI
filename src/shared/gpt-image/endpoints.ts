@@ -65,6 +65,14 @@ export const ENDPOINT_PRESET_INFOS: EndpointPresetInfo[] = [
     legacyLabels: ['DragonAPI gpt-image-2', 'DragonAPI'],
   },
   {
+    id: 'dragonapi-gpt-image-2.6',
+    quotaProvider: 'new-api',
+    label: 'DragonAPI gpt-image-2.6',
+    protocol: 'openai',
+    baseUrl: 'https://dragon3api.com/v1',
+    modelId: 'gpt-image-2.6',
+  },
+  {
     id: 'venice-qwen-image',
     quotaProvider: 'venice',
     label: 'Venice qwen-image-3-edit',
