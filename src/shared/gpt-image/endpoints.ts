@@ -4,7 +4,7 @@ import {
   type GptImageSize,
 } from '@/shared/image/params'
 
-export type GptImageSizeFormat = 'resolution' | 'level'
+export type GptImageSizeFormat = 'resolution' | 'none'
 export type CloudImageProtocol = 'openai' | 'venice'
 export type QuotaProvider = 'none' | 'new-api' | 'venice'
 export type ImageProtocol = CloudImageProtocol | 'comfyui'
@@ -28,6 +28,8 @@ export interface CustomEndpoint {
   title: string
   protocol: CloudImageProtocol
   quotaProvider?: QuotaProvider
+  /** OpenAI 兼容请求的尺寸格式；未配置时沿用像素尺寸计算。 */
+  sizeFormat?: GptImageSizeFormat
   baseUrl: string
   modelId: string
   apiKey?: string
@@ -59,8 +61,17 @@ export const ENDPOINT_PRESET_INFOS: EndpointPresetInfo[] = [
     protocol: 'openai',
     baseUrl: 'https://api.openlux.ai/v1',
     modelId: 'gpt-image-2.5-sunburst-c',
-    legacyModelIds: ['gpt-image-2-c', 'gpt-image-2'],
-    legacyLabels: ['openlux gpt-image-2-c', 'openlux gpt-image-2'],
+    legacyModelIds: ['gpt-image-2'],
+    legacyLabels: ['openlux gpt-image-2'],
+    currency: '$',
+  },
+  {
+    id: 'openlux-gpt-image-2-c',
+    quotaProvider: 'new-api',
+    label: 'openlux gpt-image-2-c',
+    protocol: 'openai',
+    baseUrl: 'https://api.openlux.ai/v1',
+    modelId: 'gpt-image-2-c',
     currency: '$',
   },
   {

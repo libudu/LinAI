@@ -25,6 +25,7 @@ const endpointFields = z.object({
       title: z.string(),
       protocol: z.enum(['openai', 'venice']),
       quotaProvider: z.enum(['none', 'new-api', 'venice']),
+      sizeFormat: z.enum(['resolution', 'none']).default('resolution'),
       baseUrl: z.string(),
       modelId: z.string(),
       apiKey: z.string().optional(),

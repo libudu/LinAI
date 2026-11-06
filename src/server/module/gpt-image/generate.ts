@@ -14,13 +14,13 @@ export interface GenerateGPTImageOptions {
   baseUrl: string
   modelId: string
   prompt: string
-  size: string
+  size?: string
   quality: GptImageQuality
   imagePaths: string[]
   n?: number
   /** 分辨率档位（1k/2k/4k），Venice 接入点原样传给网关 */
   resolution?: GptImageSize
-  /** 模板宽高比（如 16:9），Venice 接入点作为 aspect_ratio 传给网关 */
+  /** 模板宽高比（如 16:9），Venice 或不传 size 时作为 aspect_ratio 传给网关 */
   aspectRatio?: string
 }
 
@@ -94,7 +94,8 @@ async function requestOpenAIImage(options: {
   baseUrl: string
   modelId: string
   prompt: string
-  size: string
+  size?: string
+  aspectRatio?: string
   quality: GptImageQuality
   n: number
   imagePaths: string[]
@@ -109,6 +110,9 @@ async function requestOpenAIImage(options: {
     // 关闭 SDK 默认的自动重试（默认 maxRetries: 2），失败直接抛错
     maxRetries: 0,
   })
+  const dimensionParams = size
+    ? { size: size as any }
+    : { aspect_ratio: options.aspectRatio || '1:1' }
   if (imagePaths.length) {
     const imagesToUpload = await Promise.all(
       imagePaths.map(
@@ -124,7 +128,7 @@ async function requestOpenAIImage(options: {
         image: imagesToUpload,
         prompt: prompt,
         n,
-        size: size as any,
+        ...dimensionParams,
         quality,
       },
       { signal },
@@ -135,7 +139,7 @@ async function requestOpenAIImage(options: {
       model: modelId,
       prompt,
       n,
-      size: size as any,
+      ...dimensionParams,
       quality,
       moderation: 'low',
     },
@@ -182,6 +186,7 @@ export async function generateGPTImage(options: GenerateGPTImageOptions) {
           modelId,
           prompt,
           size,
+          aspectRatio,
           quality,
           n,
           imagePaths: images,

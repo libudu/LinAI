@@ -1,4 +1,7 @@
-import type { CloudImageProtocol } from '@/shared/gpt-image/endpoints'
+import type {
+  CloudImageProtocol,
+  GptImageSizeFormat,
+} from '@/shared/gpt-image/endpoints'
 import type { GptImageQuality, GptImageSize } from '@/shared/image/params'
 import { GPT_IMAGE_SOURCE_MODEL } from '@/shared/image/sources'
 import type { TaskInputSnapshot } from '@/shared/image/template'
@@ -19,6 +22,7 @@ interface CloudTaskOptions {
   apiKey: string
   baseUrl: string
   modelId: string
+  sizeFormat?: GptImageSizeFormat
   snapshot: TaskInputSnapshot
   size?: GptImageSize
   quality?: GptImageQuality
@@ -53,7 +57,10 @@ async function runCloudTask(
     const { snapshot, size = '1k', quality = 'medium' } = options
     const { usage } = await generateGPTImage({
       ...options,
-      size: calculateSize(snapshot.aspectRatio || '1:1', size),
+      size:
+        options.protocol === 'openai' && options.sizeFormat === 'none'
+          ? undefined
+          : calculateSize(snapshot.aspectRatio || '1:1', size),
       quality,
       prompt: snapshot.prompt,
       imagePaths,

@@ -1,5 +1,6 @@
 import type {
   CloudImageProtocol,
+  GptImageSizeFormat,
   QuotaProvider,
 } from '@/shared/gpt-image/endpoints'
 import { message } from 'antd'
@@ -18,6 +19,7 @@ export interface EndpointFormValues {
   title: string
   protocol: CloudImageProtocol
   quotaProvider: QuotaProvider
+  sizeFormat?: GptImageSizeFormat
   baseUrl: string
   modelId: string
   apiKey: string
@@ -124,6 +126,7 @@ export function useEndpointActions() {
         title: values.title.trim(),
         protocol: values.protocol,
         quotaProvider: values.quotaProvider ?? 'none',
+        sizeFormat: values.sizeFormat ?? 'resolution',
         baseUrl: values.baseUrl.trim(),
         modelId: values.modelId.trim(),
         apiKey: values.apiKey,

@@ -51,6 +51,14 @@ const PRESET_REMARKS: Record<string, ReactNode> = {
       <div>固定计费约 0.085r 一张</div>
     </div>
   ),
+  'openlux gpt-image-2-c': (
+    <div>
+      官网：
+      <a href="https://openlux.ai" target="_blank">
+        https://openlux.ai/
+      </a>
+    </div>
+  ),
   'DragonAPI gpt-image-2.6': (
     <div>
       官网：

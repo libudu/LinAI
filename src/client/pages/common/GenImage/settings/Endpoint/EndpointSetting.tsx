@@ -82,6 +82,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
         modelId: currentEndpoint.modelId,
         protocol: currentEndpoint.protocol,
         quotaProvider: currentEndpoint.quotaProvider ?? 'none',
+        sizeFormat: currentEndpoint.sizeFormat ?? 'resolution',
         apiKey: currentEndpoint.apiKey || '',
       })
     }
@@ -118,6 +119,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
         baseUrl: '',
         protocol: 'openai',
         quotaProvider: 'none',
+        sizeFormat: 'resolution',
         modelId: '',
         apiKey: '',
       })
@@ -145,6 +147,7 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
         modelId: custom.modelId,
         protocol: custom.protocol,
         quotaProvider: custom.quotaProvider ?? 'none',
+        sizeFormat: custom.sizeFormat ?? 'resolution',
         apiKey: custom.apiKey ?? '',
       })
     }
@@ -341,6 +344,20 @@ export const EndpointSetting = forwardRef<EndpointSettingRef>((_props, ref) => {
                     { value: 'none', label: '不查询余额' },
                     { value: 'new-api', label: 'New API 令牌余额' },
                     { value: 'venice', label: 'Venice 余额' },
+                  ]}
+                />
+              </Form.Item>
+            )}
+            {!isComfyForm && protocol === 'openai' && (
+              <Form.Item
+                name="sizeFormat"
+                label="分辨率计算方式"
+                extra="选择“不填”时不发送 size 参数，仍通过 aspect_ratio 传递模板比例；分辨率由接入点或模型决定，生成菜单中的尺寸档位不再生效。"
+              >
+                <Select
+                  options={[
+                    { value: 'resolution', label: 'OpenAI 四的倍数' },
+                    { value: 'none', label: '不填' },
                   ]}
                 />
               </Form.Item>

@@ -50,7 +50,7 @@ function buildITxtChunk(keyword: string, text: string): Buffer {
 export interface PngGenerationInfo {
   model: string
   prompt: string
-  size: string
+  size?: string
   quality: string
   baseUrl: string
   generatedAt: string
@@ -89,7 +89,7 @@ export function writePngGenerationInfo(
       `version: ${pkg.version}`,
       `model: ${info.model}`,
       `prompt: ${info.prompt}`,
-      `size: ${info.size}`,
+      ...(info.size ? [`size: ${info.size}`] : []),
       `quality: ${info.quality}`,
       `baseUrl: ${info.baseUrl}`,
       `generatedAt: ${info.generatedAt}`,
