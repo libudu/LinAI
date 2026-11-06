@@ -44,6 +44,15 @@ export interface ComfyEndpoint {
 
 export const ENDPOINT_PRESET_INFOS: EndpointPresetInfo[] = [
   {
+    id: 'openlux-gpt-image-2.6-sunburst-c',
+    quotaProvider: 'new-api',
+    label: 'openlux gpt-image-2.6-sunburst-c',
+    protocol: 'openai',
+    baseUrl: 'https://api.openlux.ai/v1',
+    modelId: 'gpt-image-2.6-sunburst-c',
+    currency: '$',
+  },
+  {
     id: 'openlux-sunburst',
     quotaProvider: 'new-api',
     label: 'openlux gpt-image-2.5-sunburst-c',
@@ -55,6 +64,14 @@ export const ENDPOINT_PRESET_INFOS: EndpointPresetInfo[] = [
     currency: '$',
   },
   {
+    id: 'dragonapi-gpt-image-2.6',
+    quotaProvider: 'new-api',
+    label: 'DragonAPI gpt-image-2.6',
+    protocol: 'openai',
+    baseUrl: 'https://dragon3api.com/v1',
+    modelId: 'gpt-image-2.6',
+  },
+  {
     id: 'dragonapi-sunburst',
     quotaProvider: 'new-api',
     label: 'DragonAPI gpt-image-2.5-sunburst',
@@ -63,14 +80,6 @@ export const ENDPOINT_PRESET_INFOS: EndpointPresetInfo[] = [
     modelId: 'gpt-image-2.5-sunburst',
     legacyModelIds: ['gpt-image-2'],
     legacyLabels: ['DragonAPI gpt-image-2', 'DragonAPI'],
-  },
-  {
-    id: 'dragonapi-gpt-image-2.6',
-    quotaProvider: 'new-api',
-    label: 'DragonAPI gpt-image-2.6',
-    protocol: 'openai',
-    baseUrl: 'https://dragon3api.com/v1',
-    modelId: 'gpt-image-2.6',
   },
   {
     id: 'venice-qwen-image',

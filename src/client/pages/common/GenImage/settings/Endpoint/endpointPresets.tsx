@@ -31,6 +31,14 @@ export const isComfyValue = (value: string) =>
 
 // 各预设的界面说明，key 为预设 label
 const PRESET_REMARKS: Record<string, ReactNode> = {
+  'openlux gpt-image-2.6-sunburst-c': (
+    <div>
+      官网：
+      <a href="https://openlux.ai" target="_blank">
+        https://openlux.ai/
+      </a>
+    </div>
+  ),
   'openlux gpt-image-2.5-sunburst-c': (
     <div>
       <div>
@@ -43,6 +51,14 @@ const PRESET_REMARKS: Record<string, ReactNode> = {
       <div>固定计费约 0.085r 一张</div>
     </div>
   ),
+  'DragonAPI gpt-image-2.6': (
+    <div>
+      官网：
+      <a href="https://dragon3api.com" target="_blank">
+        https://dragon3api.com/
+      </a>
+    </div>
+  ),
   'DragonAPI gpt-image-2.5-sunburst': (
     <div>
       <div>
@@ -52,14 +68,6 @@ const PRESET_REMARKS: Record<string, ReactNode> = {
         </a>
       </div>
       <div>固定计费 0.04r 一张</div>
-    </div>
-  ),
-  'DragonAPI gpt-image-2.6': (
-    <div>
-      官网：
-      <a href="https://dragon3api.com" target="_blank">
-        https://dragon3api.com/
-      </a>
     </div>
   ),
   'Venice qwen-image-3-edit': (
