@@ -1,9 +1,10 @@
+import { ContextMenu } from '@/client/components/ContextMenu'
 import { PlusOutlined } from '@ant-design/icons'
-import { Dropdown, theme } from 'antd'
-import type { ReactElement } from 'react'
+import { theme } from 'antd'
+import type { ComponentProps } from 'react'
 import { addEagleImageToPending } from '../pendingImages'
 
-/** 整理缩略图、图片及放大预览共用的右键入口。 */
+/** 整理缩略图、图片及放大预览共用的右键和长按菜单。 */
 export function ImagePendingContextMenu({
   itemId,
   disabled = false,
@@ -11,13 +12,12 @@ export function ImagePendingContextMenu({
 }: {
   itemId: string
   disabled?: boolean
-  children: ReactElement
+  children: ComponentProps<typeof ContextMenu>['children']
 }) {
   const { token } = theme.useToken()
   return (
-    <Dropdown
+    <ContextMenu
       disabled={disabled}
-      trigger={['contextMenu']}
       styles={{ root: { zIndex: token.zIndexPopupBase + 100 } }}
       menu={{
         items: [
@@ -32,11 +32,8 @@ export function ImagePendingContextMenu({
           void addEagleImageToPending(itemId)
         },
       }}
-      popupRender={(node) => (
-        <div onClick={(event) => event.stopPropagation()}>{node}</div>
-      )}
     >
       {children}
-    </Dropdown>
+    </ContextMenu>
   )
 }

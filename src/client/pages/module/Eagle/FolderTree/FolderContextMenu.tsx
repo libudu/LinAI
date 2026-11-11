@@ -1,12 +1,9 @@
-import { useLongPressContextMenu } from '@/client/hooks/useLongPressContextMenu'
+import { ContextMenu } from '@/client/components/ContextMenu'
 import type { EagleFolder } from '@/shared/eagle/types'
-import { Dropdown } from 'antd'
 import type { ReactNode } from 'react'
 import { useEagleConfig } from '../settings/useEagleConfig'
 
-// 右键/长按菜单：挂在节点标题上，trigger 为 contextMenu 时 antd 会在鼠标位置弹出，
-// 支持移动端长按触发，并在点击菜单外区域或滚动时自动关闭，无需外部维护开关状态；
-// 触发 span 设为 block 配合 FolderTree.scss 铺满整行标题区，右侧空白也能右键/长按
+// 触发区域铺满节点标题，右侧空白也能右键或长按。
 export function FolderContextMenu({
   folder,
   onEdit,
@@ -16,31 +13,17 @@ export function FolderContextMenu({
   onEdit: (folder: EagleFolder) => void
   children: ReactNode
 }) {
-  const longPressHandlers = useLongPressContextMenu()
   const remote = useEagleConfig((state) => state.libraryMode === 'remote')
 
   return (
-    <Dropdown
+    <ContextMenu
       disabled={remote}
-      trigger={['contextMenu']}
       menu={{
         items: [{ key: 'edit', label: '编辑' }],
         onClick: () => onEdit(folder),
       }}
-      // 菜单虽经 portal 渲染到 body，React 合成事件仍沿 React 树冒泡到树节点，
-      // 触发 rc-tree 的节点点击选中（已选中节点会被切换为取消选中），
-      // 包一层拦截 click，阻止菜单内的点击（含空白边缘）影响选中状态
-      popupRender={(node) => (
-        <div onClick={(e) => e.stopPropagation()}>{node}</div>
-      )}
     >
-      <span
-        className="block select-none"
-        style={{ WebkitTouchCallout: 'none' }}
-        {...longPressHandlers}
-      >
-        {children}
-      </span>
-    </Dropdown>
+      <span className="block select-none">{children}</span>
+    </ContextMenu>
   )
 }

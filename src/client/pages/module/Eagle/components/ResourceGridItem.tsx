@@ -1,4 +1,4 @@
-import { useLongPressContextMenu } from '@/client/hooks/useLongPressContextMenu'
+import { ContextMenu } from '@/client/components/ContextMenu'
 import type { EagleItem } from '@/shared/eagle/types'
 import {
   DeleteOutlined,
@@ -7,7 +7,6 @@ import {
   PlayCircleOutlined,
   PlusOutlined,
 } from '@ant-design/icons'
-import { Dropdown } from 'antd'
 import { eagleThumbnailUrl } from '../api'
 import { formatFileSize } from './formatFileSize'
 
@@ -39,7 +38,6 @@ export function ResourceGridItem({
   onPurge,
   onAddToGallery,
 }: ResourceGridItemProps) {
-  const longPressHandlers = useLongPressContextMenu()
   const downloadMenuItem = {
     key: 'download',
     icon: <DownloadOutlined />,
@@ -86,9 +84,8 @@ export function ResourceGridItem({
       ]
 
   return (
-    <Dropdown
+    <ContextMenu
       disabled={readOnly}
-      trigger={['contextMenu']}
       menu={{
         items: menuItems,
         onClick: ({ key, domEvent }) => {
@@ -106,16 +103,11 @@ export function ResourceGridItem({
           }
         },
       }}
-      popupRender={(node) => (
-        <div onClick={(e) => e.stopPropagation()}>{node}</div>
-      )}
     >
       <div
         className="group relative aspect-square cursor-pointer overflow-hidden rounded-lg border-2 border-transparent bg-slate-100 transition-all select-none hover:border-blue-500 dark:bg-slate-800"
-        style={{ WebkitTouchCallout: 'none' }}
         onClick={() => onClick(item)}
         title={item.name}
-        {...longPressHandlers}
       >
         <img
           src={eagleThumbnailUrl(item.id, item.contentVersion)}
@@ -141,6 +133,6 @@ export function ResourceGridItem({
           </div>
         )}
       </div>
-    </Dropdown>
+    </ContextMenu>
   )
 }

@@ -61,6 +61,7 @@
 - tsconfig：strict + noUnusedLocals + noUnusedParameters，`moduleResolution: bundler`，允许 `.ts` 扩展名导入
 - 路径别名：`@/*` → `src/*`；跨 client/server 或向上超过 3 级的引用用 `@/`，其余用相对引用（`./` / `../`）
 - 项目注释与日志输出主要使用中文，沿用这一习惯
+- 前端新增右键菜单统一使用 `src/client/components/ContextMenu.tsx`，同时支持触屏长按
 
 ## 测试
 
