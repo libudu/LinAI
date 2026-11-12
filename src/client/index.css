@@ -89,6 +89,14 @@ html[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
   }
 }
 
+/* 避免浏览器原生选区和呼出菜单抢占长按菜单手势。 */
+[data-context-menu-trigger],
+[data-context-menu-trigger] * {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* ============================================================
    暗色主题映射（html[data-theme='dark']）
    页面中写死的亮色 Tailwind 类在此整体改写为暗色，组件代码不变。

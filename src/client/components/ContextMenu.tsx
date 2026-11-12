@@ -7,6 +7,10 @@ import {
 } from 'react'
 import { useLongPressContextMenu } from '../hooks/useLongPressContextMenu'
 
+type TriggerProps = HTMLAttributes<HTMLElement> & {
+  'data-context-menu-trigger'?: ''
+}
+
 function composeHandlers<Event extends SyntheticEvent>(
   handler: (event: Event) => void,
   existingHandler?: (event: Event) => void,
@@ -17,21 +21,21 @@ function composeHandlers<Event extends SyntheticEvent>(
   }
 }
 
-/** 右键与触屏长按共用菜单，子元素需将事件和样式转发到实际触发元素。 */
+/** 右键与触屏长按共用菜单，子元素需将事件和 data 属性转发到实际触发元素。 */
 export function ContextMenu({
   children,
   disabled = false,
   popupRender,
   ...props
 }: Omit<DropdownProps, 'children' | 'dropdownRender' | 'trigger'> & {
-  children: ReactElement<HTMLAttributes<HTMLElement>>
+  children: ReactElement<TriggerProps>
 }) {
   const handlers = useLongPressContextMenu(disabled)
   const childProps = children.props
   const trigger = disabled
     ? children
     : cloneElement(children, {
-        style: { ...childProps.style, WebkitTouchCallout: 'none' },
+        'data-context-menu-trigger': '',
         onContextMenu: (event) => {
           childProps.onContextMenu?.(event)
           event.stopPropagation()

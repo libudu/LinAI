@@ -21,12 +21,15 @@ function isWithinTrigger(
 export function useLongPressContextMenu(disabled: boolean) {
   const pressTimer = useRef<number | undefined>(undefined)
   const clickTimer = useRef<number | undefined>(undefined)
+  const selectionGuard = useRef<AbortController | null>(null)
   const startPosition = useRef({ x: 0, y: 0 })
   const suppressClick = useRef(false)
 
   const cancelPress = useCallback(() => {
     window.clearTimeout(pressTimer.current)
     pressTimer.current = undefined
+    selectionGuard.current?.abort()
+    selectionGuard.current = null
   }, [])
 
   const clearClickSuppression = useCallback(() => {
@@ -49,6 +52,29 @@ export function useLongPressContextMenu(disabled: boolean) {
 
     clearClickSuppression()
     const target = event.currentTarget
+    const document = target.ownerDocument
+    const guard = new AbortController()
+    selectionGuard.current = guard
+    const options = { capture: true, signal: guard.signal }
+    const clearSelection = () => {
+      const selection = document.getSelection()
+      if (selection && !selection.isCollapsed) selection.removeAllRanges()
+    }
+
+    // WebKit 可能选中触点附近的文字，选区事件不一定来自触发元素。
+    document.addEventListener(
+      'selectstart',
+      (event) => event.preventDefault(),
+      options,
+    )
+    document.addEventListener(
+      'selectionchange',
+      (event) => {
+        if (event.target === document) clearSelection()
+      },
+      options,
+    )
+
     const { clientX, clientY } = event.touches[0]
     startPosition.current = { x: clientX, y: clientY }
     pressTimer.current = window.setTimeout(() => {
@@ -56,6 +82,7 @@ export function useLongPressContextMenu(disabled: boolean) {
       if (!target.isConnected) return
 
       suppressClick.current = true
+      clearSelection()
       try {
         navigator.vibrate?.(40)
       } catch {
