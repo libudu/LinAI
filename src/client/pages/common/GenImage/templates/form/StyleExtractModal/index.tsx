@@ -1,4 +1,4 @@
-import { uploadImageBase64 } from '@/client/features/image-assets'
+import { readImageBlob, uploadImageBase64 } from '@/client/features/image-assets'
 import {
   extractVisionText,
   visionChatCompletion,
@@ -14,7 +14,6 @@ import { PreviewSection } from './PreviewSection'
 import { STYLE_ANALYSIS_PROMPT } from './prompt'
 import type { StyleAnalysis } from './types'
 import { UploadSection } from './UploadSection'
-import { readFileAsBase64 } from './utils'
 
 interface StyleExtractModalProps {
   open: boolean
@@ -81,7 +80,7 @@ export function StyleExtractModal({
     setAnalysisError(null)
 
     try {
-      const base64 = await readFileAsBase64(file)
+      const base64 = await readImageBlob(file)
       setUploadedPreview(base64)
 
       const url = await uploadImageBase64(base64)

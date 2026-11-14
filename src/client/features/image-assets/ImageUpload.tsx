@@ -8,7 +8,7 @@ import { registerImageDropTarget } from './drop-targets'
 import { useImageEditUpload } from './edit/useImageEditUpload'
 import { openGallery, type GalleryImageSelection } from './gallery'
 import { usePendingImages } from './pendingImages'
-import { uploadImageBase64, uploadImageFromUrl } from './service'
+import { readImageBlob, uploadImageBase64, uploadImageFromUrl } from './service'
 import { useRecentImages } from './useRecentImages'
 
 const MAX_IMAGES = 10
@@ -80,6 +80,34 @@ export function ImageUpload({
     addRecentImages,
   })
 
+  const uploadReferenceImage = async (file: File) => {
+    handleUploadCountChange(1)
+    try {
+      const base64 = await readImageBlob(file)
+      if (latestValueRef.current.length === 0 && onFirstImageRatio) {
+        const img = new Image()
+        img.onload = () => {
+          const ratio = getClosestAspectRatio(img.width, img.height)
+          onFirstImageRatio(ratio)
+        }
+        img.src = base64
+      }
+
+      const url = await uploadImageBase64(base64)
+      const newUrls = [...latestValueRef.current, url].slice(0, MAX_IMAGES)
+      latestValueRef.current = newUrls
+      onChange?.(newUrls)
+      addRecentImages(url)
+      message.success('图片上传成功')
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : '图片上传请求失败',
+      )
+    } finally {
+      handleUploadCountChange(-1)
+    }
+  }
+
   const handleUpload = (file: File) => {
     // 超出上限时直接忽略该文件（含正在上传中的数量，避免多选/连拖时超限）
     if (
@@ -90,40 +118,7 @@ export function ImageUpload({
       return Upload.LIST_IGNORE
     }
 
-    handleUploadCountChange(1)
-    const reader = new FileReader()
-    reader.onload = async (e) => {
-      const base64 = e.target?.result as string
-
-      if (latestValueRef.current.length === 0 && onFirstImageRatio) {
-        const img = new Image()
-        img.onload = () => {
-          const ratio = getClosestAspectRatio(img.width, img.height)
-          onFirstImageRatio(ratio)
-        }
-        img.src = base64
-      }
-
-      try {
-        const url = await uploadImageBase64(base64)
-        const newUrls = [...latestValueRef.current, url].slice(0, MAX_IMAGES)
-        latestValueRef.current = newUrls
-        onChange?.(newUrls)
-        addRecentImages(url)
-        message.success('图片上传成功')
-      } catch (error) {
-        message.error(
-          error instanceof Error ? error.message : '图片上传请求失败',
-        )
-      } finally {
-        handleUploadCountChange(-1)
-      }
-    }
-    reader.onerror = () => {
-      message.error('图片读取失败')
-      handleUploadCountChange(-1)
-    }
-    reader.readAsDataURL(file)
+    void uploadReferenceImage(file)
     return false
   }
 
