@@ -1,8 +1,12 @@
 import { subscribeStorageEvent } from '@/client/service/storage-events'
+import { AppThemeProvider } from '@/client/theme'
+import { InboxOutlined } from '@ant-design/icons'
 import { Modal, Spin, Tabs, message } from 'antd'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { registerImageDropTarget } from '../drop-targets'
 import { usePendingImages } from '../pendingImages'
+import { readImageBlob, uploadImageBase64 } from '../service'
 import { MAX_VISIBLE_RECENT_IMAGES, useRecentImages } from '../useRecentImages'
 import type { GalleryDeleteSuccessPayload } from './Footer'
 import { GalleryFooter } from './Footer'
@@ -22,12 +26,81 @@ interface GalleryModalProps {
 
 export type GalleryImageSelection = Pick<GalleryImageItem, 'url' | 'type'>
 
+let pendingUploadBatch = 0
+
+async function uploadPendingImages(
+  files: File[],
+  skippedCount: number,
+  refreshImages: () => void,
+) {
+  const key = `gallery-pending-upload-${++pendingUploadBatch}`
+  const skipped = `筛选跳过 ${skippedCount} 个文件`
+  if (files.length === 0) {
+    message.warning({ key, content: `没有可上传的图片，${skipped}` })
+    return
+  }
+
+  const urls: string[] = []
+  let failedCount = 0
+  let uploadError = ''
+  const uploadProgress = () =>
+    `已上传 ${urls.length}/${files.length} 张，${skipped}`
+  const failureSummary = () => (failedCount > 0 ? `，失败 ${failedCount} 张` : '')
+  const showProgress = (stage: string) =>
+    message.loading({
+      key,
+      content: `${stage} · ${uploadProgress()}${failureSummary()}`,
+      duration: 0,
+    })
+
+  showProgress('正在上传')
+  try {
+    for (const file of files) {
+      try {
+        urls.push(await uploadImageBase64(await readImageBlob(file)))
+      } catch (error) {
+        failedCount++
+        uploadError ||= error instanceof Error ? error.message : '图片上传失败'
+      }
+      showProgress('正在上传')
+    }
+
+    if (urls.length === 0) {
+      message.error({
+        key,
+        content: `${uploadProgress()}${failureSummary()}（${uploadError}）`,
+      })
+      return
+    }
+
+    showProgress('正在加入待使用')
+    const addedCount = await usePendingImages.getState().add(urls)
+    if (addedCount > 0) refreshImages()
+
+    const duplicateCount = urls.length - addedCount
+    const content = `已加入待使用 ${addedCount} 张，${skipped}，重复跳过 ${duplicateCount} 张${failureSummary()}`
+    message.open({
+      key,
+      content: uploadError ? `${content}（${uploadError}）` : content,
+      type: failedCount > 0 ? 'warning' : addedCount > 0 ? 'success' : 'info',
+    })
+  } catch (error) {
+    const reason = error instanceof Error ? `（${error.message}）` : ''
+    message.error({
+      key,
+      content: `加入待使用失败${reason} · ${uploadProgress()}${failureSummary()}`,
+    })
+  }
+}
+
 function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
   const [activeKey, setActiveKey] = useState('pending')
   const [selectedUrls, setSelectedUrls] = useState<string[]>([])
   const [selectedInputFolder, setSelectedInputFolder] = useState<string | null>(
     null,
   )
+  const [dragging, setDragging] = useState(false)
+  const [panel, setPanel] = useState<HTMLDivElement | null>(null)
   const { recentImages, removeRecentImages } = useRecentImages()
   const storedPendingUrls = usePendingImages((s) => s.urls)
   const loadPendingImages = usePendingImages((s) => s.load)
@@ -45,8 +118,20 @@ function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
     generatedImageUrls,
     unreferencedUrls,
     fetchImages,
+    refreshImages,
     resolveImageType,
   } = useGalleryImages(visible)
+
+  useLayoutEffect(() => {
+    if (!visible || !panel) return
+
+    return registerImageDropTarget({
+      element: panel,
+      setDragging,
+      dropFiles: (files, skippedCount) =>
+        void uploadPendingImages(files, skippedCount, refreshImages),
+    })
+  }, [visible, panel, refreshImages])
 
   useEffect(() => {
     if (!visible) return
@@ -75,13 +160,15 @@ function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
   }, [availableComparableUrlSet, imagesLoadSucceeded, recentImages])
 
   const pendingUrls = useMemo(
-    () =>
-      images
+    () => {
+      const pendingUrlSet = new Set(storedPendingUrls)
+      return images
         .filter(
           (image) =>
-            image.type === 'input' && storedPendingUrls.includes(image.url),
+            image.type === 'input' && pendingUrlSet.has(image.url),
         )
-        .map((image) => image.url),
+        .map((image) => image.url)
+    },
     [images, storedPendingUrls],
   )
   const pendingTabVisible =
@@ -175,6 +262,7 @@ function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
     <Modal
       title="选择图片"
       open={visible}
+      panelRef={setPanel}
       onCancel={onClose}
       footer={
         referencesReady ? (
@@ -192,6 +280,17 @@ function GalleryModal({ visible, onClose, onSelect }: GalleryModalProps) {
       width={800}
       destroyOnHidden
     >
+      {dragging && (
+        <div className="pointer-events-none absolute inset-0 z-30 grid place-items-center rounded-lg bg-white/70">
+          <div
+            className="app-accent-outline flex items-center gap-3 rounded-lg border border-dashed bg-white px-5 py-4 text-base font-medium shadow-sm"
+            role="status"
+          >
+            <InboxOutlined className="app-accent-text text-2xl" />
+            松开鼠标，将图片加入待使用
+          </div>
+        </div>
+      )}
       <Tabs
         activeKey={currentActiveKey}
         onChange={setActiveKey}
@@ -300,14 +399,20 @@ export function openGallery(options: {
   document.body.appendChild(container)
   const root = createRoot(container)
 
-  const handleClose = () => {
+  const renderGallery = (visible: boolean) => {
     root.render(
-      <GalleryModal
-        visible={false}
-        onClose={destroy}
-        onSelect={options.onSelect}
-      />,
+      <AppThemeProvider>
+        <GalleryModal
+          visible={visible}
+          onClose={visible ? handleClose : destroy}
+          onSelect={options.onSelect}
+        />
+      </AppThemeProvider>,
     )
+  }
+
+  const handleClose = () => {
+    renderGallery(false)
     setTimeout(destroy, 300)
   }
 
@@ -318,11 +423,5 @@ export function openGallery(options: {
     }
   }
 
-  root.render(
-    <GalleryModal
-      visible={true}
-      onClose={handleClose}
-      onSelect={options.onSelect}
-    />,
-  )
+  renderGallery(true)
 }

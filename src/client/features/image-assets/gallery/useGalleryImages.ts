@@ -192,6 +192,7 @@ export function useGalleryImages(visible: boolean) {
     generatedImageUrls,
     unreferencedUrls,
     fetchImages,
+    refreshImages: galleryCache.invalidate,
     resolveImageType,
   }
 }

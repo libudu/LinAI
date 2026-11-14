@@ -22,14 +22,16 @@ const mutatePending = async (
   build: (
     snapshot: CollectionListResult<PendingImage>,
   ) => CollectionBatchOperation<PendingImage>[],
-): Promise<CollectionListResult<PendingImage>> => {
+) => {
   let conflicts = 0
+  let changedCount = 0
   while (true) {
     const snapshot = await client.list()
     const operations = build(snapshot).slice(0, 500)
-    if (operations.length === 0) return snapshot
+    if (operations.length === 0) return { snapshot, changedCount }
     try {
       await client.batch(operations, snapshot.revision)
+      changedCount += operations.length
       conflicts = 0
     } catch (error) {
       if (
@@ -58,7 +60,7 @@ interface PendingImagesState {
   urls: string[]
   loaded: boolean
   load: () => Promise<void>
-  add: (url: string) => Promise<void>
+  add: (urls: string | string[]) => Promise<number>
   remove: (urls: string[]) => Promise<void>
 }
 
@@ -87,21 +89,28 @@ export const usePendingImages = create<PendingImagesState>()((set) => {
       enqueue(async () => {
         apply(await client.list())
       }),
-    add: (url) =>
+    add: (urls) =>
       enqueue(async () => {
-        if (!isInputUrl(url)) throw new Error('无效的输入图片地址')
-        const snapshot = await mutatePending(({ items }) =>
-          items.some((item) => item.value.url === url)
-            ? []
-            : [{ type: 'create', id: imageId(url), value: { url } }],
-        )
+        const requestedUrls = [
+          ...new Set(typeof urls === 'string' ? [urls] : urls),
+        ]
+        if (requestedUrls.some((url) => !isInputUrl(url))) {
+          throw new Error('无效的输入图片地址')
+        }
+        const { snapshot, changedCount } = await mutatePending(({ items }) => {
+          const existingUrls = new Set(items.map((item) => item.value.url))
+          return requestedUrls
+            .filter((url) => !existingUrls.has(url))
+            .map((url) => ({ type: 'create', id: imageId(url), value: { url } }))
+        })
         apply(snapshot)
+        return changedCount
       }),
     remove: (urls) =>
       enqueue(async () => {
         if (urls.length === 0) return
         const target = new Set(urls)
-        const snapshot = await mutatePending(({ items }) =>
+        const { snapshot } = await mutatePending(({ items }) =>
           items
             .filter((item) => target.has(item.value.url))
             .map((item) => ({ type: 'delete' as const, id: item.id })),
