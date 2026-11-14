@@ -31,41 +31,41 @@ export function ContextMenu({
   children: ReactElement<TriggerProps>
 }) {
   const handlers = useLongPressContextMenu(disabled)
+  // 禁用菜单时保留子元素的交互，避免 Dropdown 将 disabled 传给按钮。
+  if (disabled) return children
+
   const childProps = children.props
-  const trigger = disabled
-    ? children
-    : cloneElement(children, {
-        'data-context-menu-trigger': '',
-        onContextMenu: (event) => {
-          childProps.onContextMenu?.(event)
-          event.stopPropagation()
-        },
-        onTouchStartCapture: composeHandlers(
-          handlers.onTouchStartCapture,
-          childProps.onTouchStartCapture,
-        ),
-        onTouchMoveCapture: composeHandlers(
-          handlers.onTouchMoveCapture,
-          childProps.onTouchMoveCapture,
-        ),
-        onTouchEndCapture: composeHandlers(
-          handlers.onTouchEndCapture,
-          childProps.onTouchEndCapture,
-        ),
-        onTouchCancelCapture: composeHandlers(
-          handlers.onTouchCancelCapture,
-          childProps.onTouchCancelCapture,
-        ),
-        onClickCapture: composeHandlers(
-          handlers.onClickCapture,
-          childProps.onClickCapture,
-        ),
-      })
+  const trigger = cloneElement(children, {
+    'data-context-menu-trigger': '',
+    onContextMenu: (event) => {
+      childProps.onContextMenu?.(event)
+      event.stopPropagation()
+    },
+    onTouchStartCapture: composeHandlers(
+      handlers.onTouchStartCapture,
+      childProps.onTouchStartCapture,
+    ),
+    onTouchMoveCapture: composeHandlers(
+      handlers.onTouchMoveCapture,
+      childProps.onTouchMoveCapture,
+    ),
+    onTouchEndCapture: composeHandlers(
+      handlers.onTouchEndCapture,
+      childProps.onTouchEndCapture,
+    ),
+    onTouchCancelCapture: composeHandlers(
+      handlers.onTouchCancelCapture,
+      childProps.onTouchCancelCapture,
+    ),
+    onClickCapture: composeHandlers(
+      handlers.onClickCapture,
+      childProps.onClickCapture,
+    ),
+  })
 
   return (
     <Dropdown
       {...props}
-      disabled={disabled}
       trigger={['contextMenu']}
       popupRender={(node) => (
         // Portal 中的点击仍会沿 React 树冒泡，可能误选中树节点或图片。
